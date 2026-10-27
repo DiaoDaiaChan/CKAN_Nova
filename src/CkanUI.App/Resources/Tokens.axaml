@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:app="using:CkanUI.App">
 
   <!--
     THM-01 语义 token 基线（20 篇 §2 八组资源字典，第一批落地配色/间距/圆角/字号四组）。
@@ -44,7 +45,7 @@
 
     <!-- 高对比度：THM-10 要求高对比度强制压过一切，只保留纯黑/纯白 + 高对比黄。
          本字典的值不允许被主题包覆盖（ThemeGuard 在 THM-08 落地时校验）。 -->
-    <ResourceDictionary x:Key="HighContrast">
+    <ResourceDictionary x:Key="{x:Static app:ThemeHost.HighContrastVariant}">
       <SolidColorBrush x:Key="CkanSidebarBackgroundBrush" Color="#000000" />
       <SolidColorBrush x:Key="CkanSurfaceBackgroundBrush" Color="#000000" />
       <SolidColorBrush x:Key="CkanStatusBarBackgroundBrush" Color="#000000" />

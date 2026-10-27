@@ -19,9 +19,13 @@ public static class Program
     public static void Main(string[] args)
     {
         // ①：日志最先就位，否则后面的失败都看不到原因（02 篇 §1）。
+        EnsureConfigFileWritable();
         LoggingSetup.Initialize();
         InstallCrashHandlers();
         Log.Info("CKAN UI 启动。");
+
+        // 若默认配置目录不可写（如沙箱环境），重定向到 AppContext.BaseDirectory/config.json
+        EnsureConfigFileWritable();
 
         // ARC-05：第二个实例只做转发，然后把参数交给第一个实例。
         using var guard = SingleInstanceGuard.TryAcquire(AppId);
@@ -108,4 +112,27 @@ public static class Program
                   .UsePlatformDetect()
                   .WithInterFont()
                   .LogToTrace();
+
+    private static void EnsureConfigFileWritable()
+    {
+        try
+        {
+            var defaultFile = Environment.GetEnvironmentVariable("CKAN_CONFIG_FILE")
+                ?? System.IO.Path.Combine(CKAN.IO.CKANPathUtils.AppDataPath, "config.json");
+            var dir = System.IO.Path.GetDirectoryName(defaultFile);
+            if (!string.IsNullOrEmpty(dir))
+            {
+                System.IO.Directory.CreateDirectory(dir);
+            }
+
+            // 测试能否以读写方式打开/创建
+            using var fs = System.IO.File.Open(defaultFile, System.IO.FileMode.OpenOrCreate, System.IO.FileAccess.ReadWrite, System.IO.FileShare.ReadWrite);
+        }
+        catch (Exception ex)
+        {
+            var fallback = System.IO.Path.Combine(AppContext.BaseDirectory, "config.json");
+            Environment.SetEnvironmentVariable("CKAN_CONFIG_FILE", fallback);
+            Log.Warn($"默认配置路径不可写 ({ex.Message})，重定向 CKAN_CONFIG_FILE 至: {fallback}");
+        }
+    }
 }

@@ -24,10 +24,10 @@
           BoxShadow="0 4 12 0 #33000000">
 
     <Border.Background>
-      <SolidColorBrush Color="{DynamicResource CkanSurfaceBackgroundBrush}" />
+      <DynamicResource ResourceKey="CkanSurfaceBackgroundBrush" />
     </Border.Background>
     <Border.BorderBrush>
-      <SolidColorBrush Color="{DynamicResource CkanBorderBrush}" />
+      <DynamicResource ResourceKey="CkanBorderBrush" />
     </Border.BorderBrush>
 
     <StackPanel Spacing="8">
@@ -80,7 +80,7 @@
                         CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                         BorderThickness="1">
                   <Border.BorderBrush>
-                    <SolidColorBrush Color="{DynamicResource CkanBorderBrush}" />
+                    <DynamicResource ResourceKey="CkanBorderBrush" />
                   </Border.BorderBrush>
 
                   <StackPanel Spacing="4">
@@ -96,7 +96,7 @@
                                 CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                                 VerticalAlignment="Center">
                           <Border.Background>
-                            <SolidColorBrush Color="{DynamicResource CkanSidebarBackgroundBrush}" />
+                            <DynamicResource ResourceKey="CkanSidebarBackgroundBrush" />
                           </Border.Background>
                           <TextBlock Text="{Binding KindText}"
                                      FontSize="{DynamicResource CkanFontSizeCaption}"
