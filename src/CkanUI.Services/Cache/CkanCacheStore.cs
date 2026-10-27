@@ -62,6 +62,20 @@ internal sealed class CkanCacheStore : ICacheStore
     public long? SizeLimitBytes => _instances.Configuration.CacheSizeLimit;
 
     /// <inheritdoc />
+    public bool SetSizeLimitBytes(long? limitBytes)
+    {
+        try
+        {
+            _instances.Configuration.CacheSizeLimit = limitBytes is { } limit && limit > 0 ? limit : null;
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
     public IReadOnlyList<CacheFileFact> ListEntries()
     {
         if (CacheDirectory is not { } dir || !Directory.Exists(dir))

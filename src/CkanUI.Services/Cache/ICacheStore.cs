@@ -46,4 +46,7 @@ public interface ICacheStore
     /// 校验不过或识别不出模块时返回失败（含中文原因）。
     /// </summary>
     OperationResult<CacheFileFact> Import(string sourceZipPath, CancellationToken ct);
+
+    /// <summary>设置缓存容量上限（字节）；<c>null</c> 或 <c>&lt;= 0</c> 表示不限制。</summary>
+    bool SetSizeLimitBytes(long? limitBytes);
 }

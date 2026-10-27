@@ -1,0 +1,143 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.DownloadErrorsDialogView"
+                       x:DataType="vm:DownloadErrorsDialogViewModel"
+                       Title="{Binding Title}"
+                       Width="720"
+                       Height="540">
+  <Grid Margin="{DynamicResource CkanPagePadding}" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="10">
+    <!-- 顶部说明 -->
+    <TextBlock Grid.Row="0"
+               Text="{Binding HeaderMessage}"
+               FontWeight="SemiBold"
+               FontSize="{DynamicResource CkanFontSizeBody}"
+               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+
+    <!-- 摘要与复制按钮栏 -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+      <TextBlock Grid.Column="0"
+                 VerticalAlignment="Center"
+                 Text="{Binding SummaryText}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+      <Button Grid.Column="1"
+              Content="复制全部错误信息"
+              Command="{Binding CopyErrorsCommand}"
+              FontSize="{DynamicResource CkanFontSizeCaption}"
+              HorizontalContentAlignment="Center" />
+    </Grid>
+
+    <!-- 错误条目列表 -->
+    <Border Grid.Row="2"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+      <ListBox ItemsSource="{Binding Items}"
+               Background="Transparent"
+               BorderThickness="0">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:DownloadErrorItemViewModel">
+            <Border BorderBrush="{DynamicResource CkanBorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="10,8">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <!-- 左侧详情 -->
+                <StackPanel Grid.Column="0" Spacing="4">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding ModName}"
+                               FontWeight="SemiBold"
+                               FontSize="{DynamicResource CkanFontSizeBody}"
+                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                    <TextBlock Text="{Binding FileName}"
+                               Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                               FontSize="{DynamicResource CkanFontSizeCaption}"
+                               VerticalAlignment="Center" />
+                  </StackPanel>
+
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <!-- 分类标签 -->
+                    <Border Background="{DynamicResource CkanSidebarBackgroundBrush}"
+                            BorderBrush="{DynamicResource CkanBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                            Padding="6,2">
+                      <TextBlock Text="{Binding Category}"
+                                 Foreground="{DynamicResource CkanDangerBrush}"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+                    </Border>
+                    <!-- 建议操作 -->
+                    <TextBlock Text="{Binding SuggestedAction}"
+                               Foreground="{DynamicResource CkanWarningBrush}"
+                               FontSize="{DynamicResource CkanFontSizeCaption}"
+                               VerticalAlignment="Center" />
+                  </StackPanel>
+
+                  <!-- 详细错误/URL（若有） -->
+                  <TextBlock Text="{Binding ErrorMessage}"
+                             IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                             TextWrapping="Wrap"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                             FontSize="{DynamicResource CkanFontSizeCaption}" />
+                </StackPanel>
+
+                <!-- 右侧逐项处置 RadioButtons -->
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="12"
+                            VerticalAlignment="Center">
+                  <RadioButton Content="重试"
+                               IsChecked="{Binding IsRetry, Mode=TwoWay}"
+                               GroupName="{Binding FileName}" />
+                  <RadioButton Content="跳过"
+                               IsChecked="{Binding IsSkip, Mode=TwoWay}"
+                               GroupName="{Binding FileName}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <!-- 复制状态提示 / 校验错误 -->
+    <StackPanel Grid.Row="3" Spacing="4">
+      <TextBlock Text="{Binding CopyStatus}"
+                 IsVisible="{Binding HasCopyStatus}"
+                 Foreground="{DynamicResource CkanSuccessBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+      <TextBlock Text="{Binding ValidationError}"
+                 IsVisible="{Binding HasValidationError}"
+                 Foreground="{DynamicResource CkanDangerBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+    </StackPanel>
+
+    <!-- 底部按钮栏 -->
+    <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto">
+      <Button Grid.Column="0"
+              Content="按所选继续"
+              Command="{Binding ConfirmCustomCommand}"
+              MinWidth="100"
+              HorizontalContentAlignment="Center" />
+
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+        <Button Content="{Binding PrimaryButtonText}"
+                Command="{Binding RetryAllCommand}"
+                Classes="accent"
+                MinWidth="100"
+                HorizontalContentAlignment="Center" />
+        <Button Content="跳过失败项继续"
+                Command="{Binding SkipFailedCommand}"
+                MinWidth="120"
+                HorizontalContentAlignment="Center" />
+        <Button Content="{Binding SecondaryButtonText}"
+                Command="{Binding SecondaryCommand}"
+                IsCancel="True"
+                MinWidth="80"
+                HorizontalContentAlignment="Center" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</dialogs:DialogWindow>

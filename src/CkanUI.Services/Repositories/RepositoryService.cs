@@ -81,7 +81,10 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
             return OperationResult<RepositorySnapshot>.Ok(Publish(BuildSnapshot(instance, fromCache: true)));
         });
 
-    public Task<OperationResult<RepositorySnapshot>> RefreshAsync(CancellationToken ct = default) =>
+    public Task<OperationResult<RepositorySnapshot>> RefreshAsync(CancellationToken ct = default)
+        => RefreshAsync(skipETags: false, ct);
+
+    public Task<OperationResult<RepositorySnapshot>> RefreshAsync(bool skipETags, CancellationToken ct = default) =>
         GuardAsync(async () =>
         {
             ct.ThrowIfCancellationRequested();
@@ -95,10 +98,10 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
 
             try
             {
-                ReportProgress("正在检查仓库索引…", 0, OperationState.Running);
+                ReportProgress(skipETags ? "正在强制重新下载仓库索引（跳过 ETag）…" : "正在检查仓库索引…", 0, OperationState.Running);
                 var repositories = RepositoriesOf(instance);
                 var downloader = new NetAsyncDownloader(_user, () => null);
-                var result = _repositoryData.Update(repositories, instance.Game, skipETags: false,
+                var result = _repositoryData.Update(repositories, instance.Game, skipETags: skipETags,
                     downloader, _user);
                 Log.Info($"仓库索引刷新结果：{result}");
                 var snapshot = Publish(BuildSnapshot(instance, fromCache: false));

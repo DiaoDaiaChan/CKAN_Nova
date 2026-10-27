@@ -36,7 +36,7 @@ public sealed class CacheService : ICacheService
             var entries = _store.ListEntries();
             var total = entries.Sum(entry => entry.SizeBytes);
             return Task.FromResult(OperationResult<CacheSnapshot>.Ok(
-                new CacheSnapshot(entries.Count, total, _store.SizeLimitBytes)));
+                new CacheSnapshot(entries.Count, total, _store.SizeLimitBytes, _store.CacheDirectory)));
         }
         catch (Exception ex)
         {
@@ -148,6 +148,41 @@ public sealed class CacheService : ICacheService
         {
             return Task.FromResult(OperationResult.Fail(
                 "删除缓存条目失败。", ex.ToString(), retryable: true));
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<OperationResult<string?>> GetCacheDirectoryAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            var dir = _store.CacheDirectory;
+            return Task.FromResult(OperationResult<string?>.Ok(dir));
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(OperationResult<string?>.Fail(
+                "获取下载缓存目录失败。", ex.ToString(), retryable: true));
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<OperationResult> SetSizeLimitBytesAsync(long? limitBytes, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            var normalized = limitBytes is { } limit && limit > 0 ? limit : (long?)null;
+            var success = _store.SetSizeLimitBytes(normalized);
+            return Task.FromResult(success
+                ? OperationResult.Ok()
+                : OperationResult.Fail("设置下载缓存上限失败。", "存储层未能保存容量上限配置。", retryable: true));
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(OperationResult.Fail(
+                "设置下载缓存上限失败。", ex.ToString(), retryable: true));
         }
     }
 

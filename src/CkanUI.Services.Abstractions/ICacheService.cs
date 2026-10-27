@@ -7,7 +7,8 @@ namespace CkanUI.Services.Abstractions;
 /// <param name="TotalBytes">全部条目字节合计。</param>
 /// <param name="SizeLimitBytes">容量上限字节；<c>null</c> 表示「不限」。</param>
 /// <remarks>上限语义与 CKAN 一致（<c>Core/Configuration/IConfiguration.cs:23</c>）：<c>null</c> 或 <c>&lt;= 0</c> 都视为不限制。</remarks>
-public sealed record CacheSnapshot(int EntryCount, long TotalBytes, long? SizeLimitBytes)
+/// <param name="CacheDirectory">缓存目录绝对路径；没有可用目录时为 <c>null</c>。</param>
+public sealed record CacheSnapshot(int EntryCount, long TotalBytes, long? SizeLimitBytes, string? CacheDirectory = null)
 {
     /// <summary>是否设置了有效的容量上限。</summary>
     public bool HasLimit => SizeLimitBytes is { } limit && limit > 0;
@@ -135,5 +136,19 @@ public interface ICacheService
         => Task.FromResult(OperationResult.Fail(
             "当前实现未提供删除下载缓存条目的能力。",
             "ICacheService.DeleteEntryAsync 的默认实现（契约决策 §12 #9）。",
+            retryable: false));
+
+    /// <summary>获取缓存目录的绝对路径；没有可用目录时返回 null。</summary>
+    Task<OperationResult<string?>> GetCacheDirectoryAsync(CancellationToken ct = default)
+        => Task.FromResult(OperationResult<string?>.Fail(
+            "当前实现未提供获取下载缓存目录的能力。",
+            "ICacheService.GetCacheDirectoryAsync 的默认实现（契约决策 §12 #9）。",
+            retryable: false));
+
+    /// <summary>设置或重置缓存容量上限（字节）；<c>null</c> 或 <c>&lt;= 0</c> 表示不限制。</summary>
+    Task<OperationResult> SetSizeLimitBytesAsync(long? limitBytes, CancellationToken ct = default)
+        => Task.FromResult(OperationResult.Fail(
+            "当前实现未提供设置下载缓存上限的能力。",
+            "ICacheService.SetSizeLimitBytesAsync 的默认实现（契约决策 §12 #9）。",
             retryable: false));
 }
