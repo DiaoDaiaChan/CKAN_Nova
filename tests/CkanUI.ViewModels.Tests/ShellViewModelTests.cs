@@ -19,13 +19,23 @@ public sealed class ShellViewModelTests
     }
 
     [Test]
-    public void NavItems_HasThreeConfiguredItems()
+    public void NavItems_HasFiveConfiguredItems()
     {
         var vm = new ShellViewModel();
-        Assert.That(vm.NavItems.Count, Is.EqualTo(3));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(5));
         Assert.That(vm.NavItems[0].Key, Is.EqualTo("mods"));
-        Assert.That(vm.NavItems[1].Key, Is.EqualTo("instances"));
-        Assert.That(vm.NavItems[2].Key, Is.EqualTo("settings"));
+        Assert.That(vm.NavItems[1].Key, Is.EqualTo("changes"));
+        Assert.That(vm.NavItems[2].Key, Is.EqualTo("repos"));
+        Assert.That(vm.NavItems[3].Key, Is.EqualTo("instances"));
+        Assert.That(vm.NavItems[4].Key, Is.EqualTo("settings"));
+    }
+
+    [Test]
+    public void NavItems_TitlesComeFromTranslationDelegate()
+    {
+        var vm = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key);
+        Assert.That(vm.NavItems[1].Title, Is.EqualTo("T:Ui_NavRail_Changes"));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(5));
     }
 
     [Test]

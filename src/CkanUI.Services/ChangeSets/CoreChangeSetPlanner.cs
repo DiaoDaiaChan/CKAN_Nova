@@ -4,8 +4,12 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using CKAN;
+using CKAN.Configuration;
+using CKAN.IO;
+using CKAN.Versioning;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanRegistry = CKAN.Registry;
 
 namespace CkanUI.Services.ChangeSets;
 
@@ -168,7 +172,7 @@ public sealed class CoreChangeSetPlanner : IChangeSetPlanner
     }
 
     /// <summary>读取全部仓库的可用模组索引，按标识合并成一个字典（同名仓库合并为 AvailableModule）。</summary>
-    private Dictionary<string, AvailableModule> LoadAvailable(Registry registry)
+    private Dictionary<string, AvailableModule> LoadAvailable(CkanRegistry registry)
     {
         var result = new Dictionary<string, AvailableModule>(StringComparer.Ordinal);
         foreach (var dict in _repositoryData.GetAllAvailDicts(registry.Repositories.Values))
@@ -247,7 +251,7 @@ public sealed class CoreChangeSetPlanner : IChangeSetPlanner
     /// <summary>用 Core 的推荐项算法补充推荐（可能很重，失败一律降级为提示）。</summary>
     private static void AddRecommendations(
         GameInstance instance,
-        Registry registry,
+        CkanRegistry registry,
         RelationshipResolver resolver,
         IReadOnlyCollection<CkanModule> toInstall,
         IReadOnlyCollection<CkanModule> toRemove,

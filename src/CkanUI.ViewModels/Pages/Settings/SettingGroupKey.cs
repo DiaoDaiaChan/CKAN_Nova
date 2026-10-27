@@ -24,6 +24,9 @@ public enum SettingGroupKey
     /// <summary>外观：主题、语言、密度；只写 ckan-ui.json（20 篇 P-01/P-08）。</summary>
     Appearance,
 
-    /// <summary>高级：安装过滤器等直接面向配置值的项（F-16）。</summary>
+    /// <summary>兼容性：稳定版容差（实例级文件）与按游戏的全局安装过滤器（F-14/F-16）。</summary>
+    Compatibility,
+
+    /// <summary>高级：诊断信息与直接面向配置值的项（F-16）。</summary>
     Advanced,
 }

@@ -8,4 +8,10 @@ public enum SettingPersistence
 
     /// <summary>写入 UI 自有的 ckan-ui.json（<c>IUiSettingsStore.Save</c>，外观类设置不进 Core 配置）。</summary>
     UiSettings,
+
+    /// <summary>
+    /// 写入实例级文件（如 <c>&lt;实例目录&gt;/CKAN/stability_tolerance.json</c>）：
+    /// 既不是 Core 的 config.json，也不是 ckan-ui.json，由页面按文件契约直接读写。
+    /// </summary>
+    InstanceFile,
 }

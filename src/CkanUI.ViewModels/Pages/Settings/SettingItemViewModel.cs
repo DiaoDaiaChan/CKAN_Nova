@@ -94,8 +94,9 @@ public sealed partial class SettingItemViewModel : ObservableObject
     /// <summary>是否有提示文案。</summary>
     public bool HasHint => HintText is not null;
 
-    /// <summary>单选候选。</summary>
-    public IReadOnlyList<SettingChoice> Choices { get; }
+    /// <summary>单选候选；实例下拉等场景要到加载后才知道候选，故可通知替换。</summary>
+    [ObservableProperty]
+    private IReadOnlyList<SettingChoice> _choices = Array.Empty<SettingChoice>();
 
     /// <summary>整数下限。</summary>
     public long? Min { get; }
@@ -105,6 +106,12 @@ public sealed partial class SettingItemViewModel : ObservableObject
 
     /// <summary>视图是否用文本框（含多行列表）。</summary>
     public bool IsTextKind => Kind is SettingItemKind.Text or SettingItemKind.Path or SettingItemKind.Integer or SettingItemKind.LineList;
+
+    /// <summary>
+    /// 视图是否用单行文本框：只有文本类且不是列表形态才走单行；
+    /// 布尔/下拉项虽然也「不是多行」，但它们各自有复选框与下拉框，不能同时露一个空文本框。
+    /// </summary>
+    public bool IsSingleLine => IsTextKind && !IsMultiline;
 
     /// <summary>视图是否用复选框。</summary>
     public bool IsBooleanKind => Kind == SettingItemKind.Boolean;
@@ -138,8 +145,21 @@ public sealed partial class SettingItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSaving;
 
+    /// <summary>是否可编辑；依赖当前实例的项（如稳定版容差）在拿不到实例时置 false。</summary>
+    [ObservableProperty]
+    private bool _isEnabled = true;
+
     /// <summary>保存命令（由页面注入的委托执行）。</summary>
     public IAsyncRelayCommand SaveCommand { get; }
+
+    /// <summary>行内辅助动作的文案（例如「打开目录」）；没有辅助动作时为 null。</summary>
+    public string? AuxiliaryLabel { get; private set; }
+
+    /// <summary>行内辅助动作的命令（例如打开缓存目录）；没有时为 null。</summary>
+    public IAsyncRelayCommand? AuxiliaryCommand { get; private set; }
+
+    /// <summary>是否有行内辅助动作。</summary>
+    public bool HasAuxiliaryAction => AuxiliaryCommand is not null;
 
     /// <summary>是否有未保存修改。</summary>
     public bool IsDirty => !string.Equals(EditValue, SavedValue, StringComparison.Ordinal);
@@ -183,6 +203,29 @@ public sealed partial class SettingItemViewModel : ObservableObject
                 EditValue = value.Value;
             }
         }
+    }
+
+    /// <summary>替换单选候选（实例列表启动后才拿得到，故候选要能在加载时更新）。</summary>
+    /// <param name="choices">新的候选列表。</param>
+    public void SetChoices(IReadOnlyList<SettingChoice> choices)
+    {
+        ArgumentNullException.ThrowIfNull(choices);
+
+        Choices = choices;
+        OnPropertyChanged(nameof(Choices));
+        OnPropertyChanged(nameof(SelectedChoice));
+    }
+
+    /// <summary>挂上（或清掉）行内辅助动作。</summary>
+    /// <param name="label">按钮文案。</param>
+    /// <param name="command">命令；null 表示不显示按钮。</param>
+    public void SetAuxiliaryAction(string? label, IAsyncRelayCommand? command)
+    {
+        AuxiliaryLabel = command is null ? null : label;
+        AuxiliaryCommand = command;
+        OnPropertyChanged(nameof(AuxiliaryLabel));
+        OnPropertyChanged(nameof(AuxiliaryCommand));
+        OnPropertyChanged(nameof(HasAuxiliaryAction));
     }
 
     /// <summary>按当前 kind 重新校验，返回是否不合法。</summary>

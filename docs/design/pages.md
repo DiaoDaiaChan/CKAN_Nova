@@ -196,6 +196,34 @@
 
 ---
 
+### 2.6 仓库管理页 (ReposPageViewModel)
+
+**对应规格**：03 篇 §6 / 06 篇 UI-06·VM-06 / 12 篇 F-10·F-12。
+
+**职责**：展示当前实例的元数据仓库列表，并提供增删、上下移（优先级）、单仓库刷新与恢复官方默认。所有 Core 事务都封在 `IRepositoryStore` 后面（`RegistryRepositoryStore` 是唯一碰 `Registry.RepositoriesSet` 与网络的实现），页面 VM 只跟 `IRepositoryService` 的 8 个增量成员打交道。
+
+**关键成员**：
+
+| 成员 | 类型 | 说明 |
+|---|---|---|
+| `Repositories` | `IReadOnlyList<RepositoryRowViewModel>` | 按 priority 升序投影的行 |
+| `LoadRepositoriesCommand` | `IAsyncRelayCommand` | 读快照（无实例时返回空列表且不报错） |
+| `BeginAddCommand` / `BeginEditCommand` | `IRelayCommand` | 打开页内联表单（`RepositoryFormViewModel`） |
+| `RemoveCommand` / `MoveUpCommand` / `MoveDownCommand` | `IRelayCommand<RepositoryRowViewModel>` | 增删与优先级调整；删除最后一个仓库会被拒绝 |
+| `RefreshOneCommand` | `IAsyncRelayCommand<RepositoryRowViewModel>` | 只刷该仓库；失败只给该行打 `HasFailure` 标记 |
+| `RestoreDefaultsCommand` | `IAsyncRelayCommand` | 用 `RepositoryList.DefaultRepositories` 整体替换 |
+
+**语义约定**（与服务层一致，逐条有单测）：
+- 名称空 / 地址空 / 非 http(s) / 重名（忽略大小写）/ 地址重复 / 找不到 / 删除最后一个 → 失败且**不写盘**，`Retryable=false`。
+- 官方默认列表取不到 → `Retryable=true`（可换网络后重试）。
+- 写注册表异常 → `Retryable=true`，文案「保存仓库列表失败，修改未生效。」。
+- 上下移越界或 `delta==0` → 成功且不写盘（按钮已禁用，无副作用）。
+- 变更后经 `IRepositoryService.RepositoriesChanged`（`IDispatcher.Post` 封送）通知，模组页据此重载索引。
+
+**为什么没有「启用/禁用」开关**：CKAN 的 `Repository` 只有 `name`/`uri`/`priority`，没有 enabled 字段；启用状态由「是否在列表里 + 优先级」表达，不另造字段。
+
+---
+
 ## 3. 对话框实现说明
 
 全部对话框继承自 `DialogViewModelBase`，并通过 `IDialogService` 在 UI 线程上弹窗呈现，解耦 Core 后台线程与 UI 窗口生命周期。
@@ -245,10 +273,11 @@
 | 视图/对话框名称 | 对应 VM 类 | 实现状态 | 规格条目 | 数据源服务接口 | 核心 DTO |
 |---|---|---|---|---|---|
 | 模组管理页 | `ModsPageViewModel` | ✅ 已实现 | 03 篇 §3 / UI-02, UI-03 | `IRepositoryService`, `IRegistryService`, `IInstanceService` | `ModRowData`, `RegistrySnapshot`, `RepositorySnapshot` |
-| 变更集确认页 | `ChangesPageViewModel` | 🚧 待落地 | 03 篇 §4 / UI-04 | `IChangeSetService`, `IInstallerService`, `IOperationQueue` | `ChangeSetPreview`, `ChangeItemDto`, `OperationProgress` |
-| 实例管理页 | `InstancesPageViewModel` | 🚧 待落地 (当前占位) | 03 篇 §5 / UI-05 | `IInstanceService`, `IDialogService` | `InstanceInfo` |
+| 变更集确认页 | `ChangesPageViewModel` | ✅ 已实现 | 03 篇 §4 / UI-04 | `IChangeSetService`, `IInstallerService`, `IOperationQueue` | `ChangeSetPreview`, `ChangeItemDto`, `OperationProgress` |
+| 仓库管理页 | `ReposPageViewModel` | ✅ 已实现 | 03 篇 §6 / UI-06 | `IRepositoryService`, `IDialogService` | `RepositoryEntryInfo`, `RepositoryEditRequest` |
+| 实例管理页 | `InstancesPageViewModel` | ✅ 已实现（重命名/启动命令选择待契约扩展） | 03 篇 §5 / UI-05 | `IInstanceService`, `IDialogService` | `InstanceInfo` |
 | 设置页 | `SettingsPageViewModel` | ✅ 已实现 | 03 篇 §7 / UI-07 | `ISettingsService`, `IUiSettingsStore` | `UiSettings`, `SettingItemViewModel` |
-| 操作队列浮层 | `OperationQueueViewModel` | 🚧 待落地 | 03 篇 §1, §8 / UI-08 | `IOperationQueue` | `OperationProgress` |
+| 操作队列浮层 | `OperationQueueViewModel` | ✅ 已实现 | 03 篇 §1, §8 / UI-08 | `IOperationQueue` | `OperationProgress` |
 | 确认对话框 | `ConfirmDialogViewModel` | ✅ 已实现 | 03 篇 §8 (D-01) / UI-09 | `IDialogService` (通过 `IUser.RaiseYesNoDialog`) | 字符串标量 |
 | 单选对话框 | `SelectDialogViewModel` | ✅ 已实现 | 03 篇 §8 (D-02) / UI-09 | `IDialogService` (通过 `IUser.RaiseSelectionDialog`) | `IReadOnlyList<string>` |
 | 错误对话框 | `ErrorDialogViewModel` | ✅ 已实现 | 03 篇 §8 (D-03) / UI-09 | `IErrorReporter` / `IUser.RaiseError` | `ErrorEntry` |

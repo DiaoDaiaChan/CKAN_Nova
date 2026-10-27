@@ -3,6 +3,12 @@
              x:Class="CkanUI.App.Views.ModsPageView"
              x:CompileBindings="False"
              KeyDown="OnRootKeyDown">
+
+  <!-- DataGrid 主题：App.axaml 没有全局包含，这里在本视图内单独引入（DataGrid 目前仅本页使用）。 -->
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+  </UserControl.Styles>
+
   <Grid RowDefinitions="Auto,*,Auto" Margin="12">
 
     <!-- 工具条（03 篇 §3.1）：搜索、过滤下拉、排序、刷新、应用 -->
@@ -58,69 +64,78 @@
     <!-- 主体：左列表 + 右详情（03 篇 §3.1） -->
     <Grid Grid.Row="1" ColumnDefinitions="*,4,360" Margin="0,8,0,0">
 
-      <Grid Grid.Column="0" RowDefinitions="Auto,*">
-        <!-- 列头（03 篇 §3.2） -->
-        <Border Grid.Row="0" Padding="6,4" Background="{DynamicResource SystemControlBackgroundListLowBrush}">
-          <Grid ColumnDefinitions="3,28,*,86,86,140,80,200,70">
-            <TextBlock Grid.Column="1" Text="选" FontSize="12" Opacity="0.7" />
-            <TextBlock Grid.Column="2" Text="名称" FontSize="12" Opacity="0.7" />
-            <TextBlock Grid.Column="3" Text="已装" FontSize="12" Opacity="0.7" />
-            <TextBlock Grid.Column="4" Text="最新" FontSize="12" Opacity="0.7" />
-            <TextBlock Grid.Column="5" Text="作者" FontSize="12" Opacity="0.7" />
-            <TextBlock Grid.Column="6" Text="下载量" FontSize="12" Opacity="0.7" HorizontalAlignment="Right" />
-            <TextBlock Grid.Column="7" Text="标签" FontSize="12" Opacity="0.7" />
-            <TextBlock Grid.Column="8" Text="大小" FontSize="12" Opacity="0.7" HorizontalAlignment="Right" />
-          </Grid>
-        </Border>
+      <Grid Grid.Column="0">
+        <!-- 虚拟化表格（03 篇 §3.2 / UI-02）：DataGrid 自带 VirtualizingStackPanel，3,000 行只实体化可见行；
+             列头可拖拽改宽，列宽由 ModsPageViewModel 记忆（键见 DefaultColumnWidths）。 -->
+        <DataGrid x:Name="ModsGrid"
+                  ItemsSource="{Binding Rows}"
+                  SelectionChanged="OnRowSelectionChanged"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserReorderColumns="False"
+                  CanUserSortColumns="False"
+                  CanUserResizeColumns="True"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="None"
+                  RowHeight="26"
+                  BorderThickness="0">
+          <DataGrid.Columns>
+            <!-- 行首：已装绿色竖条 + 勾选框（§3.3） -->
+            <DataGridTemplateColumn Header="选" Width="32" CanUserResize="False">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <Grid>
+                    <Border Width="3" Margin="0,2" CornerRadius="1" HorizontalAlignment="Left"
+                            Background="#2E7D32" IsVisible="{Binding IsInstalled}" />
+                    <CheckBox IsChecked="{Binding IsSelected, Mode=OneWay}"
+                              Click="OnSelectionCheckBoxClick"
+                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                              ToolTip.Tip="加入 / 移出变更集（Space）" />
+                  </Grid>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
 
-        <!-- 虚拟化列表（ListBox 默认 VirtualizingStackPanel，3,000 行滚动只实体化可见行） -->
-        <ListBox x:Name="ModsList"
-                 Grid.Row="1"
-                 ItemsSource="{Binding Rows}"
-                 SelectionChanged="OnRowSelectionChanged"
-                 BorderThickness="0">
-          <ListBox.ItemsPanel>
-            <ItemsPanelTemplate>
-              <VirtualizingStackPanel />
-            </ItemsPanelTemplate>
-          </ListBox.ItemsPanel>
-          <ListBox.ItemTemplate>
-            <DataTemplate>
-              <Grid ColumnDefinitions="3,28,*,86,86,140,80,200,70" Height="26">
-                <!-- 已装绿色竖条（§3.3） -->
-                <Border Grid.Column="0" Width="3" Margin="0,2" CornerRadius="1"
-                        Background="#2E7D32" IsVisible="{Binding IsInstalled}" />
-                <CheckBox Grid.Column="1" IsChecked="{Binding IsSelected, Mode=OneWay}"
-                          Click="OnSelectionCheckBoxClick" VerticalAlignment="Center"
-                          ToolTip.Tip="加入 / 移出变更集（Space）" />
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                  <Border Background="#1F6FEB" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowUpdateBadge}">
-                    <TextBlock Text="↑ 更新" FontSize="11" Foreground="White" />
-                  </Border>
-                  <Border Background="#6E7781" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowAutoBadge}">
-                    <TextBlock Text="自动" FontSize="11" Foreground="White" />
-                  </Border>
-                  <Border Background="#8250DF" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowDependencyBadge}">
-                    <TextBlock Text="依赖" FontSize="11" Foreground="White" />
-                  </Border>
-                  <Border Background="#B35900" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowIncompatibleBadge}">
-                    <TextBlock Text="⚠ 不兼容" FontSize="11" Foreground="White" />
-                  </Border>
-                </StackPanel>
-                <TextBlock Grid.Column="3" Text="{Binding InstalledVersionText}" VerticalAlignment="Center" Opacity="0.85" />
-                <TextBlock Grid.Column="4" Text="{Binding LatestVersionText}" VerticalAlignment="Center" Opacity="0.85" />
-                <TextBlock Grid.Column="5" Text="{Binding AuthorText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Opacity="0.85" />
-                <TextBlock Grid.Column="6" Text="{Binding DownloadText}" HorizontalAlignment="Right" VerticalAlignment="Center" Opacity="0.85" />
-                <TextBlock Grid.Column="7" Text="{Binding TagsText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Opacity="0.7" />
-                <TextBlock Grid.Column="8" Text="{Binding SizeText}" HorizontalAlignment="Right" VerticalAlignment="Center" Opacity="0.85" />
-              </Grid>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
+            <!-- 名称 + 徽章 -->
+            <DataGridTemplateColumn Header="名称" Width="260">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <Border Background="#1F6FEB" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowUpdateBadge}">
+                      <TextBlock Text="↑ 更新" FontSize="11" Foreground="White" />
+                    </Border>
+                    <Border Background="#6E7781" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowAutoBadge}">
+                      <TextBlock Text="自动" FontSize="11" Foreground="White" />
+                    </Border>
+                    <Border Background="#8250DF" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowDependencyBadge}">
+                      <TextBlock Text="依赖" FontSize="11" Foreground="White" />
+                    </Border>
+                    <Border Background="#B35900" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowIncompatibleBadge}">
+                      <TextBlock Text="⚠ 不兼容" FontSize="11" Foreground="White" />
+                    </Border>
+                  </StackPanel>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
+            <DataGridTextColumn Header="已装" Width="90"
+                                Binding="{Binding InstalledVersionText}" />
+            <DataGridTextColumn Header="最新" Width="90"
+                                Binding="{Binding LatestVersionText}" />
+            <DataGridTextColumn Header="作者" Width="140"
+                                Binding="{Binding AuthorText}" />
+            <DataGridTextColumn Header="下载量" Width="80"
+                                Binding="{Binding DownloadText}" />
+            <DataGridTextColumn Header="标签" Width="200"
+                                Binding="{Binding TagsText}" />
+            <DataGridTextColumn Header="大小" Width="70"
+                                Binding="{Binding SizeText}" />
+          </DataGrid.Columns>
+        </DataGrid>
 
         <!-- 空状态（03 篇 §10） -->
-        <Border Grid.Row="1" IsVisible="{Binding ShowEmptyState}"
+        <Border IsVisible="{Binding ShowEmptyState}"
                 Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
           <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="420">
             <TextBlock Text="{Binding EmptyStateTitle}" FontSize="18" HorizontalAlignment="Center" />
@@ -184,6 +199,7 @@
       <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
         <TextBlock Text="{Binding DownloadSummary}" FontSize="12" VerticalAlignment="Center" />
         <Button Content="预览变更" Command="{Binding PreviewChangesCommand}" FontSize="12" Padding="8,2" />
+        <Button Content="去变更集" Command="{Binding ReviewChangesCommand}" FontSize="12" Padding="8,2" />
       </StackPanel>
     </Grid>
   </Grid>

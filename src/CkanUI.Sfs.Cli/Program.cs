@@ -1,16 +1,20 @@
+using System.Text;
+
 namespace CkanUI.Sfs.Cli;
 
 internal static class Program
 {
     public static int Main(string[] args)
     {
-        if (args.Length == 0)
+        try
         {
-            Console.Error.WriteLine("用法: ckanui-sfs <format|validate|diff> <file>");
-            return 2;
+            Console.OutputEncoding = Encoding.UTF8;
+        }
+        catch (IOException)
+        {
+            // 重定向/无控制台时忽略：不影响退出码语义。
         }
 
-        Console.Error.WriteLine("E1 里程碑尚未实现：" + string.Join(' ', args));
-        return 2;
+        return SfsCli.Run(args, Console.Out, Console.Error);
     }
 }

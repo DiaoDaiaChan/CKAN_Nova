@@ -60,7 +60,24 @@ public static class ServiceRegistration
         // 页面 VM 一律登记为单例：导航切换不重建，避免丢状态（04 篇 §1）。
         // 各页面的构造依赖由容器注入，页面工厂只做"按 key 取实例"，不再 new 具体 VM。
         services.AddSingleton<OperationQueueViewModel>();
-        services.AddSingleton<ModsPageViewModel>();
+        // 变更集页同时充当「变更请求落点」：模组页把勾选灌进去再导航过去（IChangeRequestSink）。
+        services.AddSingleton(sp => new ChangesPageViewModel(
+            sp.GetService<IChangeSetService>(),
+            sp.GetService<IInstallerService>(),
+            sp.GetRequiredService<IErrorReporter>(),
+            sp.GetService<IOperationQueue>(),
+            sp.GetService<IDispatcher>()));
+        services.AddSingleton<IChangeRequestSink>(sp => sp.GetRequiredService<ChangesPageViewModel>());
+        services.AddSingleton(sp => new ModsPageViewModel(
+            sp.GetRequiredService<IRepositoryService>(),
+            sp.GetRequiredService<IRegistryService>(),
+            sp.GetRequiredService<IInstanceService>(),
+            sp.GetRequiredService<IErrorReporter>(),
+            sp.GetService<IChangeSetService>(),
+            sp.GetService<IUiSettingsStore>(),
+            sp.GetService<IChangeRequestSink>(),
+            sp.GetService<INavigationService>()));
+        services.AddSingleton<ReposPageViewModel>();
         services.AddSingleton<InstancesPageViewModel>();
         services.AddSingleton<SettingsPageViewModel>();
 
@@ -111,6 +128,8 @@ public static class ServiceRegistration
     private static readonly Dictionary<string, Type> PageTypes = new(StringComparer.Ordinal)
     {
         ["mods"] = typeof(ModsPageViewModel),
+        ["changes"] = typeof(ChangesPageViewModel),
+        ["repos"] = typeof(ReposPageViewModel),
         ["instances"] = typeof(InstancesPageViewModel),
         ["settings"] = typeof(SettingsPageViewModel),
     };

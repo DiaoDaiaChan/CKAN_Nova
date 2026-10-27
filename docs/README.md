@@ -22,7 +22,8 @@
 | [design/service-contracts.md](design/service-contracts.md) | 服务层契约冻结表：13 个接口 + 8 组 DTO + 实现归属 |
 | [design/pages.md](design/pages.md) | 页面设计：M1 各页布局、控件与交互落点 |
 | [design/theme-tokens.md](design/theme-tokens.md) | 主题 token 表：Ckan* 语义色/字号/间距在三套主题下的取值 |
-| [design/feature-matrix.md](design/feature-matrix.md) | F-01..F-55 实现状态矩阵（已实现 13 / 部分 22 / 未开始 20）与四波次优先级 |
+| [design/feature-matrix.md](design/feature-matrix.md) | F-01..F-55 实现状态矩阵（已实现 14 / 部分 21 / 未开始 20）与四波次优先级 |
+| [design/milestones.md](design/milestones.md) | M0–M14 里程碑执行实况、已落地模块清单与已知缺口 |
 | [ops/i18n-guide.md](ops/i18n-guide.md) | 本地化指南：语言包格式、回退链、App 侧接线契约（§6） |
 
 ## 索引 · 规格正文（docs/plan）

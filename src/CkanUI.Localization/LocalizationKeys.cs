@@ -11,7 +11,15 @@ public static class LocalizationKeys
     /// <summary>导航栏：模组。</summary>
     public const string NavRailManageMods = "Ui_NavRail_ManageMods";
 
+    /// <summary>导航栏：变更集。</summary>
+    public const string NavRailChanges = "Ui_NavRail_Changes";
+
+    /// <summary>页面标题：变更集。</summary>
+    public const string ChangesetTitle = "Ui_Changeset_Title";
+
     /// <summary>导航栏：实例。</summary>
+    public const string NavRailRepos = "Ui_NavRail_Repos";
+
     public const string NavRailInstances = "Ui_NavRail_Instances";
 
     /// <summary>导航栏：设置。</summary>

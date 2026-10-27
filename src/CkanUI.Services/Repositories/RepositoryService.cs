@@ -23,21 +23,31 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
     private readonly IDispatcher _dispatcher;
     private readonly IErrorReporter _errors;
     private readonly IUser _user;
+    private readonly IRepositoryStore _store;
+    private readonly RepositoryCatalog _catalog;
 
     private RepositorySnapshot _current = RepositorySnapshot.Empty;
+    private IReadOnlyList<RepositoryEntryInfo> _repositories = RepositoryEntryInfo.Empty;
     private int _refreshing;
 
     public RepositoryService(GameInstanceManager instances,
                              RepositoryDataManager repositoryData,
                              IDispatcher dispatcher,
                              IErrorReporter errors,
-                             IUser user)
+                             IUser user,
+                             IRepositoryStore? store = null)
     {
         _instances = instances ?? throw new ArgumentNullException(nameof(instances));
         _repositoryData = repositoryData ?? throw new ArgumentNullException(nameof(repositoryData));
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _errors = errors ?? throw new ArgumentNullException(nameof(errors));
         _user = user ?? throw new ArgumentNullException(nameof(user));
+
+        // 仓库列表编辑走 <see cref="IRepositoryStore"/>：默认实现落在 Core 的注册表上，
+        // 测试/降级场景可注入替身；参数带默认值，因此 DI 注册不需要额外改动。
+        _store = store ?? new RegistryRepositoryStore(_instances, _repositoryData, _user);
+        _catalog = new RepositoryCatalog(_store);
+        _repositories = _catalog.Snapshot;
     }
 
     public RepositorySnapshot Current => _current;
@@ -69,7 +79,7 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
             try
             {
                 ReportProgress("正在检查仓库索引…", 0, OperationState.Running);
-                var repositories = Repositories(instance);
+                var repositories = RepositoriesOf(instance);
                 var downloader = new NetAsyncDownloader(_user, () => null);
                 var result = _repositoryData.Update(repositories, instance.Game, skipETags: false,
                     downloader, _user);
@@ -98,7 +108,151 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
             }
         });
 
-    private IReadOnlyCollection<Repository> Repositories(GameInstance instance) =>
+    // ---- 仓库列表（UI-06 / 03 篇 §6 V-04）-------------------------------
+
+    /// <inheritdoc />
+    public IReadOnlyList<RepositoryEntryInfo> Repositories => _repositories;
+
+    /// <inheritdoc />
+    public event Action<IReadOnlyList<RepositoryEntryInfo>>? RepositoriesChanged;
+
+    /// <inheritdoc />
+    public Task<OperationResult<IReadOnlyList<RepositoryEntryInfo>>> LoadRepositoriesAsync(
+        CancellationToken ct = default) =>
+        GuardAsync(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            return Apply(_catalog.Load());
+        });
+
+    /// <inheritdoc />
+    public Task<OperationResult<IReadOnlyList<RepositoryEntryInfo>>> AddRepositoryAsync(
+        RepositoryEditRequest request, CancellationToken ct = default) =>
+        GuardAsync(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            return Apply(_catalog.Add(request?.Name, request?.Uri));
+        });
+
+    /// <inheritdoc />
+    public Task<OperationResult<IReadOnlyList<RepositoryEntryInfo>>> RemoveRepositoryAsync(
+        string name, CancellationToken ct = default) =>
+        GuardAsync(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            return Apply(_catalog.Remove(name));
+        });
+
+    /// <inheritdoc />
+    public Task<OperationResult<IReadOnlyList<RepositoryEntryInfo>>> MoveRepositoryAsync(
+        string name, int delta, CancellationToken ct = default) =>
+        GuardAsync(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            return Apply(_catalog.Move(name, delta));
+        });
+
+    /// <inheritdoc />
+    public Task<OperationResult<IReadOnlyList<RepositoryEntryInfo>>> RestoreDefaultRepositoriesAsync(
+        CancellationToken ct = default) =>
+        GuardAsync(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            return Apply(_catalog.RestoreDefaults());
+        });
+
+    /// <inheritdoc />
+    public Task<OperationResult<IReadOnlyList<RepositoryEntryInfo>>> RefreshRepositoryAsync(
+        string name, CancellationToken ct = default) =>
+        GuardAsync(async () =>
+        {
+            ct.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return OperationResult<IReadOnlyList<RepositoryEntryInfo>>.Fail("请先选择一个仓库。");
+            }
+
+            var instance = _instances.CurrentInstance;
+            if (instance is null)
+            {
+                return OperationResult<IReadOnlyList<RepositoryEntryInfo>>.Fail(
+                    "还没有选择游戏实例，无法刷新仓库索引。");
+            }
+
+            if (Interlocked.CompareExchange(ref _refreshing, 1, 0) != 0)
+            {
+                return OperationResult<IReadOnlyList<RepositoryEntryInfo>>.Fail(
+                    "仓库索引正在刷新，请稍后再试。", retryable: true);
+            }
+
+            try
+            {
+                ReportProgress($"正在刷新仓库「{name}」…", 0, OperationState.Running);
+                var outcome = _store.Refresh(name);
+                switch (outcome)
+                {
+                    case RepositoryUpdateOutcome.NotFound:
+                        ReportProgress($"没有找到仓库「{name}」。", 0, OperationState.Failed);
+                        return OperationResult<IReadOnlyList<RepositoryEntryInfo>>.Fail(
+                            $"没有找到名为「{name}」的仓库。");
+
+                    case RepositoryUpdateOutcome.Failed:
+                        // 单个仓库失败不影响其它仓库：保留旧快照，只标记这一行。
+                        _catalog.MarkFailure(name, null);
+                        Apply(_catalog.Load());
+                        ReportProgress($"仓库「{name}」刷新失败。", 0, OperationState.Failed);
+                        _errors.Report("刷新仓库索引", $"仓库「{name}」刷新失败，其它仓库不受影响。");
+                        return OperationResult<IReadOnlyList<RepositoryEntryInfo>>.Fail(
+                            $"仓库「{name}」刷新失败。", null, retryable: true);
+
+                    default:
+                        _catalog.ClearFailure(name);
+                        Publish(BuildSnapshot(instance, fromCache: false));
+                        ReportProgress(outcome == RepositoryUpdateOutcome.NoChanges
+                            ? "仓库索引已是最新。"
+                            : "仓库索引已更新。", 100, OperationState.Succeeded);
+                        return Apply(_catalog.Load());
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                ReportProgress("仓库索引刷新已取消。", 0, OperationState.Cancelled);
+                throw;
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _refreshing, 0);
+            }
+        });
+
+    private OperationResult<IReadOnlyList<RepositoryEntryInfo>> Apply(
+        OperationResult<IReadOnlyList<RepositoryEntryInfo>> result)
+    {
+        if (result.IsSuccess && result.Value is not null)
+        {
+            PublishRepositories(result.Value);
+        }
+
+        return result;
+    }
+
+    private void PublishRepositories(IReadOnlyList<RepositoryEntryInfo> rows)
+    {
+        _repositories = rows;
+        _dispatcher.Post(() =>
+        {
+            try
+            {
+                RepositoriesChanged?.Invoke(rows);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("仓库列表订阅方抛出异常。", ex);
+            }
+        });
+    }
+
+    private IReadOnlyCollection<Repository> RepositoriesOf(GameInstance instance) =>
         RegistryManager.Instance(instance, _repositoryData).registry.Repositories.Values.ToArray();
 
     private RepositorySnapshot BuildSnapshot(GameInstance instance, bool fromCache)

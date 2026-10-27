@@ -1,0 +1,232 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CkanUI.App.Views.ReposPageView"
+             x:CompileBindings="False">
+  <!-- 仓库管理页（03 篇 §6 V-04 / 06 篇 UI-06）：工具条 + 有序仓库表 + 新增表单 + 状态栏。
+       全部颜色走 Tokens.axaml 的语义 token，间距一律 4 的倍数。 -->
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="16"
+        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+
+    <!-- 页头 -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+      <StackPanel Grid.Column="0" Spacing="4">
+        <TextBlock Text="仓库"
+                   FontSize="{DynamicResource CkanFontSizeTitle}"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+        <TextBlock Text="越靠上的仓库优先级越高，同名模组以高优先级仓库的元数据为准。"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                   TextWrapping="Wrap" />
+      </StackPanel>
+      <TextBlock Grid.Column="1" Text="{Binding CountText}"
+                 VerticalAlignment="Center"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+    </Grid>
+
+    <!-- 工具条 -->
+    <Border Grid.Row="1" Padding="{DynamicResource CkanToolbarPadding}"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1">
+      <WrapPanel Orientation="Horizontal">
+        <Button Content="添加仓库" Command="{Binding BeginAddCommand}"
+                IsEnabled="{Binding CanEdit}" Margin="0,0,8,0"
+                ToolTip.Tip="填写名称与索引地址后加入列表" />
+        <Button Content="移除" Command="{Binding RemoveCommand}"
+                IsEnabled="{Binding CanRemoveSelected}" Margin="0,0,8,0"
+                ToolTip.Tip="从列表移除选中的仓库（至少要保留一个）" />
+        <Button Content="上移" Command="{Binding MoveUpCommand}"
+                IsEnabled="{Binding CanMoveUpSelected}" Margin="0,0,4,0"
+                ToolTip.Tip="提高选中仓库的优先级" />
+        <Button Content="下移" Command="{Binding MoveDownCommand}"
+                IsEnabled="{Binding CanMoveDownSelected}" Margin="0,0,8,0"
+                ToolTip.Tip="降低选中仓库的优先级" />
+        <Button Content="刷新此仓库" Command="{Binding RefreshSelectedCommand}"
+                IsEnabled="{Binding CanRefreshSelected}" Margin="0,0,8,0"
+                ToolTip.Tip="只重新下载选中仓库的索引" />
+        <Button Content="刷新全部" Command="{Binding RefreshAllCommand}"
+                IsEnabled="{Binding IsIdle}" Margin="0,0,8,0"
+                ToolTip.Tip="重新下载全部仓库的索引" />
+        <Button Content="恢复默认" Command="{Binding RestoreDefaultsCommand}"
+                IsEnabled="{Binding IsIdle}" Margin="0,0,8,0"
+                ToolTip.Tip="替换为官方默认仓库列表（需要联网）" />
+        <Button Content="重新读取" Command="{Binding ReloadCommand}"
+                IsEnabled="{Binding IsIdle}"
+                ToolTip.Tip="重新读取本地注册表中的仓库列表" />
+      </WrapPanel>
+    </Border>
+
+    <!-- 新增表单（03 篇 §6 V-04：名称 + 地址） -->
+    <Border Grid.Row="2" Margin="0,8,0,0" Padding="12"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            BorderBrush="{DynamicResource CkanAccentBrush}" BorderThickness="1"
+            IsVisible="{Binding HasForm}">
+      <StackPanel Spacing="8">
+        <TextBlock Text="添加仓库"
+                   FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+        <StackPanel Spacing="4">
+          <TextBlock Text="仓库名称" FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBox Text="{Binding Form.Name, Mode=TwoWay}" PlaceholderText="例如 KSP-CKAN-mirror" />
+        </StackPanel>
+        <StackPanel Spacing="4">
+          <TextBlock Text="索引地址" FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBox Text="{Binding Form.Uri, Mode=TwoWay}"
+                   PlaceholderText="例如 https://raw.githubusercontent.com/.../repositories.json" />
+        </StackPanel>
+        <TextBlock Text="{Binding Form.ValidationText}"
+                   IsVisible="{Binding Form.HasValidation}"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanDangerBrush}"
+                   TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="添加" Command="{Binding AddCommand}" />
+          <Button Content="取消" Command="{Binding CancelAddCommand}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- 页面级错误条（03 篇 §8 D-03 / §10） -->
+    <Border Grid.Row="3" Margin="0,8,0,0" Padding="12,8"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
+            IsVisible="{Binding HasError}">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Spacing="4">
+          <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanDangerBrush}" />
+          <TextBlock Text="{Binding ErrorDetail}" TextWrapping="Wrap" MaxHeight="48"
+                     IsVisible="{Binding HasErrorDetail}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="关闭" Command="{Binding ClearErrorCommand}"
+                VerticalAlignment="Top" Margin="8,0,0,0"
+                FontSize="{DynamicResource CkanFontSizeCaption}" />
+      </Grid>
+    </Border>
+
+    <!-- 仓库表 -->
+    <Grid Grid.Row="4" RowDefinitions="Auto,*" Margin="0,8,0,0">
+      <Border Grid.Row="0" Padding="8,4"
+              Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
+        <Grid ColumnDefinitions="*,2*,72,140,96">
+          <TextBlock Grid.Column="0" Text="名称" FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBlock Grid.Column="1" Text="索引地址" FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBlock Grid.Column="2" Text="优先级" FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBlock Grid.Column="3" Text="上次刷新" FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBlock Grid.Column="4" Text="状态" FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </Grid>
+      </Border>
+
+      <ListBox Grid.Row="1" ItemsSource="{Binding Rows}"
+               SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+               BorderThickness="0" Background="Transparent"
+               IsVisible="{Binding HasRows}">
+        <ListBox.ItemsPanel>
+          <ItemsPanelTemplate>
+            <VirtualizingStackPanel />
+          </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid ColumnDefinitions="*,2*,72,140,96" Height="{DynamicResource CkanRowHeight}">
+              <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                <Border Background="{DynamicResource CkanAccentBrush}"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                        Padding="4,0" IsVisible="{Binding ShowDefaultBadge}">
+                  <TextBlock Text="{Binding DefaultText}"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanAccentTextBrush}" />
+                </Border>
+              </StackPanel>
+              <TextBlock Grid.Column="1" Text="{Binding Uri}" TextTrimming="CharacterEllipsis"
+                         VerticalAlignment="Center" Margin="0,0,8,0"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Grid.Column="2" Text="{Binding PriorityText}" VerticalAlignment="Center"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Grid.Column="3" Text="{Binding UpdatedText}" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <StackPanel Grid.Column="4" VerticalAlignment="Center" Spacing="0">
+                <TextBlock Text="{Binding StatusText}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                <!-- 3 天未刷新：警示色角标；14 天未刷新或刷新失败：危险色角标（Light/Dark 都取语义 token） -->
+                <Border IsVisible="{Binding NeedsRefresh}"
+                        Background="{DynamicResource CkanWarningBrush}"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                        Padding="4,0" HorizontalAlignment="Left">
+                  <TextBlock Text="需刷新" FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextInverseBrush}" />
+                </Border>
+                <TextBlock Text="{Binding FailureText}" IsVisible="{Binding HasFailure}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip.Tip="{Binding FailureText}"
+                           Foreground="{DynamicResource CkanDangerBrush}" />
+              </StackPanel>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <!-- 空状态（03 篇 §10） -->
+      <Border Grid.Row="1" IsVisible="{Binding ShowEmptyState}" Padding="16">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="480">
+          <TextBlock Text="{Binding EmptyStateTitle}"
+                     HorizontalAlignment="Center"
+                     FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+          <TextBlock Text="{Binding EmptyStateHint}" TextWrapping="Wrap" TextAlignment="Center"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+            <Button Content="恢复默认" Command="{Binding RestoreDefaultsCommand}" />
+            <Button Content="添加仓库" Command="{Binding BeginAddCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- 状态栏 -->
+    <Grid Grid.Row="5" ColumnDefinitions="Auto,*" Margin="0,8,0,0">
+      <TextBlock Grid.Column="0" Text="{Binding SelectedDetailText}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 VerticalAlignment="Center" />
+      <TextBlock Grid.Column="1" Text="{Binding StatusText}" Margin="12,0,0,0"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+    </Grid>
+
+    <!-- 进行中遮罩（03 篇 §10：非模态操作条） -->
+    <Border Grid.RowSpan="6" IsVisible="{Binding IsBusy}"
+            Background="{DynamicResource CkanStatusBarBackgroundBrush}" Opacity="0.9">
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="360">
+        <ProgressBar IsIndeterminate="True" Width="240" />
+        <TextBlock Text="{Binding BusyText}" TextAlignment="Center" TextWrapping="Wrap"
+                   FontSize="{DynamicResource CkanFontSizeBody}"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

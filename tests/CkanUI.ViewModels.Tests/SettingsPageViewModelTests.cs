@@ -1,4 +1,6 @@
 using CkanUI.Services.Abstractions;
+using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.TestSupport;
 using CkanUI.ViewModels.Pages;
 using CkanUI.ViewModels.Pages.Settings;
 using NUnit.Framework;
@@ -6,8 +8,8 @@ using NUnit.Framework;
 namespace CkanUI.ViewModels.Tests;
 
 /// <summary>
-/// 设置页（06 篇 UI-07 / VM-03）：七组读取、逐项保存、校验失败、脏标记、
-/// 令牌脱敏与增删、Retryable 语义、异常收口。
+/// 设置页（06 篇 UI-07 / VM-03）：八组读取、逐项保存、校验失败、脏标记、
+/// 令牌脱敏与增删、Retryable 语义、异常收口、实例级容差文件、诊断区与打开目录。
 /// </summary>
 [TestFixture]
 public sealed class SettingsPageViewModelTests
@@ -15,8 +17,23 @@ public sealed class SettingsPageViewModelTests
     private static SettingItemViewModel Item(SettingsPageViewModel page, string key) =>
         page.Items.Single(item => string.Equals(item.Key, key, StringComparison.Ordinal));
 
-    private static SettingsPageViewModel CreatePage(FakeSettingsService settings, FakeUiSettingsStore store) =>
-        new(settings, store);
+    private static SettingsPageViewModel CreatePage(
+        FakeSettingsService settings,
+        FakeUiSettingsStore store,
+        IInstanceService? instances = null,
+        Func<string, Task>? copyTextAsync = null) =>
+        new(settings, store, instances, copyTextAsync);
+
+    /// <summary>造一个带实例的假实例服务（实例级设置需要「当前实例」才有落脚点）。</summary>
+    private static FakeInstanceService InstancesWith(string gameDir)
+    {
+        var instance = new InstanceInfo("Default", gameDir, "1.12.5", IsDefault: true, IsLocked: false, ModuleCount: 3);
+        return new FakeInstanceService
+        {
+            Instances = new[] { instance },
+            Current = instance,
+        };
+    }
 
     private static FakeSettingsService SeededSettings() => new FakeSettingsService()
         .Seed(SettingsKeyNames.DevBuilds, "true")
@@ -28,7 +45,7 @@ public sealed class SettingsPageViewModelTests
         .Seed(SettingsKeyNames.AuthToken("spacedock.info"), "secret-token-1234");
 
     [Test]
-    public async Task LoadAsync_PopulatesSevenGroupsInSpecOrder()
+    public async Task LoadAsync_PopulatesEightGroupsInSpecOrder()
     {
         var page = CreatePage(SeededSettings(), new FakeUiSettingsStore());
 
@@ -36,9 +53,11 @@ public sealed class SettingsPageViewModelTests
 
         Assert.That(
             page.Groups.Select(group => group.Title),
-            Is.EqualTo(new[] { "通用", "实例", "下载缓存", "仓库与网络", "认证令牌", "外观", "高级" }));
+            Is.EqualTo(new[] { "通用", "实例", "下载缓存", "仓库与网络", "认证令牌", "外观", "兼容性", "高级与诊断" }));
         Assert.That(page.Groups[4].IsTokenGroup, Is.True);
         Assert.That(page.Groups[4].Items, Is.Empty);
+        Assert.That(page.Groups[7].IsDiagnosticsGroup, Is.True);
+        Assert.That(page.Groups[7].Items, Is.Empty);
     }
 
     [Test]
@@ -214,11 +233,11 @@ public sealed class SettingsPageViewModelTests
     [Test]
     public async Task SaveItemAsync_RequiresRestart_AppendsRestartHint()
     {
-        var page = CreatePage(new FakeSettingsService(), new FakeUiSettingsStore());
+        var page = CreatePage(new FakeSettingsService(), new FakeUiSettingsStore(), InstancesWith("D:/KSP"));
         await page.LoadAsync();
         var autoStart = Item(page, SettingsKeyNames.AutoStartInstance);
         Assert.That(autoStart.RequiresRestart, Is.True);
-        autoStart.EditValue = "Default";
+        autoStart.SelectedChoice = autoStart.Choices.Single(choice => choice.Value == "Default");
 
         await page.SaveItemAsync(autoStart);
 
@@ -605,6 +624,202 @@ public sealed class SettingsPageViewModelTests
         {
             Assert.That(coreKeys, Has.No.Member(uiKey), $"外观键 {uiKey} 不应与 Core 键重名");
             Assert.That(SettingsKeyNames.AuthToken(uiKey), Is.Not.EqualTo(uiKey));
+        }
+
+        // 稳定版容差落在实例级文件 <实例目录>/CKAN/stability_tolerance.json，不在 Core 键空间里。
+        Assert.That(SettingsKeyNames.StabilityTolerance, Is.EqualTo("StabilityTolerance"));
+        Assert.That(coreKeys, Has.No.Member(SettingsKeyNames.StabilityTolerance));
+    }
+
+    [Test]
+    public async Task LoadAsync_AutoStartInstance_OffersInstanceChoices()
+    {
+        var page = CreatePage(new FakeSettingsService(), new FakeUiSettingsStore(), InstancesWith("D:/KSP"));
+        await page.LoadAsync();
+
+        var autoStart = Item(page, SettingsKeyNames.AutoStartInstance);
+        Assert.That(autoStart.Kind, Is.EqualTo(SettingItemKind.Choice));
+        Assert.That(
+            autoStart.Choices.Select(choice => choice.Value),
+            Is.EqualTo(new[] { string.Empty, "Default" }));
+        Assert.That(autoStart.Choices[1].Label, Is.EqualTo("Default (1.12.5)"));
+        Assert.That(autoStart.SelectedChoice?.Value, Is.EqualTo(string.Empty));
+    }
+
+    [Test]
+    public async Task LoadAsync_AutoStartInstance_KeepsSavedValueMissingFromInstanceList()
+    {
+        // 已落盘但当前实例列表里没有：保留成候选，别让一次进设置页把用户配置冲成空值。
+        var settings = new FakeSettingsService().Seed(SettingsKeyNames.AutoStartInstance, "OldSave");
+        var page = CreatePage(settings, new FakeUiSettingsStore(), InstancesWith("D:/KSP"));
+
+        await page.LoadAsync();
+
+        var autoStart = Item(page, SettingsKeyNames.AutoStartInstance);
+        Assert.That(autoStart.SelectedChoice?.Value, Is.EqualTo("OldSave"));
+        Assert.That(autoStart.SelectedChoice?.Label, Does.Contain("不在当前实例列表中"));
+        Assert.That(autoStart.IsDirty, Is.False);
+    }
+
+    [Test]
+    public async Task StabilityTolerance_ReadsDefaultAndWritesInstanceFile()
+    {
+        // 系统临时目录在受限沙箱里不可写，统一落在仓库根的 artifacts/tmp（见 TempWorkspace 注释）。
+        using var workspace = new TempWorkspace("settings-page-tol");
+        var gameDir = workspace.Path;
+        {
+            var page = CreatePage(new FakeSettingsService(), new FakeUiSettingsStore(), InstancesWith(gameDir));
+            await page.LoadAsync();
+
+            var tolerance = Item(page, SettingsKeyNames.StabilityTolerance);
+            Assert.That(tolerance.IsEnabled, Is.True);
+            Assert.That(tolerance.EditValue, Is.EqualTo("stable"));
+            Assert.That(tolerance.IsDirty, Is.False);
+
+            tolerance.SelectedChoice = tolerance.Choices.Single(choice => choice.Value == "testing");
+            await page.SaveItemAsync(tolerance);
+
+            Assert.That(page.StatusText, Is.EqualTo("稳定版容差：已保存"));
+            Assert.That(tolerance.IsDirty, Is.False);
+            var json = File.ReadAllText(StabilityToleranceFile.PathFor(gameDir));
+            Assert.That(json, Does.Contain("\"overall_stability_tolerance\": \"testing\""));
+        }
+    }
+
+    [Test]
+    public async Task StabilityTolerance_WithoutCurrentInstance_IsDisabledAndRefusesToSave()
+    {
+        var page = CreatePage(new FakeSettingsService(), new FakeUiSettingsStore());
+        await page.LoadAsync();
+
+        var tolerance = Item(page, SettingsKeyNames.StabilityTolerance);
+        Assert.That(tolerance.IsEnabled, Is.False);
+        Assert.That(tolerance.EditValue, Is.EqualTo("stable"));
+
+        tolerance.SelectedChoice = tolerance.Choices.Single(choice => choice.Value == "development");
+        await page.SaveItemAsync(tolerance);
+
+        Assert.That(tolerance.HasError, Is.True);
+        Assert.That(tolerance.ErrorText, Does.StartWith("尚未打开实例"));
+        Assert.That(tolerance.IsRetryable, Is.False);
+    }
+
+    [Test]
+    public async Task Diagnostics_ListsApplicationVersionAndPaths()
+    {
+        var page = CreatePage(SeededSettings(), new FakeUiSettingsStore(), InstancesWith("D:/KSP"));
+        await page.LoadAsync();
+
+        var rows = page.Diagnostics.Rows;
+        Assert.That(rows.Select(row => row.Name), Does.Contain("应用版本"));
+        Assert.That(rows.Select(row => row.Name), Does.Contain("配置目录"));
+        Assert.That(rows.Single(row => row.Name == "当前实例").Value, Is.EqualTo("Default"));
+        Assert.That(rows.Single(row => row.Name == "实例目录").Value, Is.EqualTo("D:/KSP"));
+        Assert.That(rows.Single(row => row.Name == "缓存目录").Value, Is.EqualTo("D:/CKAN/cache"));
+        // Core 版本由宿主注入，未注入时整行不显示（不写「未知」）。
+        Assert.That(rows.Select(row => row.Name), Has.No.Member("CKAN Core 版本"));
+        Assert.That(page.Diagnostics.HasRows, Is.True);
+    }
+
+    [Test]
+    public async Task Diagnostics_Copy_WithoutClipboard_ReportsMissingChannel()
+    {
+        var page = CreatePage(new FakeSettingsService(), new FakeUiSettingsStore());
+        await page.LoadAsync();
+
+        await page.Diagnostics.CopyCommand.ExecuteAsync(null);
+
+        Assert.That(page.Diagnostics.CopyStatusText, Is.EqualTo("当前环境没有剪贴板通道，无法复制"));
+        Assert.That(page.Diagnostics.HasCopyStatus, Is.True);
+    }
+
+    [Test]
+    public async Task Diagnostics_Copy_WritesTextToClipboard()
+    {
+        string? captured = null;
+        var page = CreatePage(
+            new FakeSettingsService(),
+            new FakeUiSettingsStore(),
+            InstancesWith("D:/KSP"),
+            text =>
+            {
+                captured = text;
+                return Task.CompletedTask;
+            });
+        await page.LoadAsync();
+
+        await page.Diagnostics.CopyCommand.ExecuteAsync(null);
+
+        Assert.That(page.Diagnostics.CopyStatusText, Is.EqualTo("已复制到剪贴板"));
+        Assert.That(captured, Does.Contain("诊断信息"));
+        Assert.That(captured, Does.Contain("应用版本"));
+    }
+
+    [Test]
+    public async Task OpenCacheFolder_WithoutLauncher_ReportsMissingChannel()
+    {
+        var page = CreatePage(SeededSettings(), new FakeUiSettingsStore());
+        await page.LoadAsync();
+
+        await page.OpenCacheFolderCommand.ExecuteAsync(null);
+
+        Assert.That(page.StatusText, Is.EqualTo("当前环境没有打开目录的通道"));
+    }
+
+    [Test]
+    public async Task OpenCacheFolder_PassesSavedDirectoryToLauncher()
+    {
+        var page = CreatePage(SeededSettings(), new FakeUiSettingsStore());
+        await page.LoadAsync();
+        var launcher = new RecordingShellLauncher();
+        page.ShellLauncher = launcher;
+
+        await page.OpenCacheFolderCommand.ExecuteAsync(null);
+
+        Assert.That(launcher.Paths, Is.EqualTo(new[] { "D:/CKAN/cache" }));
+        Assert.That(page.StatusText, Is.EqualTo("已打开缓存目录"));
+    }
+
+    [Test]
+    public async Task OpenConfigFolder_UsesDefaultConfigDirectory()
+    {
+        var page = CreatePage(new FakeSettingsService(), new FakeUiSettingsStore());
+        await page.LoadAsync();
+        var launcher = new RecordingShellLauncher();
+        page.ShellLauncher = launcher;
+
+        await page.OpenConfigFolderCommand.ExecuteAsync(null);
+
+        Assert.That(launcher.Paths, Is.EqualTo(new[] { SettingsPaths.DefaultConfigDirectory }));
+        Assert.That(page.StatusText, Is.EqualTo("已打开配置目录"));
+    }
+
+    [Test]
+    public async Task OpenCacheFolder_FailureIsReported()
+    {
+        var page = CreatePage(SeededSettings(), new FakeUiSettingsStore());
+        await page.LoadAsync();
+        page.ShellLauncher = new RecordingShellLauncher
+        {
+            Result = OperationResult.Fail("目录不存在：D:/CKAN/cache"),
+        };
+
+        await page.OpenCacheFolderCommand.ExecuteAsync(null);
+
+        Assert.That(page.StatusText, Is.EqualTo("打开缓存目录失败：目录不存在：D:/CKAN/cache"));
+    }
+
+    /// <summary>记录型「打开目录」宿主实现。</summary>
+    private sealed class RecordingShellLauncher : ISettingsShellLauncher
+    {
+        public List<string> Paths { get; } = new();
+
+        public OperationResult Result { get; set; } = OperationResult.Ok();
+
+        public Task<OperationResult> OpenFolderAsync(string path)
+        {
+            Paths.Add(path);
+            return Task.FromResult(Result);
         }
     }
 }

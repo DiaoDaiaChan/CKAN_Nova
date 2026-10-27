@@ -15,8 +15,11 @@
 | INT-01..03 | ✅ 启动序列 / 设置服务 / IUser 线程回调 |
 | MOD-01..04 | ✅ 搜索语法 / ModChange / GUIMod / 过滤排序投影 |
 | 服务契约冻结 | ✅ `src/CkanUI.Services.Abstractions/` 13 接口 + 8 组 DTO，见 `docs/design/service-contracts.md` |
-| 本地测试通道 | ✅ `dotnet run --project tests/CkanUI.TestRunner`（83 用例全绿） |
-| M1 页面 | 🚧 进行中，见 §9 波次表 |
+| 本地测试通道 | ✅ `dotnet run --project tests/CkanUI.TestRunner`（202 用例全绿） |
+| UI-02/03/04/05/07/08/09/13/32 页面 | ✅ 模组/实例/设置页 + 对话框组 + 操作浮层 + 本地化（提交 `56ec0e7`） |
+| 主题与设置生效 | ✅ `ThemeHost` 订阅 `UiSettings.Changed` 实时切主题；`Density` 已落盘 |
+| UI-06 仓库页 | 🚧 repos-page 在写（可增量扩 `IRepositoryService`） |
+| 变更页 UI-10 | 🚧 changes-service / changes-page 在写，尚未接线 |
 
 ## 2. 构建与测试（沙箱里 dotnet test 不可用）
 
@@ -97,6 +100,9 @@ M0（外壳）已交付 `d06c64c`。M1 把三个占位页换成真实页面，�
 | 2 | instances-page | UI-04 / UI-05 / UI-32 / VM-04 | `src/CkanUI.ViewModels/Pages/Instances/**`、`src/CkanUI.App/Views/Instances*` |
 | 2 | ops-overlay | UI-08 / VM-05 | `src/CkanUI.ViewModels/Operations/**`、`src/CkanUI.App/Views/Operation*/` |
 | 2 | theme-tokens | THM-01 / THM-06 | `themes/**`、`src/CkanUI.App/Resources/**`、`App.axaml`（仅资源字典合并段） |
+| 3 | changes-service | INT-07 / INT-09 | `src/CkanUI.Services/ChangeSets/**` |
+| 3 | changes-page | UI-10 / VM-07 | `src/CkanUI.ViewModels/Pages/Changes/**`、`ChangesPageViewModel.cs`、`src/CkanUI.App/Views/ChangesPageView.*` |
+| 3 | repos-page | UI-06 / VM-06 | `src/CkanUI.Services/Repositories/**`、`src/CkanUI.ViewModels/Pages/Repos/**`、`ReposPageViewModel.cs`、`src/CkanUI.App/Views/ReposPageView.*`（**IRepositoryService 只许增量**） |
 
 Lead 独占：`ServiceRegistration.cs`（页面单例与工厂）、`MainWindow.axaml`、`ShellViewModel.cs`、`PageViewModel.cs`、`NavigationService.cs`、`App.axaml.cs`、`Program.cs`、`src/CkanUI.Services.Abstractions/**`、`ckan-ui.sln`、`Directory.*.props/targets`、`docs/README.md`。
 

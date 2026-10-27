@@ -34,13 +34,19 @@ public static class SettingsKeyNames
     /// <summary>Core：安装过滤器前缀 + 游戏短名（KSP / KSP2）。</summary>
     public const string GlobalInstallFiltersPrefix = "GlobalInstallFilters:";
 
+    /// <summary>
+    /// 实例级文件：稳定版容差（写 <c>&lt;实例目录&gt;/CKAN/stability_tolerance.json</c>）。
+    /// 它不是 Core 的 config.json 键，也不是 ckan-ui.json 字段，仅作为设置项标识用。
+    /// </summary>
+    public const string StabilityTolerance = "StabilityTolerance";
+
     /// <summary>ckan-ui.json：主题变体。</summary>
     public const string Theme = "Theme";
 
     /// <summary>ckan-ui.json：界面语言。</summary>
     public const string Locale = "Locale";
 
-    /// <summary>ckan-ui.json：界面密度（当前 <c>UiSettings</c> 无此字段，见设置页报告）。</summary>
+    /// <summary>ckan-ui.json：界面密度（compact / standard / comfortable）。</summary>
     public const string Density = "Density";
 
     /// <summary>拼出某个主机的认证令牌键。</summary>

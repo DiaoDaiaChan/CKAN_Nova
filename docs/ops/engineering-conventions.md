@@ -110,6 +110,14 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
    扩契约要同时改 Services 的订阅侧与全部生产方，收益不足以进 M1；等 M2 安装器打通真实下载后再一次性加 `BytesTransferred/BytesTotal`。
 6. **安装器后端保持 public**：`IInstallerBackend`/`IInstallerBackendFactory` 在 `CkanUI.Services.Installers` 内公开，便于 `tests/CkanUI.Services.Tests` 用假后端离线跑；
    要改 internal 需给 Services 加 `InternalsVisibleTo`，M1 不做（收益只是少两个公开类型）。
+7. **页面之间的交接只走一个窄接口**：模组页把勾选翻译成 `ChangeRequest` 后灌进 `IChangeRequestSink`（`src/CkanUI.ViewModels/Pages/IChangeRequestSink.cs`），
+   再经 `INavigationService.NavigateAsync("changes")` 跳转；`ChangesPageViewModel` 是唯一实现。
+   理由：两页互相持有具体类型会让"哪个页面持有谁的引用"变成隐式耦合，也让 DI 循环；窄接口让两个页面各自可独立测。
+8. **导航项顺序固定为 mods → changes → repos → instances → settings**（`ShellViewModel.NavItems`），key 即 `PageTypes` 的键；
+   新增页面必须同时补 `LocalizationKeys` 与两份语言包（`i18n/packs/{zh-CN,en-US}.json`），否则 `ShellViewModelTests` 与 `verify-layout` 会红。
+9. **仓库管理的写事务封在 `IRepositoryStore` 后面**：`RegistryRepositoryStore` 是唯一碰 `Registry.RepositoriesSet` + `RegistryManager.Save()` 与网络的实现，
+   校验/排序/重编号全在纯函数 `RepositoryCatalog`（可离线测）。`IRepositoryService` 的 8 个增量成员用 DIM（默认实现）追加，
+   既有实现与测试替身零改动——这是扩冻结契约的唯一允许方式（否则会连锁改十几个 fake）。
 
 ## 修订记录
 
@@ -118,4 +126,5 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
 | 2026-10-27 | v1.0 | 新建：M0 开工时的工程约定，供并行 agent 共同遵守 |
 | 2026-10-27 | v1.1 | 补 §3 runner 不重建测试项目、§8 M0 进度、§9 沙箱环境限制、§10 日志配置硬约束 |
 | 2026-10-27 | v1.2 | 补 §11 M1 契约决策（IDialogPresenter 接缝、剪贴板通道、详情面板字段归属、单选取消值） |
+| 2026-10-27 | v1.4 | 补 §12.7–9（页面交接窄接口、导航项顺序与语言包义务、仓库写事务封在 IRepositoryStore 后、DIM 扩契约的方式） |
 | 2026-10-27 | v1.3 | 补 §12 M1 契约决策（语言真源、`UiSettings.Density`、ThemeHost 与高对比度变体、Changed 锁外触发、OperationProgress 不扩字段） |

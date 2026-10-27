@@ -4,6 +4,9 @@
   "englishName": "English, United States",
   "strings": {
     "Ui_NavRail_ManageMods": "Mods",
+    "Ui_NavRail_Changes": "Changes",
+    "Ui_Changeset_Title": "Change set",
+    "Ui_NavRail_Repos": "Repositories",
     "Ui_NavRail_Instances": "Instances",
     "Ui_NavRail_Settings": "Settings",
     "Ui_ManageMods_Title": "Manage mods",

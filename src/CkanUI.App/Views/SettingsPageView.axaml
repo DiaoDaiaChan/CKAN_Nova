@@ -2,13 +2,16 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:CkanUI.ViewModels.Pages"
              xmlns:st="using:CkanUI.ViewModels.Pages.Settings"
+             xmlns:dlg="using:CkanUI.ViewModels.Dialogs"
              x:Class="CkanUI.App.Views.SettingsPageView"
              x:DataType="vm:SettingsPageViewModel">
 
-  <!-- 设置页（03 篇 §7 / 06 篇 UI-07）：七组设置，逐项保存。
+  <!-- 设置页（03 篇 §7 / 06 篇 UI-07）：八组设置，逐项保存。
        颜色一律走主题资源（SolidColorBrush + DynamicResource 的 System*Color），
-       不写字面量；间距取 4 的倍数（03 篇 §11）。 -->
-  <Grid RowDefinitions="Auto,Auto,*" Margin="16">
+       不写字面量；间距取 4 的倍数（03 篇 §11）。
+       密度：页边距与行高引用 CkanPagePadding / CkanRowHeight 两个语义 token，
+       DensityHost 在 App 级覆盖它们即可让三档密度即时生效（20 篇 P-08 / THM-06）。 -->
+  <Grid RowDefinitions="Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}">
 
     <!-- 页头：标题 + 状态 + 全局操作 -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
@@ -25,6 +28,7 @@
       </StackPanel>
 
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+        <Button Content="打开配置目录" Command="{Binding OpenConfigFolderCommand}" />
         <Button Content="重新读取" Command="{Binding ReloadCommand}" IsEnabled="{Binding !IsLoading}" />
         <Button Content="放弃修改" Command="{Binding DiscardCommand}" IsEnabled="{Binding IsDirty}" />
         <Button Content="重试失败项" Command="{Binding RetryFailedCommand}" IsEnabled="{Binding HasRetryableFailures}" />
@@ -65,22 +69,31 @@
                           <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" TextWrapping="Wrap" />
 
                           <StackPanel Grid.Column="1" Spacing="4">
-                            <!-- 文本 / 路径 / 整数 / 多行列表 -->
+                            <!-- 文本 / 路径 / 整数（单行）：行高跟着密度 token 走 -->
                             <TextBox Text="{Binding EditValue, Mode=TwoWay}"
-                                     IsVisible="{Binding IsTextKind}"
-                                     AcceptsReturn="{Binding IsMultiline}"
+                                     IsVisible="{Binding IsSingleLine}"
+                                     IsEnabled="{Binding IsEnabled}"
+                                     MinHeight="{DynamicResource CkanRowHeight}" />
+
+                            <!-- 多行列表：固定三行高，不随密度压缩（否则编辑过滤器时看不全） -->
+                            <TextBox Text="{Binding EditValue, Mode=TwoWay}"
+                                     IsVisible="{Binding IsMultiline}"
+                                     IsEnabled="{Binding IsEnabled}"
+                                     AcceptsReturn="True"
                                      TextWrapping="Wrap"
                                      MinHeight="{Binding EditorMinHeight}" />
 
                             <!-- 布尔开关 -->
                             <CheckBox Content="启用"
                                       IsVisible="{Binding IsBooleanKind}"
+                                      IsEnabled="{Binding IsEnabled}"
                                       IsChecked="{Binding BooleanValue, Mode=TwoWay}" />
 
                             <!-- 单选 -->
                             <ComboBox ItemsSource="{Binding Choices}"
                                       SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
                                       IsVisible="{Binding IsChoiceKind}"
+                                      IsEnabled="{Binding IsEnabled}"
                                       HorizontalAlignment="Left"
                                       MinWidth="200">
                               <ComboBox.ItemTemplate>
@@ -103,6 +116,9 @@
 
                           <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
                             <TextBlock Text="{Binding HintText}" IsVisible="{Binding HasHint}" Opacity="0.7" VerticalAlignment="Center" />
+                            <Button Content="{Binding AuxiliaryLabel}"
+                                    Command="{Binding AuxiliaryCommand}"
+                                    IsVisible="{Binding HasAuxiliaryAction}" />
                             <Button Content="保存" Command="{Binding SaveCommand}" IsEnabled="{Binding CanSave}" />
                           </StackPanel>
                         </Grid>
@@ -155,6 +171,31 @@
                               </DataTemplate>
                             </ItemsControl.ItemTemplate>
                           </ItemsControl>
+                        </StackPanel>
+                      </DataTemplate>
+                    </ContentControl.ContentTemplate>
+                  </ContentControl>
+
+                  <!-- 诊断区（高级组，D-03）：只读清单 + 复制到剪贴板 -->
+                  <ContentControl Content="{Binding Diagnostics}" IsVisible="{Binding IsDiagnosticsGroup}">
+                    <ContentControl.ContentTemplate>
+                      <DataTemplate x:DataType="st:SettingsDiagnosticsViewModel">
+                        <StackPanel Spacing="8">
+                          <ItemsControl ItemsSource="{Binding Rows}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="dlg:DiagnosticItem">
+                                <Grid ColumnDefinitions="160,*" ColumnSpacing="12" MinHeight="{DynamicResource CkanRowHeight}">
+                                  <TextBlock Text="{Binding Name}" Opacity="0.7" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                  <SelectableTextBlock Grid.Column="1" Text="{Binding Value}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                </Grid>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+
+                          <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="复制诊断信息" Command="{Binding CopyCommand}" />
+                            <TextBlock Text="{Binding CopyStatusText}" IsVisible="{Binding HasCopyStatus}" Opacity="0.7" VerticalAlignment="Center" />
+                          </StackPanel>
                         </StackPanel>
                       </DataTemplate>
                     </ContentControl.ContentTemplate>

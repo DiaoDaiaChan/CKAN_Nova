@@ -4,6 +4,9 @@
   "englishName": "Chinese, Simplified",
   "strings": {
     "Ui_NavRail_ManageMods": "模组",
+    "Ui_NavRail_Changes": "变更集",
+    "Ui_Changeset_Title": "变更集",
+    "Ui_NavRail_Repos": "仓库",
     "Ui_NavRail_Instances": "实例",
     "Ui_NavRail_Settings": "设置",
     "Ui_ManageMods_Title": "模组管理",

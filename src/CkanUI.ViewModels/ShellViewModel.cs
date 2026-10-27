@@ -49,6 +49,8 @@ public sealed partial class ShellViewModel : ObservableObject
         NavItems = new List<NavItem>
         {
             new("mods", _translate("Ui_NavRail_ManageMods"), "Apps"),
+            new("changes", _translate("Ui_NavRail_Changes"), "Sync"),
+            new("repos", _translate("Ui_NavRail_Repos"), "Globe"),
             new("instances", _translate("Ui_NavRail_Instances"), "Folder"),
             new("settings", _translate("Ui_NavRail_Settings"), "Settings")
         };
@@ -88,6 +90,8 @@ public sealed partial class ShellViewModel : ObservableObject
     private static readonly Dictionary<string, string> FallbackTexts = new(StringComparer.Ordinal)
     {
         ["Ui_NavRail_ManageMods"] = "管理模组",
+        ["Ui_NavRail_Changes"] = "变更集",
+        ["Ui_NavRail_Repos"] = "仓库",
         ["Ui_NavRail_Instances"] = "游戏实例",
         ["Ui_NavRail_Settings"] = "设置",
         ["Ui_Common_Status_Ready"] = "就绪",

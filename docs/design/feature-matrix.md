@@ -19,7 +19,7 @@
 | F-07 | 打开游戏目录（菜单 + 托盘） | UI-01 | `src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:680`, `src/CkanUI.ViewModels/Pages/Instances/IInstanceShellLauncher.cs:14` | 已实现 | 验证通过系统外壳接口启动文件管理器定位游戏根目录 |
 | F-08 | 实例锁定/注册表损坏的处置（删锁、回滚、提示升级 CKAN） | INT-04, UI-09 | `src/CkanUI.Services/Instances/InstanceService.cs:45`, `src/CkanUI.Services/Registry/RegistryService.cs:37`, `src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:305` | 已实现 | 单测验证锁定实例拒绝切换并提示不可重试错误，损坏注册表隔离不阻断其它实例枚举 |
 | F-09 | 切换实例后按需刷新（InstanceChanged → 重载列表） | INT-04, VM-04 | `src/CkanUI.Services/Instances/InstanceService.cs:25,91`, `src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:176` | 已实现 | 单测验证订阅 Core `InstanceChanged` 事件后异步派发并整体刷新实例行投影 |
-| F-10 | 元数据仓库管理（增、删、上移、下移、优先级、名称/URL 编辑、官方仓库预设） | UI-06, INT-06 | `src/CkanUI.Services/Repositories/RepositoryService.cs:48,57`, `src/CkanUI.ViewModels/Pages/SettingsPageViewModel.cs:320` | 部分 | 已实现快照加载与联网刷新；元数据仓库增删、优先级拖动排序与预设弹窗待 UI-06 / INT-06 接入 |
+| F-10 | 元数据仓库管理（增、删、上移、下移、优先级、名称/URL 编辑、官方仓库预设） | UI-06, INT-06 | `src/CkanUI.Services/Repositories/RepositoryService.cs:48,57`, `src/CkanUI.ViewModels/Pages/SettingsPageViewModel.cs:320` | 已实现 | 仓库页覆盖增删、上下移（优先级重编号）、单仓库刷新、恢复官方默认；写盘走 `RepositoriesSet` + `RegistryManager.Save()`，校验在纯函数 `RepositoryCatalog` 里可离线测。改地址 = 移除 + 新增（Core 无 rename）；无「启用/禁用」开关（`Repository` 只有 name/uri/priority） |
 | F-11 | 认证令牌（host + token，增删，脱敏显示） | UI-34 | `src/CkanUI.Services/Settings/SettingsService.cs:188`, `src/CkanUI.ViewModels/Pages/Settings/AuthTokenEditorViewModel.cs:13`, `src/CkanUI.ViewModels/Pages/SettingsPageViewModel.cs:341` | 已实现 | 单测 `SettingsServiceTests` 验证令牌增删改、读写脱敏掩码与敏感字符串不入日志 |
 | F-12 | 仓库刷新（手动、启动时、定时、暂停、Ctrl 强制重下） | UI-06, INT-06 | `src/CkanUI.Services/Repositories/RepositoryService.cs:57`, `src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:734`, `src/CkanUI.ViewModels/Pages/SettingsPageViewModel.cs:323` | 部分 | 手动刷新命令与自动刷新周期配置已实现；Ctrl 跳过 ETag 强制刷新与暂停刷新开关待 UI-06 补充 |
 | F-13 | 稳定性容忍度（全局 + 单 mod 覆盖） | UI-07, UI-29 | `src/CkanUI.Services/Models/GUIMod.cs:171`, `src/CkanUI.Services/Models/ModIndexOperations.cs:266` | 部分 | 模型层已支持容忍度冲突判定；设置页全局容忍度与详情页单模组覆盖 UI 待 UI-07 / UI-29 接入 |
@@ -74,8 +74,8 @@
 
 | 状态 | 数量 | 占比 | 包含特性的主要范围 |
 |---|---|---|---|
-| **已实现** | **13** | 23.6% | 实例基础管理（F-01..F-04, F-07..F-09）、认证令牌（F-11）、模组列表 15 列与 11 种过滤器（F-18, F-19）、元数据详情（F-27）、设置主页（F-49）、多语本地化（F-53） |
-| **部分** | **22** | 40.0% | 游戏启动与刷新（F-05, F-10, F-12）、版本与容忍度（F-13..F-16）、组合搜索与关系（F-20..F-23, F-26, F-28, F-30）、变更集与安装底层（F-31..F-33, F-37, F-43）、缓存设置与平台（F-50, F-52, F-55） |
+| **已实现** | **14** | 25.5% | 实例基础管理（F-01..F-04, F-07..F-09）、元数据仓库管理（F-10）、认证令牌（F-11）、模组列表 15 列与 11 种过滤器（F-18, F-19）、元数据详情（F-27）、设置主页（F-49）、多语本地化（F-53） |
+| **部分** | **21** | 38.2% | 游戏启动与刷新（F-05, F-12）、版本与容忍度（F-13..F-16）、组合搜索与关系（F-20..F-23, F-26, F-28, F-30）、变更集与安装底层（F-31..F-33, F-37, F-43）、缓存设置与平台（F-50, F-52, F-55） |
 | **未开始** | **20** | 36.4% | 命令行编辑器（F-06）、插件系统（F-17）、Label 属性（F-24）、导航历史（F-25）、内容预览（F-29）、推荐与虚拟模组对话框（F-34..F-36）、下载失败（F-38）、导入导出与工具族（F-39..F-42, F-44..F-48）、托盘与格式（F-51, F-54） |
 | **总计** | **55** | 100.0% | 覆盖全特性清单（A 9 + B 8 + C 17 + D 14 + E 7）全部条目 |
 

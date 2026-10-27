@@ -1,5 +1,6 @@
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Pages.Mods;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -48,6 +49,8 @@ public sealed partial class ModsPageViewModel : PageViewModel
     private readonly IErrorReporter _errors;
     private readonly IChangeSetService? _changeSets;
     private readonly IUiSettingsStore? _settings;
+    private readonly IChangeRequestSink? _changeSink;
+    private readonly INavigationService? _navigation;
 
     private readonly HashSet<string> _selected = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<ModRowData> _all = Array.Empty<ModRowData>();
@@ -72,7 +75,9 @@ public sealed partial class ModsPageViewModel : PageViewModel
         IInstanceService instances,
         IErrorReporter errors,
         IChangeSetService? changeSets = null,
-        IUiSettingsStore? settings = null)
+        IUiSettingsStore? settings = null,
+        IChangeRequestSink? changeSink = null,
+        INavigationService? navigation = null)
     {
         _repositories = repositories ?? throw new ArgumentNullException(nameof(repositories));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
@@ -80,6 +85,8 @@ public sealed partial class ModsPageViewModel : PageViewModel
         _errors = errors ?? throw new ArgumentNullException(nameof(errors));
         _changeSets = changeSets;
         _settings = settings;
+        _changeSink = changeSink;
+        _navigation = navigation;
 
         RefreshDetail();
     }
@@ -352,6 +359,7 @@ public sealed partial class ModsPageViewModel : PageViewModel
     protected override void OnActivated()
     {
         Subscribe();
+        RestoreColumnWidths();
         ReloadFromSnapshots();
     }
 
@@ -360,6 +368,7 @@ public sealed partial class ModsPageViewModel : PageViewModel
     {
         Unsubscribe();
         CancelPendingSearch();
+        CancelPendingColumnWidthSave();
     }
 
     private void Subscribe()
@@ -640,6 +649,179 @@ public sealed partial class ModsPageViewModel : PageViewModel
         _ => "全部",
     };
 
+    // ---- 列宽持久化（UI-02：列定义 / 列宽记忆）--------------------------
+
+    /// <summary>当前生效的列宽（键见 <see cref="DefaultColumnWidths"/>，单位 DIP）。视图 Loaded 时套用到各列。</summary>
+    [ObservableProperty]
+    private IReadOnlyDictionary<string, double> _columnWidths = DefaultColumnWidths;
+
+    /// <summary>最近一次列宽防抖保存任务（测试可 await 其落定）。</summary>
+    public Task PendingColumnWidthSave { get; private set; } = Task.CompletedTask;
+
+    /// <summary>
+    /// 从设置恢复列宽：以默认值为底叠加已保存的合法值，同步到 <see cref="ColumnWidths"/> 并返回结果。
+    /// 无设置服务、已存为空或读取抛异常时一律退回默认列宽（不抛、不弹错，界面照常可用）。
+    /// </summary>
+    public IReadOnlyDictionary<string, double> RestoreColumnWidths()
+    {
+        var restored = DefaultColumnWidths;
+        if (_settings is not null)
+        {
+            try
+            {
+                var stored = _settings.Current.ColumnWidths;
+                if (stored is { Count: > 0 })
+                {
+                    var merged = new Dictionary<string, double>(DefaultColumnWidths, StringComparer.Ordinal);
+                    foreach (var pair in stored)
+                    {
+                        if (IsSaneColumnWidth(pair.Value))
+                        {
+                            merged[pair.Key] = pair.Value;
+                        }
+                    }
+
+                    restored = merged;
+                }
+            }
+            catch (Exception ex)
+            {
+                _errors.Report(ex, "读取列宽", "读取列宽设置失败，已使用默认列宽。");
+                restored = DefaultColumnWidths;
+            }
+        }
+
+        ColumnWidths = restored;
+        return restored;
+    }
+
+    /// <summary>
+    /// 记录列宽变更：<see cref="ColumnWidthSaveDebounceMilliseconds"/> 防抖后合并进
+    /// <see cref="UiSettings.ColumnWidths"/> 落盘。连续拖拽只写一次；无设置服务时整体退化为 no-op。
+    /// </summary>
+    public void SaveColumnWidths(IReadOnlyDictionary<string, double> widths)
+    {
+        var snapshot = SanitizeColumnWidths(widths);
+        if (_settings is null || snapshot.Count == 0)
+        {
+            return;
+        }
+
+        CancelPendingColumnWidthSave();
+
+        var cts = new CancellationTokenSource();
+        _columnWidthsCts = cts;
+        var version = ++_columnWidthsVersion;
+        PendingColumnWidthSave = DelayThenSaveColumnWidthsAsync(snapshot, version, cts.Token);
+    }
+
+    /// <summary>跳过防抖立即保存列宽（供测试与窗口关闭时调用）。返回是否真的写成功。</summary>
+    public bool PersistColumnWidths(IReadOnlyDictionary<string, double> widths)
+    {
+        var snapshot = SanitizeColumnWidths(widths);
+        if (_settings is null || snapshot.Count == 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            // 与已存的列宽合并，避免「只调一列」时把其它列的记忆抹掉。
+            var merged = new Dictionary<string, double>(StringComparer.Ordinal);
+            var existing = _settings.Current.ColumnWidths;
+            if (existing is not null)
+            {
+                foreach (var pair in existing)
+                {
+                    if (IsSaneColumnWidth(pair.Value))
+                    {
+                        merged[pair.Key] = pair.Value;
+                    }
+                }
+            }
+
+            foreach (var pair in snapshot)
+            {
+                merged[pair.Key] = pair.Value;
+            }
+
+            var result = _settings.Save(_settings.Current with { ColumnWidths = merged });
+            if (result.IsSuccess)
+            {
+                ColumnWidths = merged;
+                return true;
+            }
+
+            // 落盘失败不打断交互（规格 05 篇：异常/失败不得穿透 UI）。
+            _errors.Report("保存列宽", result.Message ?? "写入设置文件失败。");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "保存列宽", "保存列宽时发生错误。");
+            return false;
+        }
+    }
+
+    private async Task DelayThenSaveColumnWidthsAsync(
+        IReadOnlyDictionary<string, double> widths,
+        int version,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Scheduler
+                .DelayAsync(TimeSpan.FromMilliseconds(ColumnWidthSaveDebounceMilliseconds), cancellationToken)
+                .ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "列宽防抖", "保存列宽时发生错误。");
+            return;
+        }
+
+        if (cancellationToken.IsCancellationRequested || version != _columnWidthsVersion)
+        {
+            // 期间又有列宽变化，交给最新一次调度。
+            return;
+        }
+
+        PersistColumnWidths(widths);
+    }
+
+    private void CancelPendingColumnWidthSave()
+    {
+        _columnWidthsCts?.Cancel();
+        _columnWidthsCts?.Dispose();
+        _columnWidthsCts = null;
+    }
+
+    private static Dictionary<string, double> SanitizeColumnWidths(IReadOnlyDictionary<string, double>? widths)
+    {
+        var clean = new Dictionary<string, double>(StringComparer.Ordinal);
+        if (widths is null)
+        {
+            return clean;
+        }
+
+        foreach (var pair in widths)
+        {
+            if (!string.IsNullOrWhiteSpace(pair.Key) && IsSaneColumnWidth(pair.Value))
+            {
+                clean[pair.Key] = pair.Value;
+            }
+        }
+
+        return clean;
+    }
+
+    /// <summary>列宽合法性：有限数、非负、不超过 4000 DIP（防脏数据把界面撑坏）。</summary>
+    private static bool IsSaneColumnWidth(double value) => double.IsFinite(value) && value is >= 0 and <= 4000;
+
     // ---- 防抖搜索（VM-01 验收：搜索延迟 ≤100ms）--------------------------
 
     private void CancelPendingSearch()
@@ -834,18 +1016,7 @@ public sealed partial class ModsPageViewModel : PageViewModel
 
         try
         {
-            var requests = new List<ChangeRequest>(_selected.Count);
-            foreach (var identifier in _selected)
-            {
-                var row = _all.FirstOrDefault(r => string.Equals(r.Identifier, identifier, StringComparison.OrdinalIgnoreCase));
-                if (row.Identifier is null)
-                {
-                    continue;
-                }
-
-                requests.Add(new ChangeRequest(identifier, ModsChangePreviewBuilder.ResolveAction(row), row.LatestVersion));
-            }
-
+            var requests = BuildChangeRequests();
             var result = await _changeSets.BuildAsync(requests).ConfigureAwait(true);
             if (result.IsSuccess && result.Value is not null)
             {
@@ -865,6 +1036,60 @@ public sealed partial class ModsPageViewModel : PageViewModel
         {
             RefreshDerived();
         }
+    }
+
+    /// <summary>
+    /// 「去变更集」：把当前勾选翻译成请求，灌进变更集页再导航过去（UI-04 交接）。
+    /// 没有 sink 或导航时退化为只算一次预览，不影响勾选状态。
+    /// </summary>
+    [RelayCommand]
+    private async Task ReviewChangesAsync()
+    {
+        var requests = BuildChangeRequests();
+        if (requests.Count == 0)
+        {
+            StatusText = "请先勾选要变更的模组。";
+            return;
+        }
+
+        _changeSink?.SetRequests(requests);
+
+        if (_navigation is null)
+        {
+            StatusText = "当前没有可用的导航服务，无法打开变更集页。";
+            return;
+        }
+
+        try
+        {
+            if (!await _navigation.NavigateAsync("changes").ConfigureAwait(true))
+            {
+                StatusText = "无法打开变更集页。";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "打开变更集页", "打开变更集页时发生错误。");
+            StatusText = "打开变更集页失败，请查看错误栏。";
+        }
+    }
+
+    /// <summary>把勾选行翻译成 Core 无关的变更请求；无 IChangeSetService 时也可用（本地预览同款口径）。</summary>
+    public List<ChangeRequest> BuildChangeRequests()
+    {
+        var requests = new List<ChangeRequest>(_selected.Count);
+        foreach (var identifier in _selected)
+        {
+            var row = _all.FirstOrDefault(r => string.Equals(r.Identifier, identifier, StringComparison.OrdinalIgnoreCase));
+            if (row.Identifier is null)
+            {
+                continue;
+            }
+
+            requests.Add(new ChangeRequest(identifier, ModsChangePreviewBuilder.ResolveAction(row), row.LatestVersion));
+        }
+
+        return requests;
     }
 
     /// <summary>应用变更（M1 仅占位：安装器在 M2 接入，见 INT-08）。</summary>

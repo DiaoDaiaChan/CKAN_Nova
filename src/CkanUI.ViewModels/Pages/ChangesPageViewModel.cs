@@ -18,7 +18,7 @@ namespace CkanUI.ViewModels.Pages;
 /// <para>依赖全部可选：<c>IChangeSetService</c>（INT-07）与 <c>IInstallerService</c>（INT-08）尚未实现时，
 /// 页面仍能显示请求摘要、给出"安装器将在 M2 接入"的明确提示，不抛异常。</para>
 /// </remarks>
-public sealed partial class ChangesPageViewModel : PageViewModel
+public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequestSink
 {
     /// <summary>没有安装器时的固定提示（03 篇 §4 主按钮 + 06 篇 M2 门禁）。</summary>
     public const string MissingInstallerText = "安装器将在 M2 接入（INT-08）：当前只能查看变更预览，还不能真正安装。";
