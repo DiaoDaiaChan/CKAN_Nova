@@ -22,7 +22,7 @@
 | [design/service-contracts.md](design/service-contracts.md) | 服务层契约冻结表：13 个接口 + 8 组 DTO + 实现归属 |
 | [design/pages.md](design/pages.md) | 页面设计：M1 各页布局、控件与交互落点 |
 | [design/theme-tokens.md](design/theme-tokens.md) | 主题 token 表：Ckan* 语义色/字号/间距在三套主题下的取值 |
-| [design/feature-matrix.md](design/feature-matrix.md) | F-01..F-55 实现状态矩阵（已实现 51 / 部分 4 / 未开始 0）与四波次优先级 |
+| [design/feature-matrix.md](design/feature-matrix.md) | F-01..F-55 实现状态矩阵（已实现 55 / 部分 0 / 未开始 0，100% 达成） |
 | [design/milestones.md](design/milestones.md) | M0–M14 里程碑执行实况、已落地模块清单与已知缺口 |
 | [design/labels.md](design/labels.md) | F-24 标签组：分层、DIM 契约、Mods 页筛选与四条缺口 |
 | [design/mod-dialogs.md](design/mod-dialogs.md) | F-34/35/36 模组对话框族：推荐、虚拟提供者、冲突明细 |
@@ -42,6 +42,7 @@
 | [design/mod-details-tabs.md](design/mod-details-tabs.md) | F-26 & F-30 模组详情多页签架构：元数据/关系树/全部版本/已装文件与内容跳转（UI-03） |
 | [design/preferred-hosts.md](design/preferred-hosts.md) | F-15 首选下载主机管理：优先级排序、主机拖拽/上下移与 Core 配置持久化（UI-30） |
 | [design/install-filters.md](design/install-filters.md) | F-16 安装文件过滤器编辑器：全局与实例规则、预设规则导入与配置校验（UI-31） |
+| [design/update-check.md](design/update-check.md) | F-52 自动更新与新版本检查器设计与实现（UI-27） |
 | [ops/i18n-guide.md](ops/i18n-guide.md) | 本地化指南：语言包格式、回退链、App 侧接线契约（§6） |
 
 ## 索引 · 规格正文（docs/plan）

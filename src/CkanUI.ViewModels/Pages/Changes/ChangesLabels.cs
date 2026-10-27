@@ -45,8 +45,17 @@ public static class ChangesLabels
     /// <summary>错误区标题。</summary>
     public const string ErrorTitle = "错误";
 
+    /// <summary>重试按钮文案。</summary>
+    public const string RetryButton = "重试";
+
     /// <summary>冲突区标题前缀（后接数量，由 VM 拼接）。</summary>
     public const string ConflictTitlePrefix = "冲突";
+
+    /// <summary>冲突区按钮：查看冲突详情。</summary>
+    public const string ShowConflictDetailsButton = "查看冲突详情...";
+
+    /// <summary>推荐模组选择按钮。</summary>
+    public const string SelectRecommendationsButton = "选择推荐项...";
 
     /// <summary>执行阶段提示：下载阶段可取消。</summary>
     public const string CancelHint = "下载阶段取消会立即停止并删除临时文件；安装阶段取消会等当前模组完成后回滚整个事务。";

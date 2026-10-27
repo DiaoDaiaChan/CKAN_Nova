@@ -137,4 +137,116 @@ public sealed class SettingsStabilityToleranceTests
         Assert.That(StabilityToleranceFile.NormalizeTolerance("beta"), Is.EqualTo("stable"));
         Assert.That(StabilityToleranceFile.KnownTolerances, Is.EqualTo(new[] { "stable", "testing", "development" }));
     }
+
+    [Test]
+    public async Task GetModToleranceAsync_MissingFile_ReturnsNull()
+    {
+        var result = await StabilityToleranceFile.GetModToleranceAsync(workspace!.Path, "ModA");
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public async Task GetModToleranceAsync_ExistingFile_ReturnsOverride()
+    {
+        await File.WriteAllTextAsync(
+            TolerancePath,
+            """""{"overall_stability_tolerance":"stable","mod_stability_tolerance":{"ModA":"testing","ModB":"development"}}""""");
+
+        var modA = await StabilityToleranceFile.GetModToleranceAsync(workspace!.Path, "ModA");
+        var modB = await StabilityToleranceFile.GetModToleranceAsync(workspace!.Path, "ModB");
+        var modC = await StabilityToleranceFile.GetModToleranceAsync(workspace!.Path, "ModC");
+
+        Assert.That(modA, Is.EqualTo("testing"));
+        Assert.That(modB, Is.EqualTo("development"));
+        Assert.That(modC, Is.Null);
+    }
+
+    [Test]
+    public void GetModToleranceSync_ReturnsSameAsAsync()
+    {
+        File.WriteAllText(
+            TolerancePath,
+            """""{"overall_stability_tolerance":"stable","mod_stability_tolerance":{"ModA":"testing"}}""""");
+
+        var modA = StabilityToleranceFile.GetModToleranceSync(workspace!.Path, "ModA");
+        var modB = StabilityToleranceFile.GetModToleranceSync(workspace!.Path, "ModB");
+
+        Assert.That(modA, Is.EqualTo("testing"));
+        Assert.That(modB, Is.Null);
+    }
+
+    [Test]
+    public async Task SetModToleranceAsync_AddsAndUpdatesOverride()
+    {
+        var result1 = await StabilityToleranceFile.SetModToleranceAsync(workspace!.Path, "ModA", "testing");
+        Assert.That(result1.IsSuccess, Is.True);
+        Assert.That(await StabilityToleranceFile.GetModToleranceAsync(workspace!.Path, "ModA"), Is.EqualTo("testing"));
+
+        // 更新同一个 mod
+        var result2 = await StabilityToleranceFile.SetModToleranceAsync(workspace!.Path, "ModA", "development");
+        Assert.That(result2.IsSuccess, Is.True);
+        Assert.That(await StabilityToleranceFile.GetModToleranceAsync(workspace!.Path, "ModA"), Is.EqualTo("development"));
+
+        // 添加第二个 mod，不影响第一个
+        var result3 = await StabilityToleranceFile.SetModToleranceAsync(workspace!.Path, "ModB", "stable");
+        Assert.That(result3.IsSuccess, Is.True);
+        Assert.That(await StabilityToleranceFile.GetModToleranceAsync(workspace!.Path, "ModA"), Is.EqualTo("development"));
+        Assert.That(await StabilityToleranceFile.GetModToleranceAsync(workspace!.Path, "ModB"), Is.EqualTo("stable"));
+    }
+
+    [Test]
+    public async Task SetModToleranceAsync_NullOrEmptyTolerance_RemovesOverride()
+    {
+        await StabilityToleranceFile.SetModToleranceAsync(workspace!.Path, "ModA", "testing");
+        await StabilityToleranceFile.SetModToleranceAsync(workspace!.Path, "ModB", "development");
+
+        // 移除 ModA
+        var removeResult = await StabilityToleranceFile.SetModToleranceAsync(workspace!.Path, "ModA", null);
+        Assert.That(removeResult.IsSuccess, Is.True);
+        Assert.That(await StabilityToleranceFile.GetModToleranceAsync(workspace!.Path, "ModA"), Is.Null);
+        // ModB 依然保留
+        Assert.That(await StabilityToleranceFile.GetModToleranceAsync(workspace!.Path, "ModB"), Is.EqualTo("development"));
+
+        // 传入空字符串也视为移除或无效，测试移除传 null
+    }
+
+    [Test]
+    public async Task SetModToleranceAsync_InvalidTolerance_ReturnsErrorWithoutTouchingFile()
+    {
+        await StabilityToleranceFile.SetModToleranceAsync(workspace!.Path, "ModA", "testing");
+
+        var invalidResult = await StabilityToleranceFile.SetModToleranceAsync(workspace!.Path, "ModA", "invalid_val");
+        Assert.That(invalidResult.IsSuccess, Is.False);
+        Assert.That(invalidResult.Message, Does.Contain("无效"));
+
+        // 原有配置不受影响
+        Assert.That(await StabilityToleranceFile.GetModToleranceAsync(workspace!.Path, "ModA"), Is.EqualTo("testing"));
+    }
+
+    [Test]
+    public async Task SetModToleranceAsync_PreservesOverallTolerance()
+    {
+        await File.WriteAllTextAsync(
+            TolerancePath,
+            """""{"overall_stability_tolerance":"development","mod_stability_tolerance":{}}""""");
+
+        await StabilityToleranceFile.SetModToleranceAsync(workspace!.Path, "ModA", "testing");
+
+        var readOverall = await new StabilityToleranceFile().ReadAsync(TolerancePath);
+        Assert.That(readOverall.Value, Is.EqualTo("development"));
+        Assert.That(await StabilityToleranceFile.GetModToleranceAsync(workspace!.Path, "ModA"), Is.EqualTo("testing"));
+    }
+
+    [Test]
+    public async Task SaveOverallToleranceAsync_PreservesModOverrides()
+    {
+        await StabilityToleranceFile.SetModToleranceAsync(workspace!.Path, "ModA", "testing");
+
+        var saveResult = await StabilityToleranceFile.SaveOverallToleranceAsync(workspace!.Path, "development");
+        Assert.That(saveResult.IsSuccess, Is.True);
+
+        var readOverall = await new StabilityToleranceFile().ReadAsync(TolerancePath);
+        Assert.That(readOverall.Value, Is.EqualTo("development"));
+        Assert.That(await StabilityToleranceFile.GetModToleranceAsync(workspace!.Path, "ModA"), Is.EqualTo("testing"));
+    }
 }

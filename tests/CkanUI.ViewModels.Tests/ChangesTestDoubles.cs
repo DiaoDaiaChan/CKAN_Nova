@@ -221,3 +221,64 @@ internal static class ChangesFakes
         return list;
     }
 }
+
+/// <summary>模组对话框服务替身：记录调用与入参，并支持预设返回结果（F-34..F-36 闭环测试）。</summary>
+internal sealed class FakeModDialogService : IModDialogService
+{
+    public RecommendationSelection? NextRecommendationSelection { get; set; }
+    public VirtualModuleChoice? NextVirtualModuleChoice { get; set; }
+
+    public int SelectRecommendationsCallCount { get; private set; }
+    public int SelectVirtualModuleCallCount { get; private set; }
+    public int ShowConflictDetailsCallCount { get; private set; }
+
+    public RecommendationDialogRequest? LastRecommendationRequest { get; private set; }
+    public VirtualModuleRequest? LastVirtualModuleRequest { get; private set; }
+    public ConflictDetailsRequest? LastConflictDetailsRequest { get; private set; }
+
+    public Exception? ThrowOnRecommendations { get; set; }
+    public Exception? ThrowOnVirtualModule { get; set; }
+    public Exception? ThrowOnConflictDetails { get; set; }
+
+    public Task<RecommendationSelection?> SelectRecommendationsAsync(
+        RecommendationDialogRequest request,
+        CancellationToken ct = default)
+    {
+        SelectRecommendationsCallCount++;
+        LastRecommendationRequest = request;
+        if (ThrowOnRecommendations is { } ex)
+        {
+            throw ex;
+        }
+
+        return Task.FromResult(NextRecommendationSelection);
+    }
+
+    public Task<VirtualModuleChoice?> SelectVirtualModuleAsync(
+        VirtualModuleRequest request,
+        CancellationToken ct = default)
+    {
+        SelectVirtualModuleCallCount++;
+        LastVirtualModuleRequest = request;
+        if (ThrowOnVirtualModule is { } ex)
+        {
+            throw ex;
+        }
+
+        return Task.FromResult(NextVirtualModuleChoice);
+    }
+
+    public Task ShowConflictDetailsAsync(
+        ConflictDetailsRequest request,
+        CancellationToken ct = default)
+    {
+        ShowConflictDetailsCallCount++;
+        LastConflictDetailsRequest = request;
+        if (ThrowOnConflictDetails is { } ex)
+        {
+            throw ex;
+        }
+
+        return Task.CompletedTask;
+    }
+}

@@ -372,7 +372,7 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
             }
             else if (!string.IsNullOrEmpty(GameDirectory))
             {
-                currentOverride = new StabilityToleranceFile().GetModToleranceSync(GameDirectory, _identifier);
+                currentOverride = StabilityToleranceFile.GetModToleranceSync(GameDirectory, _identifier);
             }
 
             _selectedStabilityToleranceOverride = StabilityToleranceOptions.FirstOrDefault(opt =>

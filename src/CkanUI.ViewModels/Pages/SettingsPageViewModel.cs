@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Globalization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.ViewModels.Dialogs;
 using CkanUI.ViewModels.Pages.Settings;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -29,6 +30,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     private readonly ISettingsService _settings;
     private readonly IUiSettingsStore _uiSettings;
     private readonly IInstanceService? _instances;
+    private readonly IUpdateCheckService? _updateCheckService;
     private readonly AuthTokenEditorViewModel _tokenEditor;
     private readonly SettingsDiagnosticsViewModel _diagnostics;
     private readonly StabilityToleranceFile _stability = new();
@@ -36,20 +38,26 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     private readonly List<SettingGroupViewModel> _groups = new();
     private ISettingsShellLauncher? _shellLauncher;
 
+    private SettingItemViewModel? _devBuildsItem;
     private SettingItemViewModel? _autoStartItem;
     private SettingItemViewModel? _cacheDirItem;
     private SettingItemViewModel? _stabilityItem;
+
+    /// <summary>弹窗呈现委托，解耦视图层。</summary>
+    public Func<UpdateAvailableDialogViewModel, Task>? ShowUpdateDialogAsync { get; set; }
 
     /// <summary>创建设置页视图模型。</summary>
     /// <param name="settings">设置服务（Core 配置的唯一出口）。</param>
     /// <param name="uiSettings">UI 自有设置存储（外观类设置）。</param>
     /// <param name="instances">实例服务：供「自动打开的实例」下拉与实例级容差文件定位；为空时这两项退化为只读/不可用。</param>
     /// <param name="copyTextAsync">写剪贴板的宿主委托（DI 已注册 <c>Func&lt;string, Task&gt;</c>）；为空时复制按钮给出无通道提示。</param>
+    /// <param name="updateCheckService">自动更新与新版本检查器（F-52）。</param>
     public SettingsPageViewModel(
         ISettingsService settings,
         IUiSettingsStore uiSettings,
         IInstanceService? instances = null,
-        Func<string, Task>? copyTextAsync = null)
+        Func<string, Task>? copyTextAsync = null,
+        IUpdateCheckService? updateCheckService = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(uiSettings);
@@ -57,11 +65,13 @@ public sealed partial class SettingsPageViewModel : PageViewModel
         _settings = settings;
         _uiSettings = uiSettings;
         _instances = instances;
+        _updateCheckService = updateCheckService;
         _tokenEditor = new AuthTokenEditorViewModel(settings);
         _tokenEditor.PropertyChanged += OnTokenEditorPropertyChanged;
         _diagnostics = new SettingsDiagnosticsViewModel(copyTextAsync);
         OpenCacheFolderCommand = new AsyncRelayCommand(OpenCacheFolderAsync);
         OpenConfigFolderCommand = new AsyncRelayCommand(OpenConfigFolderAsync);
+        CheckForUpdatesCommand = new AsyncRelayCommand(CheckForUpdatesAsync);
 
         BuildGroups();
 
@@ -110,6 +120,9 @@ public sealed partial class SettingsPageViewModel : PageViewModel
 
     /// <summary>打开配置目录（<c>%LocalAppData%/CKAN</c>）。</summary>
     public IAsyncRelayCommand OpenConfigFolderCommand { get; }
+
+    /// <summary>立即检查更新（F-52）。</summary>
+    public IAsyncRelayCommand CheckForUpdatesCommand { get; }
 
     /// <summary>是否正在读取设置。</summary>
     [ObservableProperty]
@@ -313,18 +326,21 @@ public sealed partial class SettingsPageViewModel : PageViewModel
 
     private void BuildGroups()
     {
+        _devBuildsItem = new SettingItemViewModel(
+            SettingsKeyNames.DevBuilds,
+            "开发版更新通道",
+            SettingItemKind.Boolean,
+            SettingPersistence.Core,
+            SettingGroupKey.General,
+            description: "开启后检查更新时包含 dev 构建（F-52）；关闭则只跟踪正式版。",
+            saveHandler: vm => SaveItemAsync(vm));
+        _devBuildsItem.SetAuxiliaryAction("立即检查更新", CheckForUpdatesCommand);
+
         var general = Group(
             SettingGroupKey.General,
             "通用",
             "与具体实例无关的行为。",
-            new SettingItemViewModel(
-                SettingsKeyNames.DevBuilds,
-                "开发版更新通道",
-                SettingItemKind.Boolean,
-                SettingPersistence.Core,
-                SettingGroupKey.General,
-                description: "开启后检查更新时包含 dev 构建（F-52）；关闭则只跟踪正式版。",
-                saveHandler: vm => SaveItemAsync(vm)));
+            _devBuildsItem);
 
         _autoStartItem = new SettingItemViewModel(
             SettingsKeyNames.AutoStartInstance,
@@ -734,6 +750,51 @@ public sealed partial class SettingsPageViewModel : PageViewModel
         StatusText = result.IsSuccess
             ? string.Create(CultureInfo.InvariantCulture, $"已打开{what}")
             : string.Create(CultureInfo.InvariantCulture, $"打开{what}失败：{result.Message}");
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        if (_updateCheckService is null)
+        {
+            StatusText = "未配置更新检查服务";
+            return;
+        }
+
+        StatusText = "正在检查更新…";
+        var includeDevBuilds = _devBuildsItem?.BooleanValue ?? false;
+        var result = await _updateCheckService.CheckForUpdatesAsync(includeDevBuilds).ConfigureAwait(true);
+
+        if (!result.IsSuccess || result.Value is null)
+        {
+            StatusText = string.Create(CultureInfo.InvariantCulture, $"检查更新失败：{result.Message}");
+            return;
+        }
+
+        var updateInfo = result.Value;
+        if (updateInfo.HasUpdate)
+        {
+            StatusText = string.Create(
+                CultureInfo.InvariantCulture,
+                $"发现新版本 {updateInfo.LatestVersion}（当前版本：{updateInfo.CurrentVersion}）");
+
+            if (ShowUpdateDialogAsync != null)
+            {
+                var dialogVm = new UpdateAvailableDialogViewModel(
+                    updateInfo.CurrentVersion ?? "v0.0.0",
+                    updateInfo.LatestVersion ?? "v0.0.0",
+                    updateInfo.ReleaseNotes,
+                    updateInfo.ReleaseUrl,
+                    updateInfo.IsDevBuild);
+
+                await ShowUpdateDialogAsync(dialogVm).ConfigureAwait(true);
+            }
+        }
+        else
+        {
+            StatusText = string.Create(
+                CultureInfo.InvariantCulture,
+                $"已是最新版本（{updateInfo.CurrentVersion}）");
+        }
     }
 
     private IReadOnlyList<InstanceInfo> EnumerateInstances()

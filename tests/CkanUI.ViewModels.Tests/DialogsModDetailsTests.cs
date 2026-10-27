@@ -341,16 +341,15 @@ public sealed class DialogsModDetailsTests
             {
                 savedMod = id;
                 savedTolerance = tol;
-                return Task.FromResult(CkanUI.Services.Abstractions.OperationResult.Ok());
             },
-            NotifyModRefreshed = id => notifiedMod = id,
+            NotifyModRefreshed = id => { notifiedMod = id; },
         };
 
         vm.Select("ExampleMod");
-        Assert.That(vm.SelectedStabilityToleranceOverride?.Tolerance, Is.Null);
+        Assert.That(vm.SelectedStabilityToleranceOverride?.Value, Is.Null);
 
         // 切换为 testing
-        var testingOption = vm.StabilityToleranceOptions.First(o => o.Tolerance == "testing");
+        var testingOption = vm.StabilityToleranceOptions.First(o => o.Value == "testing");
         vm.SelectedStabilityToleranceOverride = testingOption;
 
         // 等待异步 setter
@@ -361,7 +360,7 @@ public sealed class DialogsModDetailsTests
         Assert.That(notifiedMod, Is.EqualTo("ExampleMod"));
 
         // 切换回 继承全局默认 (null)
-        var defaultOption = vm.StabilityToleranceOptions.First(o => o.Tolerance == null);
+        var defaultOption = vm.StabilityToleranceOptions.First(o => o.Value == null);
         vm.SelectedStabilityToleranceOverride = defaultOption;
 
         await Task.Delay(50);

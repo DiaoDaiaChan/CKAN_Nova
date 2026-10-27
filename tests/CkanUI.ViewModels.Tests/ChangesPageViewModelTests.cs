@@ -15,6 +15,7 @@ public sealed class ChangesPageViewModelTests
     private ChangesFakeChangeSetService _changeSets = null!;
     private ChangesFakeInstallerService _installer = null!;
     private ChangesCountingErrorReporter _errors = null!;
+    private FakeModDialogService _modDialogs = null!;
 
     [SetUp]
     public void SetUp()
@@ -22,16 +23,23 @@ public sealed class ChangesPageViewModelTests
         _changeSets = new ChangesFakeChangeSetService();
         _installer = new ChangesFakeInstallerService();
         _errors = new ChangesCountingErrorReporter();
+        _modDialogs = new FakeModDialogService();
     }
 
-    private ChangesPageViewModel Create(bool withInstaller = true, bool withChangeSets = true)
+    private ChangesPageViewModel Create(
+        bool withInstaller = true,
+        bool withChangeSets = true,
+        bool withModDialogs = false)
     {
         var vm = new ChangesPageViewModel(
             withChangeSets ? _changeSets : null,
             withInstaller ? _installer : null,
             _errors,
             null,
-            new ChangesImmediateDispatcher());
+            new ChangesImmediateDispatcher(),
+            null,
+            null,
+            withModDialogs ? _modDialogs : null);
         vm.Activate();
         return vm;
     }
@@ -360,5 +368,151 @@ public sealed class ChangesPageViewModelTests
         Assert.That(vm.CanApply, Is.True);
         Assert.That(vm.ApplyCommand.CanExecute(null), Is.True);
         Assert.That(vm.DownloadText, Is.EqualTo("预计下载 2.0 KB"));
+    }
+
+    // ---------- F-34 / F-35 / F-36 对话框族接入测试 ----------
+
+    [Test]
+    public void ShowConflictDetails_WithoutConflicts_CannotExecute()
+    {
+        var vm = Create(withModDialogs: true);
+        vm.LoadPreview(ChangesFakes.Preview(new[] { ChangesFakes.Item("a", "Alpha") }, 2_048));
+
+        Assert.That(vm.HasConflicts, Is.False);
+        Assert.That(vm.ShowConflictDetailsCommand.CanExecute(null), Is.False);
+    }
+
+    [Test]
+    public async Task ShowConflictDetails_WithConflicts_CallsDialogService()
+    {
+        var conflicts = new[] { "ModA 与 ModB 冲突：共同提供 TestFile.dll", "ModC 与 ModD 冲突" };
+        var vm = Create(withModDialogs: true);
+        vm.LoadPreview(ChangesFakes.Preview(
+            new[] { ChangesFakes.Item("a", "Alpha") },
+            2_048,
+            conflicts: conflicts));
+
+        Assert.That(vm.HasConflicts, Is.True);
+        Assert.That(vm.ShowConflictDetailsCommand.CanExecute(null), Is.True);
+
+        await vm.ShowConflictDetailsCommand.ExecuteAsync(null);
+
+        Assert.That(_modDialogs.ShowConflictDetailsCallCount, Is.EqualTo(1));
+        var request = _modDialogs.LastConflictDetailsRequest;
+        Assert.That(request, Is.Not.Null);
+        Assert.That(request!.Conflicts.Count, Is.EqualTo(2));
+        Assert.That(request.Conflicts[0].Description, Is.EqualTo(conflicts[0]));
+        Assert.That(request.Conflicts[1].Description, Is.EqualTo(conflicts[1]));
+        Assert.That(request.IsBlocking, Is.True);
+    }
+
+    [Test]
+    public async Task ShowConflictDetails_WithoutService_GracefullyDegrades()
+    {
+        var conflicts = new[] { "ModA 与 ModB 冲突" };
+        var vm = Create(withModDialogs: false);
+        vm.LoadPreview(ChangesFakes.Preview(
+            new[] { ChangesFakes.Item("a", "Alpha") },
+            2_048,
+            conflicts: conflicts));
+
+        Assert.That(vm.HasConflicts, Is.True);
+        Assert.That(vm.ShowConflictDetailsCommand.CanExecute(null), Is.True);
+
+        // 无服务时不应抛出未捕获异常，并且更新 StatusText 提示
+        Assert.DoesNotThrowAsync(async () => await vm.ShowConflictDetailsCommand.ExecuteAsync(null));
+        Assert.That(vm.StatusText, Does.Contain("模组对话框服务未注入"));
+        Assert.That(_modDialogs.ShowConflictDetailsCallCount, Is.Zero);
+    }
+
+    [Test]
+    public async Task PromptRecommendations_FromPreviewRecommendations_InvokesDialog()
+    {
+        var vm = Create(withModDialogs: true);
+        vm.LoadPreview(ChangesFakes.Preview(
+            new[]
+            {
+                ChangesFakes.Item("a", "Alpha", ChangeAction.Install, origin: ChangeOrigin.UserRequested),
+                ChangesFakes.Item("rec1", "RecMod 1", ChangeAction.Install, origin: ChangeOrigin.Recommendation),
+                ChangesFakes.Item("rec2", "RecMod 2", ChangeAction.Install, origin: ChangeOrigin.Recommendation),
+            },
+            10_000));
+
+        var expectedSelection = new RecommendationSelection(
+            new[] { "rec1" },
+            SuppressRecommendations: false);
+        _modDialogs.NextRecommendationSelection = expectedSelection;
+
+        var result = await vm.PromptRecommendationsAsync();
+
+        Assert.That(_modDialogs.SelectRecommendationsCallCount, Is.EqualTo(1));
+        var request = _modDialogs.LastRecommendationRequest;
+        Assert.That(request, Is.Not.Null);
+        Assert.That(request!.Candidates.Count, Is.EqualTo(2));
+        Assert.That(request.Candidates[0].Identifier, Is.EqualTo("rec1"));
+        Assert.That(request.Candidates[0].Kind, Is.EqualTo(RecommendationKind.Recommended));
+        Assert.That(request.Candidates[0].IsSelectedByDefault, Is.True);
+        Assert.That(result, Is.EqualTo(expectedSelection));
+    }
+
+    [Test]
+    public async Task PromptRecommendations_WithoutServiceOrRecommendations_ReturnsNull()
+    {
+        // 1. 无推荐项时
+        var vmWithDialog = Create(withModDialogs: true);
+        vmWithDialog.LoadPreview(ChangesFakes.Preview(
+            new[] { ChangesFakes.Item("a", "Alpha", ChangeAction.Install, origin: ChangeOrigin.UserRequested) },
+            5_000));
+        var res1 = await vmWithDialog.PromptRecommendationsAsync();
+        Assert.That(res1, Is.Null);
+        Assert.That(_modDialogs.SelectRecommendationsCallCount, Is.Zero);
+
+        // 2. 有推荐项但无服务时
+        var vmNoService = Create(withModDialogs: false);
+        vmNoService.LoadPreview(ChangesFakes.Preview(
+            new[] { ChangesFakes.Item("rec1", "RecMod", ChangeAction.Install, origin: ChangeOrigin.Recommendation) },
+            5_000));
+        var res2 = await vmNoService.PromptRecommendationsAsync();
+        Assert.That(res2, Is.Null);
+    }
+
+    [Test]
+    public async Task SelectVirtualModule_WithRequest_InvokesDialogAndReturnsChoice()
+    {
+        var vm = Create(withModDialogs: true);
+        var expectedChoice = new VirtualModuleChoice(
+            Identifier: "ModuleA",
+            Name: "Module A");
+        _modDialogs.NextVirtualModuleChoice = expectedChoice;
+
+        var request = new VirtualModuleRequest(
+            Message: "请选择一个提供者",
+            Providers: new[]
+            {
+                new VirtualModuleCandidate("ModuleA", "Module A", "Desc A", true),
+                new VirtualModuleCandidate("ModuleB", "Module B", "Desc B", false),
+            },
+            Dependency: "SomeMod");
+
+        var choice = await vm.SelectVirtualModuleAsync(request);
+
+        Assert.That(_modDialogs.SelectVirtualModuleCallCount, Is.EqualTo(1));
+        Assert.That(_modDialogs.LastVirtualModuleRequest, Is.EqualTo(request));
+        Assert.That(choice, Is.EqualTo(expectedChoice));
+    }
+
+    [Test]
+    public async Task SelectVirtualModule_WithoutService_GracefullyDegrades()
+    {
+        var vm = Create(withModDialogs: false);
+        var request = new VirtualModuleRequest(
+            Message: "请选择提供者",
+            Providers: new[] { new VirtualModuleCandidate("A", "A") },
+            Dependency: "Mod");
+
+        var choice = await vm.SelectVirtualModuleAsync(request);
+
+        Assert.That(choice, Is.Null);
+        Assert.That(vm.StatusText, Does.Contain("模组对话框服务未注入"));
     }
 }

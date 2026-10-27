@@ -1,4 +1,4 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="CkanUI.App.Views.ChangesPageView"
              x:CompileBindings="False"
@@ -81,6 +81,9 @@
         <TextBlock Text="{Binding ConflictHint}"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" TextWrapping="Wrap" />
+        <Button Content="{Binding ShowConflictDetailsButtonText}"
+                Command="{Binding ShowConflictDetailsCommand}"
+                HorizontalAlignment="Left" Margin="0,4,0,0" />
       </StackPanel>
     </Border>
     </StackPanel>
@@ -129,14 +132,20 @@
               CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
               Background="{DynamicResource CkanSurfaceBackgroundBrush}"
               BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1">
-        <StackPanel Spacing="2">
-          <TextBlock Text="{Binding ErrorTitle}"
-                     FontSize="{DynamicResource CkanFontSizeCaption}"
-                     Foreground="{DynamicResource CkanDangerBrush}" />
-          <TextBlock Text="{Binding LastErrorText}"
-                     FontSize="{DynamicResource CkanFontSizeBody}"
-                     Foreground="{DynamicResource CkanTextPrimaryBrush}" TextWrapping="Wrap" />
-        </StackPanel>
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Grid.Column="0" Spacing="2">
+            <TextBlock Text="{Binding ErrorTitle}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanDangerBrush}" />
+            <TextBlock Text="{Binding LastErrorText}"
+                       FontSize="{DynamicResource CkanFontSizeBody}"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}" TextWrapping="Wrap" />
+          </StackPanel>
+          <Button Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
+                  Content="{Binding RetryButtonText}"
+                  Command="{Binding RetryCommand}"
+                  IsVisible="{Binding CanRetry}" />
+        </Grid>
       </Border>
     </StackPanel>
 
@@ -273,7 +282,7 @@
             CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
             Background="{DynamicResource CkanStatusBarBackgroundBrush}"
             AutomationProperties.Name="{Binding StatusRegionName}">
-      <Grid ColumnDefinitions="Auto,140,*,Auto,Auto,Auto">
+      <Grid ColumnDefinitions="Auto,140,*,Auto,Auto,Auto,Auto">
         <!-- 状态文字（双通道：状态徽章之外一定有可读文字） -->
         <TextBlock Grid.Column="0" Text="{Binding StateText}" MaxWidth="360"
                    FontSize="{DynamicResource CkanFontSizeBody}"
@@ -294,8 +303,12 @@
         <Button Grid.Column="4" Margin="6,0,0,0" Content="{Binding CancelButtonText}"
                 Command="{Binding CancelCommand}"
                 IsVisible="{Binding IsApplying}" />
+        <!-- 重试：执行失败且具备执行前提时显示（06 篇 F-37） -->
+        <Button Grid.Column="5" Margin="6,0,0,0" Content="{Binding RetryButtonText}"
+                Command="{Binding RetryCommand}"
+                IsVisible="{Binding CanRetry}" />
         <!-- 开始：Command 的 CanExecute=CanApply，冲突时自动禁用（06 篇 UI-04 门禁） -->
-        <Button Grid.Column="5" Margin="6,0,0,0" Content="{Binding ApplyButtonText}"
+        <Button Grid.Column="6" Margin="6,0,0,0" Content="{Binding ApplyButtonText}"
                 Command="{Binding ApplyCommand}"
                 IsVisible="{Binding IsApplying, Converter={x:Static BoolConverters.Not}}"
                 ToolTip.Tip="{Binding CancelHint}" />

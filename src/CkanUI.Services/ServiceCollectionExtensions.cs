@@ -126,6 +126,9 @@ public static class ServiceCollectionExtensions
         // 下载统计（F-47）：纯本地聚合，输入是仓库快照 + 缓存清单 + 注册表快照。
         services.TryAddSingleton<IDownloadStatsService, DownloadStatsService>();
 
+        // 自动更新与新版本检查器（F-52 / UI-27）。
+        services.TryAddSingleton<IUpdateCheckService, Update.UpdateCheckService>();
+
         // 启动编排放在最后：它依赖上面三个领域服务。
         services.TryAddSingleton<IAppBootstrapper, AppBootstrapper>();
 

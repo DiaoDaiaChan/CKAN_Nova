@@ -30,6 +30,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     private readonly IDispatcher? _dispatcher;
     private readonly IResidualCleanupDialogService? _residualCleanup;
     private readonly IInstanceService? _instances;
+    private readonly IModDialogService? _modDialogs;
 
     private CancellationTokenSource? _applyCts;
     private int _buildVersion;
@@ -39,7 +40,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
 
     /// <summary>设计器 / 无参构造：不连任何服务，只展示空状态。</summary>
     public ChangesPageViewModel()
-        : this(null, null, null, null, null, null, null)
+        : this(null, null, null, null, null, null, null, null)
     {
     }
 
@@ -51,7 +52,8 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         IOperationQueue? queue = null,
         IDispatcher? dispatcher = null,
         IResidualCleanupDialogService? residualCleanup = null,
-        IInstanceService? instances = null)
+        IInstanceService? instances = null,
+        IModDialogService? modDialogs = null)
     {
         _changeSets = changeSets;
         _installer = installer;
@@ -60,6 +62,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         _dispatcher = dispatcher;
         _residualCleanup = residualCleanup;
         _instances = instances;
+        _modDialogs = modDialogs;
     }
 
     /// <inheritdoc />
@@ -209,6 +212,12 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     /// <summary>是否可以取消（只有执行中可取消；下载中立即停，安装中等待回滚）。</summary>
     public bool CanCancel => State == ChangeExecutionState.Applying;
 
+    /// <summary>是否可以重试执行（仅在失败状态且具备执行前提时允许重试）。</summary>
+    public bool CanRetry => State == ChangeExecutionState.Failed
+                           && HasRows
+                           && !HasConflicts
+                           && !HasGameRunningWarning;
+
     /// <summary>空状态标题（03 篇 §10）。</summary>
     public string EmptyStateTitle => "还没有待应用的变更";
 
@@ -268,6 +277,12 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
 
     /// <summary>错误区标题。</summary>
     public string ErrorTitle => ChangesLabels.ErrorTitle;
+
+    /// <summary>重试按钮文案。</summary>
+    public string RetryButtonText => ChangesLabels.RetryButton;
+
+    /// <summary>查看冲突详情按钮文案。</summary>
+    public string ShowConflictDetailsButtonText => ChangesLabels.ShowConflictDetailsButton;
 
     /// <summary>取消语义提示（03 篇 §4.1）。</summary>
     public string CancelHint => ChangesLabels.CancelHint;
@@ -620,6 +635,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         OnPropertyChanged(nameof(HasErrorText));
         OnPropertyChanged(nameof(CanApply));
         OnPropertyChanged(nameof(CanCancel));
+        OnPropertyChanged(nameof(CanRetry));
         OnPropertyChanged(nameof(EmptyStateTitle));
         OnPropertyChanged(nameof(EmptyStateHint));
         OnPropertyChanged(nameof(IsGameRunning));
@@ -628,6 +644,8 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         ApplyCommand.NotifyCanExecuteChanged();
         ApplyAnywayCommand.NotifyCanExecuteChanged();
         CancelCommand.NotifyCanExecuteChanged();
+        RetryCommand.NotifyCanExecuteChanged();
+        ShowConflictDetailsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnPreviewChanged(ChangeSetPreview value)
@@ -737,6 +755,16 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         }
     }
 
+    /// <summary>执行失败后重新尝试应用变更集（F-37 闭环）。</summary>
+    [RelayCommand(CanExecute = nameof(CanRetry))]
+    private async Task RetryAsync()
+    {
+        if (CanRetry)
+        {
+            await ApplyAsync().ConfigureAwait(true);
+        }
+    }
+
     /// <summary>请求取消：下载中立即停，安装中由 Core 等当前模组完成后回滚（03 篇 §4.1 取消语义）。</summary>
     [RelayCommand(CanExecute = nameof(CanCancel))]
     private void Cancel()
@@ -788,6 +816,121 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
             ? ChangesFormatter.Summary(null)
             : $"已从变更集移除 {row.Name}（点「重新计算」可恢复权威结果）。";
         RefreshDerived();
+    }
+
+    /// <summary>弹窗展示结构化的冲突明细（F-36 / UI-17）。</summary>
+    [RelayCommand(CanExecute = nameof(HasConflicts))]
+    public async Task ShowConflictDetailsAsync()
+    {
+        if (!HasConflicts)
+        {
+            return;
+        }
+
+        if (_modDialogs is null)
+        {
+            StatusText = "模组对话框服务未注入，无法展示冲突详情。";
+            return;
+        }
+
+        var entries = Conflicts
+            .Select(c => new ConflictEntry(Description: c))
+            .ToList();
+
+        var request = new ConflictDetailsRequest(
+            Message: ConflictHint ?? "检测到模组冲突",
+            Conflicts: entries,
+            IsBlocking: true);
+
+        try
+        {
+            await _modDialogs.ShowConflictDetailsAsync(request).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "展示冲突详情", "展示冲突详情时发生错误。");
+        }
+    }
+
+    /// <summary>
+    /// 若处于变更预览状态且有来自推荐的候选（ChangeOrigin.Recommendation），
+    /// 或调用方主动请求，向用户弹窗挑选推荐项（F-34 / UI-15）。
+    /// </summary>
+    public async Task<RecommendationSelection?> PromptRecommendationsAsync(
+        IReadOnlyList<RecommendationCandidate>? candidates = null,
+        bool suppressRecommendations = false)
+    {
+        if (_modDialogs is null)
+        {
+            return null;
+        }
+
+        IReadOnlyList<RecommendationCandidate> actualCandidates;
+        if (candidates is { Count: > 0 })
+        {
+            actualCandidates = candidates;
+        }
+        else
+        {
+            // 从当前变更集预览中提取 Origin 为 Recommendation 的条目作为候选
+            var recItems = Preview.Items
+                .Where(i => i.Origin == ChangeOrigin.Recommendation)
+                .Select(i => new RecommendationCandidate(
+                    Identifier: i.Identifier,
+                    Name: i.Name,
+                    Kind: RecommendationKind.Recommended,
+                    IsSelectedByDefault: true))
+                .ToList();
+
+            if (recItems.Count == 0)
+            {
+                return null;
+            }
+
+            actualCandidates = recItems;
+        }
+
+        var request = new RecommendationDialogRequest(
+            Message: "检测到推荐模组",
+            Candidates: actualCandidates,
+            SuppressRecommendations: suppressRecommendations);
+
+        try
+        {
+            return await _modDialogs.SelectRecommendationsAsync(request).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "选择推荐模组", "选择推荐模组对话框发生错误。");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 当安装或依赖解析遇到虚拟依赖时，通过弹窗请求用户选择具体实现模组（F-35 / UI-16）。
+    /// </summary>
+    public async Task<VirtualModuleChoice?> SelectVirtualModuleAsync(VirtualModuleRequest request)
+    {
+        if (request is null)
+        {
+            throw new ArgumentNullException(nameof(request));
+        }
+
+        if (_modDialogs is null)
+        {
+            StatusText = "模组对话框服务未注入，无法选择虚拟模块。";
+            return null;
+        }
+
+        try
+        {
+            return await _modDialogs.SelectVirtualModuleAsync(request).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "选择虚拟模组", "选择虚拟模组提供者时发生错误。");
+            return null;
+        }
     }
 
     // ---- 无服务时的空实现（设计器 / 无参构造）-----------------------------
