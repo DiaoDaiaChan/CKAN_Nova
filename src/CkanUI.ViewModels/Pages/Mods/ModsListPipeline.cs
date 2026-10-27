@@ -9,13 +9,18 @@ namespace CkanUI.ViewModels.Pages.Mods;
 public static class ModsListPipeline
 {
     /// <summary>对全量行应用查询、过滤器与排序。</summary>
+    /// <param name="labels">
+    /// 选中的标签组名称（12 篇 F-24）。null 或空表示不按标签过滤；多选为"或"（见 <see cref="ModsLabelFilter"/>）。
+    /// 追加在末尾并带默认值，既有调用点无需改动。
+    /// </param>
     public static IReadOnlyList<ModRowData> Apply(
         IReadOnlyList<ModRowData> all,
         ModsQuery? query,
         ModsInstallFilter install,
         ModsCompatibilityFilter compatibility,
         ModsSortColumn column,
-        bool ascending)
+        bool ascending,
+        IReadOnlyCollection<string>? labels = null)
     {
         ArgumentNullException.ThrowIfNull(all);
 
@@ -28,6 +33,11 @@ public static class ModsListPipeline
             }
 
             if (!ModsRowFilter.Matches(row, install, compatibility))
+            {
+                continue;
+            }
+
+            if (!ModsLabelFilter.Matches(row, labels))
             {
                 continue;
             }

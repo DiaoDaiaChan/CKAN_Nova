@@ -55,6 +55,23 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
     public event Action<RepositorySnapshot>? Updated;
     public event Action<OperationProgress>? RefreshProgress;
 
+    /// <summary>
+    /// 丢掉内存里的仓库快照（18 篇 §3 L2）：只清引用，不动磁盘缓存，也不联网。
+    /// 下次进入模组页时 <see cref="LoadCachedAsync"/> 会从本地缓存重建（R-59，重读约 37.9MB）。
+    /// 快照本来就空时直接返回，避免无意义地再广播一次 <see cref="Updated"/>。
+    /// </summary>
+    public void DropCachedSnapshot()
+    {
+        if (_current.Available.Count == 0 && _current.RepositoryIds.Count == 0)
+        {
+            return;
+        }
+
+        var dropped = _current.Available.Count;
+        Publish(RepositorySnapshot.Empty);
+        Log.Info($"L2 已丢弃仓库快照：{dropped} 行。");
+    }
+
     public Task<OperationResult<RepositorySnapshot>> LoadCachedAsync(CancellationToken ct = default) =>
         GuardAsync(() =>
         {

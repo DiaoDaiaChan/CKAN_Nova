@@ -27,13 +27,21 @@
 | `IModPackService` | `IModPackService.cs` | 导出 modpack / 预览并执行 `.ckan` 导入 / 两实例差集比对（F-39·F-45） |
 | `IDownloadService` | `IDownloadService.cs` | 字节级进度 + 大小/SHA256 校验 + 原子落盘 + 取消清理（M2） |
 | `ISaveFileService` | `ISaveFileService.cs` | 存档枚举 / 解析诊断 / 格式化（M7/E1，SFS 内核之上） |
+| `ICacheService` | `ICacheService.cs` | 缓存快照 / 条目表 / 按上限清理 / 全部清理 / 从 ZIP 灌缓存（F-50·F-40） |
+| `IResidualCleanupService` | `IResidualCleanupService.cs` | 卸载残留目录候选 / 预演 / 删除（F-43，逐个跳过语义）；配套 `IResidualCleanupDialogService` |
+| `IModDialogService` | `IModDialogService.cs` | 推荐选择 / 虚拟提供者选择 / 冲突明细（F-34..F-36，取消一律 null） |
+| `ILabelService` | `ILabelService.cs` | 标签组读写（走上游 `ModuleLabelList`，落盘交 Core `Save(path)`）（F-24） |
+| `IPlayTimeService` | `IPlayTimeService.cs` | 游戏时长读写（`%LocalAppData%/CKAN/play-time.json`）（F-48） |
+| `IInstanceDedupService` | `IInstanceDedupService.cs` | 跨实例去重扫描与执行（F-41，六条安全边界在服务层） |
+| `IInstallHistoryService` | `IInstallHistoryService.cs` | 安装历史读写与重装编排（F-44，JSONL 落盘） |
+| `IPluginService` | `IPluginService.cs` | 插件发现 / 激活 / 停用 / 重载 / 卸载 / 新增（F-17，可回收 ALC） |
 
 ### DTO（`src/CkanUI.Services.Abstractions/Dtos/`）
 
 `ModRowData`（readonly record struct）、`InstalledModuleInfo`、`RegistrySnapshot`、`RepositorySnapshot`、
 `ChangeAction` / `ChangeOrigin` / `ChangeItemDto` / `ChangeSetPreview`、`OperationState` / `OperationProgress`、`InstanceInfo`、
 `RepositoryEntryInfo` / `RepositoryEditRequest`、`ModPackExportRequest` / `ModPackExportResult` / `ModPackPreview` / `ModPackImportReport` / `InstanceComparison`（+ 行级 DTO）、
-`DownloadTaskInfo` / `DownloadProgressInfo`、`SaveGameInfo` 与诊断 DTO。
+`DownloadTaskInfo` / `DownloadProgressInfo`、`SaveGameInfo` 与诊断 DTO、`CacheSnapshot` / `CacheEntryInfo` / `CachePurgeResult`、`ResidualDirectoryInfo` / `ResidualCleanupReport`、`ModDialogs`（推荐/提供者/冲突）、`LabelInfo` / `LabelEditRequest`、`PlayTimeEntry`、`DedupScanRequest` / `DedupGroup` / `DedupScanReport` / `DedupExecuteReport`、`InstallHistoryEntry` / `InstallHistorySnapshot` / `InstallHistoryRestorePlan`、`PluginInfo` / `PluginLoadFailure` / `PluginPageDescriptor`。
 
 **铁律**：DTO 里不出现任何 `CKAN.*` 类型。VM 永不持有活的 `CkanModule` 引用，只按 `Identifier` 回查快照。
 
@@ -103,6 +111,7 @@ public InstanceService(
 
 | 日期 | 版本 | 变更 |
 | --- | --- | --- |
+| 2026-10-27 | v1.2 | 补 `ICacheService` / `IResidualCleanupService` / `IModDialogService` / `ILabelService` / `IPlayTimeService` / `IInstanceDedupService` / `IInstallHistoryService` / `IPluginService` 与对应 DTO |
 | 2026-10-27 | v1.1 | 补 `IModPackService` / `IDownloadService` / `ISaveFileService` 与对应 DTO、实现归属、§4.4 导入导出与下载分层裁定 |
 | 2026-10-27 | v1.0 | 新建：冻结 13 个服务接口 + 8 组 DTO，登记实现归属 |
 | 2026-10-27 | v1.1 | 新增 §4 实现决策：InstanceService 构造形状、取消判定、锁定检测与回滚 |

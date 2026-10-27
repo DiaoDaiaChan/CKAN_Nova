@@ -113,7 +113,7 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
 7. **页面之间的交接只走一个窄接口**：模组页把勾选翻译成 `ChangeRequest` 后灌进 `IChangeRequestSink`（`src/CkanUI.ViewModels/Pages/IChangeRequestSink.cs`），
    再经 `INavigationService.NavigateAsync("changes")` 跳转；`ChangesPageViewModel` 是唯一实现。
    理由：两页互相持有具体类型会让"哪个页面持有谁的引用"变成隐式耦合，也让 DI 循环；窄接口让两个页面各自可独立测。
-8. **导航项顺序固定为 mods → changes → repos → modpacks → instances → saves → unmanaged → settings**（`ShellViewModel.NavItems`），key 即 `PageTypes` 的键；
+8. **导航项顺序固定为 mods → changes → repos → modpacks → instances → playtime → saves → unmanaged → cache → dedup → installhistory → plugins → settings**（十三项，`ShellViewModel.NavItems`），key 即 `PageTypes` 的键；
    新增页面必须同时补 `LocalizationKeys` 与两份语言包（`i18n/packs/{zh-CN,en-US}.json`），否则 `ShellViewModelTests` 与 `verify-layout` 会红。
 9. **仓库管理的写事务封在 `IRepositoryStore` 后面**：`RegistryRepositoryStore` 是唯一碰 `Registry.RepositoriesSet` + `RegistryManager.Save()` 与网络的实现，
    校验/排序/重编号全在纯函数 `RepositoryCatalog`（可离线测）。`IRepositoryService` 的 8 个增量成员用 DIM（默认实现）追加，
@@ -143,6 +143,23 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
 17. **存档格式化的安全边界**：默认只写 `<stem>.formatted.sfs`；就地重写先落 `.pre-edit-<yyyyMMdd-HHmmss>.sfs` 快照再 `File.Move` 原子写并还原 `LastWriteTime`；
     源文件有 Error 诊断或自校验失败一律 `Refused` 且不落盘（**不猜修复**）；`*.sfs.bak` 永不覆盖；损坏存档返回 `Ok` + 诊断而不是抛异常。
     `.sfs` 的键挂在根节点 `GAME` 下（不是顶层），读头部必须"顶层键值对 + 根节点直接子键"一起看，否则 `Title`/`scene` 恒为 null。
+18. **资源释放必须可逆且分层独立**（18 篇 E6）：能真正放掉的只有「仓库快照 + `RegistryManager.DisposeAll()`」，所以 `ReleaseAsync` 之后必须能用
+    `OpenAsync(当前实例)` + `LoadCachedAsync()` 还原；每层独立成败——失败只 `Log.Warn` 并继续后续层，报告恒含五层（L4 未接入记 `Skipped` 不算失败）。
+    档位落在 `UiSettings.ReleaseTier`（默认 `Balanced`），`Off` 时连计时器都不起；取消时剩余层标 Skipped、`Cancelled=true`，**仍返回 Ok**（取消不是失败）。
+    退出信号由 App 侧 `ShellInstanceLauncher` 保留进程句柄后广播——`UseShellExecute=true` 直接 `Dispose()` 就永远等不到 `Exited`，E6 的 Restore 也就永远不触发。
+19. **CKAN 版本事实只能从 Services 层薄壳取**：`src/CkanUI.Services/Diagnostics/CoreVersionInfo.cs` 暴露 `Meta.ReleaseVersion`/`Meta.ProductName`；
+    App 层拼装（`AboutInfoFactory`），ViewModels 只收字符串或 `Func<string?>` 委托。不许让 VM 引用 `CKAN` 命名空间或在视图里写死版本号。
+20. **插件、去重、安装历史三条新页面的口径**：
+    - 插件（F-17）扫描一律 `activate:false` 进 Dormant，**必须用户显式点「激活」才执行 `Initialize`**；加载用可回收 `AssemblyLoadContext`，
+      且 `Load(AssemblyName)` 对契约程序集与 `System/Microsoft/netstandard/mscorlib/WindowsBase/CkanUI/Avalonia` 前缀返回 null（否则插件会加载出第二份
+      `CkanUI.Services.Abstractions`，`IsAssignableFrom` 判假并抛 `InvalidCastException`）；用 `File.OpenRead + LoadFromStream` 而非
+      `LoadFromAssemblyPath`（后者长期占用 dll 句柄，「删 dll 后重启」会卡住）；失败分支一律先调幂等的 `Release()`。
+    - 跨实例去重（F-41）的六条安全边界全在服务层，逐条给中文跳过原因、从不因单文件失败抛异常：仅在 `<实例>/GameData` 内、跳过重解析点（扫描与建链前各判一次）、
+      默认跳过受管路径（`IncludeManagedFiles` 才能覆盖，否则会破坏卸载语义）、同卷、≥2 副本、默认 `DryRun=true`。
+      写盘用「同目录临时名 → `CreateLink` → 校验两侧文件标识 → `File.Move(overwrite:true)`」，失败按**组**逆序回滚（组是原子单位）。
+    - 安装历史（F-44）落 `<GameDir>/CKAN/install_history.jsonl`，一次操作 = entry + snapshot 两行**共用同一时间戳**；快照只存 identifier+version，
+      「是否已装」在读取时按当前注册表现算（历史不因注册表变化而失真）；自动记账靠 `HistoryRecordingInstaller` 装饰器，重装时用 `InstallHistoryScope`
+      （AsyncLocal）抑制双记；截断按行数（默认 2000），写入走 `.tmp` + `File.Move(overwrite:true)`。
 
 ## 修订记录
 
@@ -155,3 +172,5 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
 | 2026-10-27 | v1.3 | 补 §12 M1 契约决策（语言真源、`UiSettings.Density`、ThemeHost 与高对比度变体、Changed 锁外触发、OperationProgress 不扩字段） |
 | 2026-10-27 | v1.6 | 导航项改为八项（新增 saves / unmanaged）；补 §12.15–17（搜索语法只走 IModSearchParser 且不许静默丢词、未管理文件删除的整批拒绝与双确认、存档格式化快照与 Refused 语义 + `.sfs` 根节点 GAME 的读法） |
 | 2026-10-27 | v1.5 | 导航项改为六项（新增 modpacks）；补 §12.10–14（页面 VM 放 Pages 根、modpack 导出走 Core ToJson、导入只做编排、下载两层与 NetAsyncDownloader 踩坑、启动命令持久化） |
+| 2026-10-27 | v1.8 | 导航项改为十三项（新增 playtime / cache / dedup / installhistory / plugins）；补 §12.20（插件 ALC 加载、去重六条安全边界与组内回滚、安装历史 JSONL 与防双记） |
+| 2026-10-27 | v1.7 | 补 §12.18（资源释放可逆 + 分层独立 + 退出信号必须保留进程句柄）与 §12.19（CKAN 版本事实只走 Services 薄壳）；F-25/F-55 收口（导航历史、关于框） |

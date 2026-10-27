@@ -1,0 +1,137 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       xmlns:mods="clr-namespace:CkanUI.ViewModels.Dialogs.Mods;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.RecommendationDialogView"
+                       x:DataType="vm:RecommendationDialogViewModel"
+                       Title="{Binding Title}"
+                       Width="620"
+                       Height="560">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" RowSpacing="10">
+    <TextBlock Grid.Row="0"
+               Text="{Binding Message}"
+               TextWrapping="Wrap"
+               FontSize="{DynamicResource CkanFontSizeBody}" />
+
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+      <TextBlock Grid.Column="0"
+                 VerticalAlignment="Center"
+                 Text="{Binding SummaryText}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Content="全选"
+                Command="{Binding CheckAllCommand}"
+                MinWidth="72"
+                HorizontalContentAlignment="Center" />
+        <Button Content="全不选"
+                Command="{Binding UncheckAllCommand}"
+                MinWidth="72"
+                HorizontalContentAlignment="Center" />
+      </StackPanel>
+    </Grid>
+
+    <Border Grid.Row="2"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+      <ScrollViewer>
+        <ItemsControl ItemsSource="{Binding Groups}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="mods:RecommendationGroupViewModel">
+              <StackPanel IsVisible="{Binding HasItems}" Spacing="6" Margin="10,8">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Grid.Column="0"
+                             Text="{Binding Header}"
+                             FontWeight="SemiBold"
+                             VerticalAlignment="Center" />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding CountText}"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                               FontSize="{DynamicResource CkanFontSizeCaption}" />
+                    <Button Content="全选"
+                            Command="{Binding SelectAllCommand}"
+                            MinWidth="56"
+                            HorizontalContentAlignment="Center" />
+                    <Button Content="全不选"
+                            Command="{Binding ClearSelectionCommand}"
+                            MinWidth="56"
+                            HorizontalContentAlignment="Center" />
+                  </StackPanel>
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Items}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="mods:RecommendationCandidateViewModel">
+                      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="0,2">
+                        <CheckBox Grid.Column="0"
+                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                  IsEnabled="{Binding CanSelect}"
+                                  VerticalAlignment="Top" />
+                        <StackPanel Grid.Column="1" Spacing="2">
+                          <TextBlock Text="{Binding DisplayName}"
+                                     TextWrapping="Wrap"
+                                     FontSize="{DynamicResource CkanFontSizeBody}" />
+                          <TextBlock Text="{Binding Description}"
+                                     IsVisible="{Binding HasDescription}"
+                                     TextWrapping="Wrap"
+                                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                     FontSize="{DynamicResource CkanFontSizeCaption}" />
+                          <TextBlock Text="{Binding RelatedText}"
+                                     IsVisible="{Binding HasRelated}"
+                                     TextWrapping="Wrap"
+                                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                     FontSize="{DynamicResource CkanFontSizeCaption}" />
+                          <TextBlock Text="{Binding BlockReason}"
+                                     IsVisible="{Binding HasBlockReason}"
+                                     TextWrapping="Wrap"
+                                     Foreground="{DynamicResource CkanWarningBrush}"
+                                     FontSize="{DynamicResource CkanFontSizeCaption}" />
+                        </StackPanel>
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+
+    <StackPanel Grid.Row="3" Spacing="4">
+      <TextBlock Text="{Binding ConflictNotice}"
+                 IsVisible="{Binding HasConflictNotice}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanWarningBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+      <TextBlock Text="{Binding ValidationError}"
+                 IsVisible="{Binding HasValidationError}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanDangerBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+    </StackPanel>
+
+    <CheckBox Grid.Row="4"
+              Content="总是取消全选（记住这个选择）"
+              IsChecked="{Binding SuppressRecommendations, Mode=TwoWay}" />
+
+    <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="{Binding SecondaryButtonText}"
+              Command="{Binding SecondaryCommand}"
+              IsCancel="True"
+              IsVisible="{Binding HasSecondaryButton}"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding PrimaryCommand}"
+              IsDefault="True"
+              IsEnabled="{Binding CanConfirm}"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </Grid>
+</dialogs:DialogWindow>

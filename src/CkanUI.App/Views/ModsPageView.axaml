@@ -7,13 +7,40 @@
   <!-- DataGrid 主题：App.axaml 没有全局包含，这里在本视图内单独引入（DataGrid 目前仅本页使用）。 -->
   <UserControl.Styles>
     <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+
+    <!-- 标签组开关（F-24）：未选中用中性面色，选中用强调色；颜色只取 Tokens.axaml 的 Ckan* 语义 brush。 -->
+    <Style Selector="Button.labelChip">
+      <Setter Property="Background" Value="{DynamicResource CkanSurfaceBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+      <Setter Property="CornerRadius" Value="10" />
+    </Style>
+    <Style Selector="Button.labelChip.active">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanAccentTextBrush}" />
+    </Style>
+
+    <!-- 详情面板里的三组常用标签开关（收藏 / 隐藏 / 锁定版本）。 -->
+    <Style Selector="Button.labelToggle">
+      <Setter Property="Background" Value="{DynamicResource CkanSurfaceBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+      <Setter Property="Padding" Value="8,2" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="Button.labelToggle.active">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanAccentTextBrush}" />
+    </Style>
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,*,Auto" Margin="12">
 
     <!-- 工具条（03 篇 §3.1）：搜索、过滤下拉、排序、刷新、应用 -->
     <Border Grid.Row="0" Padding="8" CornerRadius="6" Background="{DynamicResource SystemControlBackgroundListLowBrush}">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto">
         <TextBox x:Name="SearchBox"
                  Grid.Column="0"
                  MinWidth="220"
@@ -58,6 +85,38 @@
         <Button Grid.Column="7" Margin="6,0,0,0" Content="应用变更"
                 Command="{Binding ApplyChangesCommand}"
                 ToolTip.Tip="应用当前变更集（Ctrl+Enter，M2 接入安装器后可用）" />
+
+        <!-- 标签组筛选（F-24）：多选为"或"（命中任一选中标签即通过），每个开关自带命令。
+             未接线 ILabelService 时整行隐藏，不影响既有布局。 -->
+        <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="8" Margin="0,8,0,0"
+                Padding="6,4" CornerRadius="4" BorderThickness="1"
+                BorderBrush="{DynamicResource CkanBorderBrush}"
+                IsVisible="{Binding HasLabelService}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="标签组" FontSize="12" VerticalAlignment="Center"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <ItemsControl ItemsSource="{Binding LabelFilters}" VerticalAlignment="Center">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button Classes="labelChip"
+                          Classes.active="{Binding IsActive}"
+                          Command="{Binding ToggleCommand}"
+                          Content="{Binding DisplayText}"
+                          Margin="0,0,4,0" Padding="8,2" FontSize="12"
+                          ToolTip.Tip="{Binding ColorHex}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Button Content="清除标签筛选" FontSize="12" Padding="8,2"
+                    Command="{Binding ResetLabelFiltersCommand}"
+                    ToolTip.Tip="取消全部标签组筛选" />
+          </StackPanel>
+        </Border>
       </Grid>
     </Border>
 
@@ -171,6 +230,19 @@
               Background="{DynamicResource SystemControlBackgroundListLowBrush}">
         <ScrollViewer>
           <StackPanel Spacing="6">
+            <!-- 选中历史前进/后退（F-25）：在详情面板内部走，不影响左侧导航页历史。 -->
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <Button Content="←"
+                      Command="{Binding GoBackSelectionCommand}"
+                      IsEnabled="{Binding CanGoBackSelection}"
+                      ToolTip.Tip="上一个选中模组"
+                      Padding="8,2" MinWidth="0" FontSize="11" />
+              <Button Content="→"
+                      Command="{Binding GoForwardSelectionCommand}"
+                      IsEnabled="{Binding CanGoForwardSelection}"
+                      ToolTip.Tip="下一个选中模组"
+                      Padding="8,2" MinWidth="0" FontSize="11" />
+            </StackPanel>
             <TextBlock Text="{Binding DetailName}" FontSize="18" TextWrapping="Wrap" />
             <TextBlock Text="{Binding DetailIdentifier}" FontSize="12" Opacity="0.6" />
             <TextBlock Text="{Binding DetailStatusText}" FontSize="12" Opacity="0.8" />
@@ -180,6 +252,47 @@
             <TextBlock Text="{Binding DetailDownloadText, StringFormat='下载量：{0}'}" />
             <TextBlock Text="{Binding DetailSizeText, StringFormat='体积：{0}'}" />
             <TextBlock Text="{Binding DetailTagsText, StringFormat='标签：{0}'}" TextWrapping="Wrap" />
+
+            <!-- 标签组标记（F-24）：只读标记 + 三组常用标签一键切换；未接线标签服务时整块隐藏。 -->
+            <StackPanel Spacing="4" Margin="0,6,0,0" IsVisible="{Binding HasLabelService}">
+              <TextBlock Text="标签组" FontSize="12"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <ItemsControl ItemsSource="{Binding DetailLabels}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+                            BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1"
+                            CornerRadius="10" Padding="8,1" Margin="0,0,4,4">
+                      <TextBlock Text="{Binding Name}" FontSize="12" ToolTip.Tip="{Binding ColorHex}" />
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="{Binding DetailLabelText}" FontSize="12" Opacity="0.7" TextWrapping="Wrap"
+                         IsVisible="{Binding !HasDetailLabels}" />
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button Classes="labelToggle"
+                        Classes.active="{Binding DetailIsFavourite}"
+                        Content="收藏"
+                        Command="{Binding ToggleFavouriteCommand}"
+                        ToolTip.Tip="加入 / 移出收藏标签组" />
+                <Button Classes="labelToggle"
+                        Classes.active="{Binding DetailIsHidden}"
+                        Content="隐藏"
+                        Command="{Binding ToggleHiddenCommand}"
+                        ToolTip.Tip="加入 / 移出隐藏标签组（隐藏组默认不在其它过滤器里显示）" />
+                <Button Classes="labelToggle"
+                        Classes.active="{Binding DetailIsHeld}"
+                        Content="锁定版本"
+                        Command="{Binding ToggleHeldCommand}"
+                        ToolTip.Tip="加入 / 移出锁定版本标签组（不参与升级）" />
+              </StackPanel>
+            </StackPanel>
             <Separator Margin="0,6" />
             <TextBlock Text="描述、依赖树、版本列表与主页链接将在 UI-03 完整实现。" Opacity="0.6"
                        TextWrapping="Wrap" FontSize="12" />

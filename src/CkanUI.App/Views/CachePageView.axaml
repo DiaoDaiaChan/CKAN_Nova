@@ -1,0 +1,182 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CkanUI.App.Views.CachePageView"
+             x:CompileBindings="False">
+  <!-- 下载缓存管理页（规格 F-50 / F-40 / 06 篇 UI-19）：容量条 + 条目表 + 三种清理 + ZIP 灌入。
+       颜色只用 Tokens.axaml 的语义 token，间距一律 4 的倍数；破坏性操作在 VM 里先 ConfirmAsync。 -->
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="16"
+        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+
+    <!-- 页头 -->
+    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
+      <TextBlock Text="下载缓存"
+                 FontSize="{DynamicResource CkanFontSizeTitle}"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      <TextBlock Text="安装与升级复用的 ZIP 下载缓存；清理只删最久未使用的条目，正在被已装模组使用的条目会保留。"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 TextWrapping="Wrap" />
+    </StackPanel>
+
+    <!-- 工具条（F-50：清理到上限 / 全部清空 / 从 ZIP 灌入；F-40：ZIP 直接灌缓存） -->
+    <Border Grid.Row="1" Padding="{DynamicResource CkanToolbarPadding}"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1">
+      <WrapPanel Orientation="Horizontal">
+        <Button Content="刷新" Command="{Binding RefreshCommand}"
+                IsEnabled="{Binding CanRefresh}" Margin="0,0,8,0"
+                ToolTip.Tip="重新读取缓存统计与条目" />
+        <Button Content="清理到上限" Command="{Binding PurgeToLimitCommand}"
+                IsEnabled="{Binding CanPurge}" Margin="0,0,8,0"
+                ToolTip.Tip="从最久未修改的条目开始删除，直到不超过容量上限" />
+        <Button Content="全部清空" Command="{Binding PurgeAllCommand}"
+                IsEnabled="{Binding CanPurge}" Margin="0,0,8,0"
+                ToolTip.Tip="删除全部条目（正在使用的条目会跳过，需要确认）" />
+        <Button Content="从 ZIP 灌入" Command="{Binding ImportZipCommand}"
+                IsEnabled="{Binding CanImportZip}" Margin="0,0,8,0"
+                ToolTip.Tip="选一个已下载的 CKAN 模块 ZIP，校验后复制进缓存" />
+        <Button Content="删除选中" Command="{Binding DeleteSelectedCommand}"
+                IsEnabled="{Binding CanDeleteSelected}"
+                ToolTip.Tip="删除勾选的条目（需要确认）" />
+      </WrapPanel>
+    </Border>
+
+    <!-- 页面级错误条（03 篇 §8 D-03 / §10） -->
+    <Border Grid.Row="2" Margin="0,8,0,0" Padding="12,8"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
+            IsVisible="{Binding HasError}">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Spacing="4">
+          <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanDangerBrush}" />
+          <TextBlock Text="{Binding ErrorDetail}" TextWrapping="Wrap" MaxHeight="48"
+                     IsVisible="{Binding HasErrorDetail}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="关闭" Command="{Binding ClearErrorCommand}"
+                VerticalAlignment="Top" Margin="8,0,0,0"
+                FontSize="{DynamicResource CkanFontSizeCaption}" />
+      </Grid>
+    </Border>
+
+    <!-- 容量条（F-50 验收：上限清理后容量 ≤ 上限） -->
+    <Border Grid.Row="3" Margin="0,8,0,0" Padding="12,8"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1">
+      <StackPanel Spacing="4">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0" Text="{Binding TotalText}" VerticalAlignment="Center"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     FontWeight="SemiBold"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+          <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
+                     Text="{Binding CapacityText}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </Grid>
+        <ProgressBar Minimum="0" Maximum="100" Value="{Binding UsagePercent}"
+                     Height="8" IsVisible="{Binding HasLimit}" />
+        <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+          <TextBlock Grid.Column="0" Text="{Binding EntryCountText}" VerticalAlignment="Center"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBlock Grid.Column="1" Text="{Binding SelectedText}" Margin="12,0,0,0"
+                     VerticalAlignment="Center"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+        </Grid>
+      </StackPanel>
+    </Border>
+
+    <!-- 条目表 -->
+    <Grid Grid.Row="4" Margin="0,8,0,0">
+      <Border BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              IsVisible="{Binding !ShowEmptyState}">
+        <ListBox ItemsSource="{Binding Entries}" BorderThickness="0" Background="Transparent">
+          <ListBox.Styles>
+            <Style Selector="ListBoxItem">
+              <Setter Property="Padding" Value="8,0" />
+              <Setter Property="Height" Value="{DynamicResource CkanRowHeight}" />
+            </Style>
+          </ListBox.Styles>
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Grid ColumnDefinitions="Auto,192,*,88,128,72" Height="{DynamicResource CkanRowHeight}">
+                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                          Margin="0,0,8,0" VerticalAlignment="Center"
+                          ToolTip.Tip="勾选后可批量删除" />
+                <TextBlock Grid.Column="1" Text="{Binding ModuleLabel}" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" Margin="0,0,8,0"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                <TextBlock Grid.Column="2" Text="{Binding FileName}" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" Margin="0,0,8,0"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="3" Text="{Binding SizeText}" VerticalAlignment="Center"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="4" Text="{Binding ModifiedText}" VerticalAlignment="Center"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <Border Grid.Column="5" VerticalAlignment="Center" HorizontalAlignment="Left"
+                        IsVisible="{Binding IsReferenced}"
+                        Background="{DynamicResource CkanWarningBrush}"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                        Padding="6,0"
+                        ToolTip.Tip="正被已安装的模组使用，清理时会跳过">
+                  <TextBlock Text="{Binding ReferenceText}"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextInverseBrush}" />
+                </Border>
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+
+      <!-- 空状态（03 篇 §10）：缓存里还没有条目 -->
+      <Border IsVisible="{Binding ShowEmptyState}" Padding="16">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="480">
+          <TextBlock Text="下载缓存是空的" HorizontalAlignment="Center"
+                     FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+          <TextBlock Text="安装模组时下载的 ZIP 会缓存在这里；也可以用「从 ZIP 灌入」把已经下载好的模块包直接放进来。"
+                     TextWrapping="Wrap" TextAlignment="Center"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <Button Content="从 ZIP 灌入" Command="{Binding ImportZipCommand}"
+                  IsEnabled="{Binding CanImportZip}" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- 状态栏 -->
+    <Grid Grid.Row="5" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+      <TextBlock Grid.Column="0" Text="{Binding StatusText}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="1" Text="{Binding EntryCountText}" Margin="12,0,0,0"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 VerticalAlignment="Center" />
+    </Grid>
+
+    <!-- 进行中遮罩（03 篇 §10：非模态操作条） -->
+    <Border Grid.RowSpan="6" IsVisible="{Binding IsBusy}"
+            Background="{DynamicResource CkanStatusBarBackgroundBrush}" Opacity="0.9">
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="360">
+        <ProgressBar IsIndeterminate="True" Width="240" />
+        <TextBlock Text="{Binding BusyText}" TextAlignment="Center" TextWrapping="Wrap"
+                   FontSize="{DynamicResource CkanFontSizeBody}"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

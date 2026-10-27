@@ -1,0 +1,86 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       xmlns:mods="clr-namespace:CkanUI.ViewModels.Dialogs.Mods;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.ConflictDetailsDialogView"
+                       x:DataType="vm:ConflictDetailsDialogViewModel"
+                       Title="{Binding Title}"
+                       Width="600"
+                       Height="480">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" RowSpacing="10">
+    <TextBlock Grid.Row="0"
+               Text="{Binding Message}"
+               TextWrapping="Wrap"
+               FontSize="{DynamicResource CkanFontSizeBody}" />
+
+    <TextBlock Grid.Row="1"
+               Text="{Binding SummaryText}"
+               TextWrapping="Wrap"
+               Foreground="{DynamicResource CkanTextSecondaryBrush}"
+               FontSize="{DynamicResource CkanFontSizeCaption}" />
+
+    <Border Grid.Row="2"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+      <ListBox ItemsSource="{Binding Rows}"
+               Background="Transparent"
+               BorderThickness="0">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="mods:ConflictRowViewModel">
+            <StackPanel Spacing="2" Margin="0,4">
+              <TextBlock Text="{Binding Description}"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource CkanDangerBrush}"
+                         FontSize="{DynamicResource CkanFontSizeBody}" />
+              <TextBlock Text="{Binding ModuleText}"
+                         IsVisible="{Binding HasModule}"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                         FontSize="{DynamicResource CkanFontSizeCaption}" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <StackPanel Grid.Row="3" Spacing="4">
+      <TextBlock Text="{Binding SeverityText}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanWarningBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+      <TextBlock Text="{Binding WarningsText}"
+                 IsVisible="{Binding HasWarnings}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+      <TextBlock Text="{Binding CopyStatus}"
+                 IsVisible="{Binding HasCopyStatus}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+      <TextBlock Text="{Binding ValidationError}"
+                 IsVisible="{Binding HasValidationError}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanDangerBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+    </StackPanel>
+
+    <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding CopyCommand}"
+              IsEnabled="{Binding CanCopy}"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding SecondaryButtonText}"
+              Command="{Binding SecondaryCommand}"
+              IsDefault="True"
+              IsCancel="True"
+              IsVisible="{Binding HasSecondaryButton}"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </Grid>
+</dialogs:DialogWindow>

@@ -22,8 +22,16 @@
 | [design/service-contracts.md](design/service-contracts.md) | 服务层契约冻结表：13 个接口 + 8 组 DTO + 实现归属 |
 | [design/pages.md](design/pages.md) | 页面设计：M1 各页布局、控件与交互落点 |
 | [design/theme-tokens.md](design/theme-tokens.md) | 主题 token 表：Ckan* 语义色/字号/间距在三套主题下的取值 |
-| [design/feature-matrix.md](design/feature-matrix.md) | F-01..F-55 实现状态矩阵（已实现 14 / 部分 21 / 未开始 20）与四波次优先级 |
+| [design/feature-matrix.md](design/feature-matrix.md) | F-01..F-55 实现状态矩阵（已实现 23 / 部分 25 / 未开始 7）与四波次优先级 |
 | [design/milestones.md](design/milestones.md) | M0–M14 里程碑执行实况、已落地模块清单与已知缺口 |
+| [design/labels.md](design/labels.md) | F-24 标签组：分层、DIM 契约、Mods 页筛选与四条缺口 |
+| [design/mod-dialogs.md](design/mod-dialogs.md) | F-34/35/36 模组对话框族：推荐、虚拟提供者、冲突明细 |
+| [design/cache-panel.md](design/cache-panel.md) | F-50/F-40 下载缓存面板：上限、清理顺序与 ZIP 灌缓存链路 |
+| [design/residual-cleanup.md](design/residual-cleanup.md) | F-43 卸载残留目录清理：数据流、四类拒绝理由与逐个跳过语义 |
+| [design/play-time-and-version-display.md](design/play-time-and-version-display.md) | F-48 游戏时长存储与 F-54 版本文本格式 |
+| [design/dedup.md](design/dedup.md) | F-41 跨实例去重：六条安全边界、扫描两阶段与组内回滚 |
+| [design/install-history.md](design/install-history.md) | F-44 安装历史：JSONL 落盘格式、重装编排与已知缺口 |
+| [design/plugins.md](design/plugins.md) | F-17 插件系统：两栏模型、加载上下文与页签声明 |
 | [ops/i18n-guide.md](ops/i18n-guide.md) | 本地化指南：语言包格式、回退链、App 侧接线契约（§6） |
 
 ## 索引 · 规格正文（docs/plan）

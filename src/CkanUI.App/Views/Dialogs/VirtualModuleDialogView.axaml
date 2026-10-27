@@ -1,0 +1,86 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       xmlns:mods="clr-namespace:CkanUI.ViewModels.Dialogs.Mods;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.VirtualModuleDialogView"
+                       x:DataType="vm:VirtualModuleDialogViewModel"
+                       Title="{Binding Title}"
+                       Width="560"
+                       Height="460">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="10">
+    <TextBlock Grid.Row="0"
+               Text="{Binding Message}"
+               TextWrapping="Wrap"
+               FontSize="{DynamicResource CkanFontSizeBody}" />
+
+    <TextBlock Grid.Row="1"
+               Text="{Binding SummaryText}"
+               TextWrapping="Wrap"
+               Foreground="{DynamicResource CkanTextSecondaryBrush}"
+               FontSize="{DynamicResource CkanFontSizeCaption}" />
+
+    <Border Grid.Row="2"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+      <ListBox x:Name="ProvidersList"
+               ItemsSource="{Binding Providers}"
+               Background="Transparent"
+               BorderThickness="0"
+               DoubleTapped="OnProvidersDoubleTapped">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="mods:VirtualModuleCandidateViewModel">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="0,4">
+              <CheckBox Grid.Column="0"
+                        IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                        VerticalAlignment="Top" />
+              <StackPanel Grid.Column="1" Spacing="2">
+                <TextBlock Text="{Binding DisplayName}"
+                           TextWrapping="Wrap"
+                           FontSize="{DynamicResource CkanFontSizeBody}" />
+                <TextBlock Text="{Binding Description}"
+                           IsVisible="{Binding HasDescription}"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}" />
+                <TextBlock Text="{Binding AvailabilityText}"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}" />
+              </StackPanel>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <StackPanel Grid.Row="3" Spacing="4">
+      <TextBlock Text="{Binding SelectedText}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+      <TextBlock Text="{Binding ValidationError}"
+                 IsVisible="{Binding HasValidationError}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanDangerBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+    </StackPanel>
+
+    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="{Binding SecondaryButtonText}"
+              Command="{Binding SecondaryCommand}"
+              IsCancel="True"
+              IsVisible="{Binding HasSecondaryButton}"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding PrimaryCommand}"
+              IsDefault="True"
+              IsEnabled="{Binding CanConfirm}"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </Grid>
+</dialogs:DialogWindow>

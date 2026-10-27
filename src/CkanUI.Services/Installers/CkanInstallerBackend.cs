@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.Services.Unmanaged;
 using CKAN;
 using CKAN.Configuration;
 using CKAN.IO;
@@ -180,7 +181,9 @@ internal sealed class CkanInstallerBackend : IInstallerBackend
         try
         {
             installer.UninstallList(plan.ToRemove, ref possibleConfigOnlyDirs, registryManager, ConfirmPrompt: false);
-            return InstallerBackendResult.Ok(plan.ToRemove);
+            // 12 篇 F-43：Core 收集的"可能只剩配置"的目录不能丢，交给残留清理对话框让用户决定。
+            return InstallerBackendResult.Ok(plan.ToRemove,
+                                             residualDirectories: ResidualDirectoriesOf(possibleConfigOnlyDirs));
         }
         catch (OperationCanceledException)
         {
@@ -263,7 +266,9 @@ internal sealed class CkanInstallerBackend : IInstallerBackend
             installer.InstallList(modules, CreateOptions(), registryManager, ref possibleConfigOnlyDirs,
                                   deduper, userAgent: null, downloader: downloader,
                                   autoInstalled: autoInstalled, ConfirmPrompt: false);
-            return InstallerBackendResult.Ok(plan.ToInstall);
+            // 升级/替换同样会留下旧版本的配置目录，一并上报（12 篇 F-43）。
+            return InstallerBackendResult.Ok(plan.ToInstall,
+                                             residualDirectories: ResidualDirectoriesOf(possibleConfigOnlyDirs));
         }
         catch (OperationCanceledException)
         {
@@ -355,6 +360,40 @@ internal sealed class CkanInstallerBackend : IInstallerBackend
             proceed_with_inconsistencies = false,
             allow_incompatible = false,
         };
+
+    /// <summary>
+    /// 把 Core 报上来的绝对残留目录折算成 GameData 相对路径（12 篇 F-43）。
+    /// 落在 GameData 之外的一律丢弃：清理服务只接受 GameData 内的相对路径，越界路径不该进契约。
+    /// </summary>
+    private IReadOnlyList<string> ResidualDirectoriesOf(HashSet<string>? absoluteDirectories)
+    {
+        // UninstallList 的 ref 形参允许把集合置空（Core 在无残留时确实会），这里按"没有残留"处理。
+        if (absoluteDirectories is null || absoluteDirectories.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var gameData = UnmanagedScanner.ResolveGameData(_instance.GameDir);
+        var result = new List<string>(absoluteDirectories.Count);
+        foreach (var directory in absoluteDirectories)
+        {
+            var relative = UnmanagedScanner.ToRelative(gameData, directory);
+            if (relative.Length == 0
+                || relative.StartsWith("..", StringComparison.Ordinal)
+                || Path.IsPathRooted(relative))
+            {
+                continue;
+            }
+
+            if (!result.Contains(relative, StringComparer.OrdinalIgnoreCase))
+            {
+                result.Add(relative);
+            }
+        }
+
+        result.Sort(StringComparer.OrdinalIgnoreCase);
+        return result;
+    }
 
     private NetModuleCache? GetCache() => _instances.Cache;
 

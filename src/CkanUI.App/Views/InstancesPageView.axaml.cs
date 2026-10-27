@@ -205,8 +205,11 @@ internal sealed class FileSystemPathProbe : IInstancePathProbe
 /// 启动游戏只是「把 exe 拉起来」：完整的启动流程（DisposeAll → 启动 → 精简模式，18 篇 E6）
 /// 还需要资源释放状态机，等 <c>GameLaunchViewModel</c> 就绪后替换本实现。
 /// </remarks>
-internal sealed class ShellInstanceLauncher : IInstanceShellLauncher
+internal sealed class ShellInstanceLauncher : IInstanceShellLauncher, IInstanceLaunchExitSignal
 {
+    /// <inheritdoc />
+    public event Action<string>? GameExited;
+
     /// <inheritdoc />
     public Task<OperationResult> OpenFolderAsync(string path)
     {
@@ -243,6 +246,8 @@ internal sealed class ShellInstanceLauncher : IInstanceShellLauncher
         // Steam 链接（steam://rungameid/…）整条交给外壳，不拼目录、不检查文件。
         if (LaunchCommandLine.IsSteamCommand(binary))
         {
+            // steam:// 交给外壳后句柄立刻失效（真正的游戏进程由 Steam 拉起），
+            // 观不到退出事件，所以不登记退出监视——否则会立刻误报 GameExited。
             return Start(
                 new ProcessStartInfo(normalized) { UseShellExecute = true, WorkingDirectory = gameDir },
                 "启动游戏失败");
@@ -261,10 +266,10 @@ internal sealed class ShellInstanceLauncher : IInstanceShellLauncher
             startInfo.Arguments = arguments;
         }
 
-        return Start(startInfo, "启动游戏失败");
+        return Start(startInfo, "启动游戏失败", gameDir);
     }
 
-    private static Task<OperationResult> Start(ProcessStartInfo startInfo, string failureMessage)
+    private Task<OperationResult> Start(ProcessStartInfo startInfo, string failureMessage, string? watchedGameDir = null)
     {
         try
         {
@@ -274,8 +279,15 @@ internal sealed class ShellInstanceLauncher : IInstanceShellLauncher
                 return Task.FromResult(OperationResult.Fail(failureMessage));
             }
 
-            // 外壳启动的进程句柄用完即弃，不影响子进程继续运行。
-            process.Dispose();
+            if (watchedGameDir is null)
+            {
+                // 外壳启动的进程句柄用完即弃，不影响子进程继续运行。
+                process.Dispose();
+                return Task.FromResult(OperationResult.Ok());
+            }
+
+            // 保留句柄以观测退出（18 篇 §4/§9.2）：E6 的协调器要据此取消后续释放层并 Restore。
+            WatchExit(process, watchedGameDir);
             return Task.FromResult(OperationResult.Ok());
         }
         catch (Exception ex) when (ex is InvalidOperationException
@@ -285,6 +297,30 @@ internal sealed class ShellInstanceLauncher : IInstanceShellLauncher
         {
             return Task.FromResult(OperationResult.Fail(failureMessage, ex.Message));
         }
+    }
+
+    /// <summary>后台等进程退出，然后广播一次 <see cref="GameExited"/>（一次性信号）。</summary>
+    private void WatchExit(Process process, string gameDir)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await process.WaitForExitAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException
+                                           or System.ComponentModel.Win32Exception
+                                           or NotSupportedException)
+            {
+                // 句柄已失效（或平台不支持等待）：按「已退出」处理，避免协调器永远等不到信号。
+            }
+            finally
+            {
+                process.Dispose();
+            }
+
+            GameExited?.Invoke(gameDir);
+        });
     }
 }
 

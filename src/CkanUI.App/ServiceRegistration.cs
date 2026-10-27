@@ -8,6 +8,7 @@ using CkanUI.Platform.Threading;
 using CkanUI.Services;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Bootstrap;
+using CkanUI.Services.Diagnostics;
 using CkanUI.Services.Users;
 using CkanUI.ViewModels;
 using CkanUI.ViewModels.Navigation;
@@ -48,6 +49,17 @@ public static class ServiceRegistration
         // 服务层（Services 项目自有实现）。
         services.AddCkanServices();
 
+        // 卸载收尾的残留目录对话框（F-43）：只在卸载后出现一次，故单独成呈现者，不塞进 DialogPresenter。
+        services.AddSingleton<IResidualCleanupDialogService>(sp => new ResidualCleanupDialogPresenter(
+            ownerProvider,
+            sp.GetRequiredService<IResidualCleanupService>(),
+            sp.GetService<IErrorReporter>()));
+
+        // 模组对话框族（F-34..F-36）：推荐选择 / 提供者选择 / 冲突详情。VM 只认 IModDialogService。
+        services.AddSingleton<IModDialogService>(sp => new ModDialogService(
+            ownerProvider,
+            sp.GetRequiredService<Func<string, Task>>()));
+
         // IUser 的 UI 形态：Core 的同步回调会在这里被拦到 UI 线程（INT-03）。
         services.AddCkanUser(sp => new AvaloniaUser(
             sp.GetRequiredService<IDispatcher>(),
@@ -66,7 +78,9 @@ public static class ServiceRegistration
             sp.GetService<IInstallerService>(),
             sp.GetRequiredService<IErrorReporter>(),
             sp.GetService<IOperationQueue>(),
-            sp.GetService<IDispatcher>()));
+            sp.GetService<IDispatcher>(),
+            sp.GetService<IResidualCleanupDialogService>(),
+            sp.GetRequiredService<IInstanceService>()));
         services.AddSingleton<IChangeRequestSink>(sp => sp.GetRequiredService<ChangesPageViewModel>());
         services.AddSingleton(sp => new ModsPageViewModel(
             sp.GetRequiredService<IRepositoryService>(),
@@ -77,13 +91,32 @@ public static class ServiceRegistration
             sp.GetService<IUiSettingsStore>(),
             sp.GetService<IChangeRequestSink>(),
             sp.GetService<INavigationService>(),
-            sp.GetService<IModSearchParser>()));
+            sp.GetService<IModSearchParser>(),
+            sp.GetService<ILabelService>()));
         services.AddSingleton<ReposPageViewModel>();
         services.AddSingleton<ModPacksPageViewModel>();
-        services.AddSingleton<InstancesPageViewModel>();
+        // 实例页要拿资源释放服务与 UI 设置（18 篇 E6）：视图层的 ??= 注入拿不到容器，只能在这里挂。
+        services.AddSingleton(sp =>
+        {
+            var page = ActivatorUtilities.CreateInstance<InstancesPageViewModel>(sp);
+            page.ResourceRelease = sp.GetRequiredService<IResourceReleaseService>();
+            page.UiSettings = sp.GetRequiredService<IUiSettingsStore>();
+            return page;
+        });
         services.AddSingleton<SavesPageViewModel>();
         services.AddSingleton<UnmanagedPageViewModel>();
-        services.AddSingleton<SettingsPageViewModel>();
+        services.AddSingleton<CachePageViewModel>();
+        services.AddSingleton<PlayTimePageViewModel>();
+        services.AddSingleton<DedupPageViewModel>();
+        services.AddSingleton<InstallHistoryPageViewModel>();
+        services.AddSingleton<PluginsPageViewModel>();
+        // 设置页的诊断区需要 CKAN 库版本（12 篇 F-55 同源）：VM 只收委托，CKAN 类型不越界。
+        services.AddSingleton(sp =>
+        {
+            var page = ActivatorUtilities.CreateInstance<SettingsPageViewModel>(sp);
+            page.Diagnostics.CoreVersionProvider = () => CoreVersionInfo.ReleaseVersion;
+            return page;
+        });
 
         // 本地化：磁盘语言包优先、内嵌兜底；App 侧把告警接到 log4net（docs/ops/i18n-guide.md §6.1）。
         services.AddSingleton<ILocalizer>(_ =>
@@ -138,6 +171,11 @@ public static class ServiceRegistration
         ["instances"] = typeof(InstancesPageViewModel),
         ["saves"] = typeof(SavesPageViewModel),
         ["unmanaged"] = typeof(UnmanagedPageViewModel),
+        ["cache"] = typeof(CachePageViewModel),
+        ["playtime"] = typeof(PlayTimePageViewModel),
+        ["dedup"] = typeof(DedupPageViewModel),
+        ["installhistory"] = typeof(InstallHistoryPageViewModel),
+        ["plugins"] = typeof(PluginsPageViewModel),
         ["settings"] = typeof(SettingsPageViewModel),
     };
 

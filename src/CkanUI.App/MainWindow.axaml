@@ -16,12 +16,38 @@
   <Grid ColumnDefinitions="220,*">
     <Border Grid.Column="0" Background="{DynamicResource CkanSidebarBackgroundBrush}">
       <DockPanel LastChildFill="True">
-        <TextBlock DockPanel.Dock="Top"
-                   Text="CKAN"
-                   Foreground="{DynamicResource CkanTextPrimaryBrush}"
-                   FontSize="{DynamicResource CkanFontSizeTitle}"
-                   FontWeight="SemiBold"
-                   Margin="16,20,16,12" />
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="16,20,16,12">
+          <TextBlock Grid.Column="0"
+                     Text="CKAN"
+                     VerticalAlignment="Center"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                     FontSize="{DynamicResource CkanFontSizeTitle}"
+                     FontWeight="SemiBold" />
+          <!-- 前进/后退（F-25）：历史由 INavigationService 维护，按钮只反映可用性。 -->
+          <Button Grid.Column="1"
+                  Content="←"
+                  Command="{Binding BackCommand}"
+                  IsEnabled="{Binding CanGoBack}"
+                  ToolTip.Tip="{Binding BackToolTip}"
+                  Padding="8,2"
+                  Margin="0,0,4,0"
+                  MinWidth="0" />
+          <Button Grid.Column="2"
+                  Content="→"
+                  Command="{Binding ForwardCommand}"
+                  IsEnabled="{Binding CanGoForward}"
+                  ToolTip.Tip="{Binding ForwardToolTip}"
+                  Padding="8,2"
+                  MinWidth="0" />
+        </Grid>
+        <!-- 帮助与关于（12 篇 F-55）：关于框由 code-behind 建窗，VM 只提供数据与命令。 -->
+        <Button DockPanel.Dock="Bottom"
+                Content="关于"
+                Click="OnAboutClick"
+                Margin="16,8,16,12"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Center"
+                FontSize="{DynamicResource CkanFontSizeCaption}" />
         <ListBox x:Name="NavList"
                  ItemsSource="{Binding NavItems}"
                  SelectionChanged="OnNavSelectionChanged"

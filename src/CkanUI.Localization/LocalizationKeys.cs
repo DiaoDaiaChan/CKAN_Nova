@@ -28,8 +28,23 @@ public static class LocalizationKeys
     /// <summary>导航栏：未管理文件页（F-42）。</summary>
     public const string NavRailUnmanaged = "Ui_NavRail_Unmanaged";
 
+    /// <summary>导航栏：游戏时长（F-48）。</summary>
+    public const string NavRailPlayTime = "Ui_NavRail_PlayTime";
+
     /// <summary>导航栏：存档工作台（M7/E1）。</summary>
     public const string NavRailSaves = "Ui_NavRail_Saves";
+
+    /// <summary>导航栏：下载缓存面板（F-50）。</summary>
+    public const string NavRailCache = "Ui_NavRail_Cache";
+
+    /// <summary>导航栏：跨实例去重页（F-41）。</summary>
+    public const string NavRailDedup = "Ui_NavRail_Dedup";
+
+    /// <summary>导航栏：安装历史（F-44）。</summary>
+    public const string NavRailInstallHistory = "Ui_NavRail_InstallHistory";
+
+    /// <summary>导航栏：插件（F-17）。</summary>
+    public const string NavRailPlugins = "Ui_NavRail_Plugins";
 
     /// <summary>导航栏：设置。</summary>
     public const string NavRailSettings = "Ui_NavRail_Settings";
@@ -57,6 +72,12 @@ public static class LocalizationKeys
 
     /// <summary>通用：页面未实现的里程碑说明。</summary>
     public const string CommonPageImplNote = "Ui_Common_Page_ImplNote";
+
+    /// <summary>通用：后退按钮提示（F-25）。</summary>
+    public const string CommonNavBack = "Ui_Common_Nav_Back";
+
+    /// <summary>通用：前进按钮提示。</summary>
+    public const string CommonNavForward = "Ui_Common_Nav_Forward";
 
     /// <summary>通用：状态栏就绪。</summary>
     public const string CommonStatusReady = "Ui_Common_Status_Ready";

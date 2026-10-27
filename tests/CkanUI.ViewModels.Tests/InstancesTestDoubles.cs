@@ -281,9 +281,15 @@ internal sealed class InstancesFakePathProbe : IInstancePathProbe
     public bool DirectoryExists(string path) => !Missing.Contains(path);
 }
 
-/// <summary>外壳启动器替身。</summary>
-internal sealed class InstancesFakeShellLauncher : IInstanceShellLauncher
+/// <summary>外壳启动器替身。顺带充当「游戏退出」信号源（18 篇 §4），让退出恢复可测。</summary>
+internal sealed class InstancesFakeShellLauncher : IInstanceShellLauncher, IInstanceLaunchExitSignal
 {
+    /// <inheritdoc />
+    public event Action<string>? GameExited;
+
+    /// <summary>模拟游戏退出：实例页应当取消后续释放层并调用 RestoreAsync。</summary>
+    public void RaiseExited(string gameDir) => GameExited?.Invoke(gameDir);
+
     public int OpenFolderCalls { get; private set; }
 
     public int LaunchCalls { get; private set; }

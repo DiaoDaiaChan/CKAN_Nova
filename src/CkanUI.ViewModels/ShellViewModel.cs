@@ -53,8 +53,13 @@ public sealed partial class ShellViewModel : ObservableObject
             new("repos", _translate("Ui_NavRail_Repos"), "Globe"),
             new("modpacks", _translate("Ui_NavRail_ModPacks"), "Exchange"),
             new("instances", _translate("Ui_NavRail_Instances"), "Folder"),
+            new("playtime", _translate("Ui_NavRail_PlayTime"), "Clock"),
             new("saves", _translate("Ui_NavRail_Saves"), "Archive"),
             new("unmanaged", _translate("Ui_NavRail_Unmanaged"), "FolderOpen"),
+            new("cache", _translate("Ui_NavRail_Cache"), "Storage"),
+            new("dedup", _translate("Ui_NavRail_Dedup"), "Link"),
+            new("installhistory", _translate("Ui_NavRail_InstallHistory"), "History"),
+            new("plugins", _translate("Ui_NavRail_Plugins"), "Puzzle"),
             new("settings", _translate("Ui_NavRail_Settings"), "Settings")
         };
         _statusText = _translate("Ui_Common_Status_Ready");
@@ -63,6 +68,10 @@ public sealed partial class ShellViewModel : ObservableObject
         _navigation.Navigated += OnNavigated;
 
         NavigateCommand = new AsyncRelayCommand<string>(ExecuteNavigateAsync);
+        BackCommand = new AsyncRelayCommand(ExecuteBackAsync);
+        ForwardCommand = new AsyncRelayCommand(ExecuteForwardAsync);
+        _navigation.HistoryChanged += OnHistoryChanged;
+        RefreshHistoryState();
     }
 
     /// <summary>后台操作队列浮层（UI-08 / VM-05）。为空表示未接线（设计时预览），此时浮层不显示。</summary>
@@ -74,9 +83,53 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>页面导航异步命令。</summary>
     public IAsyncRelayCommand<string> NavigateCommand { get; }
 
+    /// <summary>回退命令（F-25）。</summary>
+    public IAsyncRelayCommand BackCommand { get; }
+
+    /// <summary>前进命令（F-25）。</summary>
+    public IAsyncRelayCommand ForwardCommand { get; }
+
+    /// <summary>是否可回退；由导航服务的历史状态驱动。</summary>
+    [ObservableProperty]
+    private bool _canGoBack;
+
+    /// <summary>是否可前进；由导航服务的历史状态驱动。</summary>
+    [ObservableProperty]
+    private bool _canGoForward;
+
+    /// <summary>回退按钮提示（设计时无本地化注入时给中文兜底）。</summary>
+    public string BackToolTip => _translate("Ui_Common_Nav_Back");
+
+    /// <summary>前进按钮提示。</summary>
+    public string ForwardToolTip => _translate("Ui_Common_Nav_Forward");
+
     private void OnNavigated(object? newPage, string key)
     {
         CurrentPage = newPage;
+        RefreshHistoryState();
+    }
+
+    private void OnHistoryChanged()
+    {
+        RefreshHistoryState();
+    }
+
+    private void RefreshHistoryState()
+    {
+        CanGoBack = _navigation.CanGoBack;
+        CanGoForward = _navigation.CanGoForward;
+    }
+
+    private async Task ExecuteBackAsync()
+    {
+        await _navigation.GoBackAsync().ConfigureAwait(false);
+        RefreshHistoryState();
+    }
+
+    private async Task ExecuteForwardAsync()
+    {
+        await _navigation.GoForwardAsync().ConfigureAwait(false);
+        RefreshHistoryState();
     }
 
     private Task ExecuteNavigateAsync(string? key, CancellationToken ct)
@@ -97,9 +150,16 @@ public sealed partial class ShellViewModel : ObservableObject
         ["Ui_NavRail_Repos"] = "仓库",
         ["Ui_NavRail_ModPacks"] = "导入导出",
         ["Ui_NavRail_Instances"] = "游戏实例",
+        ["Ui_NavRail_PlayTime"] = "游戏时长",
         ["Ui_NavRail_Saves"] = "存档",
         ["Ui_NavRail_Unmanaged"] = "未管理文件",
+        ["Ui_NavRail_Cache"] = "下载缓存",
+        ["Ui_NavRail_Dedup"] = "跨实例去重",
+        ["Ui_NavRail_InstallHistory"] = "安装历史",
+        ["Ui_NavRail_Plugins"] = "插件",
         ["Ui_NavRail_Settings"] = "设置",
+        ["Ui_Common_Nav_Back"] = "后退",
+        ["Ui_Common_Nav_Forward"] = "前进",
         ["Ui_Common_Status_Ready"] = "就绪",
     };
 

@@ -22,12 +22,25 @@ public sealed record InstallerBackendResult(
     /// <summary>是否成功（警告不影响成功）。</summary>
     public bool IsSuccess => Status == InstallerBackendStatus.Succeeded;
 
+    /// <summary>
+    /// 卸载/替换之后可能只剩配置的残留目录（12 篇 F-43）：相对 <c>&lt;GameDir&gt;/GameData</c>、正斜杠。
+    /// <para>
+    /// 默认空集合意味着"这次操作没有产生残留"，因此旧调用点不必改就能编译。
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<string> ResidualDirectories { get; init; } = Array.Empty<string>();
+
     /// <summary>成功结果。</summary>
-    public static InstallerBackendResult Ok(IReadOnlyList<string>? completed = null, IReadOnlyList<string>? warnings = null)
+    public static InstallerBackendResult Ok(IReadOnlyList<string>? completed = null,
+                                           IReadOnlyList<string>? warnings = null,
+                                           IReadOnlyList<string>? residualDirectories = null)
         => new(InstallerBackendStatus.Succeeded,
                completed ?? Array.Empty<string>(),
                Array.Empty<string>(),
-               warnings ?? Array.Empty<string>());
+               warnings ?? Array.Empty<string>())
+        {
+            ResidualDirectories = residualDirectories ?? Array.Empty<string>(),
+        };
 
     /// <summary>失败结果（带可供错误条展示的原因与细节）。</summary>
     public static InstallerBackendResult Fail(string message,

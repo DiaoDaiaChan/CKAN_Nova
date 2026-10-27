@@ -57,7 +57,16 @@ public sealed class SettingsPageViewModelTests
         Assert.That(page.Groups[4].IsTokenGroup, Is.True);
         Assert.That(page.Groups[4].Items, Is.Empty);
         Assert.That(page.Groups[7].IsDiagnosticsGroup, Is.True);
-        Assert.That(page.Groups[7].Items, Is.Empty);
+        Assert.That(
+            page.Groups[7].Items.Select(item => item.Key),
+            Is.EqualTo(new[]
+            {
+                SettingsKeyNames.HideVersionEpoch,
+                SettingsKeyNames.HideVersionVPrefix,
+                SettingsKeyNames.AutoSortUpdates,
+                SettingsKeyNames.SuppressRecommendations,
+            }));
+        Assert.That(page.Groups[7].Items.All(item => item.IsBooleanKind), Is.True);
     }
 
     [Test]
@@ -393,6 +402,50 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Test]
+    public async Task LoadAsync_ReadsF54FlagsFromUiSettings()
+    {
+        var store = new FakeUiSettingsStore().With(new UiSettings
+        {
+            HideVersionEpoch = true,
+            HideVersionVPrefix = true,
+            AutoSortUpdates = false,
+            SuppressRecommendations = true,
+        });
+        var page = CreatePage(new FakeSettingsService(), store);
+
+        await page.LoadAsync();
+
+        Assert.That(Item(page, SettingsKeyNames.HideVersionEpoch).EditValue, Is.EqualTo("true"));
+        Assert.That(Item(page, SettingsKeyNames.HideVersionVPrefix).EditValue, Is.EqualTo("true"));
+        Assert.That(Item(page, SettingsKeyNames.AutoSortUpdates).EditValue, Is.EqualTo("false"));
+        Assert.That(Item(page, SettingsKeyNames.SuppressRecommendations).EditValue, Is.EqualTo("true"));
+        Assert.That(Item(page, SettingsKeyNames.HideVersionEpoch).IsDirty, Is.False);
+    }
+
+    [Test]
+    public async Task SaveItemAsync_HideVersionEpoch_WritesUiSettingsAndKeepsOtherFields()
+    {
+        var settings = new FakeSettingsService();
+        var store = new FakeUiSettingsStore().With(new UiSettings { Theme = "light", WindowWidth = 1280 });
+        var page = CreatePage(settings, store);
+        await page.LoadAsync();
+        var item = Item(page, SettingsKeyNames.HideVersionEpoch);
+
+        item.BooleanValue = true;
+        Assert.That(item.IsDirty, Is.True);
+        await page.SaveItemAsync(item);
+
+        Assert.That(settings.Attempts, Is.Empty);
+        Assert.That(store.Saved, Has.Count.EqualTo(1));
+        Assert.That(store.Saved[0].HideVersionEpoch, Is.True);
+        Assert.That(store.Saved[0].AutoSortUpdates, Is.False);
+        Assert.That(store.Saved[0].Theme, Is.EqualTo("light"));
+        Assert.That(store.Saved[0].WindowWidth, Is.EqualTo(1280));
+        Assert.That(item.IsDirty, Is.False);
+        Assert.That(page.StatusText, Is.EqualTo("隐藏版本 epoch 前缀：已保存"));
+    }
+
+    [Test]
     public async Task SaveItemAsync_UiSettingsSaveFailure_ReportsRetryableFailure()
     {
         var store = new FakeUiSettingsStore
@@ -618,7 +671,21 @@ public sealed class SettingsPageViewModelTests
             SettingsKeyNames.Language,
             SettingsKeyNames.PreferredHosts,
         };
-        var uiKeys = new[] { SettingsKeyNames.Theme, SettingsKeyNames.Locale, SettingsKeyNames.Density };
+        Assert.That(SettingsKeyNames.HideVersionEpoch, Is.EqualTo("HideVersionEpoch"));
+        Assert.That(SettingsKeyNames.HideVersionVPrefix, Is.EqualTo("HideVersionVPrefix"));
+        Assert.That(SettingsKeyNames.AutoSortUpdates, Is.EqualTo("AutoSortUpdates"));
+        Assert.That(SettingsKeyNames.SuppressRecommendations, Is.EqualTo("SuppressRecommendations"));
+
+        var uiKeys = new[]
+        {
+            SettingsKeyNames.Theme,
+            SettingsKeyNames.Locale,
+            SettingsKeyNames.Density,
+            SettingsKeyNames.HideVersionEpoch,
+            SettingsKeyNames.HideVersionVPrefix,
+            SettingsKeyNames.AutoSortUpdates,
+            SettingsKeyNames.SuppressRecommendations,
+        };
 
         foreach (var uiKey in uiKeys)
         {

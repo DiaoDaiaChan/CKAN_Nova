@@ -49,6 +49,18 @@ public static class SettingsKeyNames
     /// <summary>ckan-ui.json：界面密度（compact / standard / comfortable）。</summary>
     public const string Density = "Density";
 
+    /// <summary>ckan-ui.json：版本号隐藏 epoch 前缀（F-54）。</summary>
+    public const string HideVersionEpoch = "HideVersionEpoch";
+
+    /// <summary>ckan-ui.json：版本号隐藏 v 前缀（F-54）。</summary>
+    public const string HideVersionVPrefix = "HideVersionVPrefix";
+
+    /// <summary>ckan-ui.json：模组列表自动把可升级项排到前面（F-54）。</summary>
+    public const string AutoSortUpdates = "AutoSortUpdates";
+
+    /// <summary>ckan-ui.json：不再询问推荐模组（F-35 的「不再提示」落盘）。</summary>
+    public const string SuppressRecommendations = "SuppressRecommendations";
+
     /// <summary>拼出某个主机的认证令牌键。</summary>
     public static string AuthToken(string host) => AuthTokenPrefix + host;
 

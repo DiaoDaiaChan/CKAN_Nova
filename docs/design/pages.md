@@ -98,7 +98,7 @@
 ---
 
 ### 2.3 游戏实例管理页 (InstancesPageViewModel)
-- **实现状态**：🚧 当前为占位符骨架，需按规范完整落地
+- **实现状态**：✅ 已实现（`src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs`）；重命名走 `IInstanceService.RenameAsync`，启动命令编辑见 §2.8，启动后资源释放见 §2.3.5
 - **规格对应**：03 篇 §5 (V-03)、§8 (D-06 实例编辑)、§8 (D-09 首次向导)；06 篇 UI-05；02 篇 §5 (实例切换生命周期)
 
 #### 2.3.1 视图模型职责
@@ -129,6 +129,14 @@
 - **无实例（首次启动/全删除）**：展示全屏向导卡片（D-09 首次向导）：「未检测到 Kerbal Space Program 游戏实例」，提供 [自动探测 Steam/常见目录] 与 [手动浏览路径] 两个主按钮。
 - **实例锁定冲突**：切换时若目标实例被其他 CKAN 进程独占，捕捉锁定失败，弹窗阻断并提示「该实例正被另一个进程使用，无法切换」，回滚至原实例。
 - **路径失效/损坏**：卡片上置灰标红「目录不可访问」，提供「重新定位」与「移除」选项。
+
+#### 2.3.5 启动后的分层资源释放（18 篇 E6）
+- **实现位置**：编排在 `src/CkanUI.Services/Lifecycle/ResourceReleaseService.cs`，时机在 `src/CkanUI.ViewModels/Pages/Instances/GameLaunchReleaseCoordinator.cs`。
+- **为什么做**：KSP 与 CKAN 同机常驻会抢内存，而 Core 没有「清缓存」API——能真正放掉的只有「仓库快照 + `RegistryManager.DisposeAll()`」，所以把它做成**可逆**的释放：`RestoreAsync` 用 `IRegistryService.OpenAsync(当前实例)` + `IRepositoryService.LoadCachedAsync()` 重新打开。
+- **五层**：L0 视图参与方（`IViewResourceParticipant`）/ L1 缓存参与方（`IAppCacheParticipant`）/ L2 注册表锁 + 仓库快照 / L3 压缩式 GC / L4 工作集归还（本版本返回 `Unsupported`，报告记 Skipped 不算失败）。
+- **四档**（`UiSettings.ReleaseTier`，默认 `Balanced`）：`Off` 连计时器都不起；`Conservative` 只跑 L0+L1；`Balanced` 补 L2；`Aggressive` 补 L3/L4。
+- **时机**：启动成功即排程，T3 = 0s（保守）、T4 = +10s（均衡）、T5 = +30s（激进）；服务按「已成功的层」幂等，每层只跑一次。
+- **收口**：游戏退出（`IInstanceLaunchExitSignal.GameExited`，由 App 侧 `ShellInstanceLauncher` 保留句柄后广播）或离开页面 → 取消后续层并 `RestoreAsync`，失败走错误栏且可重试。每层独立成败，失败只记 Warn 不阻断后续层。
 
 ---
 
@@ -314,6 +322,37 @@
 
 ---
 
+### 2.11 跨实例去重页 (DedupPageViewModel)
+
+| 项 | 值 |
+| --- | --- |
+| 视图 | `src/CkanUI.App/Views/DedupPageView.axaml` |
+| 依赖 | `IInstanceDedupService`、`IErrorReporter`、`IDialogService` |
+| 关键成员 | `Groups` / `Results` / `DryRun`（默认 true）/ `MinimumFileSizeKiB`（128）/ `ScanCommand` / `ExecuteCommand` / `ReclaimableBytes` / `SkippedCount` / `IsSupported` |
+| 语义 | 实例多选默认全选（只记住用户取消的项）；扫描后按「哈希 + 卷」成组列出副本；执行前两次确认（第一次讲要做什么，第二次讲「多个实例共用同一份数据，删任一份影响其它实例」）；真写盘成功后清空计划并要求重扫；平台不支持时命令不可执行并给出提示，而不是报错 |
+| 缺口 | 非 Windows 无 inode 探测（已建链的路径会重复列出，执行阶段安全跳过）；无共享存储目录模式；组表格无分页（依赖 ListBox 虚拟化） |
+
+### 2.12 安装历史页 (InstallHistoryPageViewModel)
+
+| 项 | 值 |
+| --- | --- |
+| 视图 | `src/CkanUI.App/Views/InstallHistoryPageView.axaml` |
+| 依赖 | `IInstallHistoryService`、`IErrorReporter` |
+| 关键成员 | `Entries` / `SelectedEntry` / `InstalledModules` / `MissingModules` / `RestorePreviewText` / `RestoreResultText` / `LoadCommand` / `RestoreCommand` |
+| 存储 | 每实例一份 `<GameDir>/CKAN/install_history.jsonl`：一次操作落 entry + snapshot 两行，共用同一时间戳；坏行跳过不抛；超过 2000 行只留最新；写入走 `.tmp` + `File.Move(overwrite:true)` |
+| 语义 | 按「当前是否装着」分已装/未装两组；版本不同的模组留在已装组并显示「版本不同（当前 x）」；重装走 `IChangeSetService.BuildAsync` + `IInstallerService.ApplyAsync`，有冲突即中止且不调用执行；已同版本不发变更请求；`HistoryRecordingInstaller` 装饰器自动记账，`InstallHistoryScope` 抑制重装双记 |
+| 缺口 | 只按行数截断（无按时间/大小归档）；不支持删除或清空历史；`RemoveExtras` 在契约里但页面无开关；旧客户端 `CKAN/history/*.ckan` 不导入 |
+
+### 2.13 插件页 (PluginsPageViewModel)
+
+| 项 | 值 |
+| --- | --- |
+| 视图 | `src/CkanUI.App/Views/PluginsPageView.axaml` |
+| 依赖 | `IPluginService`、`IErrorReporter`；文件选择走视图注入的 `IPluginFilePicker` |
+| 关键成员 | `ActivePlugins` / `DormantPlugins` / `PluginsDirectory` / `FailureTexts` / `RefreshCommand` / `AddNewCommand` / `ActivateCommand` / `DeactivateCommand` / `ReloadCommand` / `UnloadCommand` |
+| 语义 | 插件目录默认 `%LocalAppData%/CKAN/plugins`；扫描一律以 `activate:false` 加载进 Dormant，**必须用户显式点「激活」才执行插件 `Initialize`**；加载用可回收 `AssemblyLoadContext`，对契约程序集与 System/Avalonia 前缀返回 null（否则插件会加载出第二份 Abstractions）；用 `LoadFromStream` 而非 `LoadFromAssemblyPath`，避免长期占用 dll 句柄；同进程、不沙箱，页面页头明示 |
+| 缺口 | 插件声明的页签尚未渲染成导航项（`PageTypes` 是静态字典，需要动态 key + 按 ViewLocator 解析插件 VM 类型）；ALC 卸载尽力而为（插件持有静态引用/线程时不会真回收）；不校验签名；不递归子目录；页面拉取式刷新，不订阅 `IPluginService.Changed` |
+
 ## 3. 对话框实现说明
 
 全部对话框继承自 `DialogViewModelBase`，并通过 `IDialogService` 在 UI 线程上弹窗呈现，解耦 Core 后台线程与 UI 窗口生命周期。
@@ -356,6 +395,17 @@
 - **规格对应**：03 篇 §3.1；06 篇 UI-03、VM-04
 - **职责与数据来源**：以 `Identifier` 索引 `IRepositoryService` 与 `IRegistryService`。通过可选的 `DetailsProvider` 投影富元数据（版本、作者、许可证、主页、九类依赖关系树 `RelationTreeView`）。未接线 Core 时降级显示快照基础数据，保证 headless 可测。
 
+### 3.6 关于框 (AboutDialogViewModel)
+- **实现状态**：✅ 已就位 (`src/CkanUI.ViewModels/Dialogs/AboutDialogViewModel.cs` + `src/CkanUI.App/Views/Dialogs/AboutDialogView.axaml`)
+- **规格对应**：12 篇 F-55；03 篇 §8 (D-09 帮助与关于)
+- **入口**：外壳左栏底部「关于」按钮（`MainWindow.axaml` 的 `OnAboutClick`），由 code-behind 建窗并指定 owner（05 篇 §2 铁律）。
+- **职责与数据来源**：VM 只接收字符串，不引用 Avalonia 与 CKAN。版本矩阵四行由 `src/CkanUI.App/AboutInfoFactory.cs` 采集：界面版本（程序集版本 `v{Major}.{Minor}.{Build}`）、核心库版本（`CkanUI.Services.Diagnostics.CoreVersionInfo.ReleaseVersion` → `CKAN.Meta.ReleaseVersion`）、运行时（`.NET {Environment.Version}`）、操作系统（`RuntimeInformation.OSDescription`）。
+- **状态与命令**：
+  - `Fields`（4 行 `AboutField`）、`Links`（3 条官方地址）、`LicenseText`（GPL-3.0）。
+  - `OpenLinkCommand`：外链交给注入的 `Func<string, Task<bool>>`（App 侧是 Avalonia `Launcher.LaunchUriAsync`）。通道缺失、返回 false 或抛异常都收口成框内提示，不弹二级错误框、不关闭关于框。
+  - 只有「关闭」一个按钮，`PrimaryCommand` 关闭并置 `IsConfirmed`。
+- **为什么把版本采集放在 App 层**：`CKAN` 命名空间只许出现在 Services/Localization（01 篇 §5），所以 `CoreVersionInfo` 是 Services 层薄壳，App 层负责把四个来源拼成 `AboutInfo`。
+
 ---
 
 ## 4. 页面与对话框实现对照矩阵
@@ -368,11 +418,15 @@
 | 导入导出页 | `ModPacksPageViewModel` | ✅ 已实现（F-40/F-41/F-42 除外） | 03 篇 §6 / UI-20, UI-24 | `IModPackService`, `IInstanceService` | `ModPackPreview`, `ModPackImportReport`, `InstanceComparison` |
 | 存档工作台 | `SavesPageViewModel` | ✅ 已实现 | 13 篇 / M7·E1 | `ISaveFileService` | `SaveGameInfo`, `SaveValidationReport`, `SaveFormatOutcome` |
 | 未管理文件页 | `UnmanagedPageViewModel` | ✅ 已实现 | 03 篇 §6 / UI-10 | `IUnmanagedService` | `UnmanagedFileInfo` |
+| 跨实例去重页 | `DedupPageViewModel` | ✅ 已实现 | 03 篇 §6 / UI-21 | `IInstanceDedupService` | `DedupScanReport`, `DedupGroup`, `DedupExecuteReport` |
+| 安装历史页 | `InstallHistoryPageViewModel` | ✅ 已实现 | 03 篇 §6 / UI-23 | `IInstallHistoryService` | `InstallHistoryEntry`, `InstallHistorySnapshot`, `InstallHistoryRestorePlan` |
+| 插件页 | `PluginsPageViewModel` | ✅ 已实现 | 03 篇 §6 / UI-33 | `IPluginService` | `PluginInfo`, `PluginLoadFailure` |
 | 实例管理页 | `InstancesPageViewModel` | ✅ 已实现（重命名已接 `RenameAsync`；启动命令编辑见 §2.8） | 03 篇 §5 / UI-05 | `IInstanceService`, `IDialogService` | `InstanceInfo` |
 | 设置页 | `SettingsPageViewModel` | ✅ 已实现 | 03 篇 §7 / UI-07 | `ISettingsService`, `IUiSettingsStore` | `UiSettings`, `SettingItemViewModel` |
 | 操作队列浮层 | `OperationQueueViewModel` | ✅ 已实现 | 03 篇 §1, §8 / UI-08 | `IOperationQueue` | `OperationProgress` |
 | 确认对话框 | `ConfirmDialogViewModel` | ✅ 已实现 | 03 篇 §8 (D-01) / UI-09 | `IDialogService` (通过 `IUser.RaiseYesNoDialog`) | 字符串标量 |
 | 单选对话框 | `SelectDialogViewModel` | ✅ 已实现 | 03 篇 §8 (D-02) / UI-09 | `IDialogService` (通过 `IUser.RaiseSelectionDialog`) | `IReadOnlyList<string>` |
 | 错误对话框 | `ErrorDialogViewModel` | ✅ 已实现 | 03 篇 §8 (D-03) / UI-09 | `IErrorReporter` / `IUser.RaiseError` | `ErrorEntry` |
+| 关于框 | `AboutDialogViewModel` | ✅ 已实现 | 12 篇 F-55 / UI-36 | 无（App 侧 `AboutInfoFactory` 采集） | `AboutInfo`, `AboutField`, `AboutLink` |
 | 崩溃对话框 | `CrashDialogViewModel` | ✅ 已实现 | 03 篇 §8 (D-08) / ARC-04 | 全局异常捕获管道 | `Exception` |
 | 模组详情视图 | `ModDetailsViewModel` | ✅ 已实现 | 03 篇 §3.1 / UI-03 | `IRepositoryService`, `IRegistryService` | `ModDetailsSnapshot`, `ModRelationItem` |

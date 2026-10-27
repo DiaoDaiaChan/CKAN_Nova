@@ -1,0 +1,72 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.AboutDialogView"
+                       x:DataType="vm:AboutDialogViewModel"
+                       Title="{Binding Title}"
+                       Width="460"
+                       SizeToContent="Height">
+  <StackPanel Margin="20" Spacing="12">
+    <TextBlock Text="{Binding Info.AppName}"
+               FontSize="{DynamicResource CkanFontSizeTitle}"
+               FontWeight="SemiBold"
+               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+
+    <!-- 版本矩阵：标签与值都用 token，不写字面量颜色。 -->
+    <ItemsControl ItemsSource="{Binding Fields}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:AboutField">
+          <Grid ColumnDefinitions="120,*" Margin="0,1">
+            <TextBlock Grid.Column="0"
+                       Text="{Binding Label}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBlock Grid.Column="1"
+                       Text="{Binding Value}"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+          </Grid>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <Separator Margin="0,4" />
+
+    <TextBlock Text="{Binding LicenseText}"
+               TextWrapping="Wrap"
+               FontSize="{DynamicResource CkanFontSizeCaption}"
+               Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+
+    <ItemsControl ItemsSource="{Binding Links}">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <WrapPanel />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:AboutLink">
+          <Button Content="{Binding Title}"
+                  Command="{Binding $parent[ItemsControl].((vm:AboutDialogViewModel)DataContext).OpenLinkCommand}"
+                  CommandParameter="{Binding}"
+                  Margin="0,0,6,6"
+                  Padding="8,2"
+                  FontSize="{DynamicResource CkanFontSizeCaption}" />
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <TextBlock Text="{Binding ValidationError}"
+               IsVisible="{Binding HasValidationError}"
+               TextWrapping="Wrap"
+               FontSize="{DynamicResource CkanFontSizeCaption}"
+               Foreground="{DynamicResource CkanDangerBrush}" />
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding PrimaryCommand}"
+              IsDefault="True"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </StackPanel>
+</dialogs:DialogWindow>

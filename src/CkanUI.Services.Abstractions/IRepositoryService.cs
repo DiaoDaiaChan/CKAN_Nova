@@ -19,6 +19,16 @@ public interface IRepositoryService
     /// <summary>联网刷新；失败时保留旧快照并返回可重试错误。</summary>
     Task<OperationResult<RepositorySnapshot>> RefreshAsync(CancellationToken ct = default);
 
+    /// <summary>
+    /// 丢掉内存里的仓库快照（18 篇 §3 L2）：只清引用，不碰磁盘缓存，也不联网。
+    /// 用于「启动游戏后释放资源」——37.9MB 的仓库 JSON 解析出的对象图是进程里最大的一块，
+    /// 丢掉之后下次进入模组页会用 <see cref="LoadCachedAsync"/> 从本地缓存重建（R-59）。
+    /// 默认实现是空操作：只关心索引快照、内存里本来就不留东西的实现者无需改动。
+    /// </summary>
+    void DropCachedSnapshot()
+    {
+    }
+
     // ---- 仓库列表的读取与编辑（06 篇 UI-06 / 03 篇 §6 V-04） ------------------
     //
     // 全部成员都带默认实现：只关心索引快照的实现者（模组页替身、只读降级实现）不必被迫实现，

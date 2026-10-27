@@ -1,3 +1,5 @@
+using CkanUI.Services.Abstractions.Dtos;
+
 namespace CkanUI.Services.Abstractions;
 
 /// <summary>UI 自有设置（%LocalAppData%/CKAN/ckan-ui.json，01 篇 §7）。窗口几何、列宽、上次页面、主题。</summary>
@@ -17,6 +19,24 @@ public sealed record UiSettings
     /// <summary>界面语言（BCP-47）。UI 语言的唯一真源，不回写 Core 的 config.json（见工程约定 §12）。</summary>
     public string? Locale { get; init; }
 
+    /// <summary>
+    /// 启动游戏后的资源释放档位（18 篇 §7）。默认均衡档（18 篇 §15 Q1），激进档需用户显式开启。
+    /// 存的是枚举，UiSettingsStore 的 JSON 选项没有枚举转换器，因此按数字落盘、往返稳定。
+    /// </summary>
+    public ResourceReleaseTier ReleaseTier { get; init; } = ResourceReleaseTier.Balanced;
+
+    /// <summary>版本号显示：隐藏 epoch 前缀（12 篇 F-54）。</summary>
+    public bool HideVersionEpoch { get; init; }
+
+    /// <summary>版本号显示：隐藏 "v" 前缀（12 篇 F-54）。</summary>
+    public bool HideVersionVPrefix { get; init; }
+
+    /// <summary>更新列表是否自动排序（12 篇 F-54）。</summary>
+    public bool AutoSortUpdates { get; init; }
+
+    /// <summary>推荐对话框「总是取消全选」的记忆位（12 篇 F-35）。</summary>
+    public bool SuppressRecommendations { get; init; }
+
     public IReadOnlyDictionary<string, double> ColumnWidths { get; init; } =
         new Dictionary<string, double>();
 
@@ -34,6 +54,11 @@ public sealed record UiSettings
         && string.Equals(Theme, other.Theme, StringComparison.Ordinal)
         && string.Equals(Density, other.Density, StringComparison.Ordinal)
         && string.Equals(Locale, other.Locale, StringComparison.Ordinal)
+        && ReleaseTier == other.ReleaseTier
+        && HideVersionEpoch == other.HideVersionEpoch
+        && HideVersionVPrefix == other.HideVersionVPrefix
+        && AutoSortUpdates == other.AutoSortUpdates
+        && SuppressRecommendations == other.SuppressRecommendations
         && ColumnWidthsEqual(ColumnWidths, other.ColumnWidths);
 
     public override int GetHashCode()
@@ -48,6 +73,11 @@ public sealed record UiSettings
         hash.Add(Theme, StringComparer.Ordinal);
         hash.Add(Density, StringComparer.Ordinal);
         hash.Add(Locale, StringComparer.Ordinal);
+        hash.Add(ReleaseTier);
+        hash.Add(HideVersionEpoch);
+        hash.Add(HideVersionVPrefix);
+        hash.Add(AutoSortUpdates);
+        hash.Add(SuppressRecommendations);
 
         // 字典无序：逐项哈希异或，保证顺序无关。
         var columns = 0;

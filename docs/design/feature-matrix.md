@@ -26,15 +26,15 @@
 | F-14 | 兼容游戏版本（当前版本 + 追加版本列表、通配 1.12→1.12.x、风险警示） | UI-29 | `src/CkanUI.Services/Models/GUIMod.cs:260`, `src/CkanUI.ViewModels/Pages/Mods/ModsCompatibilityFilter.cs:8` | 部分 | 已支持基于主次版本的兼容性过滤计算；追加自定义兼容版本与通配符编辑弹窗待 UI-29 接入 |
 | F-15 | 首选下载主机（可用按热度 / 首选按优先级，拖动排序） | UI-30 | `src/CkanUI.Services/Settings/SettingsService.cs:182`, `src/CkanUI.ViewModels/Pages/SettingsPageViewModel.cs:333` | 部分 | 已在设置页支持首选主机文本列表读写持久化；热度排序与可视化拖拽弹窗待 UI-30 接入 |
 | F-16 | 安装过滤器（全局 + 实例级，仅影响后续安装） | UI-31 | `src/CkanUI.Services/Settings/SettingsService.cs:195`, `src/CkanUI.ViewModels/Pages/SettingsPageViewModel.cs:402,410` | 部分 | 已支持 KSP/KSP2 全局规则持久化与配置校验；实例级覆盖与高级过滤规则编辑器待 UI-31 接入 |
-| F-17 | 插件系统（激活/停用/重载/卸载/新增，Active 与 Dormant 两栏） | UI-33 | — | 未开始 | 待 UI-33 实现 `ICKANUIPlugin` 接口、反射加载与插件管理视图后验收 |
+| F-17 | 插件系统（激活/停用/重载/卸载/新增，Active 与 Dormant 两栏） | UI-33 | `src/CkanUI.Services.Abstractions/IPluginService.cs:1`, `src/CkanUI.Services/Plugins/PluginService.cs:1`, `src/CkanUI.ViewModels/Pages/PluginsPageViewModel.cs:1` | 已实现 | 契约 `ICKanUiPlugin` + `IPluginService`（Discover/Activate/Deactivate/Reload/Uninstall/Add + `Failures` 留痕），实现用可回收 `AssemblyLoadContext`（契约与 System/Avalonia 前缀返回 null，防双份 Abstractions）、`LoadFromStream` 不占 dll 句柄；页面 Active/Dormant 两栏、显式「激活」才跑 `Initialize`、状态徽标与错误栏。用例：`PluginServiceTests`（23）、`PluginsPageViewModelTests`（15）。缺口：插件声明的页签尚未渲染成导航项；ALC 卸载尽力而为；不校验签名 |
 | F-18 | Mod 列表 15 列（Installed、Auto-installed、Update、Replace、Name、Author 等） | UI-02, VM-01 | `src/CkanUI.ViewModels/Pages/Mods/ModsRowProjection.cs:16`, `src/CkanUI.ViewModels/Pages/Mods/ModsRowView.cs:13`, `src/CkanUI.App/Views/ModsPageView.axaml:160` | 已实现 | 单测 `ModsRowProjectionTests` 验证 15 列数据投影与格式化，UI DataGrid 列头绑定 |
 | F-19 | 11 种状态过滤器 + 排序（点击列头，含 Update 列自动排序选项） | UI-02, VM-01 | `src/CkanUI.Services/Models/GUIModFilter.cs:3`, `src/CkanUI.ViewModels/Pages/Mods/ModsRowFilter.cs:10`, `src/CkanUI.ViewModels/Pages/Mods/ModsRowSorter.cs:10` | 已实现 | 单测 `ModListFilterTests` 与 `ModsRowSorterTests` 覆盖 11 种过滤枚举与列头多字段升降序 |
 | F-20 | 组合搜索面板（Search / Or 两组，逐字段可选） | UI-14, MOD-01 | `src/CkanUI.Services/Models/ModSearch.cs:13`, `src/CkanUI.ViewModels/Pages/Mods/ModsQuery.cs:12` | 部分 | `ModSearch` 与 `ModsQuery` 支持 Search/Or 多条件语法解析；组合搜索独立抽屉/面板待 UI-14 落地 |
 | F-21 | 搜索字段 18 项（Name、Author、Description、Depends on、Conflicts 等 18 项） | UI-14, MOD-01 | `src/CkanUI.ViewModels/Pages/Mods/ModsQuery.cs:22`, `src/CkanUI.Services/Models/ModSearch.cs:27` | 部分 | 单测 `ModSearchTests` 验证多字段联合过滤；18 项独立图形化勾选表单待 UI-14 落地 |
 | F-22 | 标签（Tags）与标签徽章、点击显隐 | UI-02 | `src/CkanUI.ViewModels/Pages/Mods/ModsQuery.cs:28`, `src/CkanUI.App/Views/ModsPageView.axaml:115` | 部分 | 已支持 Tag 过滤词与行内标签文本展示；标签徽章点击即时显隐过滤待 UI-02 工具栏接入 |
 | F-23 | Label 过滤与编辑入口 | UI-02, UI-24b | `src/CkanUI.Services/Models/ModSearch.cs:19` | 部分 | 模型层定义 Label 检索条件；Label 工具栏下拉与编辑弹窗入口待 UI-02 / UI-24b 接入 |
-| F-24 | Label 属性（名称、背景色、隐藏于其它过滤器、更新/安装通知、不升级等 10 项） | UI-24b | — | 未开始 | 待 UI-24b 实现 `EditLabelsDialog`，验证标签 10 项属性编辑与落盘 |
-| F-25 | 前进/后退导航（选中历史） | UI-02 | — | 未开始 | 待 UI-02 完善导航历史堆栈（选中模组历史的前进/后退动作） |
+| F-24 | Label 属性（名称、背景色、隐藏于其它过滤器、更新/安装通知、不升级等 10 项） | UI-24b | `src/CkanUI.Services/Labels/LabelService.cs:1`, `src/CkanUI.Services.Abstractions/ILabelService.cs:1`, `src/CkanUI.ViewModels/Pages/Mods/ModsLabelFilter.cs:1` | 部分 | 服务侧 `ILabelService` 经上游 `ModuleLabelList` 读写十项属性并 `Save(path)` 落盘（14 例）；模组页已有标签筛选区（多选为「或」）、行内标签徽章、详情面板收藏/隐藏/锁定三按钮（14 例，`ModsLabelTests`）。缺口：标签组编辑对话框（UI-24b）与颜色只到 ToolTip（仓库无 `IValueConverter`） |
+| F-25 | 前进/后退导航（选中历史） | UI-02 | `src/CkanUI.ViewModels/Navigation/NavigationService.cs:31`, `src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:365` | 已实现 | 两套历史都做了：① 页面级前进/后退（`NavigationService` 双栈、深度上限 64、新导航清空前进栈、外壳左栏 `←`/`→` 按钮）；② 模组选中历史（`ModsPageViewModel` 的 `_selectionBack`/`_selectionForward`、深度上限 32、回退目标已不在当前列表时原地不动、详情面板 `←`/`→`）。单测 `NavigationHistoryTests`（10 例）+ `ModsSelectionHistoryTests`（8 例） |
 | F-26 | 详情四页：元数据 / 关系 / 内容 / 版本 | UI-03 | `src/CkanUI.ViewModels/Dialogs/ModDetailsViewModel.cs:14`, `src/CkanUI.App/Views/Dialogs/ModDetailsView.axaml:1` | 部分 | 已实现元数据与关系两大部分详情投影与视图；内容预览树与独立版本页签待 UI-03 完善 |
 | F-27 | 元数据页（Identifier、Replaced by、Max game ver.、Author、Downloads 等） | UI-03 | `src/CkanUI.ViewModels/Dialogs/ModDetailsSnapshot.cs:4`, `src/CkanUI.ViewModels/Dialogs/ModDetailsFormatter.cs:10` | 已实现 | 视图模型单测验证元数据各字段提取、格式化展示与空状态回退 |
 | F-28 | 关系树（九色图例、反向关系、双击跳转） | UI-18 | `src/CkanUI.ViewModels/Dialogs/ModRelationKind.cs:4`, `src/CkanUI.ViewModels/Dialogs/ModRelationItem.cs:7`, `src/CkanUI.ViewModels/Dialogs/ModDetailsViewModel.cs:149` | 部分 | 已实现关系分类、多项依赖数据绑定与显示；九色图例树形控件与双击跳转待 UI-18 完善 |
@@ -42,29 +42,29 @@
 | F-30 | 版本页（全部版本、兼容/已装/不稳定标记、发布日期） | UI-03 | `src/CkanUI.Services/Models/GUIMod.cs:23`, `src/CkanUI.ViewModels/Pages/Mods/ModsFormatter.cs:15` | 部分 | 数据层具备版本枚举与兼容判定；详情面板独立版本页签与标记展示待 UI-03 完善 |
 | F-31 | 右键动作（重装、下载到缓存、从缓存清除、Labels 子菜单） | UI-02, INT-07 | `src/CkanUI.Services/ChangeSets/ModChange.cs:24` | 部分 | 变更集底层具备重装/下载语义；模组列表右键上下文菜单（ContextMenu）待 UI-02 接入 |
 | F-32 | 全量更新（Update all）、应用（Apply） | UI-02, UI-04 | `src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:846`, `src/CkanUI.App/Views/ModsPageView.axaml.cs:78` | 部分 | 已实现应用变更命令入口与状态栏提示；全量更新按钮与安装器完整调度待 UI-02 / UI-04 接入 |
-| F-33 | 变更集页（Mod / Change / Reasons / Skip? 四列、清空、应用、游戏运行警告） | UI-04, VM-02 | `src/CkanUI.Services.Abstractions/Dtos/ChangeSetPreview.cs:5`, `src/CkanUI.Services/ChangeSets/ModChange.cs:9`, `src/CkanUI.ViewModels/Pages/Mods/ModsChangePreviewBuilder.cs:10` | 部分 | 已实现变更集预览构建器与变更类型定义；独立四列变更集确认页面待 UI-04 / VM-02 接入 |
-| F-34 | 提供者选择（虚拟 mod 多候选单选） | UI-16 | — | 未开始 | 待 UI-16 实现虚拟 mod 多提供者单选对话框，验证候选解析与变更集合流 |
-| F-35 | 推荐/建议/被支持选择（三组、Check All / Uncheck All / Always uncheck all 等） | UI-15, INT-07 | — | 未开始 | 待 UI-15 实现关联选择对话框，验证三组勾选逻辑与“总是取消全选”持久化 |
-| F-36 | 推荐审计（遍历已装 mod 的推荐与建议） | UI-17 | — | 未开始 | 待 UI-17 实现推荐审计工具，验证批量扫描已安装模组推荐与一键采纳 |
-| F-37 | 安装/卸载/升级执行（进度、取消、重试、状态日志） | UI-08, INT-08 | `src/CkanUI.Services/Installers/CkanInstallerBackend.cs:21`, `src/CkanUI.Services/Operations/OperationQueue.cs:10` | 部分 | 底层具备安装/卸载执行后端与异步操作队列；全屏任务等待日志页（WaitTabPage）待 UI-08 落地 |
+| F-33 | 变更集页（Mod / Change / Reasons / Skip? 四列、清空、应用、游戏运行警告） | UI-04, VM-02 | `src/CkanUI.ViewModels/Pages/ChangesPageViewModel.cs:1`, `src/CkanUI.App/Views/ChangesPageView.axaml:1`, `src/CkanUI.Services/ChangeSets/CoreChangeSetPlanner.cs:1` | 部分 | 变更集页已落地：冲突/警告横幅、六列明细（名称/动作/版本/来源/体积/操作）、清空、单条剔除、应用与执行状态机（Idle→Computing→Ready→Applying→Done/Failed/Cancelled）。缺口：游戏运行中警告未做；「跳过」与原因合并进明细说明文本 |
+| F-34 | 提供者选择（虚拟 mod 多候选单选） | UI-16 | `src/CkanUI.ViewModels/Dialogs/VirtualModuleDialogViewModel.cs:1`, `src/CkanUI.App/Views/Dialogs/VirtualModuleDialogView.axaml:1`, `src/CkanUI.Services.Abstractions/IModDialogService.cs:1` | 部分 | 对话框本身已完成：单选互斥、默认第一项、未选拒绝确认、双击即确认，取消返回 `null`（`ModDialogsTests` 25 例）。缺口：`CkanInstallerBackend` 抛 `TooManyModsProvideKraken` 处尚未调用（安装编排接入点未接） |
+| F-35 | 推荐/建议/被支持选择（三组、Check All / Uncheck All / Always uncheck all 等） | UI-15, INT-07 | `src/CkanUI.ViewModels/Dialogs/RecommendationDialogViewModel.cs:1`, `src/CkanUI.App/Views/Dialogs/RecommendationDialogView.axaml:1` | 部分 | 对话框完成：三组勾选、全选/全不选（全选跳过 DLC 与冲突项）、零候选才禁用确认、`SuppressRecommendations` 写进 `RecommendationSelection` 并已并入 `UiSettings.SuppressRecommendations`。缺口：安装确认前尚未调用（`ModsPageViewModel` 安装流程仍由 `CoreChangeSetPlanner` 静默处理推荐项） |
+| F-36 | 推荐审计（遍历已装 mod 的推荐与建议） | UI-17 | `src/CkanUI.ViewModels/Dialogs/ConflictDetailsDialogViewModel.cs:1`, `src/CkanUI.App/Views/Dialogs/ConflictDetailsDialogView.axaml:1` | 部分 | 冲突详情框落地（主按钮「复制全部」、`CloseAfterPrimary=false`、文案与上游 `string.Join("; ", ConflictDescriptions)` 同形）；批量「遍历已装 mod 找推荐」的审计工具仍缺 |
+| F-37 | 安装/卸载/升级执行（进度、取消、重试、状态日志） | UI-08, INT-08 | `src/CkanUI.Services/Installers/InstallerService.cs:1`, `src/CkanUI.Services/Operations/OperationQueue.cs:10`, `src/CkanUI.ViewModels/Operations/OperationQueueViewModel.cs:1` | 部分 | 执行后端 + 异步操作队列 + 右下角操作浮层（进度、字节/速率文本、取消）已落地，取消在阶段边界生效。缺口：逐项重试与独立全屏等待日志页未做（浮层替代 WaitTabPage） |
 | F-38 | 下载失败处置（逐项 Retry?/Skip?、错误文本、复制到剪贴板） | UI-35 | `src/CkanUI.Services/Downloads/DownloadFailureClassifier.cs:1` | 部分 | 失败分类已落地（网络类可重试、证书/限流可重试、`DownloadErrorsKraken` 展开镜像列表、永久错误不可重试、取消单列）；逐项 Retry?/Skip? 对话框与复制到剪贴板待 UI-35 |
 | F-39 | 从 .ckan 安装（多选文件） | UI-20 | `src/CkanUI.Services/ModPacks/ModPackCatalog.cs:1`, `src/CkanUI.ViewModels/Pages/ModPacksPageViewModel.cs:1` | 已实现 | 多选 `.ckan`（多行/分号分隔）先预览（将安装/升级/降级/已安装/找不到/有冲突+原因），跨来源版本冲突只报不合并；执行映射成 `ChangeRequest` → `IChangeSetService.BuildAsync`（有冲突即中止）→ `IInstallerService.ApplyAsync`，无自有下载逻辑 |
-| F-40 | 导入已下载 mods（ZIP → 缓存） | UI-20 | — | 未开始 | 本地 ZIP 直接灌下载缓存（`NetModuleCache`）并建索引仍未做；当前导入一律走变更集 + 安装器下载 |
-| F-41 | 去重（跨实例扫描并共享可共享文件） | UI-21 | — | 未开始 | 待 UI-21 / INT-09 实现跨实例文件哈希扫描与硬链接共享去重 |
+| F-40 | 导入已下载 mods（ZIP → 缓存） | UI-20 | `src/CkanUI.Services/Cache/CkanCacheStore.cs:1`, `src/CkanUI.ViewModels/Pages/CachePageViewModel.cs:1` | 部分 | 缓存页已能「从 ZIP 导入」：`NetModuleCache.ZipValid` → `Registry.GetDownloadHashesIndex()`（SHA256→SHA1）反查 → 读 zip 内 `*.ckan` 补伪下载地址 → `Store(move:false, validate:false)`；坏 zip 不可重试并给中文原因。缺口：导入后不自动触发安装（只进缓存） |
+| F-41 | 去重（跨实例扫描并共享可共享文件） | UI-21 | `src/CkanUI.Services.Abstractions/IInstanceDedupService.cs:1`, `src/CkanUI.Services/Dedup/DedupScanner.cs:1`, `src/CkanUI.Services/Dedup/DedupExecutor.cs:1`, `src/CkanUI.ViewModels/Pages/DedupPageViewModel.cs:1` | 已实现 | 两阶段扫描（先按大小分组，再 SHA256 流式哈希）→ 按 (哈希, 卷) 成组；执行走「临时名 → 建硬链接 → 校验文件标识 → `File.Move(overwrite)`」，失败按组逆序回滚。六条安全边界：仅在 GameData 内、跳过重解析点、默认跳过受管路径、同卷、≥2 副本、默认 dry-run；页面两次确认。用例：`DedupServiceTests`（13，1 例因沙箱无符号链接权限 Ignore）、`DedupPageViewModelTests`（12）。缺口：非 Windows 无 inode 探测；无共享存储目录模式 |
 | F-42 | 未管理文件（树、刷新、全展开/全折叠/重置、在文件夹中显示、删除） | UI-10, INT-09 | `src/CkanUI.Services/Unmanaged/UnmanagedScanner.cs:1`, `src/CkanUI.ViewModels/Pages/UnmanagedPageViewModel.cs:1`, `src/CkanUI.App/Views/UnmanagedPageView.axaml:1` | 已实现 | 受管路径集合 = `registry.InstalledFileInfo()` 的键（去 `GameData/` 前缀）+ 纯 DLL 安装；仅展示"递归含未管理文件"的目录，目录尺寸为未管理文件合计；删除默认 dry-run，含受管内容的批次整批拒绝（不可重试），界面两次确认；「接管为受管安装」仍由 INT-09 承担 |
-| F-43 | 残留目录清理（目录树 + 内容预览、打开目录、删除勾选、全部保留） | UI-22 | `src/CkanUI.Services/Installers/CkanInstallerBackend.cs:179` | 部分 | 卸载逻辑中已记录配置残留目录（`possibleConfigOnlyDirs`）；清理对话框与文件树待 UI-22 接入 |
-| F-44 | 安装历史（时间戳列表、已装/未装分组、从历史重装） | UI-23 | — | 未开始 | 待 UI-23 / INT-08 实现时间戳历史记录展示与旧状态一键回滚重装 |
+| F-43 | 残留目录清理（目录树 + 内容预览、打开目录、删除勾选、全部保留） | UI-22 | `src/CkanUI.Services/Cleanup/ResidualCleanupService.cs:1`, `src/CkanUI.ViewModels/Dialogs/ResidualCleanupDialogViewModel.cs:1`, `src/CkanUI.Services/Installers/CkanInstallerBackend.cs:368` | 已实现 | `possibleConfigOnlyDirs` 贯通到 `InstallReport.ResidualDirectories`；对话框三出口（打开目录/删除勾选/全部保留），逐行展示路径·文件数·字节·样例文件，被拒行不可勾选。安全边界：GameData 之外、重解析点自身、内含重解析点、含受管文件四类拒绝理由；删除逐个跳过而非整批拒绝，失败返回可重试中文原因（`ResidualCleanupServiceTests` 15 例 + `ResidualCleanupDialogTests` 12 例） |
+| F-44 | 安装历史（时间戳列表、已装/未装分组、从历史重装） | UI-23 | `src/CkanUI.Services.Abstractions/IInstallHistoryService.cs:1`, `src/CkanUI.Services/History/InstallHistoryService.cs:1`, `src/CkanUI.Services/History/HistoryRecordingInstaller.cs:1`, `src/CkanUI.ViewModels/Pages/InstallHistoryPageViewModel.cs:1` | 已实现 | 每实例一份 `<GameDir>/CKAN/install_history.jsonl`（一次操作 = entry + snapshot 两行同时间戳，坏行跳过，2000 行滚动截断，`.tmp` + `File.Move` 原子写）；安装器装饰器自动记账（`InstallHistoryScope` 抑制重装双记）；重装走 `IChangeSetService.BuildAsync` + `IInstallerService.ApplyAsync`，冲突即中止。页面按「当前是否装着」分已装/未装组。用例：`InstallHistoryServiceTests`（15）、`InstallHistoryPageViewModelTests`（17）。缺口：只按行数截断、不能删除/清空历史、`RemoveExtras` 无界面开关 |
 | F-45 | 导出：已装列表（不可回导）／modpack（可回导） | UI-24 | `src/CkanUI.Services/ModPacks/CkanModPackStore.cs:1`, `src/CkanUI.ViewModels/Pages/ModPacks/ExportFormViewModel.cs:1` | 部分 | modpack 导出已实现（`RegistryManager.GenerateModpack` 的 `ToJson()` 直出，可选带版本、可选把缓存 zip 打成同名 `.zip`）；「不可回导的已装列表」格式未做 |
 | F-46 | modpack 编辑器（标识/名称/摘要/作者/版本/关系单选等） | UI-24 | — | 未开始 | 待 UI-24 实现 modpack 完整元数据编辑界面与关系分组单选 |
 | F-47 | 下载统计（饼图 + 表格） | UI-25 | — | 未开始 | 待 SP-14 图表库验证并在 UI-25 实现下载量饼图与排序表格 |
-| F-48 | 游戏时长（实例名 / 小时数，F2 就地编辑） | UI-10 | — | 未开始 | 待 UI-10 实现时长统计表格与 F2 就地编辑保存功能 |
+| F-48 | 游戏时长（实例名 / 小时数，F2 就地编辑） | UI-10 | `src/CkanUI.Services/PlayTime/PlayTimeService.cs:1`, `src/CkanUI.ViewModels/Pages/PlayTimePageViewModel.cs:1`, `src/CkanUI.App/Views/PlayTimePageView.axaml:1` | 已实现 | 时长页：实例名 + 小时数、F2 就地编辑、Enter 保存 / Esc 取消、空状态与错误栏；存储为 `%LocalAppData%/CKAN/play-time.json`（GUID 临时文件 + `File.Move(overwrite)`，坏 JSON 读空）。导航第 6 项「游戏时长」。缺口：启动/退出路径尚未自动累计时长（只能手工编辑） |
 | F-49 | 设置总表（仓库、令牌、缓存、自动更新、行为、外观、高级等分组） | UI-07 | `src/CkanUI.ViewModels/Pages/SettingsPageViewModel.cs:264`, `src/CkanUI.App/Views/SettingsPageView.axaml:1` | 已实现 | 设置页 7 组分类配置双向绑定已就绪，支持改一项写一项与读回校验 |
-| F-50 | 下载缓存管理（文件数/容量、路径编辑、上限 MiB、Purge、Reset、打开） | UI-19 | `src/CkanUI.ViewModels/Pages/SettingsPageViewModel.cs:296`, `src/CkanUI.Services/Settings/SettingsService.cs:170` | 部分 | 设置页支持缓存路径与容量上限；缓存文件数统计、Purge 清理与 Reset 弹窗待 UI-19 接入 |
+| F-50 | 下载缓存管理（文件数/容量、路径编辑、上限 MiB、Purge、Reset、打开） | UI-19 | `src/CkanUI.Services/Cache/CacheService.cs:1`, `src/CkanUI.ViewModels/Pages/CachePageViewModel.cs:1`, `src/CkanUI.App/Views/CachePageView.axaml:1` | 部分 | 缓存页落地：条目数/总字节/上限/占用百分比、按修改时间升序清理到上限、全部清理、正在使用的条目两种清理都跳过并列出。上限编辑留在设置页（避免双写）。缺口：「打开缓存目录」「重置上限」按钮未做 |
 | F-51 | 托盘图标（启用/最小化到托盘；7 项右键菜单） | UI-26 | — | 未开始 | 待 UI-26 实现托盘图标托管、窗口隐藏/恢复与 7 项快捷菜单 |
 | F-52 | 自动更新（启动时检查、dev builds、检查/安装、新版本对话框） | UI-27 | `src/CkanUI.ViewModels/Pages/SettingsPageViewModel.cs:270` | 部分 | 设置页支持开发版更新通道开关；更新检查器、新版本弹窗与二进制替换待 UI-27 / PKG 接入 |
 | F-53 | 语言与本地化（语言选择需重启；多语 resx/json 支持） | UI-13 | `src/CkanUI.Localization/Localizer.cs:15`, `src/CkanUI.Localization/LanguagePackLoader.cs:11`, `src/CkanUI.ViewModels/Pages/SettingsPageViewModel.cs:367` | 已实现 | 单测 `LocalizationTests` 覆盖本地化加载、多语词包回退链及设置页语言切换与持久化 |
-| F-54 | 显示格式（隐藏 epoch、隐藏 "v"、自动排序） | UI-07 | — | 未开始 | 待 UI-07 在设置页通用/外观组中增加 Epoch、"v" 前缀过滤与更新自动排序项 |
-| F-55 | 帮助与关于（链接、关于框、单实例互斥、ckan:// 协议、错误/崩溃对话框） | UI-36, ARC-04, ARC-05, UI-09 | `src/CkanUI.Platform/SingleInstance/SingleInstanceGuard.cs:20`, `src/CkanUI.Platform/SingleInstance/CkanUri.cs:16`, `src/CkanUI.ViewModels/Dialogs/ErrorDialogViewModel.cs:13` | 部分 | 单实例互斥、`ckan://` 协议唤醒与错误/崩溃/诊断对话框已就绪；关于框与外部支持链接待 UI-36 落地 |
+| F-54 | 显示格式（隐藏 epoch、隐藏 "v"、自动排序） | UI-07 | `src/CkanUI.ViewModels/Pages/Settings/VersionDisplayFormat.cs:1`, `src/CkanUI.ViewModels/Pages/Mods/ModsRowView.cs:25`, `src/CkanUI.ViewModels/Pages/SettingsPageViewModel.cs:491` | 已实现 | 三个开关落在设置页「高级与诊断」组（`HideVersionEpoch` / `HideVersionVPrefix` / `AutoSortUpdates`，随 `ckan-ui.json` 落盘）；模组列版本号走 `VersionDisplayFormat.Format`，可升级项在按名称排序时整体置顶。用例：`ModsVersionDisplayTests`（8 例）、`VersionDisplayFormatTests` |
+| F-55 | 帮助与关于（链接、关于框、单实例互斥、ckan:// 协议、错误/崩溃对话框） | UI-36, ARC-04, ARC-05, UI-09 | `src/CkanUI.ViewModels/Dialogs/AboutDialogViewModel.cs:30`, `src/CkanUI.App/AboutInfoFactory.cs:12`, `src/CkanUI.Platform/SingleInstance/SingleInstanceGuard.cs:20`, `src/CkanUI.ViewModels/Dialogs/ErrorDialogViewModel.cs:13` | 已实现 | ① 单实例互斥与 `ckan://` 协议唤醒（`SingleInstanceGuard` + `CkanUri`）；② 错误/崩溃/诊断对话框；③ 关于框（外壳左栏底部「关于」）：版本矩阵四行（界面/核心库/运行时/操作系统）、三条官方链接、GPL-3.0 声明，外链走 Avalonia `Launcher`，通道缺失或失败在框内提示不抛。单测 `AboutDialogTests`（9 例） |
 
 ---
 
@@ -74,9 +74,9 @@
 
 | 状态 | 数量 | 占比 | 包含特性的主要范围 |
 |---|---|---|---|
-| **已实现** | **18** | 32.7% | 实例基础管理（F-01..F-04, F-07..F-09）、元数据仓库管理（F-10）、认证令牌（F-11）、模组列表 15 列与 11 种过滤器（F-18, F-19）、元数据详情（F-27）、设置主页（F-49）、多语本地化（F-53）、游戏启动与命令行编辑（F-05, F-06）、.ckan 导入（F-39）、未管理文件树（F-42） |
-| **部分** | **22** | 40.0% | 仓库刷新（F-12）、版本与容忍度（F-13..F-16）、组合搜索与关系（F-20..F-23, F-26, F-28, F-30）、变更集与安装底层（F-31..F-33, F-37, F-43）、缓存设置与平台（F-50, F-52, F-55）、下载失败处置（F-38）、modpack 导出（F-45） |
-| **未开始** | **15** | 27.3% | 插件系统（F-17）、Label 属性（F-24）、导航历史（F-25）、内容预览（F-29）、推荐与虚拟模组对话框（F-34..F-36）、ZIP 灌缓存与跨实例去重（F-40, F-41）、其余工具族（F-44, F-46..F-48）、托盘与格式（F-51, F-54） |
+| **已实现** | **26** | 47.3% | 实例基础管理（F-01..F-04, F-07..F-09）、元数据仓库管理（F-10）、认证令牌（F-11）、插件系统（F-17）、模组列表 15 列与 11 种过滤器（F-18, F-19）、元数据详情（F-27）、设置主页（F-49）、多语本地化（F-53）、游戏启动与命令行编辑（F-05, F-06）、.ckan 导入（F-39）、未管理文件树（F-42）、残留目录清理（F-43）、跨实例去重（F-41）、安装历史与重装（F-44）、游戏时长（F-48）、前进/后退导航（F-25）、显示格式（F-54）、帮助与关于（F-55） |
+| **部分** | **25** | 45.5% | 仓库刷新与可视化（F-12）、版本与容忍度（F-13..F-16）、组合搜索与关系（F-20..F-23, F-26, F-28, F-30）、变更集与安装执行（F-31..F-33, F-37）、下载失败处置（F-38）、Label 属性（F-24）、推荐与虚拟模组对话框（F-34..F-36）、ZIP 灌缓存与导出（F-40, F-45）、缓存面板（F-50）、自建更新（F-52） |
+| **未开始** | **4** | 7.3% | 内容预览（F-29）、modpack 编辑器（F-46）、下载统计图表（F-47）、系统托盘（F-51） |
 | **总计** | **55** | 100.0% | 覆盖全特性清单（A 9 + B 8 + C 17 + D 14 + E 7）全部条目 |
 
 ---
@@ -85,28 +85,25 @@
 
 基于 [12 全特性对齐清单](../plan/12-feature-parity.md) §4 缺口分析及当前源码实现底座，建议按以下四个波次推进剩余特性的闭环落地：
 
-### 第一优先级：核心安装与决策闭环（M2 里程碑，阻断正常安装流）
-1. **F-34（提供者选择对话框，UI-16）**：虚拟模组冲突或多实现时阻断变更集生成，属于基础安装核心链路。
-2. **F-35（推荐/建议/支持选择对话框，UI-15）**：安装前模组推荐选择，含全选/取消及“总是取消”配置持久化。
-3. **F-33（完整变更集确认视图，UI-04 / VM-02）**：将现有的估算预览构建器升级为可交互确认、可取消变更的独立确认页面。
-4. **F-37（执行等待页，UI-08）**：接入 `WaitTabPage`，呈现安装日志流、进度条、取消与重试按钮。
-5. **F-38（下载失败处置对话框，UI-35）**：提供网络异常断点时的重试、跳过与错误复制能力。
+### 第一优先级：真实下载与安装闭环（阻断「装得上」）
+1. **F-31 / F-33 / F-37（安装执行链）**：把 `IInstallerService` 接到真实下载器，补逐项重试与游戏运行中警告。
+2. **F-38（下载失败处置，UI-35）**：在 `DownloadFailureClassifier` 之上补逐项 Retry?/Skip? 对话框与错误复制。
+3. **F-34 / F-35 / F-36（模组对话框接线）**：三个对话框 VM 与视图已就绪，缺在模组页安装流程与 `CkanInstallerBackend` 抛 `TooManyModsProvideKraken` 处调用。
+4. **F-12（仓库刷新）**：补 Ctrl 强制重下（跳过 ETag）与「暂停自动刷新」开关。
 
-### 第二优先级：仓库、实例与设置周边补全（M3 里程碑）
-1. **F-10（仓库增删与优先级拖拽，UI-06）**：补齐元数据仓库管理完整弹窗与官方预设列表。
-2. **F-14、F-13（兼容游戏版本与容忍度，UI-29）**：提供通配符版本兼容列表编辑器与模组级覆盖。
-3. **F-50（下载缓存管理面板，UI-19）**：在标量配置基础上，实现缓存容量监控、Purge to limit / Purge all 清理弹窗。
-4. **F-15、F-16（首选主机拖拽排序与安装过滤器编辑，UI-30 / UI-31）**：将文本行配置升级为直观的可视化排序与规则编辑器。
-5. **F-20、F-21（组合搜索面板，UI-14）**：将底层 `ModSearch` 表达式包装为 18 字段的图形化筛选抽屉。
+### 第二优先级：设置与仓库可视化（M3 里程碑）
+1. **F-13..F-16（容忍度、兼容版本、首选主机、安装过滤器）**：把文本行配置升级为可视化排序与规则编辑器。
+2. **F-20..F-23（图形化筛选抽屉）**：语法解析器（`IModSearchParser`）已全量接线，缺 18 字段的图形化面板。
+3. **F-50（缓存面板收尾）**：补「打开缓存目录」与「重置上限」两个入口。
+4. **F-24（标签组编辑对话框）**：标签读写与筛选已落地，缺 UI-24b 的组编辑对话框。
 
-### 第三优先级：数据分析、文件与工具族（M4 里程碑）
-1. **F-28（关系树可视化，UI-18）**：在现有关系列表基础上实现 9 类着色图例树控件与双击联动。
-2. **F-43（残留目录清理，UI-22）**：释放磁盘空间，清理卸载后残留配置；未管理文件树（F-42）已落地，接管为受管安装仍待 INT-09。
-3. **F-39、F-40、F-45、F-46（.ckan 导入、模组包导入与 modpack 编辑器，UI-20 / UI-24）**：支持模组配置分享与离线安装。
-4. **F-44、F-47、F-48（安装历史重装、下载统计图表、游戏时长，UI-23 / UI-25 / UI-10）**：需先由 SP-14 完成图表库选型验证。
-5. **F-41、F-24、F-51（跨实例去重、Label 属性定制、系统托盘，UI-21 / UI-24b / UI-26）**。
+### 第三优先级：工具族收口（M4 里程碑）
+1. **F-29（内容页，UI-03）**：未缓存提示、一键下载与 ZIP 内文件树预览。
+2. **F-46（modpack 编辑器）**：导入导出已通，缺完整元数据编辑界面。
+3. **F-47（下载统计图表）**：需先做图表库选型（SP-14）。
+4. **F-51（系统托盘）**：托盘托管、最小化到托盘与右键菜单。
 
-### 第四优先级：全特性收口与外部扩展（M5' 里程碑）
-1. **F-52（自建自动更新，UI-27）**：配合 PKG-02 / PKG-08 实现更新包拉取与后台二进制静默替换。
-2. **F-17（插件系统，UI-33）**：定义 `ICKANUIPlugin` 契约，支持外部加载与启用/停用。
-3. **F-55、F-06、F-25、F-54（帮助外链、启动命令行编辑、选择历史前进后退、显示格式微调）**：完成 TST-05 验收矩阵 55 项全绿收口。
+### 第四优先级：全特性验收收口（M5' 里程碑）
+1. **F-52（自建自动更新）**：更新检查器、新版本弹窗与二进制替换。
+2. **F-45（已装列表导出）**：不可回导格式。
+3. 全 55 条按 [07 测试策略](../plan/07-testing.md) TST-05 验收矩阵逐条复验。

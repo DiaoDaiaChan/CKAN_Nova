@@ -169,6 +169,8 @@ public sealed class InstallerService : IInstallerService
 
         var warnings = new List<string>(plan.Warnings);
         var removed = new List<string>();
+        // 12 篇 F-43：卸载/替换留下的配置残留目录，随结果一起交给残留清理对话框。
+        var residual = new List<string>();
 
         if (plan.ToRemove.Count > 0)
         {
@@ -186,6 +188,7 @@ public sealed class InstallerService : IInstallerService
             }
 
             removed.AddRange(remove.Completed);
+            AddRange(residual, remove.ResidualDirectories);
         }
 
         if (plan.ToInstall.Count > 0)
@@ -202,12 +205,17 @@ public sealed class InstallerService : IInstallerService
                 return Abort(backend, reporter, before, removed, warnings, install,
                              "安装失败，已尝试还原到操作前的状态。", install.Detail);
             }
+
+            AddRange(residual, install.ResidualDirectories);
         }
 
         reporter.Report(OperationState.Succeeded, "全部完成。", 100);
 
         return OperationResult<InstallReport>.Ok(
-            new InstallReport(plan.ToInstall, removed, Array.Empty<string>(), warnings));
+            new InstallReport(plan.ToInstall, removed, Array.Empty<string>(), warnings)
+            {
+                ResidualDirectories = residual,
+            });
     }
 
     /// <summary>

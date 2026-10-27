@@ -23,12 +23,80 @@ public sealed class NavigationService : INavigationService
     /// <inheritdoc />
     public event Action<object?, string>? Navigated;
 
+    /// <summary>回退栈上限（F-25）：只保留最近 64 次跳转，避免长期使用无限增长。</summary>
+    private const int MaxHistoryDepth = 64;
+
+    private readonly List<string> _backStack = new();
+    private readonly List<string> _forwardStack = new();
+
+    /// <inheritdoc />
+    public bool CanGoBack => _backStack.Count > 0;
+
+    /// <inheritdoc />
+    public bool CanGoForward => _forwardStack.Count > 0;
+
+    /// <inheritdoc />
+    public event Action? HistoryChanged;
+
     /// <inheritdoc />
     public Task<bool> NavigateAsync(string pageKey, object? parameter = null, CancellationToken ct = default)
+        => Task.FromResult(NavigateCore(pageKey, recordHistory: true, ct));
+
+    /// <inheritdoc />
+    public Task<bool> GoBackAsync(CancellationToken ct = default)
+    {
+        if (_backStack.Count == 0)
+        {
+            return Task.FromResult(false);
+        }
+
+        var from = CurrentKey;
+        var target = _backStack[^1];
+        if (!NavigateCore(target, recordHistory: false, ct))
+        {
+            return Task.FromResult(false);
+        }
+
+        _backStack.RemoveAt(_backStack.Count - 1);
+        if (!string.IsNullOrEmpty(from))
+        {
+            _forwardStack.Add(from);
+        }
+
+        HistoryChanged?.Invoke();
+        return Task.FromResult(true);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> GoForwardAsync(CancellationToken ct = default)
+    {
+        if (_forwardStack.Count == 0)
+        {
+            return Task.FromResult(false);
+        }
+
+        var from = CurrentKey;
+        var target = _forwardStack[^1];
+        if (!NavigateCore(target, recordHistory: false, ct))
+        {
+            return Task.FromResult(false);
+        }
+
+        _forwardStack.RemoveAt(_forwardStack.Count - 1);
+        if (!string.IsNullOrEmpty(from))
+        {
+            _backStack.Add(from);
+        }
+
+        HistoryChanged?.Invoke();
+        return Task.FromResult(true);
+    }
+
+    private bool NavigateCore(string pageKey, bool recordHistory, CancellationToken ct)
     {
         if (ct.IsCancellationRequested)
         {
-            return Task.FromResult(false);
+            return false;
         }
 
         try
@@ -36,14 +104,14 @@ public sealed class NavigationService : INavigationService
             // 如果切到相同页面键且已经存在页面，无需重复激活重建
             if (string.Equals(CurrentKey, pageKey, StringComparison.Ordinal) && CurrentPage != null)
             {
-                return Task.FromResult(true);
+                return true;
             }
 
             var next = _factory(pageKey);
             if (next == null)
             {
                 // 工厂未注册或未找到目标页，收口返回 false
-                return Task.FromResult(false);
+                return false;
             }
 
             var previous = CurrentPage;
@@ -52,6 +120,18 @@ public sealed class NavigationService : INavigationService
             if (previous is IActivatable oldActivatable)
             {
                 oldActivatable.Deactivate();
+            }
+
+            if (recordHistory && !string.IsNullOrEmpty(CurrentKey))
+            {
+                // 新的主动跳转会让「前进」历史失效（与浏览器一致）。
+                _backStack.Add(CurrentKey);
+                if (_backStack.Count > MaxHistoryDepth)
+                {
+                    _backStack.RemoveAt(0);
+                }
+
+                _forwardStack.Clear();
             }
 
             CurrentPage = next;
@@ -65,12 +145,17 @@ public sealed class NavigationService : INavigationService
 
             // 在旧页面 Deactivate 之后发出 Navigated
             Navigated?.Invoke(next, pageKey);
-            return Task.FromResult(true);
+            if (recordHistory)
+            {
+                HistoryChanged?.Invoke();
+            }
+
+            return true;
         }
         catch
         {
             // 异常收口为 false，不穿透抛给调用方
-            return Task.FromResult(false);
+            return false;
         }
     }
 }

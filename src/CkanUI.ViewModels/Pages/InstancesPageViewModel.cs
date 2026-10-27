@@ -26,6 +26,11 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     private readonly IErrorReporter _errors;
     private bool _subscribed;
 
+    private GameLaunchReleaseCoordinator? _releaseCoordinator;
+    private IResourceReleaseService? _releaseService;
+    private IInstanceLaunchExitSignal? _exitSignal;
+    private Task? _releaseShutdown;
+
     /// <summary>默认构造：仅供设计器与 <c>new InstancesPageViewModel()</c> 这类无容器场景使用，不连任何服务。</summary>
     public InstancesPageViewModel()
         : this(new EmptyInstanceService(), new EmptyDialogService(), new EmptyErrorReporter())
@@ -67,6 +72,24 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
     /// <summary>单行文本输入通道（F-06 增 / 改一条命令）；未注入时给出可读提示而不是崩溃。</summary>
     public IInstanceTextPrompt? TextPrompt { get; set; }
+
+    /// <summary>
+    /// 启动后的分层资源释放（18 篇 §3/§7）。未注入时启动照常、只是不做释放——
+    /// 容器里注册 <c>IResourceReleaseService</c> 之后由 App 层赋值即可。
+    /// </summary>
+    public IResourceReleaseService? ResourceRelease { get; set; }
+
+    /// <summary>释放排程用的延时器（T3/T4/T5 的等待）；默认真实计时，测试换成可控时钟。</summary>
+    public IInstancesDelayScheduler ReleaseScheduler { get; set; } = TaskInstancesDelayScheduler.Instance;
+
+    /// <summary>UI 设置（取释放档位 <see cref="UiSettings.ReleaseTier"/>）；未注入时按均衡档。</summary>
+    public IUiSettingsStore? UiSettings { get; set; }
+
+    /// <summary>最近一次释放排程的任务（T3/T4/T5 时间轴），供测试等待；没有排程时为 null。</summary>
+    public Task? PendingRelease => _releaseCoordinator?.Pending;
+
+    /// <summary>最近一次「游戏退出 → 恢复资源」的任务，供测试等待；没有发生过时为 null。</summary>
+    public Task? PendingReleaseShutdown => _releaseShutdown;
 
     // ---- 可观察状态 -------------------------------------------------------
 
@@ -250,6 +273,10 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             _instances.CurrentChanged -= OnCurrentChanged;
             _subscribed = false;
         }
+
+        // 离开页面也要收尾：取消后续释放层并恢复数据，否则 L2 之后列表会是空的。
+        DetachExitSignal();
+        _releaseShutdown = StopReleaseScheduleAsync();
     }
 
     /// <summary>重新投影实例列表并保持选中项（名称不变则选中项不变）。</summary>
@@ -812,10 +839,99 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             }
 
             StatusText = $"已启动「{row.Name}」：{command}";
+            StartReleaseSchedule();
         }
         catch (Exception ex)
         {
             OnException(ex, "启动游戏");
+        }
+    }
+
+    /// <summary>
+    /// 启动成功之后按 18 篇 §4 的 T3/T4/T5 排程释放（0s / +10s / +30s），并订阅游戏退出信号。
+    /// 档位取自 <see cref="UiSettings"/>，关闭档不排程也不订阅——用户明确关掉时连计时器都不起。
+    /// </summary>
+    private void StartReleaseSchedule()
+    {
+        if (ResourceRelease is not { } release)
+        {
+            return;
+        }
+
+        var tier = UiSettings?.Current.ReleaseTier ?? ResourceReleaseTier.Balanced;
+        if (tier == ResourceReleaseTier.Off)
+        {
+            DetachExitSignal();
+            return;
+        }
+
+        // 服务实例变了（换了容器/换了替身）就重建编排，避免把旧服务的新报告写到新状态上。
+        if (_releaseCoordinator is null || !ReferenceEquals(_releaseService, release))
+        {
+            _releaseCoordinator = new GameLaunchReleaseCoordinator(release, ReleaseScheduler);
+            _releaseService = release;
+        }
+
+        _releaseCoordinator.Begin(tier);
+        AttachExitSignal();
+    }
+
+    private void AttachExitSignal()
+    {
+        if (ShellLauncher is not IInstanceLaunchExitSignal signal || ReferenceEquals(_exitSignal, signal))
+        {
+            return;
+        }
+
+        DetachExitSignal();
+        _exitSignal = signal;
+        signal.GameExited += OnGameExited;
+    }
+
+    private void DetachExitSignal()
+    {
+        if (_exitSignal is { } signal)
+        {
+            signal.GameExited -= OnGameExited;
+        }
+
+        _exitSignal = null;
+    }
+
+    /// <summary>游戏退出：取消后续释放层并恢复被 L2 丢掉的注册表与仓库快照（18 篇 §4/§6）。</summary>
+    private void OnGameExited(string gameDir)
+    {
+        DetachExitSignal();
+        _releaseShutdown = StopReleaseScheduleAsync();
+    }
+
+    /// <summary>停止排程并恢复数据；失败时走统一错误出口（可重试），不抛异常。</summary>
+    private async Task StopReleaseScheduleAsync()
+    {
+        if (_releaseCoordinator is not { } coordinator)
+        {
+            return;
+        }
+
+        try
+        {
+            var restore = await coordinator.EndAsync().ConfigureAwait(true);
+            if (!restore.IsSuccess)
+            {
+                SetError(
+                    InstancesErrorText.Compose(restore.Message, "恢复资源失败", restore.Retryable),
+                    restore.Detail);
+                return;
+            }
+
+            if (coordinator.LastReport is { } report && report.ReleasedItemCount > 0)
+            {
+                StatusText = $"游戏已退出，已恢复数据（本次释放 {report.ReleasedItemCount} 项）。";
+            }
+        }
+        catch (Exception ex)
+        {
+            OnException(ex, "恢复资源");
         }
     }
 

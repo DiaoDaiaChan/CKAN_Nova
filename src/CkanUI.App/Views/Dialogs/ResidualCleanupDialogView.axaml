@@ -1,0 +1,108 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       xmlns:rc="clr-namespace:CkanUI.ViewModels.Dialogs.ResidualCleanup;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.ResidualCleanupDialogView"
+                       x:DataType="vm:ResidualCleanupDialogViewModel"
+                       Title="{Binding Title}"
+                       Width="560"
+                       Height="540">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="12">
+    <TextBlock Grid.Row="0"
+               Text="以下目录在卸载后留了下来，通常只含配置与日志。确认不再需要就勾选删除；不确定请点「全部保留」。"
+               TextWrapping="Wrap"
+               Foreground="{DynamicResource CkanTextSecondaryBrush}"
+               FontSize="{DynamicResource CkanFontSizeCaption}" />
+
+    <TextBlock Grid.Row="1"
+               Text="{Binding SummaryText}"
+               TextWrapping="Wrap"
+               FontSize="{DynamicResource CkanFontSizeBody}" />
+
+    <Border Grid.Row="2"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+      <ListBox ItemsSource="{Binding Rows}"
+               SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+               SelectionMode="Single"
+               IsVisible="{Binding HasRows}"
+               Background="Transparent"
+               BorderThickness="0">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="rc:ResidualDirectoryRowViewModel">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="0,4">
+              <CheckBox Grid.Column="0"
+                        IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                        IsEnabled="{Binding IsDeletable}"
+                        VerticalAlignment="Top" />
+              <StackPanel Grid.Column="1" Spacing="4">
+                <TextBlock Text="{Binding RelativePath}"
+                           TextWrapping="Wrap"
+                           FontSize="{DynamicResource CkanFontSizeBody}" />
+                <TextBlock Text="{Binding ContentText}"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}" />
+                <TextBlock Text="{Binding SampleText}"
+                           IsVisible="{Binding HasSamples}"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}" />
+                <TextBlock Text="{Binding BlockReason}"
+                           IsVisible="{Binding HasBlockReason}"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource CkanWarningBrush}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}" />
+              </StackPanel>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <StackPanel Grid.Row="3" Spacing="4">
+      <TextBlock Text="{Binding ValidationError}"
+                 IsVisible="{Binding HasValidationError}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanDangerBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+      <TextBlock Text="{Binding ErrorDetail}"
+                 IsVisible="{Binding HasErrorDetail}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+      <TextBlock Text="{Binding StatusText}"
+                 IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+      <TextBlock Text="{Binding SelectionText}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+    </StackPanel>
+
+    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="打开目录"
+              Command="{Binding OpenDirectoryCommand}"
+              CommandParameter="{Binding SelectedRow}"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding SecondaryButtonText}"
+              Command="{Binding SecondaryCommand}"
+              IsCancel="True"
+              IsVisible="{Binding HasSecondaryButton}"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding DeleteSelectedCommand}"
+              IsEnabled="{Binding CanDelete}"
+              IsDefault="True"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </Grid>
+</dialogs:DialogWindow>

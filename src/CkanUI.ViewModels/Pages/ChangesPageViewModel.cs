@@ -28,6 +28,8 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     private readonly IErrorReporter _errors;
     private readonly IOperationQueue? _queue;
     private readonly IDispatcher? _dispatcher;
+    private readonly IResidualCleanupDialogService? _residualCleanup;
+    private readonly IInstanceService? _instances;
 
     private CancellationTokenSource? _applyCts;
     private int _buildVersion;
@@ -35,7 +37,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
 
     /// <summary>设计器 / 无参构造：不连任何服务，只展示空状态。</summary>
     public ChangesPageViewModel()
-        : this(null, null, null, null, null)
+        : this(null, null, null, null, null, null, null)
     {
     }
 
@@ -45,13 +47,17 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         IInstallerService? installer = null,
         IErrorReporter? errors = null,
         IOperationQueue? queue = null,
-        IDispatcher? dispatcher = null)
+        IDispatcher? dispatcher = null,
+        IResidualCleanupDialogService? residualCleanup = null,
+        IInstanceService? instances = null)
     {
         _changeSets = changeSets;
         _installer = installer;
         _errors = errors ?? NullErrorReporter.Instance;
         _queue = queue;
         _dispatcher = dispatcher;
+        _residualCleanup = residualCleanup;
+        _instances = instances;
     }
 
     /// <inheritdoc />
@@ -472,7 +478,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         OnPropertyChanged(nameof(ProgressText));
     }
 
-    private void ApplyInstallResult(OperationResult<InstallReport> result)
+    private async Task ApplyInstallResultAsync(OperationResult<InstallReport> result)
     {
         if (!result.IsSuccess || result.Value is not { } report)
         {
@@ -489,12 +495,40 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         {
             State = ChangeExecutionState.Done;
             StatusText = ChangesFormatter.InstallResult(report);
+
+            // 卸载收尾（12 篇 F-43）：只有后端报了残留目录、且宿主给了对话框与当前实例才弹。
+            await ShowResidualCleanupAsync(report).ConfigureAwait(true);
             return;
         }
 
         State = ChangeExecutionState.Failed;
         StatusText = ChangesFormatter.InstallResult(report);
         _errors.Report("应用变更集", StatusText, ResultText);
+    }
+
+    /// <summary>卸载成功后询问是否清理残留目录（12 篇 F-43）；任何缺失都静默跳过，不影响安装结果。</summary>
+    private async Task ShowResidualCleanupAsync(InstallReport report)
+    {
+        if (report.ResidualDirectories.Count == 0
+            || _residualCleanup is not { } dialog
+            || _instances?.Current is not { } instance)
+        {
+            return;
+        }
+
+        try
+        {
+            var choice = await dialog.ShowAsync(instance, report.ResidualDirectories).ConfigureAwait(true);
+            if (choice == ResidualCleanupChoice.Delete)
+            {
+                StatusText = StatusText + " 已清理残留目录。";
+            }
+        }
+        catch (Exception ex)
+        {
+            // 残留清理只是收尾动作，弹框失败不能把已成功的安装结果改写成失败。
+            _errors.Report(ex, "清理残留目录", "清理残留目录时发生错误，卸载本身已完成。");
+        }
     }
 
     private static List<string> BuildResultLines(InstallReport report)
@@ -623,7 +657,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         {
             var progress = new Progress<OperationProgress>(OnProgressReported);
             var result = await _installer.ApplyAsync(Preview, progress, token).ConfigureAwait(true);
-            ApplyInstallResult(result);
+            await ApplyInstallResultAsync(result).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {

@@ -1,4 +1,5 @@
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.ViewModels.Pages.Settings;
 
 namespace CkanUI.ViewModels.Pages.Mods;
 
@@ -21,11 +22,17 @@ public sealed record ModsRowView(ModRowData Data)
     /// <summary>作者（缺失显示"—"）。</summary>
     public string AuthorText => string.IsNullOrWhiteSpace(Data.Author) ? "—" : Data.Author;
 
+    /// <summary>版本号是否隐藏 epoch 前缀（F-54，来自 ckan-ui.json）。</summary>
+    public bool HideVersionEpoch { get; init; }
+
+    /// <summary>版本号是否隐藏 v 前缀（F-54，来自 ckan-ui.json）。</summary>
+    public bool HideVersionVPrefix { get; init; }
+
     /// <summary>已装版本（未装显示"—"）。</summary>
-    public string InstalledVersionText => string.IsNullOrWhiteSpace(Data.InstalledVersion) ? "—" : Data.InstalledVersion;
+    public string InstalledVersionText => FormatVersion(Data.InstalledVersion);
 
     /// <summary>最新版本（缺失显示"—"）。</summary>
-    public string LatestVersionText => string.IsNullOrWhiteSpace(Data.LatestVersion) ? "—" : Data.LatestVersion;
+    public string LatestVersionText => FormatVersion(Data.LatestVersion);
 
     /// <summary>下载量（千分位）。</summary>
     public string DownloadText => Data.DownloadCount > 0 ? ModsFormatter.Count(Data.DownloadCount) : "—";
@@ -114,6 +121,12 @@ public sealed record ModsRowView(ModRowData Data)
     /// <summary>把 <see cref="ModRowData"/> 标记为勾选/取消勾选后重新包装。</summary>
     public ModsRowView WithSelected(bool selected) => this with { Data = Data with { IsSelected = selected } };
 
-    /// <summary>把行数据包装成展示行。</summary>
-    public static ModsRowView From(ModRowData data) => new(data);
+    /// <summary>把行数据包装成展示行；两个版本格式开关由页面按 ckan-ui.json 传入（F-54）。</summary>
+    public static ModsRowView From(ModRowData data, bool hideVersionEpoch = false, bool hideVersionVPrefix = false) =>
+        new(data) { HideVersionEpoch = hideVersionEpoch, HideVersionVPrefix = hideVersionVPrefix };
+
+    private string FormatVersion(string? version) =>
+        string.IsNullOrWhiteSpace(version)
+            ? "—"
+            : VersionDisplayFormat.Format(version, HideVersionEpoch, HideVersionVPrefix);
 }

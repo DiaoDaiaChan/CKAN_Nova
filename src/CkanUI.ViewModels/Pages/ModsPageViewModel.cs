@@ -52,8 +52,20 @@ public sealed partial class ModsPageViewModel : PageViewModel
     private readonly IChangeRequestSink? _changeSink;
     private readonly INavigationService? _navigation;
     private readonly IModSearchParser? _searchParser;
+    private readonly ILabelService? _labels;
 
     private readonly HashSet<string> _selected = new(StringComparer.OrdinalIgnoreCase);
+
+    // 标签组过滤（F-24）：多选集合 + 名称→颜色缓存（详情面板标记与筛选开关共用）。
+    private readonly HashSet<string> _selectedLabels = new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyDictionary<string, LabelInfo> _labelIndex =
+        new Dictionary<string, LabelInfo>(StringComparer.OrdinalIgnoreCase);
+
+    // 选中历史（F-25）：记录详情面板的选中顺序，"前进/后退"在两栈之间搬标识符。
+    private readonly List<string> _selectionBack = new();
+    private readonly List<string> _selectionForward = new();
+    private string? _currentSelection;
+    private bool _restoringSelection;
     private IReadOnlyList<ModRowData> _all = Array.Empty<ModRowData>();
     private ModsQuery _query = ModsQuery.Empty;
 
@@ -79,7 +91,8 @@ public sealed partial class ModsPageViewModel : PageViewModel
         IUiSettingsStore? settings = null,
         IChangeRequestSink? changeSink = null,
         INavigationService? navigation = null,
-        IModSearchParser? searchParser = null)
+        IModSearchParser? searchParser = null,
+        ILabelService? labels = null)
     {
         _repositories = repositories ?? throw new ArgumentNullException(nameof(repositories));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
@@ -90,7 +103,9 @@ public sealed partial class ModsPageViewModel : PageViewModel
         _changeSink = changeSink;
         _navigation = navigation;
         _searchParser = searchParser;
+        _labels = labels;
 
+        RebuildLabelFilters();
         RefreshDetail();
     }
 
@@ -267,12 +282,251 @@ public sealed partial class ModsPageViewModel : PageViewModel
                 chips.Add($"兼容性：{(CompatibilityFilter == ModsCompatibilityFilter.CompatibleOnly ? "仅兼容" : "仅不兼容")}");
             }
 
+            if (HasLabelFilter)
+            {
+                chips.Add(LabelFilterSummary);
+            }
+
             foreach (var term in _query.UnsupportedTerms)
             {
                 chips.Add($"无法解析：{term}");
             }
 
             return chips;
+        }
+    }
+
+    // ---- 标签组（F-24）----------------------------------------------------
+
+    /// <summary>是否接入了标签组服务（未接线时筛选区不显示标签开关）。</summary>
+    public bool HasLabelService => _labels is not null;
+
+    /// <summary>筛选区的标签组开关（多选为"或"：命中任一选中标签即通过）。</summary>
+    [ObservableProperty]
+    private IReadOnlyList<ModsLabelChip> _labelFilters = Array.Empty<ModsLabelChip>();
+
+    /// <summary>当前选中的标签组名称（按名称排序的快照，交给纯函数过滤）。</summary>
+    public IReadOnlyList<string> SelectedLabels
+    {
+        get
+        {
+            if (_selectedLabels.Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var names = _selectedLabels.ToList();
+            names.Sort(StringComparer.OrdinalIgnoreCase);
+            return names;
+        }
+    }
+
+    /// <summary>是否正在按标签组过滤。</summary>
+    public bool HasLabelFilter => _selectedLabels.Count > 0;
+
+    /// <summary>标签组过滤摘要（状态栏与无障碍提示）。</summary>
+    public string LabelFilterSummary => HasLabelFilter
+        ? $"标签组：{string.Join("、", SelectedLabels)}"
+        : "未按标签组过滤";
+
+    /// <summary>切换某个标签组的筛选状态（空名忽略）。</summary>
+    public void ToggleLabelFilter(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        var key = name.Trim();
+        if (!_selectedLabels.Remove(key))
+        {
+            _selectedLabels.Add(key);
+        }
+
+        RebuildLabelFilters();
+        ApplyFilter();
+    }
+
+    /// <summary>清空标签组筛选（空状态"清除过滤"用）。</summary>
+    public void ClearLabelFilter()
+    {
+        if (_selectedLabels.Count == 0)
+        {
+            return;
+        }
+
+        _selectedLabels.Clear();
+        RebuildLabelFilters();
+        ApplyFilter();
+    }
+
+    /// <summary>清空标签组筛选（视图按钮；无筛选时禁用）。</summary>
+    [RelayCommand(CanExecute = nameof(HasLabelFilter))]
+    private void ResetLabelFilters() => ClearLabelFilter();
+
+    /// <summary>
+    /// 从服务重建标签组开关；服务缺失或抛异常时退化为空列表（界面照常可用，错误进错误栏）。
+    /// </summary>
+    public void RebuildLabelFilters()
+    {
+        if (_labels is null)
+        {
+            _labelIndex = new Dictionary<string, LabelInfo>(StringComparer.OrdinalIgnoreCase);
+            LabelFilters = Array.Empty<ModsLabelChip>();
+            return;
+        }
+
+        try
+        {
+            var infos = _labels.Labels;
+            var index = new Dictionary<string, LabelInfo>(infos.Count, StringComparer.OrdinalIgnoreCase);
+            var chips = new List<ModsLabelChip>(infos.Count);
+            foreach (var info in infos)
+            {
+                if (info is null || string.IsNullOrWhiteSpace(info.Name))
+                {
+                    continue;
+                }
+
+                index[info.Name] = info;
+                var name = info.Name;
+                chips.Add(ModsLabelChip.For(
+                    info,
+                    _selectedLabels.Contains(name),
+                    new RelayCommand(() => ToggleLabelFilter(name))));
+            }
+
+            _labelIndex = index;
+            LabelFilters = chips;
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "读取标签组", "读取标签组失败，筛选区暂时不可用。");
+            _labelIndex = new Dictionary<string, LabelInfo>(StringComparer.OrdinalIgnoreCase);
+            LabelFilters = Array.Empty<ModsLabelChip>();
+        }
+    }
+
+    /// <summary>重新向服务取一次标签组（服务事件或手动刷新时调用）。</summary>
+    public void RefreshLabelFilters() => RebuildLabelFilters();
+
+    /// <summary>详情面板里的标签组标记（名称 + 颜色，无标记时为空）。</summary>
+    public IReadOnlyList<ModsLabelBadge> DetailLabels
+    {
+        get
+        {
+            if (SelectedRow is not { } row)
+            {
+                return Array.Empty<ModsLabelBadge>();
+            }
+
+            var names = ModsLabelFilter.NamesOf(row.Data);
+            if (names.Count == 0)
+            {
+                return Array.Empty<ModsLabelBadge>();
+            }
+
+            var badges = new List<ModsLabelBadge>(names.Count);
+            foreach (var name in names)
+            {
+                badges.Add(_labelIndex.TryGetValue(name, out var info)
+                    ? new ModsLabelBadge(info.Name, info.ColorHex ?? string.Empty, info.HasColor)
+                    : new ModsLabelBadge(name, string.Empty, false));
+            }
+
+            return badges;
+        }
+    }
+
+    /// <summary>详情面板是否有标签组标记。</summary>
+    public bool HasDetailLabels => DetailLabels.Count > 0;
+
+    /// <summary>详情面板的标签组文本（无标记时给出明确提示，而不是空白）。</summary>
+    public string DetailLabelText => HasDetailLabels
+        ? string.Join("、", DetailLabels.Select(badge => badge.Name))
+        : "无标签组";
+
+    /// <summary>选中行是否在收藏组里。</summary>
+    public bool DetailIsFavourite => ReadLabelFlag(static (service, identifier) => service.IsFavourite(identifier));
+
+    /// <summary>选中行是否在隐藏组里。</summary>
+    public bool DetailIsHidden => ReadLabelFlag(static (service, identifier) => service.IsHidden(identifier));
+
+    /// <summary>选中行是否在锁定版本组里。</summary>
+    public bool DetailIsHeld => ReadLabelFlag(static (service, identifier) => service.IsHeld(identifier));
+
+    /// <summary>标签命令是否可用（有服务 + 有选中行）。</summary>
+    public bool CanToggleLabels => _labels is not null && SelectedRow is not null;
+
+    /// <summary>切换收藏（F-24）。</summary>
+    [RelayCommand(CanExecute = nameof(CanToggleLabels))]
+    private Task ToggleFavouriteAsync() => ToggleLabelMembershipAsync(
+        static (service, identifier) => service.IsFavourite(identifier),
+        static (service, identifier, on) => service.SetFavouriteAsync(identifier, on),
+        "收藏");
+
+    /// <summary>切换隐藏（F-24）。</summary>
+    [RelayCommand(CanExecute = nameof(CanToggleLabels))]
+    private Task ToggleHiddenAsync() => ToggleLabelMembershipAsync(
+        static (service, identifier) => service.IsHidden(identifier),
+        static (service, identifier, on) => service.SetHiddenAsync(identifier, on),
+        "隐藏");
+
+    /// <summary>切换锁定版本（F-24）。</summary>
+    [RelayCommand(CanExecute = nameof(CanToggleLabels))]
+    private Task ToggleHeldAsync() => ToggleLabelMembershipAsync(
+        static (service, identifier) => service.IsHeld(identifier),
+        static (service, identifier, on) => service.SetHeldAsync(identifier, on),
+        "锁定版本");
+
+    private bool ReadLabelFlag(Func<ILabelService, string, bool> read)
+    {
+        if (_labels is not { } service || SelectedRow is not { } row)
+        {
+            return false;
+        }
+
+        try
+        {
+            return read(service, row.Identifier);
+        }
+        catch (Exception)
+        {
+            // 绑定 getter 里不抛：标签读失败只表现为"未标记"。
+            return false;
+        }
+    }
+
+    private async Task ToggleLabelMembershipAsync(
+        Func<ILabelService, string, bool> read,
+        Func<ILabelService, string, bool, Task<OperationResult<bool>>> write,
+        string label)
+    {
+        if (_labels is not { } service || SelectedRow is not { } row)
+        {
+            return;
+        }
+
+        var identifier = row.Identifier;
+        var name = row.Name;
+        try
+        {
+            var next = !read(service, identifier);
+            var result = await write(service, identifier, next);
+            if (!result.IsSuccess)
+            {
+                StatusText = result.Message ?? $"设置{label}失败。";
+                return;
+            }
+
+            // 先重建列表（会顺带刷新状态栏摘要），再写提示语，否则提示会被摘要立刻覆盖。
+            ReloadFromSnapshots();
+            StatusText = next ? $"已把 {name} 加入{label}。" : $"已把 {name} 移出{label}。";
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, $"设置{label}", $"设置{label}时发生错误。");
+            StatusText = $"设置{label}失败，请查看错误栏。";
         }
     }
 
@@ -356,6 +610,119 @@ public sealed partial class ModsPageViewModel : PageViewModel
     /// <summary>详情里该模组是否已装入当前实例。</summary>
     public bool DetailIsInstalled => SelectedRow?.IsInstalled ?? false;
 
+    // ---- 选中历史（F-25 前进/后退）---------------------------------------
+
+    /// <summary>选中历史最多保留的条数。</summary>
+    public const int SelectionHistoryDepth = 32;
+
+    /// <summary>是否可以回退到上一个选中模组。</summary>
+    public bool CanGoBackSelection => _selectionBack.Count > 0;
+
+    /// <summary>是否可以前进到下一个选中模组。</summary>
+    public bool CanGoForwardSelection => _selectionForward.Count > 0;
+
+    /// <summary>回退到上一个选中模组（F-25）。</summary>
+    [RelayCommand(CanExecute = nameof(CanGoBackSelection))]
+    private void GoBackSelection()
+    {
+        if (_selectionBack.Count == 0)
+        {
+            return;
+        }
+
+        var target = _selectionBack[^1];
+        var previous = _currentSelection;
+        _selectionBack.RemoveAt(_selectionBack.Count - 1);
+        if (MoveSelectionTo(target))
+        {
+            if (!string.IsNullOrEmpty(previous))
+            {
+                _selectionForward.Add(previous!);
+            }
+
+            RaiseSelectionHistory();
+        }
+    }
+
+    /// <summary>前进到下一个选中模组（F-25）。</summary>
+    [RelayCommand(CanExecute = nameof(CanGoForwardSelection))]
+    private void GoForwardSelection()
+    {
+        if (_selectionForward.Count == 0)
+        {
+            return;
+        }
+
+        var target = _selectionForward[^1];
+        var previous = _currentSelection;
+        _selectionForward.RemoveAt(_selectionForward.Count - 1);
+        if (MoveSelectionTo(target))
+        {
+            if (!string.IsNullOrEmpty(previous))
+            {
+                _selectionBack.Add(previous!);
+            }
+
+            RaiseSelectionHistory();
+        }
+    }
+
+    /// <summary>把选中行移到指定标识符（找不到就保持原样）。</summary>
+    private bool MoveSelectionTo(string identifier)
+    {
+        var target = Rows.FirstOrDefault(view =>
+            string.Equals(view.Identifier, identifier, StringComparison.OrdinalIgnoreCase));
+        if (target is null)
+        {
+            return false;
+        }
+
+        _restoringSelection = true;
+        try
+        {
+            SelectedRow = target;
+            _currentSelection = target.Identifier;
+        }
+        finally
+        {
+            _restoringSelection = false;
+        }
+
+        return true;
+    }
+
+    private void PushSelectionHistory(string? previousIdentifier)
+    {
+        if (string.IsNullOrEmpty(previousIdentifier))
+        {
+            return;
+        }
+
+        if (_selectionBack.Count > 0
+            && string.Equals(_selectionBack[^1], previousIdentifier, StringComparison.OrdinalIgnoreCase))
+        {
+            _selectionForward.Clear();
+            return;
+        }
+
+        _selectionBack.Add(previousIdentifier!);
+        if (_selectionBack.Count > SelectionHistoryDepth)
+        {
+            _selectionBack.RemoveAt(0);
+        }
+
+        // 新的主动选择让「前进」历史失效（与浏览器一致）。
+        _selectionForward.Clear();
+    }
+
+    private void RaiseSelectionHistory()
+    {
+        OnPropertyChanged(nameof(CanGoBackSelection));
+        OnPropertyChanged(nameof(CanGoForwardSelection));
+        GoBackSelectionCommand.NotifyCanExecuteChanged();
+        GoForwardSelectionCommand.NotifyCanExecuteChanged();
+    }
+
     // ---- 生命周期 ---------------------------------------------------------
 
     /// <inheritdoc />
@@ -384,6 +751,11 @@ public sealed partial class ModsPageViewModel : PageViewModel
         _repositories.Updated += OnRepositoryUpdated;
         _registry.Changed += OnRegistryChanged;
         _instances.CurrentChanged += OnInstanceChanged;
+        if (_labels is not null)
+        {
+            _labels.LabelsChanged += OnLabelsChanged;
+        }
+
         _subscribed = true;
     }
 
@@ -397,6 +769,11 @@ public sealed partial class ModsPageViewModel : PageViewModel
         _repositories.Updated -= OnRepositoryUpdated;
         _registry.Changed -= OnRegistryChanged;
         _instances.CurrentChanged -= OnInstanceChanged;
+        if (_labels is not null)
+        {
+            _labels.LabelsChanged -= OnLabelsChanged;
+        }
+
         _subscribed = false;
     }
 
@@ -423,6 +800,21 @@ public sealed partial class ModsPageViewModel : PageViewModel
         {
             _errors.Report(ex, "刷新已装模组", "更新已安装模组时发生错误。");
             StatusText = "更新已安装模组失败，请查看错误栏。";
+        }
+    }
+
+    private void OnLabelsChanged(IReadOnlyList<LabelInfo> labels)
+    {
+        try
+        {
+            // 事件已由服务封送到 UI 线程（05 篇），这里只做整体重建，不做增量。
+            RebuildLabelFilters();
+            RefreshDerived();
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "刷新标签组", "刷新标签组时发生错误。");
+            StatusText = "刷新标签组失败，请查看错误栏。";
         }
     }
 
@@ -458,6 +850,8 @@ public sealed partial class ModsPageViewModel : PageViewModel
             _all = Array.Empty<ModRowData>();
         }
 
+        // 标签组开关随数据刷新一次（模块计数会变），过滤选择保持不变。
+        RebuildLabelFilters();
         RebuildSelectionPreview();
         ApplyFilter();
     }
@@ -474,7 +868,14 @@ public sealed partial class ModsPageViewModel : PageViewModel
         IReadOnlyList<ModRowData> rows;
         try
         {
-            rows = ModsListPipeline.Apply(_all, _query, InstallFilter, CompatibilityFilter, SortColumn, SortAscending);
+            rows = ModsListPipeline.Apply(
+                _all,
+                _query,
+                InstallFilter,
+                CompatibilityFilter,
+                SortColumn,
+                SortAscending,
+                _selectedLabels.Count == 0 ? null : SelectedLabels);
         }
         catch (Exception ex)
         {
@@ -482,10 +883,28 @@ public sealed partial class ModsPageViewModel : PageViewModel
             rows = Array.Empty<ModRowData>();
         }
 
+        var display = ReadDisplayFlags();
         var views = new List<ModsRowView>(rows.Count);
         foreach (var row in rows)
         {
-            views.Add(ModsRowView.From(row with { IsSelected = _selected.Contains(row.Identifier) }));
+            views.Add(ModsRowView.From(
+                row with { IsSelected = _selected.Contains(row.Identifier) },
+                display.HideEpoch,
+                display.HideVPrefix));
+        }
+
+        // F-54「可升级项自动置顶」：只在默认按名称排序时生效，用户显式选列后不再抢占排序权。
+        if (display.AutoSortUpdates && SortColumn == ModsSortColumn.Name)
+        {
+            var updates = new List<ModsRowView>(views.Count);
+            var rest = new List<ModsRowView>(views.Count);
+            foreach (var view in views)
+            {
+                (view.HasUpdate ? updates : rest).Add(view);
+            }
+
+            updates.AddRange(rest);
+            views = updates;
         }
 
         Rows = views;
@@ -554,6 +973,8 @@ public sealed partial class ModsPageViewModel : PageViewModel
         SearchText = string.Empty;
         InstallFilterIndex = (int)ModsInstallFilter.All;
         CompatibilityFilterIndex = (int)ModsCompatibilityFilter.All;
+        _selectedLabels.Clear();
+        RebuildLabelFilters();
         ApplyFilter();
     }
 
@@ -626,6 +1047,11 @@ public sealed partial class ModsPageViewModel : PageViewModel
         OnPropertyChanged(nameof(PreviewHasConflicts));
         OnPropertyChanged(nameof(HasPendingChanges));
         OnPropertyChanged(nameof(ActiveFilterChips));
+        OnPropertyChanged(nameof(SelectedLabels));
+        OnPropertyChanged(nameof(HasLabelFilter));
+        OnPropertyChanged(nameof(LabelFilterSummary));
+        OnPropertyChanged(nameof(HasLabelService));
+        ResetLabelFiltersCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(EmptyStateTitle));
         OnPropertyChanged(nameof(EmptyStateHint));
         OnPropertyChanged(nameof(CanRefreshFromEmptyState));
@@ -646,6 +1072,16 @@ public sealed partial class ModsPageViewModel : PageViewModel
         OnPropertyChanged(nameof(DetailTagsText));
         OnPropertyChanged(nameof(DetailStatusText));
         OnPropertyChanged(nameof(DetailIsInstalled));
+        OnPropertyChanged(nameof(DetailLabels));
+        OnPropertyChanged(nameof(HasDetailLabels));
+        OnPropertyChanged(nameof(DetailLabelText));
+        OnPropertyChanged(nameof(DetailIsFavourite));
+        OnPropertyChanged(nameof(DetailIsHidden));
+        OnPropertyChanged(nameof(DetailIsHeld));
+        OnPropertyChanged(nameof(CanToggleLabels));
+        ToggleFavouriteCommand.NotifyCanExecuteChanged();
+        ToggleHiddenCommand.NotifyCanExecuteChanged();
+        ToggleHeldCommand.NotifyCanExecuteChanged();
     }
 
     private static string DescribeInstallFilter(ModsInstallFilter filter) => filter switch
@@ -655,6 +1091,31 @@ public sealed partial class ModsPageViewModel : PageViewModel
         ModsInstallFilter.Upgradeable => "有更新",
         _ => "全部",
     };
+
+    // ---- 显示格式（F-54）------------------------------------------------
+
+    /// <summary>
+    /// 读取三个显示开关（隐藏 epoch / 隐藏 v 前缀 / 可升级项置顶）。
+    /// 无设置服务或读盘抛异常时一律退回「全部关闭」，界面照常可用（不弹错、不阻断列表）。
+    /// </summary>
+    private (bool HideEpoch, bool HideVPrefix, bool AutoSortUpdates) ReadDisplayFlags()
+    {
+        if (_settings is null)
+        {
+            return (false, false, false);
+        }
+
+        try
+        {
+            var current = _settings.Current;
+            return (current.HideVersionEpoch, current.HideVersionVPrefix, current.AutoSortUpdates);
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "读取版本显示设置", "读取界面设置失败，版本号按原样显示。");
+            return (false, false, false);
+        }
+    }
 
     // ---- 列宽持久化（UI-02：列定义 / 列宽记忆）--------------------------
 
@@ -879,7 +1340,29 @@ public sealed partial class ModsPageViewModel : PageViewModel
         RefreshDerived();
     }
 
-    partial void OnSelectedRowChanged(ModsRowView? value) => RefreshDetail();
+    partial void OnSelectedRowChanged(ModsRowView? value)
+    {
+        RefreshDetail();
+
+        if (_restoringSelection)
+        {
+            return;
+        }
+
+        if (value is null)
+        {
+            return;
+        }
+
+        if (string.Equals(value.Identifier, _currentSelection, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        PushSelectionHistory(_currentSelection);
+        _currentSelection = value.Identifier;
+        RaiseSelectionHistory();
+    }
 
     partial void OnInstallFilterChanged(ModsInstallFilter value)
     {

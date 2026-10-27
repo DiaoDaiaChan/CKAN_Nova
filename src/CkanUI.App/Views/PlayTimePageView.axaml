@@ -1,0 +1,20 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="CkanUI.App.Views.PlayTimePageView" x:CompileBindings="False">
+  <Grid RowDefinitions="Auto,Auto,*" Margin="16" Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+    <TextBlock Text="游戏时长" FontSize="{DynamicResource CkanFontSizeTitle}" Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+    <TextBlock Grid.Row="1" Text="按 F2 编辑小时数；Enter 保存，Esc 取消。" Margin="0,8" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+    <StackPanel Grid.Row="2">
+      <TextBlock Text="{Binding ErrorText}" Foreground="{DynamicResource CkanDangerBrush}" />
+      <TextBlock Text="暂无游戏时长记录" IsVisible="{Binding ShowEmptyState}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+      <ListBox x:Name="PlayTimeList" ItemsSource="{Binding Entries}" IsVisible="{Binding !ShowEmptyState}">
+        <ListBox.ItemTemplate><DataTemplate>
+          <Grid ColumnDefinitions="*,160,Auto" Margin="4">
+            <TextBlock Text="{Binding InstanceName}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding Hours}" IsVisible="{Binding !IsEditing}" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" Text="{Binding EditText}" IsVisible="{Binding IsEditing}" KeyDown="OnRowKeyDown" />
+            <Button Grid.Column="2" Content="编辑 (F2)" Command="{Binding $parent[ListBox].DataContext.BeginEditCommand}" CommandParameter="{Binding}" />
+          </Grid>
+        </DataTemplate></ListBox.ItemTemplate>
+      </ListBox>
+    </StackPanel>
+  </Grid>
+</UserControl>

@@ -488,7 +488,43 @@ public sealed partial class SettingsPageViewModel : PageViewModel
                 description: "每行一条过滤器表达式，例如 not:*.zip；留空表示不过滤。",
                 saveHandler: vm => SaveItemAsync(vm)));
 
-        var advancedItems = Array.Empty<SettingItemViewModel>();
+        var advancedItems = new[]
+        {
+            new SettingItemViewModel(
+                SettingsKeyNames.HideVersionEpoch,
+                "隐藏版本 epoch 前缀",
+                SettingItemKind.Boolean,
+                SettingPersistence.UiSettings,
+                SettingGroupKey.Advanced,
+                description: "把 1:2.0.0 显示为 2.0.0（F-54）。",
+                saveHandler: vm => SaveItemAsync(vm)),
+            new SettingItemViewModel(
+                SettingsKeyNames.HideVersionVPrefix,
+                "隐藏版本 v 前缀",
+                SettingItemKind.Boolean,
+                SettingPersistence.UiSettings,
+                SettingGroupKey.Advanced,
+                description: "把 v2.0.0 显示为 2.0.0（F-54）。",
+                saveHandler: vm => SaveItemAsync(vm)),
+            new SettingItemViewModel(
+                SettingsKeyNames.AutoSortUpdates,
+                "可升级项自动置顶",
+                SettingItemKind.Boolean,
+                SettingPersistence.UiSettings,
+                SettingGroupKey.Advanced,
+                description: "模组列表默认把有更新的项排在前面（F-54）。",
+                saveHandler: vm => SaveItemAsync(vm)),
+            new SettingItemViewModel(
+                SettingsKeyNames.SuppressRecommendations,
+                "不再询问推荐模组",
+                SettingItemKind.Boolean,
+                SettingPersistence.UiSettings,
+                SettingGroupKey.Advanced,
+                description: "安装时跳过推荐模组选择框（F-35）；可在推荐框内随时改回来。",
+                saveHandler: vm => SaveItemAsync(vm)),
+        };
+        _items.AddRange(advancedItems);
+
         var advanced = new SettingGroupViewModel(
             SettingGroupKey.Advanced,
             "高级与诊断",
@@ -548,7 +584,15 @@ public sealed partial class SettingsPageViewModel : PageViewModel
         ApplyChoice(SettingsKeyNames.Theme, current.Theme, "dark");
         ApplyChoice(SettingsKeyNames.Locale, current.Locale, string.Empty);
         ApplyChoice(SettingsKeyNames.Density, current.Density, "standard");
+
+        ApplyFlag(SettingsKeyNames.HideVersionEpoch, current.HideVersionEpoch);
+        ApplyFlag(SettingsKeyNames.HideVersionVPrefix, current.HideVersionVPrefix);
+        ApplyFlag(SettingsKeyNames.AutoSortUpdates, current.AutoSortUpdates);
+        ApplyFlag(SettingsKeyNames.SuppressRecommendations, current.SuppressRecommendations);
     }
+
+    private void ApplyFlag(string key, bool value) =>
+        FindItem(key)?.ApplyLoaded(value ? "true" : "false");
 
     /// <summary>
     /// 用实例列表重建「自动打开的实例」候选，并把已落盘值装回编辑空间。
@@ -730,6 +774,22 @@ public sealed partial class SettingsPageViewModel : PageViewModel
 
             case SettingsKeyNames.Density:
                 next = current with { Density = item.EditValue };
+                break;
+
+            case SettingsKeyNames.HideVersionEpoch:
+                next = current with { HideVersionEpoch = item.BooleanValue };
+                break;
+
+            case SettingsKeyNames.HideVersionVPrefix:
+                next = current with { HideVersionVPrefix = item.BooleanValue };
+                break;
+
+            case SettingsKeyNames.AutoSortUpdates:
+                next = current with { AutoSortUpdates = item.BooleanValue };
+                break;
+
+            case SettingsKeyNames.SuppressRecommendations:
+                next = current with { SuppressRecommendations = item.BooleanValue };
                 break;
 
             default:

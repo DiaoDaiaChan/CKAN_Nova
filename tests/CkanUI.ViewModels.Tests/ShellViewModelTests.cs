@@ -19,18 +19,23 @@ public sealed class ShellViewModelTests
     }
 
     [Test]
-    public void NavItems_HasEightConfiguredItems()
+    public void NavItems_HasThirteenConfiguredItems()
     {
         var vm = new ShellViewModel();
-        Assert.That(vm.NavItems.Count, Is.EqualTo(8));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(13));
         Assert.That(vm.NavItems[0].Key, Is.EqualTo("mods"));
         Assert.That(vm.NavItems[1].Key, Is.EqualTo("changes"));
         Assert.That(vm.NavItems[2].Key, Is.EqualTo("repos"));
         Assert.That(vm.NavItems[3].Key, Is.EqualTo("modpacks"));
         Assert.That(vm.NavItems[4].Key, Is.EqualTo("instances"));
-        Assert.That(vm.NavItems[5].Key, Is.EqualTo("saves"));
-        Assert.That(vm.NavItems[6].Key, Is.EqualTo("unmanaged"));
-        Assert.That(vm.NavItems[7].Key, Is.EqualTo("settings"));
+        Assert.That(vm.NavItems[5].Key, Is.EqualTo("playtime"));
+        Assert.That(vm.NavItems[6].Key, Is.EqualTo("saves"));
+        Assert.That(vm.NavItems[7].Key, Is.EqualTo("unmanaged"));
+        Assert.That(vm.NavItems[8].Key, Is.EqualTo("cache"));
+        Assert.That(vm.NavItems[9].Key, Is.EqualTo("dedup"));
+        Assert.That(vm.NavItems[10].Key, Is.EqualTo("installhistory"));
+        Assert.That(vm.NavItems[11].Key, Is.EqualTo("plugins"));
+        Assert.That(vm.NavItems[12].Key, Is.EqualTo("settings"));
     }
 
     [Test]
@@ -39,7 +44,12 @@ public sealed class ShellViewModelTests
         var vm = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key);
         Assert.That(vm.NavItems[1].Title, Is.EqualTo("T:Ui_NavRail_Changes"));
         Assert.That(vm.NavItems[3].Title, Is.EqualTo("T:Ui_NavRail_ModPacks"));
-        Assert.That(vm.NavItems.Count, Is.EqualTo(8));
+        Assert.That(vm.NavItems[8].Title, Is.EqualTo("T:Ui_NavRail_Cache"));
+        Assert.That(vm.NavItems[5].Title, Is.EqualTo("T:Ui_NavRail_PlayTime"));
+        Assert.That(vm.NavItems[9].Title, Is.EqualTo("T:Ui_NavRail_Dedup"));
+        Assert.That(vm.NavItems[10].Title, Is.EqualTo("T:Ui_NavRail_InstallHistory"));
+        Assert.That(vm.NavItems[11].Title, Is.EqualTo("T:Ui_NavRail_Plugins"));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(13));
     }
 
     [Test]

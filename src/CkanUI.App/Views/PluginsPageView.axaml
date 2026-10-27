@@ -1,0 +1,214 @@
+﻿<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CkanUI.App.Views.PluginsPageView"
+             x:CompileBindings="False">
+  <!-- 插件页（规格 F-17 / 06 篇 UI-33）：Active / Dormant 两栏 + 激活/停用/重载/卸载/新增。
+       颜色只用 Tokens.axaml 的语义 token；两栏都是单选列表，按钮可用性由 VM 的 Can* 决定。 -->
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="16"
+        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+
+    <!-- 页头 -->
+    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
+      <TextBlock Text="插件"
+                 FontSize="{DynamicResource CkanFontSizeTitle}"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      <TextBlock Text="第三方扩展：放进插件目录的 dll 只会被加载，不会自动启用；必须在这里显式激活。插件与宿主同进程运行，不做沙箱隔离。"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 TextWrapping="Wrap" />
+    </StackPanel>
+
+    <!-- 工具条（F-17：新增 / 激活 / 停用 / 重载 / 卸载 / 扫描） -->
+    <Border Grid.Row="1" Padding="{DynamicResource CkanToolbarPadding}"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1">
+      <WrapPanel Orientation="Horizontal">
+        <Button Content="新增插件…" Command="{Binding AddNewCommand}"
+                IsEnabled="{Binding CanAddNew}" Margin="0,0,8,0"
+                ToolTip.Tip="选一个插件 dll，复制进插件目录并加载（不激活）" />
+        <Button Content="激活" Command="{Binding ActivateCommand}"
+                IsEnabled="{Binding CanActivate}" Margin="0,0,8,0"
+                ToolTip.Tip="调用插件的 Initialize，让它出现在导航里" />
+        <Button Content="停用" Command="{Binding DeactivateCommand}"
+                IsEnabled="{Binding CanDeactivate}" Margin="0,0,8,0"
+                ToolTip.Tip="调用插件的 Deinitialize，保留在内存里以便再次激活" />
+        <Button Content="重载" Command="{Binding ReloadCommand}"
+                IsEnabled="{Binding CanReload}" Margin="0,0,8,0"
+                ToolTip.Tip="卸载旧程序集再重新加载，用于替换 dll 后生效" />
+        <Button Content="卸载" Command="{Binding UnloadCommand}"
+                IsEnabled="{Binding CanUnload}" Margin="0,0,8,0"
+                ToolTip.Tip="从宿主移除并释放程序集；dll 仍留在插件目录里" />
+        <Button Content="扫描目录" Command="{Binding RefreshCommand}"
+                IsEnabled="{Binding CanRefresh}"
+                ToolTip.Tip="重新扫描插件目录，加载新增的 dll（不激活）" />
+      </WrapPanel>
+    </Border>
+
+    <!-- 页面级错误条（03 篇 §8 D-03 / §10） -->
+    <Border Grid.Row="2" Margin="0,8,0,0" Padding="12,8"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
+            IsVisible="{Binding HasError}">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Spacing="4">
+          <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanDangerBrush}" />
+          <TextBlock Text="{Binding ErrorDetail}" TextWrapping="Wrap" MaxHeight="48"
+                     IsVisible="{Binding HasErrorDetail}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="关闭" Command="{Binding ClearErrorCommand}"
+                VerticalAlignment="Top" Margin="8,0,0,0"
+                FontSize="{DynamicResource CkanFontSizeCaption}" />
+      </Grid>
+    </Border>
+
+    <!-- 两栏：Active / Dormant（对齐原版 PluginsDialog 的两个 ListBox） -->
+    <Grid Grid.Row="3" Margin="0,8,0,0" ColumnDefinitions="*,16,*">
+
+      <!-- 左栏：已激活 -->
+      <Border Grid.Column="0" Padding="12,8"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1">
+        <Grid RowDefinitions="Auto,Auto,*">
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+            <TextBlock Grid.Column="0" Text="已激活的插件" FontWeight="SemiBold"
+                       VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+            <TextBlock Grid.Column="1" Text="{Binding ActiveSummary}" Margin="12,0,0,0"
+                       VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          </Grid>
+          <TextBlock Grid.Row="1" Text="激活的插件正在向宿主提供页签/工具项。"
+                     Margin="0,0,0,8" TextWrapping="Wrap"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <ListBox Grid.Row="2" ItemsSource="{Binding ActivePlugins}"
+                   SelectedItem="{Binding SelectedActive, Mode=TwoWay}"
+                   BorderThickness="0" Background="Transparent">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Spacing="2" Margin="0,4">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}"
+                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                               FontSize="{DynamicResource CkanFontSizeBody}"
+                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                    <Border Grid.Column="1" Margin="8,0,0,0" Padding="6,0"
+                            VerticalAlignment="Center"
+                            Background="{DynamicResource CkanSuccessBrush}"
+                            CornerRadius="{DynamicResource CkanCornerRadiusSmall}">
+                      <TextBlock Text="{Binding StateText}"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                                 Foreground="{DynamicResource CkanTextInverseBrush}" />
+                    </Border>
+                  </Grid>
+                  <TextBlock Text="{Binding DescriptionText}" TextWrapping="Wrap"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <TextBlock Text="{Binding AuthorText}" 
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+
+      <!-- 右栏：未激活 -->
+      <Border Grid.Column="2" Padding="12,8"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1">
+        <Grid RowDefinitions="Auto,Auto,*">
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+            <TextBlock Grid.Column="0" Text="未激活的插件" FontWeight="SemiBold"
+                       VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+            <TextBlock Grid.Column="1" Text="{Binding DormantSummary}" Margin="12,0,0,0"
+                       VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          </Grid>
+          <TextBlock Grid.Row="1" Text="已加载但没有运行：选中后点「激活」才会调用插件。"
+                     Margin="0,0,0,8" TextWrapping="Wrap"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <ListBox Grid.Row="2" ItemsSource="{Binding DormantPlugins}"
+                   SelectedItem="{Binding SelectedDormant, Mode=TwoWay}"
+                   BorderThickness="0" Background="Transparent">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Spacing="2" Margin="0,4">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}"
+                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                               FontSize="{DynamicResource CkanFontSizeBody}"
+                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                    <Border Grid.Column="1" Margin="8,0,0,0" Padding="6,0"
+                            VerticalAlignment="Center"
+                            Background="{DynamicResource CkanWarningBrush}"
+                            CornerRadius="{DynamicResource CkanCornerRadiusSmall}">
+                      <TextBlock Text="{Binding StateText}"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                                 Foreground="{DynamicResource CkanTextInverseBrush}" />
+                    </Border>
+                  </Grid>
+                  <TextBlock Text="{Binding DescriptionText}" TextWrapping="Wrap"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <TextBlock Text="{Binding AuthorText}"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <!-- 状态栏：失败摘要 + 插件目录 + 状态文案 -->
+    <Grid Grid.Row="4" Margin="0,8,0,0" ColumnDefinitions="*,Auto">
+      <StackPanel Grid.Column="0" Spacing="2">
+        <TextBlock Text="{Binding StatusText}"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+        <ItemsControl ItemsSource="{Binding FailureTexts}" IsVisible="{Binding HasFailures}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding}" TextWrapping="Wrap"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanDangerBrush}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+      <TextBlock Grid.Column="1" Text="{Binding PluginsDirectory}" Margin="12,0,0,0"
+                 MaxWidth="360" TextTrimming="CharacterEllipsis"
+                 ToolTip.Tip="插件目录：把插件 dll 直接放进来，然后点「扫描目录」"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 VerticalAlignment="Center" />
+    </Grid>
+
+    <!-- 进行中遮罩（03 篇 §10：非模态操作条） -->
+    <Border Grid.RowSpan="5" IsVisible="{Binding IsBusy}"
+            Background="{DynamicResource CkanStatusBarBackgroundBrush}" Opacity="0.9">
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="360">
+        <ProgressBar IsIndeterminate="True" Width="240" />
+        <TextBlock Text="{Binding BusyText}" TextAlignment="Center" TextWrapping="Wrap"
+                   FontSize="{DynamicResource CkanFontSizeBody}"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>
