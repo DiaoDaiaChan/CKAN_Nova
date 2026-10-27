@@ -21,6 +21,8 @@ public sealed class ViewLocatorTests
         Assert.That(ViewLocator.ResolveViewType(typeof(ModPacksPageViewModel))?.FullName, Is.EqualTo("CkanUI.App.Views.ModPacksPageView"));
         Assert.That(ViewLocator.ResolveViewType(typeof(InstancesPageViewModel))?.FullName, Is.EqualTo("CkanUI.App.Views.InstancesPageView"));
         Assert.That(ViewLocator.ResolveViewType(typeof(SettingsPageViewModel))?.FullName, Is.EqualTo("CkanUI.App.Views.SettingsPageView"));
+        Assert.That(ViewLocator.ResolveViewType(typeof(SavesPageViewModel))?.FullName, Is.EqualTo("CkanUI.App.Views.SavesPageView"));
+        Assert.That(ViewLocator.ResolveViewType(typeof(UnmanagedPageViewModel))?.FullName, Is.EqualTo("CkanUI.App.Views.UnmanagedPageView"));
     }
 
     [Test]

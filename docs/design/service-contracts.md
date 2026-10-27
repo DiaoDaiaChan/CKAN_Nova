@@ -22,12 +22,18 @@
 | `IOperationQueue` | `IOperationQueue.cs` | `Enqueue`/`Cancel`/`Operations`/`Updated`（100ms 节流） |
 | `IDialogService` | `IDialogService.cs` | `ConfirmAsync`/`SelectAsync`(-1=取消)/`ShowErrorAsync`/`RunWithProgressAsync` |
 | `IErrorReporter` | `IErrorReporter.cs` | `Report` + `Reported` 事件 + `Recent` |
-| `IUnmanagedService` | `IUnmanagedService.cs` | M4，先留契约 |
+| `IUnmanagedService` | `IUnmanagedService.cs` | 未管理文件树扫描 / 预演 / 删除（F-42）；`AdoptAsync` 待 INT-09 |
+| `IModSearchParser` | `IModSearchParser.cs` | 搜索文本 → `ModSearchSpec`（语法权威仍是上游 `ModSearch`），并逐 token 报告无法解析项 |
+| `IModPackService` | `IModPackService.cs` | 导出 modpack / 预览并执行 `.ckan` 导入 / 两实例差集比对（F-39·F-45） |
+| `IDownloadService` | `IDownloadService.cs` | 字节级进度 + 大小/SHA256 校验 + 原子落盘 + 取消清理（M2） |
+| `ISaveFileService` | `ISaveFileService.cs` | 存档枚举 / 解析诊断 / 格式化（M7/E1，SFS 内核之上） |
 
 ### DTO（`src/CkanUI.Services.Abstractions/Dtos/`）
 
 `ModRowData`（readonly record struct）、`InstalledModuleInfo`、`RegistrySnapshot`、`RepositorySnapshot`、
-`ChangeAction` / `ChangeOrigin` / `ChangeItemDto` / `ChangeSetPreview`、`OperationState` / `OperationProgress`、`InstanceInfo`。
+`ChangeAction` / `ChangeOrigin` / `ChangeItemDto` / `ChangeSetPreview`、`OperationState` / `OperationProgress`、`InstanceInfo`、
+`RepositoryEntryInfo` / `RepositoryEditRequest`、`ModPackExportRequest` / `ModPackExportResult` / `ModPackPreview` / `ModPackImportReport` / `InstanceComparison`（+ 行级 DTO）、
+`DownloadTaskInfo` / `DownloadProgressInfo`、`SaveGameInfo` 与诊断 DTO。
 
 **铁律**：DTO 里不出现任何 `CKAN.*` 类型。VM 永不持有活的 `CkanModule` 引用，只按 `Identifier` 回查快照。
 
@@ -42,6 +48,9 @@
 | `ISettingsService` / `IUiSettingsStore` | `src/CkanUI.Services/Settings` | INT-02 |
 | `IOperationQueue` | `src/CkanUI.Services/Operations` | VM-05 |
 | `IDialogService` / `IErrorReporter` | `src/CkanUI.App/Dialogs`、`src/CkanUI.Services/Errors` | INT-03 / ARC-04 |
+| `IModPackService` | `src/CkanUI.Services/ModPacks`（Core 触达面收在 `IModPackStore` 后） | UI-20 / UI-24 |
+| `IDownloadService` | `src/CkanUI.Services/Downloads`（字节搬运收在 `IDownloadTransport` 后） | M2 |
+| `ISaveFileService` | `src/CkanUI.Services/Saves` | M7 / E1 |
 
 ## §3 契约的使用规则
 
@@ -83,9 +92,17 @@ public InstanceService(
 - 顺序铁律：`RegistryManager.DisposeAll()` 必须在**锁定检测之后、SetCurrentInstance 之前**。
 - 回滚：切换过程放 try/finally，任一环节失败必须把旧实例恢复为当前实例并释放已取得的新锁。
 
+### §4.4 导入导出与下载的分层（M2 裁定）
+
+- **导出不自己拼 JSON**：`RegistryManager.GenerateModpack(recommends, with_versions).ToJson()` 直出，保证 `ckan import` 可消费；「打包缓存 zip」是本仓自定朴素归档（根 `.ckan` + `Downloads/<id>-<ver>.zip`）。
+- **导入只做编排**：勾选 → `ChangeRequest` → `IChangeSetService.BuildAsync`（有冲突即中止且不调 `ApplyAsync`）→ `IInstallerService.ApplyAsync`；模块内零自有下载/解包逻辑。
+- **下载两层**：`IDownloadTransport` 搬字节（生产 `NetAsyncDownloaderTransport`，测试用假传输层，测试绝不触网）；`DownloadService` 管落盘语义（`.tmp-{guid}` → 大小校验 → SHA256 校验 → `File.Move(overwrite:true)` 重试 → finally 删临时文件）。
+- **失败分类只产出 `retryable`**，重试策略留给上层（F-38 / UI-35）。
+
 ## 修订记录
 
 | 日期 | 版本 | 变更 |
 | --- | --- | --- |
+| 2026-10-27 | v1.1 | 补 `IModPackService` / `IDownloadService` / `ISaveFileService` 与对应 DTO、实现归属、§4.4 导入导出与下载分层裁定 |
 | 2026-10-27 | v1.0 | 新建：冻结 13 个服务接口 + 8 组 DTO，登记实现归属 |
 | 2026-10-27 | v1.1 | 新增 §4 实现决策：InstanceService 构造形状、取消判定、锁定检测与回滚 |

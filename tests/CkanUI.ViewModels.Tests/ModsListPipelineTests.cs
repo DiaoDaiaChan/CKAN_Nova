@@ -26,7 +26,7 @@ public sealed class ModsListPipelineTests
     public void InstallFilter_Upgradeable_ReturnsOnlyOutdatedInstalledRows()
     {
         var rows = ModsListPipeline.Apply(
-            All, ModsQuery.Parse(null), ModsInstallFilter.Upgradeable, ModsCompatibilityFilter.All,
+            All, Search.Parse(null), ModsInstallFilter.Upgradeable, ModsCompatibilityFilter.All,
             ModsSortColumn.Name, true);
 
         Assert.That(rows, Has.Count.EqualTo(1));
@@ -37,7 +37,7 @@ public sealed class ModsListPipelineTests
     public void InstallFilter_NotInstalled_ExcludesInstalledRows()
     {
         var rows = ModsListPipeline.Apply(
-            All, ModsQuery.Parse(null), ModsInstallFilter.NotInstalled, ModsCompatibilityFilter.All,
+            All, Search.Parse(null), ModsInstallFilter.NotInstalled, ModsCompatibilityFilter.All,
             ModsSortColumn.Name, true);
 
         Assert.That(rows, Has.Count.EqualTo(2));
@@ -48,7 +48,7 @@ public sealed class ModsListPipelineTests
     public void CompatibilityFilter_CompatibleOnly_DropsIncompatibleRows()
     {
         var rows = ModsListPipeline.Apply(
-            All, ModsQuery.Parse(null), ModsInstallFilter.All, ModsCompatibilityFilter.CompatibleOnly,
+            All, Search.Parse(null), ModsInstallFilter.All, ModsCompatibilityFilter.CompatibleOnly,
             ModsSortColumn.Name, true);
 
         Assert.That(rows, Has.Count.EqualTo(3));
@@ -59,10 +59,10 @@ public sealed class ModsListPipelineTests
     public void SortByName_RespectsDirection()
     {
         var ascending = ModsListPipeline.Apply(
-            All, ModsQuery.Parse(null), ModsInstallFilter.All, ModsCompatibilityFilter.All,
+            All, Search.Parse(null), ModsInstallFilter.All, ModsCompatibilityFilter.All,
             ModsSortColumn.Name, true);
         var descending = ModsListPipeline.Apply(
-            All, ModsQuery.Parse(null), ModsInstallFilter.All, ModsCompatibilityFilter.All,
+            All, Search.Parse(null), ModsInstallFilter.All, ModsCompatibilityFilter.All,
             ModsSortColumn.Name, false);
 
         Assert.That(ascending[0].Name, Is.EqualTo("Alpha"));
@@ -73,7 +73,7 @@ public sealed class ModsListPipelineTests
     public void SortByLatestVersion_UsesVersionSemantics()
     {
         var rows = ModsListPipeline.Apply(
-            All, ModsQuery.Parse(null), ModsInstallFilter.All, ModsCompatibilityFilter.All,
+            All, Search.Parse(null), ModsInstallFilter.All, ModsCompatibilityFilter.All,
             ModsSortColumn.LatestVersion, true);
 
         var order = new List<string>();
@@ -90,7 +90,7 @@ public sealed class ModsListPipelineTests
     public void SortByDownloadCount_Descending()
     {
         var rows = ModsListPipeline.Apply(
-            All, ModsQuery.Parse(null), ModsInstallFilter.All, ModsCompatibilityFilter.All,
+            All, Search.Parse(null), ModsInstallFilter.All, ModsCompatibilityFilter.All,
             ModsSortColumn.DownloadCount, false);
 
         Assert.That(rows[0].Identifier, Is.EqualTo("B"));
@@ -100,7 +100,7 @@ public sealed class ModsListPipelineTests
     public void QueryAndFilters_AreCombinedWithAnd()
     {
         var rows = ModsListPipeline.Apply(
-            All, ModsQuery.Parse("tag:plugin @adam"), ModsInstallFilter.Installed, ModsCompatibilityFilter.All,
+            All, Search.Parse("tag:plugin @adam"), ModsInstallFilter.Installed, ModsCompatibilityFilter.All,
             ModsSortColumn.Name, true);
 
         // 测试数据没有标签，两个条件叠加后应为空（验证"与"而不是"或"）。
@@ -112,7 +112,7 @@ public sealed class ModsListPipelineTests
     {
         var before = All.Length;
         _ = ModsListPipeline.Apply(
-            All, ModsQuery.Parse("alpha"), ModsInstallFilter.All, ModsCompatibilityFilter.All,
+            All, Search.Parse("alpha"), ModsInstallFilter.All, ModsCompatibilityFilter.All,
             ModsSortColumn.Name, true);
 
         Assert.That(All, Has.Length.EqualTo(before));

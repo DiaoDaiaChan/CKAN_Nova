@@ -1,0 +1,205 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CkanUI.App.Views.UnmanagedPageView"
+             x:CompileBindings="False">
+  <!-- 未管理文件页（规格 F-42 / 03 篇 §2 V-07 / 06 篇 UI-10）：工具条 + 统计条 + 未管理文件树 + 状态栏。
+       全部颜色走 Tokens.axaml 的语义 token，间距一律 4 的倍数；删除是破坏性操作，界面侧只发起、不直接落盘。 -->
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="16"
+        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+
+    <!-- 页头 -->
+    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
+      <TextBlock Text="未管理文件"
+                 FontSize="{DynamicResource CkanFontSizeTitle}"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      <TextBlock Text="GameData 里没有被注册表登记为受管的目录与文件；删除前请确认它们确实可以丢弃。"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 TextWrapping="Wrap" />
+    </StackPanel>
+
+    <!-- 工具条（03 篇 §2 V-07：刷新 / 全展开 / 全折叠 / 重置 / 在文件夹中显示 / 删除） -->
+    <Border Grid.Row="1" Padding="{DynamicResource CkanToolbarPadding}"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1">
+      <WrapPanel Orientation="Horizontal">
+        <TextBox Text="{Binding FilterText, Mode=TwoWay}"
+                 MinWidth="200" Margin="0,0,8,0"
+                 PlaceholderText="筛选路径…"
+                 ToolTip.Tip="按相对路径筛选（不区分大小写）" />
+        <Button Content="刷新" Command="{Binding RefreshCommand}"
+                IsEnabled="{Binding CanRefresh}" Margin="0,0,8,0"
+                ToolTip.Tip="重新扫描 GameData" />
+        <Button Content="全展开" Command="{Binding ExpandAllCommand}" Margin="0,0,8,0"
+                ToolTip.Tip="展开所有目录" />
+        <Button Content="全折叠" Command="{Binding CollapseAllCommand}" Margin="0,0,8,0"
+                ToolTip.Tip="折叠所有目录" />
+        <Button Content="重置筛选" Command="{Binding ResetFilterCommand}" Margin="0,0,8,0"
+                ToolTip.Tip="清空筛选关键字并显示全部内容" />
+        <Button Content="全选/取消" Command="{Binding ToggleSelectAllCommand}"
+                IsEnabled="{Binding HasNodes}" Margin="0,0,8,0"
+                ToolTip.Tip="选中或取消选中所有可见项" />
+        <Button Content="预演删除" Command="{Binding PreviewDeleteCommand}"
+                IsEnabled="{Binding CanPreviewDelete}" Margin="0,0,8,0"
+                ToolTip.Tip="只校验会被删除哪些内容，不落盘" />
+        <Button Content="删除" Command="{Binding DeleteSelectedCommand}"
+                IsEnabled="{Binding CanDeleteSelected}" Margin="0,0,8,0"
+                ToolTip.Tip="删除选中项（需要两次确认，无法撤销）" />
+        <Button Content="在文件夹中显示" Command="{Binding ShowInFolderCommand}"
+                IsEnabled="{Binding CanShowInFolder}"
+                ToolTip.Tip="在系统文件管理器中定位选中项" />
+      </WrapPanel>
+    </Border>
+
+    <!-- 页面级错误条（03 篇 §8 D-03 / §10） -->
+    <Border Grid.Row="2" Margin="0,8,0,0" Padding="12,8"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
+            IsVisible="{Binding HasError}">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Spacing="4">
+          <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanDangerBrush}" />
+          <TextBlock Text="{Binding ErrorDetail}" TextWrapping="Wrap" MaxHeight="48"
+                     IsVisible="{Binding HasErrorDetail}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="关闭" Command="{Binding ClearErrorCommand}"
+                VerticalAlignment="Top" Margin="8,0,0,0"
+                FontSize="{DynamicResource CkanFontSizeCaption}" />
+      </Grid>
+    </Border>
+
+    <!-- 统计条（03 篇 §2 V-07：总览 + 选中合计） -->
+    <Border Grid.Row="3" Margin="0,8,0,0" Padding="12,4"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1"
+            IsVisible="{Binding HasInstance}">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" Text="{Binding StatsText}"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        <TextBlock Grid.Column="1" Text="{Binding SelectionText}" Margin="12,0,0,0"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                   VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <!-- 未管理文件树 -->
+    <Grid Grid.Row="4" Margin="0,8,0,0">
+      <Border BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              IsVisible="{Binding HasNodes}">
+        <TreeView ItemsSource="{Binding Nodes}"
+                  SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
+                  BorderThickness="0" Background="Transparent">
+          <TreeView.Styles>
+            <!-- 展开状态由节点 VM 持有，全展开/全折叠才能作用到整棵树 -->
+            <Style Selector="TreeViewItem">
+              <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+            </Style>
+          </TreeView.Styles>
+          <TreeView.ItemTemplate>
+            <TreeDataTemplate ItemsSource="{Binding Children}">
+              <Grid ColumnDefinitions="Auto,*,64,88,140,120" Height="{DynamicResource CkanRowHeight}"
+                    DoubleTapped="OnNodeDoubleTapped">
+                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                          Margin="0,0,8,0" VerticalAlignment="Center"
+                          ToolTip.Tip="勾选后可批量删除" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                  <TextBlock Text="{Binding GuessIdentifier}" IsVisible="{Binding HasGuessIdentifier}"
+                             VerticalAlignment="Center"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="{Binding KindText}" VerticalAlignment="Center"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="3" Text="{Binding SizeText}" VerticalAlignment="Center"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="4" Text="{Binding ModifiedText}" VerticalAlignment="Center"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                  <!-- 含受管内容的目录不允许整目录删除，用警示色角标明确标出 -->
+                  <Border IsVisible="{Binding HasManagedChildren}"
+                          Background="{DynamicResource CkanWarningBrush}"
+                          CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                          Padding="4,0">
+                    <TextBlock Text="{Binding ManagedText}"
+                               FontSize="{DynamicResource CkanFontSizeCaption}"
+                               Foreground="{DynamicResource CkanTextInverseBrush}" />
+                  </Border>
+                  <TextBlock Text="{Binding ManagedText}" IsVisible="{Binding !HasManagedChildren}"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                </StackPanel>
+              </Grid>
+            </TreeDataTemplate>
+          </TreeView.ItemTemplate>
+        </TreeView>
+      </Border>
+
+      <!-- 空状态（03 篇 §10）：GameData 干净 -->
+      <Border IsVisible="{Binding ShowEmptyState}" Padding="16">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="480">
+          <TextBlock Text="{Binding EmptyStateTitle}"
+                     HorizontalAlignment="Center"
+                     FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+          <TextBlock Text="{Binding EmptyStateHint}" TextWrapping="Wrap" TextAlignment="Center"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <Button Content="刷新" Command="{Binding RefreshCommand}" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Border>
+
+      <!-- 空状态（03 篇 §10）：还没有实例 -->
+      <Border IsVisible="{Binding ShowNoInstance}" Padding="16">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="480">
+          <TextBlock Text="{Binding NoInstanceTitle}"
+                     HorizontalAlignment="Center"
+                     FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+          <TextBlock Text="{Binding NoInstanceHint}" TextWrapping="Wrap" TextAlignment="Center"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- 状态栏 -->
+    <Grid Grid.Row="5" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+      <TextBlock Grid.Column="0" Text="{Binding StatusText}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="1" Text="{Binding PreviewPaths.Count, StringFormat='预演 {0} 项'}"
+                 Margin="12,0,0,0"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 VerticalAlignment="Center" />
+    </Grid>
+
+    <!-- 进行中遮罩（03 篇 §10：非模态操作条） -->
+    <Border Grid.RowSpan="6" IsVisible="{Binding IsBusy}"
+            Background="{DynamicResource CkanStatusBarBackgroundBrush}" Opacity="0.9">
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="360">
+        <ProgressBar IsIndeterminate="True" Width="240" />
+        <TextBlock Text="{Binding BusyText}" TextAlignment="Center" TextWrapping="Wrap"
+                   FontSize="{DynamicResource CkanFontSizeBody}"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

@@ -76,10 +76,13 @@ public static class ServiceRegistration
             sp.GetService<IChangeSetService>(),
             sp.GetService<IUiSettingsStore>(),
             sp.GetService<IChangeRequestSink>(),
-            sp.GetService<INavigationService>()));
+            sp.GetService<INavigationService>(),
+            sp.GetService<IModSearchParser>()));
         services.AddSingleton<ReposPageViewModel>();
         services.AddSingleton<ModPacksPageViewModel>();
         services.AddSingleton<InstancesPageViewModel>();
+        services.AddSingleton<SavesPageViewModel>();
+        services.AddSingleton<UnmanagedPageViewModel>();
         services.AddSingleton<SettingsPageViewModel>();
 
         // 本地化：磁盘语言包优先、内嵌兜底；App 侧把告警接到 log4net（docs/ops/i18n-guide.md §6.1）。
@@ -133,6 +136,8 @@ public static class ServiceRegistration
         ["repos"] = typeof(ReposPageViewModel),
         ["modpacks"] = typeof(ModPacksPageViewModel),
         ["instances"] = typeof(InstancesPageViewModel),
+        ["saves"] = typeof(SavesPageViewModel),
+        ["unmanaged"] = typeof(UnmanagedPageViewModel),
         ["settings"] = typeof(SettingsPageViewModel),
     };
 

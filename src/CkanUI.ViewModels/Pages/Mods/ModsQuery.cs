@@ -3,237 +3,338 @@ using CkanUI.Services.Abstractions.Dtos;
 namespace CkanUI.ViewModels.Pages.Mods;
 
 /// <summary>
-/// 模组搜索查询（03 篇 §3.4 / VM-01）。把与老 GUI `GUI/Model/ModSearch.cs` 同构的查询语法
-/// （`名称`、`@作者`、`tag:`、`is:`、`not:`、`-否定`）解析成对 <see cref="ModRowData"/> 的纯谓词。
+/// 模组页的搜索条件（03 篇 §3.4 / 12 篇 F-20/F-21）。
 /// </summary>
 /// <remarks>
-/// 为什么不直接复用 <c>CkanUI.Services.Models.ModSearch</c>：它接收 <c>GUIMod</c> 与 Core 的
-/// <c>GameInstance</c>/<c>ModuleLabelList</c>，而架构铁律（01 篇 §11 / DependencyRulesTests）
-/// 禁止 ViewModels 引用 CkanUI.Services 与 CKAN 命名空间。因此这里只保留 VM 侧可判定的子集，
-/// 无法判定的前缀（desc:/lic:/lang:/dep:/rec:/sug:/conf:/sup:/label:）记入 <see cref="UnsupportedTerms"/>，
-/// 由页面在状态栏给出明确提示，而不是静默地"搜不到东西"。
+/// <para>
+/// 语法解析**不在本类**：文本由服务层的 <see cref="CkanUI.Services.Abstractions.IModSearchParser"/> 委托给
+/// 上游 <c>ModSearch.Parse</c>，这里只消费解析好的 <see cref="ModSearchSpec"/>，逐条镜像
+/// <c>ModSearch.Matches</c> 的语义去匹配 <see cref="ModRowData"/>。
+/// 这样前缀白名单只有一处（模型层），页面不再维护第二份。
+/// </para>
+/// <para>
+/// 需要实例上下文的条件（`dep:`/`rec:`/`sug:`/`conf:`/`sup:`/`label:`/`is:cached`/
+/// `is:newly-compatible`/`is:replaceable`）来自行上的 <see cref="ModSearchFacts"/>，由服务层填充；
+/// 解析不了的条件留在 <see cref="Unsupported"/> 里，页面必须在状态栏说明，不能静默丢弃。
+/// </para>
 /// </remarks>
 public sealed class ModsQuery
 {
-    private readonly ModsQueryTerm[] _terms;
-    private readonly string[] _unsupported;
+    private static readonly StringComparison IgnoreCase = StringComparison.InvariantCultureIgnoreCase;
 
-    private ModsQuery(string rawText, ModsQueryTerm[] terms, string[] unsupported)
+    private readonly ModSearchSpec _spec;
+    private readonly IReadOnlyList<LabelGroup> _labelGroups;
+
+    private ModsQuery(ModSearchSpec spec)
     {
-        RawText = rawText;
-        _terms = terms;
-        _unsupported = unsupported;
+        _spec = spec;
+        _labelGroups = BuildLabelGroups(spec.Labels);
     }
 
-    /// <summary>用户在搜索框里输入的原文。</summary>
-    public string RawText { get; }
+    /// <summary>空查询：匹配全部（上游 `Parse` 对空白输入返回 null 的同义表示）。</summary>
+    public static ModsQuery Empty { get; } = new(ModSearchSpec.Empty);
 
-    /// <summary>当前 VM 无法判定的查询词（保留原样，便于在界面上提示）。</summary>
-    public IReadOnlyList<string> UnsupportedTerms => _unsupported;
+    /// <summary>用解析结果构造查询。</summary>
+    public static ModsQuery FromSpec(ModSearchSpec? spec) => spec is null ? Empty : new ModsQuery(spec);
 
-    /// <summary>是否有无法判定的查询词。</summary>
-    public bool HasUnsupportedTerms => _unsupported.Length > 0;
-
-    /// <summary>空查询等于"全部命中"（03 篇 §3.4）。</summary>
-    public bool IsEmpty => _terms.Length == 0;
-
-    /// <summary>解析一段查询文本；空文本返回匹配全部的查询（不抛异常）。</summary>
-    public static ModsQuery Parse(string? text)
+    /// <summary>
+    /// 没有解析器时的降级查询（设计器、或者宿主没接线）：不做任何过滤，
+    /// 并把每个词都记为"需要实例上下文"的无法解析条件，保证状态栏会提示而不是假装成功。
+    /// </summary>
+    public static ModsQuery Unparsed(string? text)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        var terms = (text ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        var unsupported = new List<ModSearchUnsupportedTerm>(terms.Length);
+        foreach (var term in terms)
         {
-            return new ModsQuery(text ?? string.Empty, Array.Empty<ModsQueryTerm>(), Array.Empty<string>());
+            unsupported.Add(new ModSearchUnsupportedTerm(term, ModSearchUnsupportedReason.InstanceContext));
         }
 
-        var terms = new List<ModsQueryTerm>();
-        var unsupported = new List<string>();
-
-        foreach (var raw in text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        return new ModsQuery(new ModSearchSpec
         {
-            var token = raw;
-            var negate = false;
-            if (token.Length > 1 && token[0] == '-')
-            {
-                negate = true;
-                token = token[1..];
-            }
+            Raw = text ?? string.Empty,
+            Unsupported = unsupported,
+        });
+    }
 
-            if (TryParseTerm(token, negate, out var term))
+    /// <summary>解析结果（含原文与无法解析的词）。</summary>
+    public ModSearchSpec Spec => _spec;
+
+    /// <summary>无法解析的查询词（含原因）。</summary>
+    public IReadOnlyList<ModSearchUnsupportedTerm> Unsupported => _spec.Unsupported;
+
+    /// <summary>无法解析的查询词原文（界面 chips 用）。</summary>
+    public IReadOnlyList<string> UnsupportedTerms
+    {
+        get
+        {
+            if (_spec.Unsupported.Count == 0) return Array.Empty<string>();
+
+            var terms = new string[_spec.Unsupported.Count];
+            for (var i = 0; i < terms.Length; i++) terms[i] = _spec.Unsupported[i].Term;
+            return terms;
+        }
+    }
+
+    /// <summary>是否存在无法解析的词（状态栏据此提示）。</summary>
+    public bool HasUnsupportedTerms => _spec.Unsupported.Count > 0;
+
+    /// <summary>是否没有任何有效条件（等于"匹配全部"）。</summary>
+    public bool IsEmpty => _spec.IsEmpty;
+
+    /// <summary>无法解析的中文说明，例如「当前无法解析：foo:bar（未知的搜索前缀）」。</summary>
+    public string UnsupportedMessage
+    {
+        get
+        {
+            if (_spec.Unsupported.Count == 0) return string.Empty;
+
+            var builder = new System.Text.StringBuilder();
+            foreach (var term in _spec.Unsupported)
             {
-                terms.Add(term);
+                if (builder.Length > 0) builder.Append("；");
+                builder.Append("当前无法解析：")
+                       .Append(term.Term)
+                       .Append('（')
+                       .Append(ReasonText(term.Reason))
+                       .Append('）');
+            }
+            return builder.ToString();
+        }
+    }
+
+    /// <summary>判断行是否满足全部条件（镜像 <c>ModSearch.Matches</c>，全部条件 AND）。</summary>
+    public bool Matches(ModRowData row)
+        => MatchesName(row)
+           && MatchesAuthors(row)
+           && MatchesDescription(row)
+           && MatchesLicenses(row)
+           && MatchesLocalizations(row)
+           && MatchesTerms(_spec.DependsOn, row.Facts.DependsOn)
+           && MatchesTerms(_spec.Recommends, row.Facts.Recommends)
+           && MatchesTerms(_spec.Suggests, row.Facts.Suggests)
+           && MatchesTerms(_spec.ConflictsWith, row.Facts.ConflictsWith)
+           && MatchesTerms(_spec.Supports, row.Facts.Supports)
+           && MatchesTags(row)
+           && MatchesLabels(row)
+           && MatchesState(_spec.Compatible, row.IsCompatible)
+           && MatchesState(_spec.Installed, row.IsInstalled)
+           && MatchesState(_spec.Cached, row.Facts.IsCached)
+           && MatchesState(_spec.NewlyCompatible, row.Facts.IsNew)
+           && MatchesState(_spec.Upgradeable, row.HasUpdate)
+           && MatchesState(_spec.Replaceable, row.IsInstalled && row.Facts.IsReplaceable);
+
+    private bool MatchesName(ModRowData row)
+    {
+        if (string.IsNullOrWhiteSpace(_spec.Name)) return true;
+
+        var negate = Negated(_spec.Name, out var sub);
+        var hit = ModsSearchText.Abbreviation(row.Name).IndexOf(sub, IgnoreCase) >= 0
+                  || ModsSearchText.Normalize(row.Name).IndexOf(sub, IgnoreCase) >= 0
+                  || ModsSearchText.Normalize(row.Identifier).IndexOf(sub, IgnoreCase) >= 0;
+        return negate ^ hit;
+    }
+
+    private bool MatchesAuthors(ModRowData row)
+    {
+        if (_spec.Authors.Count < 1) return true;
+
+        var authors = AuthorsOf(row);
+        foreach (var term in _spec.Authors)
+        {
+            var negate = Negated(term, out var sub);
+            var hit = false;
+            foreach (var author in authors)
+            {
+                if (!author.StartsWith(sub, IgnoreCase)) continue;
+                hit = true;
+                break;
+            }
+            if (!(negate ^ hit)) return false;
+        }
+        return true;
+    }
+
+    private bool MatchesDescription(ModRowData row)
+    {
+        if (string.IsNullOrWhiteSpace(_spec.Description)) return true;
+
+        var negate = Negated(_spec.Description, out var sub);
+        var hit = ModsSearchText.Normalize(row.Facts.Abstract).IndexOf(sub, IgnoreCase) >= 0
+                  || ModsSearchText.Normalize(row.Facts.Description).IndexOf(sub, IgnoreCase) >= 0;
+        return negate ^ hit;
+    }
+
+    private bool MatchesLicenses(ModRowData row)
+    {
+        if (_spec.Licenses.Count < 1) return true;
+        if (row.Facts.Licenses is not { Count: > 0 } licenses) return false;
+
+        foreach (var term in _spec.Licenses)
+        {
+            var negate = Negated(term, out var sub);
+            var hit = false;
+            foreach (var license in licenses)
+            {
+                if (!license.StartsWith(sub, IgnoreCase)) continue;
+                hit = true;
+                break;
+            }
+            if (!(negate ^ hit)) return false;
+        }
+        return true;
+    }
+
+    private bool MatchesLocalizations(ModRowData row)
+    {
+        if (_spec.Localizations.Count < 1) return true;
+        if (row.Facts.Localizations is not { Count: > 0 } localizations) return false;
+
+        foreach (var term in _spec.Localizations)
+        {
+            var negate = Negated(term, out var sub);
+            var hit = false;
+            foreach (var localization in localizations)
+            {
+                if (!localization.StartsWith(sub, IgnoreCase)) continue;
+                hit = true;
+                break;
+            }
+            if (!(negate ^ hit)) return false;
+        }
+        return true;
+    }
+
+    /// <summary>关系条件（`dep:`/`rec:`/`sug:`/`conf:`/`sup:`）：每个词都要在关系名前缀里出现。</summary>
+    private static bool MatchesTerms(IReadOnlyList<string> terms, IReadOnlyList<string>? relationships)
+    {
+        if (terms.Count < 1) return true;
+        if (relationships is not { Count: > 0 }) return false;
+
+        foreach (var term in terms)
+        {
+            var negate = Negated(term, out var sub);
+            var hit = false;
+            foreach (var relationship in relationships)
+            {
+                if (!relationship.StartsWith(sub, IgnoreCase)) continue;
+                hit = true;
+                break;
+            }
+            if (!(negate ^ hit)) return false;
+        }
+        return true;
+    }
+
+    private bool MatchesTags(ModRowData row)
+    {
+        if (_spec.Tags.Count < 1) return true;
+
+        foreach (var term in _spec.Tags)
+        {
+            var negate = Negated(term, out var sub);
+            // 空子标签在上游表示"没有任何标签"；行投影里的 Tags 不是 null，只有空列表。
+            var hit = sub.Length > 0
+                      && row.Tags is { Count: > 0 }
+                      && row.Tags.Contains(sub);
+            if (!(negate ^ hit)) return false;
+        }
+        return true;
+    }
+
+    private bool MatchesLabels(ModRowData row)
+    {
+        foreach (var group in _labelGroups)
+        {
+            var inner = group.Exclude
+                // 空标签名 = "不在任何标签组里"（对齐上游 LabelsByNegation 的 exclude 分支）。
+                ? !HasAnyLabel(row)
+                : group.Names.Count > 0 && group.Names.All(name => HasLabel(row, name));
+            if (!(group.Negate ^ inner)) return false;
+        }
+        return true;
+    }
+
+    private static bool HasAnyLabel(ModRowData row) => row.Facts.Labels is { Count: > 0 };
+
+    private static bool HasLabel(ModRowData row, string name)
+    {
+        if (row.Facts.Labels is not { Count: > 0 } labels) return false;
+
+        foreach (var label in labels)
+        {
+            if (string.Equals(label.Replace(" ", ""), name, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
+    }
+
+    private static bool MatchesState(bool? condition, bool value) => !condition.HasValue || condition.Value == value;
+
+    private static IReadOnlyList<string> AuthorsOf(ModRowData row)
+    {
+        if (string.IsNullOrWhiteSpace(row.Author)) return Array.Empty<string>();
+
+        var parts = row.Author.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0) return Array.Empty<string>();
+
+        var authors = new string[parts.Length];
+        for (var i = 0; i < parts.Length; i++) authors[i] = ModsSearchText.Normalize(parts[i]);
+        return authors;
+    }
+
+    /// <summary>`-` 前缀取反（镜像上游 <c>ShouldNegateTerm</c>）。</summary>
+    private static bool Negated(string term, out string subTerm)
+    {
+        if (term.StartsWith('-'))
+        {
+            subTerm = term[1..];
+            return true;
+        }
+
+        subTerm = term;
+        return false;
+    }
+
+    /// <summary>
+    /// 标签条件按 (是否取反, 是否空名) 分组，与上游 <c>LabelsByNegation</c> 的分组语义一致：
+    /// 同一组内的多个名字要求"同时属于"。
+    /// </summary>
+    private static IReadOnlyList<LabelGroup> BuildLabelGroups(IReadOnlyList<string> labels)
+    {
+        if (labels.Count < 1) return Array.Empty<LabelGroup>();
+
+        var groups = new List<LabelGroup>();
+        foreach (var raw in labels)
+        {
+            var negate = Negated(raw.Replace(" ", ""), out var name);
+            var exclude = name.Length == 0;
+
+            var index = groups.FindIndex(group => group.Negate == negate && group.Exclude == exclude);
+            if (index < 0)
+            {
+                groups.Add(new LabelGroup(negate, exclude, new List<string> { name }));
             }
             else
             {
-                unsupported.Add(raw);
+                groups[index].Names.Add(name);
             }
         }
-
-        return new ModsQuery(text, terms.ToArray(), unsupported.ToArray());
+        return groups;
     }
 
-    /// <summary>该行是否命中全部查询词（多个查询词之间是逻辑与）。</summary>
-    public bool Matches(ModRowData row)
+    private static string ReasonText(ModSearchUnsupportedReason reason) => reason switch
     {
-        foreach (var term in _terms)
-        {
-            var hit = MatchesTerm(row, term);
-            if (term.Negate ? hit : !hit)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static bool TryParseTerm(string token, bool negate, out ModsQueryTerm term)
-    {
-        term = default;
-
-        if (token.Length == 0)
-        {
-            return false;
-        }
-
-        if (token[0] == '@')
-        {
-            var author = token[1..];
-            if (author.Length == 0)
-            {
-                return false;
-            }
-
-            term = new ModsQueryTerm(ModsQueryTermKind.Author, author, negate);
-            return true;
-        }
-
-        var separator = token.IndexOf(':', StringComparison.Ordinal);
-        if (separator <= 0)
-        {
-            term = new ModsQueryTerm(ModsQueryTermKind.Text, token, negate);
-            return true;
-        }
-
-        var prefix = token[..separator].ToLowerInvariant();
-        var value = token[(separator + 1)..];
-        if (value.Length == 0)
-        {
-            return false;
-        }
-
-        switch (prefix)
-        {
-            case "tag":
-                term = new ModsQueryTerm(ModsQueryTermKind.Tag, value, negate);
-                return true;
-            case "is":
-            case "not":
-                return TryParseStateTerm(prefix, value, negate, out term);
-            case "desc":
-            case "lic":
-            case "lang":
-            case "dep":
-            case "rec":
-            case "sug":
-            case "conf":
-            case "sup":
-            case "label":
-                // 语法合法，但 ModRowData 里没有对应字段（描述/许可证/依赖/标签组），交给状态栏提示。
-                return false;
-            default:
-                // 未知前缀按老 GUI 的语义整体当作名称文本处理（ModSearch 的回落分支）。
-                term = new ModsQueryTerm(ModsQueryTermKind.Text, token, negate);
-                return true;
-        }
-    }
-
-    private static bool TryParseStateTerm(string prefix, string value, bool negate, out ModsQueryTerm term)
-    {
-        term = default;
-        var excluded = negate || string.Equals(prefix, "not", StringComparison.OrdinalIgnoreCase);
-
-        var kind = value.ToLowerInvariant() switch
-        {
-            "installed" => ModsQueryTermKind.Installed,
-            "compatible" => ModsQueryTermKind.Compatible,
-            "upgradeable" or "update" or "outdated" => ModsQueryTermKind.Upgradeable,
-            "autoinstalled" or "auto-installed" => ModsQueryTermKind.AutoInstalled,
-            // 缓存/替换/新兼容等状态不来自 ModRowData，无法在 VM 侧判定。
-            _ => ModsQueryTermKind.Unknown,
-        };
-
-        if (kind == ModsQueryTermKind.Unknown)
-        {
-            return false;
-        }
-
-        term = new ModsQueryTerm(kind, string.Empty, excluded);
-        return true;
-    }
-
-    private static bool MatchesTerm(ModRowData row, ModsQueryTerm term) => term.Kind switch
-    {
-        ModsQueryTermKind.Text => Contains(row.Name, term.Value)
-                                 || Contains(row.Identifier, term.Value)
-                                 || Contains(row.Author, term.Value),
-        ModsQueryTermKind.Author => Contains(row.Author, term.Value),
-        ModsQueryTermKind.Tag => HasTag(row, term.Value),
-        ModsQueryTermKind.Installed => row.IsInstalled,
-        ModsQueryTermKind.Compatible => row.IsCompatible,
-        ModsQueryTermKind.Upgradeable => row.HasUpdate,
-        ModsQueryTermKind.AutoInstalled => row.IsAutoInstalled,
-        _ => true,
+        ModSearchUnsupportedReason.InstanceContext => "需要实例上下文",
+        ModSearchUnsupportedReason.UnknownState => "未知的状态值，可用 compatible/installed/cached/newly-compatible/upgradeable/replaceable",
+        ModSearchUnsupportedReason.UnknownPrefix => "未知的搜索前缀",
+        ModSearchUnsupportedReason.EmptyValue => "缺少取值",
+        _ => "无法解析",
     };
 
-    private static bool Contains(string? haystack, string needle) =>
-        !string.IsNullOrEmpty(haystack) && haystack.Contains(needle, StringComparison.OrdinalIgnoreCase);
-
-    private static bool HasTag(ModRowData row, string tag)
+    private sealed class LabelGroup(bool negate, bool exclude, List<string> names)
     {
-        if (row.Tags is not { Count: > 0 } tags)
-        {
-            return false;
-        }
-
-        foreach (var candidate in tags)
-        {
-            if (string.Equals(candidate, tag, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        public bool Negate { get; } = negate;
+        public bool Exclude { get; } = exclude;
+        public List<string> Names { get; } = names;
     }
 }
-
-/// <summary>查询词种类（内部实现细节，测试只走 <see cref="ModsQuery"/> 的公开面）。</summary>
-internal enum ModsQueryTermKind
-{
-    /// <summary>名称/标识符/作者文本。</summary>
-    Text,
-
-    /// <summary>`@作者`。</summary>
-    Author,
-
-    /// <summary>`tag:`。</summary>
-    Tag,
-
-    /// <summary>`is:installed` / `not:installed`。</summary>
-    Installed,
-
-    /// <summary>`is:compatible` / `not:compatible`。</summary>
-    Compatible,
-
-    /// <summary>`is:upgradeable`。</summary>
-    Upgradeable,
-
-    /// <summary>`is:autoinstalled`。</summary>
-    AutoInstalled,
-
-    /// <summary>无法判定的状态。</summary>
-    Unknown,
-}
-
-/// <summary>一个已解析的查询词。</summary>
-internal readonly record struct ModsQueryTerm(ModsQueryTermKind Kind, string Value, bool Negate);

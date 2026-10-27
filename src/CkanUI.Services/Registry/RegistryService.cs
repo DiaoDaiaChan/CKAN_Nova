@@ -1,6 +1,7 @@
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CKAN;
+using CkanUI.Services.Models;
 
 namespace CkanUI.Services.Registry;
 
@@ -63,9 +64,22 @@ public sealed class RegistryService : IRegistryService, IDisposable
     private RegistrySnapshot CreateSnapshot(GameInstance instance)
     {
         var registry = RegistryManager.Instance(instance, _repositoryData).registry;
+
+        // 高级搜索事实（12 篇 F-20/F-21）：已装模组同样要能按 desc:/lic:/dep:/label: 命中。
+        // IsNew 由 RepositoryService 做会话差分，这里没有上一份列表可比，恒为 false。
+        var labels = ModSearchFactsFactory.LabelMembership(instance);
+        var cache = _instances.Cache;
         var installed = registry.InstalledModules.ToDictionary(module => module.identifier,
             module => new InstalledModuleInfo(module.identifier, module.Module.version.ToString(), module.AutoInstalled,
-                null, module.InstallTime), StringComparer.Ordinal);
+                null, module.InstallTime)
+            {
+                Facts = ModSearchFactsFactory.From(
+                    module.Module,
+                    labels.TryGetValue(module.identifier, out var modLabels) ? modLabels : null,
+                    isCached: cache is not null
+                              && module.Module.download is { Count: > 0 }
+                              && cache.IsMaybeCachedZip(module.Module)),
+            }, StringComparer.Ordinal);
         var dlls = new HashSet<string>(registry.InstalledDlls, StringComparer.Ordinal);
         return new RegistrySnapshot(instance.Name, null,
             new System.Collections.ObjectModel.ReadOnlyDictionary<string, InstalledModuleInfo>(installed),

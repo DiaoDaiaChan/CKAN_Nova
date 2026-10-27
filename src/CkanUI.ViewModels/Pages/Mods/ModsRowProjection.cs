@@ -68,7 +68,10 @@ public static class ModsRowProjection
                     IsCompatible: true,
                     IsAutoInstalled: info.IsAutoInstalled,
                     IsSelected: false,
-                    IsImplicit: false));
+                    IsImplicit: false)
+                {
+                    Facts = info.Facts,
+                });
             }
         }
 

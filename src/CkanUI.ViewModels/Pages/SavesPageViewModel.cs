@@ -1,0 +1,756 @@
+using CkanUI.Services.Abstractions;
+using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.ViewModels.Pages.Saves;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+
+namespace CkanUI.ViewModels.Pages;
+
+/// <summary>
+/// 存档工作台页（13 篇 §7 / 03 篇 §14 / 06 篇 E1）：存档列表 + 选中项的诊断列表 + 校验与格式化。
+/// </summary>
+/// <remarks>
+/// <para>分层约定：本类只做「取快照 → 投影成行 → 整体替换」与命令编排；解析、诊断、格式化全部在
+/// <see cref="ISaveFileService"/> 里，VM 不碰文件系统，因此整页可 headless 测试。</para>
+/// <para>不静默破坏数据（13 篇 L8/L9/L10）：默认命令写 <c>&lt;name&gt;.formatted.sfs</c>，原文件不动；
+/// 就地重写必须先弹确认、由服务层写前快照再原子替换。</para>
+/// <para>异常收口（05 篇）：服务、对话框、外壳动作全部裹 try/catch，异常转成错误条 + <see cref="IErrorReporter"/>。</para>
+/// </remarks>
+public sealed partial class SavesPageViewModel : PageViewModel
+{
+    private readonly IInstanceService _instances;
+    private readonly ISaveFileService _saves;
+    private readonly IErrorReporter _errors;
+    private readonly IDialogService _dialogs;
+    private bool _subscribed;
+
+    /// <summary>默认构造：仅供设计器与无容器场景使用，不连任何服务。</summary>
+    public SavesPageViewModel()
+        : this(new EmptyInstanceService(), new EmptySaveFileService(), new EmptyErrorReporter(), new EmptyDialogService())
+    {
+    }
+
+    /// <summary>依赖注入构造：参数全部是 Abstractions 里已注册的接口。</summary>
+    public SavesPageViewModel(
+        IInstanceService instances,
+        ISaveFileService saves,
+        IErrorReporter errors,
+        IDialogService dialogs)
+    {
+        _instances = instances ?? throw new ArgumentNullException(nameof(instances));
+        _saves = saves ?? throw new ArgumentNullException(nameof(saves));
+        _errors = errors ?? throw new ArgumentNullException(nameof(errors));
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
+    }
+
+    /// <inheritdoc />
+    public override string Title => "存档";
+
+    /// <summary>外壳动作（在文件夹中显示）；未注入时按钮给出可读提示而不是崩溃。</summary>
+    public ISavesShellLauncher? ShellLauncher { get; set; }
+
+    // ---- 可观察状态 -------------------------------------------------------
+
+    /// <summary>当前可见行（整体替换，不做增量更新；04 篇 §2.1）。</summary>
+    [ObservableProperty]
+    private IReadOnlyList<SaveRowViewModel> _rows = Array.Empty<SaveRowViewModel>();
+
+    /// <summary>当前选中存档（诊断列表与命令的作用对象）。</summary>
+    [ObservableProperty]
+    private SaveRowViewModel? _selectedRow;
+
+    /// <summary>选中存档的诊断列表（校验后填充）。</summary>
+    [ObservableProperty]
+    private IReadOnlyList<SaveDiagnosticRowViewModel> _diagnostics = Array.Empty<SaveDiagnosticRowViewModel>();
+
+    /// <summary>状态栏文本。</summary>
+    [ObservableProperty]
+    private string _statusText = "就绪";
+
+    /// <summary>错误条主文案（03 篇 §8 D-03）；为空表示无错误。</summary>
+    [ObservableProperty]
+    private string? _errorText;
+
+    /// <summary>错误条技术细节（可展开）。</summary>
+    [ObservableProperty]
+    private string? _errorDetail;
+
+    /// <summary>是否有异步操作进行中（视图铺遮罩并禁用工具条）。</summary>
+    [ObservableProperty]
+    private bool _isBusy;
+
+    /// <summary>遮罩文案。</summary>
+    [ObservableProperty]
+    private string _busyText = "正在读取存档…";
+
+    /// <summary>当前选中项是否已经校验过（区分「尚未校验」与「校验通过」）。</summary>
+    [ObservableProperty]
+    private bool _isValidated;
+
+    /// <summary>上一次格式化的结果文案。</summary>
+    [ObservableProperty]
+    private string? _lastOutcomeText;
+
+    /// <summary>校验摘要（节点 / 键值 / 行 / 深度）。</summary>
+    [ObservableProperty]
+    private string _selectionStatsText = "—";
+
+    // ---- 派生状态 ---------------------------------------------------------
+
+    /// <summary>当前实例信息。</summary>
+    public InstanceInfo? Instance => _instances.Current;
+
+    /// <summary>是否有当前实例。</summary>
+    public bool HasInstance => _instances.Current is not null;
+
+    /// <summary>当前实例摘要（工具条左侧）。</summary>
+    public string InstanceText => _instances.Current is { } instance
+        ? $"当前实例：{instance.DisplayName}"
+        : "当前实例：未选择";
+
+    /// <summary>存档目录（空态按钮与状态栏展示）。</summary>
+    public string SavesDirectoryText => _instances.Current is { } instance
+        ? _saves.GetSavesDirectory(instance.GameDir)
+        : "—";
+
+    /// <summary>列表是否非空。</summary>
+    public bool HasRows => Rows.Count > 0;
+
+    /// <summary>是否有选中行。</summary>
+    public bool HasSelection => SelectedRow is not null;
+
+    /// <summary>是否显示「这个实例还没有存档」空态（03 篇 §14.2）。</summary>
+    public bool ShowEmptyState => HasInstance && !HasRows && !IsBusy;
+
+    /// <summary>是否显示「没有选择实例」空态。</summary>
+    public bool ShowNoInstanceState => !HasInstance;
+
+    /// <summary>列表计数文案。</summary>
+    public string CountText => $"共 {Rows.Count} 个存档";
+
+    /// <summary>空态标题（文案固定，与 03 篇 §14.2 一致）。</summary>
+    public string EmptyStateTitle => "这个实例还没有存档";
+
+    /// <summary>空态说明。</summary>
+    public string EmptyStateHint => "在游戏里保存一次就会出现，或者先打开 saves/ 目录看看里面有什么。";
+
+    /// <summary>空态按钮文案。</summary>
+    public string EmptyStateActionText => "打开 saves/ 目录";
+
+    /// <summary>没有实例时的说明。</summary>
+    public string NoInstanceStateHint => "存档属于某个游戏实例：请先在「实例」页选择或添加一个实例。";
+
+    /// <summary>详情面板标题。</summary>
+    public string SelectionTitle => SelectedRow?.SlotName ?? "未选择存档";
+
+    /// <summary>详情面板路径。</summary>
+    public string SelectionPath => SelectedRow?.FilePath ?? "—";
+
+    /// <summary>详情面板副标题（标题 / 模式 / 版本）。</summary>
+    public string SelectionSummary => SelectedRow is { } row
+        ? $"{row.TitleText} · {row.ModeText} · {row.VersionText} · {row.SceneText}"
+        : "—";
+
+    /// <summary>详情面板时间行。</summary>
+    public string SelectionTimeText => SelectedRow is { } row
+        ? $"{row.UniversalTimeText}（UT {row.UniversalTimeRaw}）"
+        : "—";
+
+    /// <summary>诊断条数。</summary>
+    public int DiagnosticCount => Diagnostics.Count;
+
+    /// <summary>错误级诊断条数。</summary>
+    public int ErrorCount => Diagnostics.Count(d => d.IsError);
+
+    /// <summary>警告级诊断条数。</summary>
+    public int WarningCount => Diagnostics.Count(d => d.IsWarning);
+
+    /// <summary>是否有诊断。</summary>
+    public bool HasDiagnostics => Diagnostics.Count > 0;
+
+    /// <summary>是否显示「校验通过、没有发现问题」（区分未校验）。</summary>
+    public bool ShowDiagnosticsEmpty => IsValidated && !HasDiagnostics;
+
+    /// <summary>校验通过时的说明文案。</summary>
+    public string DiagnosticsEmptyText => "没有发现问题：结构完整，大括号配对，缩进与换行也合规。";
+
+    /// <summary>诊断列表标题文案。</summary>
+    public string DiagnosticsHeader => !IsValidated
+        ? "尚未校验"
+        : ErrorCount > 0
+            ? $"发现 {ErrorCount} 个错误 / {WarningCount} 个警告"
+            : WarningCount > 0
+                ? $"校验通过，{WarningCount} 个警告"
+                : "校验通过，没有发现问题";
+
+    /// <summary>是否已校验且无错误（就地重写的前置条件）。</summary>
+    public bool IsValidationClean => IsValidated && ErrorCount == 0;
+
+    /// <summary>是否有错误。</summary>
+    public bool HasError => !string.IsNullOrEmpty(ErrorText);
+
+    /// <summary>是否有错误技术细节。</summary>
+    public bool HasErrorDetail => !string.IsNullOrEmpty(ErrorDetail);
+
+    /// <summary>是否空闲（工具条按钮的通用前置条件）。</summary>
+    public bool IsIdle => !IsBusy;
+
+    /// <summary>选中项是否可格式化。</summary>
+    public bool CanFormatSelection => SelectedRow?.CanFormat == true;
+
+    /// <summary>是否有上一次格式化结果。</summary>
+    public bool HasLastOutcome => !string.IsNullOrEmpty(LastOutcomeText);
+
+    // ---- 命令 -------------------------------------------------------------
+
+    /// <summary>重新枚举存档目录。</summary>
+    [RelayCommand(CanExecute = nameof(CanRefresh))]
+    private Task RefreshAsync() => RefreshCoreAsync(null);
+
+    /// <summary>命令可用性：空闲即可刷新。</summary>
+    private bool CanRefresh() => !IsBusy;
+
+    /// <summary>校验选中的存档（只读，不写盘）。</summary>
+    [RelayCommand(CanExecute = nameof(CanValidate))]
+    private async Task ValidateAsync()
+    {
+        if (SelectedRow is not { } row)
+        {
+            return;
+        }
+
+        await ValidateCoreAsync(row).ConfigureAwait(true);
+    }
+
+    /// <summary>命令可用性：必须选中一行且不忙。</summary>
+    private bool CanValidate() => !IsBusy && SelectedRow is not null;
+
+    /// <summary>格式化到新文件 <c>&lt;name&gt;.formatted.sfs</c>（原文件不动，默认动作）。</summary>
+    [RelayCommand(CanExecute = nameof(CanFormatCopy))]
+    private Task FormatCopyAsync() => FormatCoreAsync(SaveFormatMode.NewFile);
+
+    /// <summary>命令可用性：选中且不是备份文件。</summary>
+    private bool CanFormatCopy() => !IsBusy && SelectedRow?.CanFormat == true;
+
+    /// <summary>就地重写（确认 → 写前快照 → 原子替换）。</summary>
+    [RelayCommand(CanExecute = nameof(CanFormatInPlace))]
+    private async Task FormatInPlaceAsync()
+    {
+        if (SelectedRow is not { } row)
+        {
+            return;
+        }
+
+        bool confirmed;
+        try
+        {
+            confirmed = await _dialogs.ConfirmAsync(
+                "就地重写存档",
+                $"会先为「{row.SlotName}」写一份写前快照，再就地重写该文件。" +
+                "内容语义（键、值、节点顺序）保持不变，只有缩进、分隔符与换行会被规范化。确定继续？",
+                row.FilePath).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            OnException(ex, "确认就地重写存档");
+            return;
+        }
+
+        if (!confirmed)
+        {
+            StatusText = "已取消就地重写，原文件未改动。";
+            return;
+        }
+
+        await FormatCoreAsync(SaveFormatMode.Overwrite).ConfigureAwait(true);
+    }
+
+    /// <summary>命令可用性：必须已校验且没有错误级诊断（拒绝"先写后看"）。</summary>
+    private bool CanFormatInPlace() => !IsBusy && SelectedRow?.CanFormat == true && IsValidationClean;
+
+    /// <summary>在文件管理器中显示选中存档（无选中时打开 saves/ 目录）。</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenFolder))]
+    private async Task OpenFolderAsync()
+    {
+        var directory = SelectedRow is { } row
+            ? Path.GetDirectoryName(row.FilePath)
+            : (_instances.Current is null ? null : SavesDirectoryText);
+
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            SetError("当前没有选择游戏实例，无法打开 saves/ 目录。", null);
+            return;
+        }
+
+        if (ShellLauncher is not { } launcher)
+        {
+            SetError("当前环境不支持打开文件夹（宿主未注入外壳启动器）。", directory);
+            return;
+        }
+
+        try
+        {
+            var result = await launcher.OpenFolderAsync(directory!).ConfigureAwait(true);
+            if (!result.IsSuccess)
+            {
+                SetError(SavesErrorText.Compose(result.Message, "打开存档目录失败。", result.Retryable), result.Detail);
+                return;
+            }
+
+            StatusText = $"已在文件管理器中打开：{directory}";
+        }
+        catch (Exception ex)
+        {
+            OnException(ex, "打开存档目录");
+        }
+    }
+
+    /// <summary>命令可用性：有实例或有选中行。</summary>
+    private bool CanOpenFolder() => !IsBusy && (SelectedRow is not null || HasInstance);
+
+    /// <summary>关闭错误条。</summary>
+    [RelayCommand]
+    private void ClearError()
+    {
+        ErrorText = null;
+        ErrorDetail = null;
+        StatusText = "就绪";
+    }
+
+    // ---- 生命周期 ---------------------------------------------------------
+
+    /// <inheritdoc />
+    protected override void OnActivated()
+    {
+        if (!_subscribed)
+        {
+            _instances.CurrentChanged += OnCurrentChanged;
+            _subscribed = true;
+        }
+
+        // 页面首次进入时自动拉一次列表；失败由 RefreshCoreAsync 内部收口。
+        _ = RefreshCoreAsync(null);
+    }
+
+    /// <inheritdoc />
+    protected override void OnDeactivated()
+    {
+        if (!_subscribed)
+        {
+            return;
+        }
+
+        _instances.CurrentChanged -= OnCurrentChanged;
+        _subscribed = false;
+    }
+
+    private void OnCurrentChanged(InstanceInfo? instance)
+    {
+        try
+        {
+            OnPropertyChanged(nameof(Instance));
+            OnPropertyChanged(nameof(InstanceText));
+            OnPropertyChanged(nameof(SavesDirectoryText));
+            OnPropertyChanged(nameof(HasInstance));
+            OnPropertyChanged(nameof(ShowNoInstanceState));
+            RaiseCommandStates();
+
+            // 切实例后旧行全部失效：整体重新枚举（13 篇 §7.1）。
+            _ = RefreshCoreAsync(null);
+        }
+        catch (Exception ex)
+        {
+            OnException(ex, "切换实例后刷新存档");
+        }
+    }
+
+    // ---- 业务编排 ---------------------------------------------------------
+
+    private async Task RefreshCoreAsync(string? preferPath, bool keepOutcome = false)
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        ClearErrorState();
+        if (!keepOutcome)
+        {
+            // 格式化后的结果文案要留住（FormatCoreAsync 用 keepOutcome: true 重读列表）。
+            LastOutcomeText = null;
+            OnPropertyChanged(nameof(HasLastOutcome));
+        }
+
+        OnPropertyChanged(nameof(InstanceText));
+        OnPropertyChanged(nameof(SavesDirectoryText));
+        OnPropertyChanged(nameof(HasInstance));
+        OnPropertyChanged(nameof(ShowNoInstanceState));
+        RaiseCommandStates();
+
+        if (_instances.Current is not { } instance)
+        {
+            Rows = Array.Empty<SaveRowViewModel>();
+            SelectedRow = null;
+            ResetValidation();
+            StatusText = "当前没有选择游戏实例：请先在「实例」页选择或添加一个实例。";
+            return;
+        }
+
+        IsBusy = true;
+        BusyText = "正在读取存档…";
+        try
+        {
+            var result = await _saves.ListSavesAsync(instance.GameDir).ConfigureAwait(true);
+            if (!result.IsSuccess || result.Value is null)
+            {
+                Rows = Array.Empty<SaveRowViewModel>();
+                SelectedRow = null;
+                ResetValidation();
+                SetError(SavesErrorText.Compose(result.Message, "读取存档列表失败。", result.Retryable), result.Detail);
+                return;
+            }
+
+            var rows = result.Value.Select(SaveRowViewModel.From).ToArray();
+            Rows = rows;
+            SelectedRow = Pick(rows, preferPath);
+            ResetValidation();
+            StatusText = rows.Length == 0
+                ? $"「{instance.DisplayName}」的 saves/ 目录里没有存档。"
+                : $"已读取 {rows.Length} 个存档。";
+        }
+        catch (Exception ex)
+        {
+            Rows = Array.Empty<SaveRowViewModel>();
+            SelectedRow = null;
+            ResetValidation();
+            OnException(ex, "读取存档列表");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+
+        // 选中行变化时若正忙则跳过了自动校验，这里补一次（03 篇 §14.3：选中即看诊断）。
+        KickValidate();
+    }
+
+    private async Task ValidateCoreAsync(SaveRowViewModel row)
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        ClearErrorState();
+        IsBusy = true;
+        BusyText = "正在校验存档…";
+        try
+        {
+            var result = await _saves.ValidateAsync(row.FilePath).ConfigureAwait(true);
+            if (!result.IsSuccess || result.Value is null)
+            {
+                ResetValidation();
+                SetError(SavesErrorText.Compose(result.Message, "校验存档失败。", result.Retryable), result.Detail);
+                return;
+            }
+
+            ApplyReport(result.Value);
+            StatusText = $"{row.SlotName}：{DiagnosticsHeader}";
+        }
+        catch (Exception ex)
+        {
+            ResetValidation();
+            OnException(ex, "校验存档");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task FormatCoreAsync(SaveFormatMode mode)
+    {
+        if (SelectedRow is not { } row || IsBusy)
+        {
+            return;
+        }
+
+        ClearErrorState();
+        LastOutcomeText = null;
+        OnPropertyChanged(nameof(HasLastOutcome));
+        IsBusy = true;
+        BusyText = mode == SaveFormatMode.Overwrite ? "正在写前快照并就地重写…" : "正在写出格式化副本…";
+        try
+        {
+            var result = await _saves.FormatAsync(new SaveFormatRequest(row.FilePath, mode)).ConfigureAwait(true);
+            if (!result.IsSuccess || result.Value is null)
+            {
+                SetError(SavesErrorText.Compose(result.Message, "格式化存档失败。", result.Retryable), result.Detail);
+                return;
+            }
+
+            var outcome = result.Value;
+            if (outcome.Refused)
+            {
+                SetError(outcome.RefusalReason ?? "格式化被拒绝，原文件未改动。", outcome.Preview);
+                return;
+            }
+
+            LastOutcomeText = DescribeOutcome(outcome);
+            OnPropertyChanged(nameof(HasLastOutcome));
+            StatusText = LastOutcomeText;
+        }
+        catch (Exception ex)
+        {
+            OnException(ex, "格式化存档");
+            return;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+
+        // 写完重新枚举（新文件要出现在列表里），并保持选中同一个文件。
+        await RefreshCoreAsync(row.FilePath, keepOutcome: true).ConfigureAwait(true);
+    }
+
+    private static string DescribeOutcome(SaveFormatOutcome outcome)
+    {
+        var stats = $"重排 {outcome.Stats.ReindentedLines} 行、" +
+                    $"补分隔符 {outcome.Stats.NormalizedSeparators} 处、" +
+                    $"统一换行 {outcome.Stats.NormalizedLineEndings} 处";
+        var size = $"{SaveTimeText.FileSize(outcome.BytesBefore)} → {SaveTimeText.FileSize(outcome.BytesAfter)}";
+
+        if (!outcome.WroteFile)
+        {
+            return $"格式化完成但未写盘：{stats}。";
+        }
+
+        var name = Path.GetFileName(outcome.WrittenPath ?? string.Empty);
+        return outcome.BackupPath is null
+            ? $"已写出 {name}（原文件未改动，{size}，{stats}）。"
+            : $"已就地重写 {name}，写前快照：{Path.GetFileName(outcome.BackupPath)}（{size}，{stats}）。";
+    }
+
+    private void ApplyReport(SaveValidationReport report)
+    {
+        Diagnostics = report.Diagnostics.Select(SaveDiagnosticRowViewModel.From).ToArray();
+        IsValidated = true;
+        SelectionStatsText = $"节点 {report.NodeCount} / 键值 {report.PairCount} / 行 {report.LineCount} / 最大深度 {report.MaxDepth}";
+    }
+
+    private void KickValidate()
+    {
+        if (IsBusy || SelectedRow is not { } row)
+        {
+            return;
+        }
+
+        // 校验是只读操作，可以直接跟着选中走；异常在 ValidateCoreAsync 里已收口。
+        _ = ValidateCoreAsync(row);
+    }
+
+    private static SaveRowViewModel? Pick(IReadOnlyList<SaveRowViewModel> rows, string? preferPath)
+    {
+        if (rows.Count == 0)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrEmpty(preferPath))
+        {
+            foreach (var row in rows)
+            {
+                if (string.Equals(row.FilePath, preferPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return row;
+                }
+            }
+        }
+
+        return rows[0];
+    }
+
+    // ---- 状态维护 ---------------------------------------------------------
+
+    private void ResetValidation()
+    {
+        Diagnostics = Array.Empty<SaveDiagnosticRowViewModel>();
+        IsValidated = false;
+        SelectionStatsText = "—";
+    }
+
+    private void SetError(string message, string? detail)
+    {
+        ErrorText = message;
+        ErrorDetail = detail;
+        StatusText = message;
+    }
+
+    private void ClearErrorState()
+    {
+        ErrorText = null;
+        ErrorDetail = null;
+    }
+
+    private void OnException(Exception exception, string context)
+    {
+        _errors.Report(exception, context);
+        var message = SavesErrorText.FromException(exception, context);
+        ErrorText = message;
+        ErrorDetail = exception.ToString();
+        StatusText = message;
+    }
+
+    private void RaiseCommandStates()
+    {
+        RefreshCommand.NotifyCanExecuteChanged();
+        ValidateCommand.NotifyCanExecuteChanged();
+        FormatCopyCommand.NotifyCanExecuteChanged();
+        FormatInPlaceCommand.NotifyCanExecuteChanged();
+        OpenFolderCommand.NotifyCanExecuteChanged();
+    }
+
+    // ---- 属性变更连带通知 -------------------------------------------------
+
+    partial void OnRowsChanged(IReadOnlyList<SaveRowViewModel> value)
+    {
+        OnPropertyChanged(nameof(HasRows));
+        OnPropertyChanged(nameof(CountText));
+        OnPropertyChanged(nameof(ShowEmptyState));
+    }
+
+    partial void OnSelectedRowChanged(SaveRowViewModel? value)
+    {
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(CanFormatSelection));
+        OnPropertyChanged(nameof(SelectionTitle));
+        OnPropertyChanged(nameof(SelectionPath));
+        OnPropertyChanged(nameof(SelectionSummary));
+        OnPropertyChanged(nameof(SelectionTimeText));
+        ResetValidation();
+        LastOutcomeText = null;
+        OnPropertyChanged(nameof(HasLastOutcome));
+        RaiseCommandStates();
+
+        // 选中即校验（诊断列表跟着选中行走）。
+        KickValidate();
+    }
+
+    partial void OnDiagnosticsChanged(IReadOnlyList<SaveDiagnosticRowViewModel> value)
+    {
+        OnPropertyChanged(nameof(DiagnosticCount));
+        OnPropertyChanged(nameof(ErrorCount));
+        OnPropertyChanged(nameof(WarningCount));
+        OnPropertyChanged(nameof(HasDiagnostics));
+        OnPropertyChanged(nameof(ShowDiagnosticsEmpty));
+        OnPropertyChanged(nameof(DiagnosticsHeader));
+        OnPropertyChanged(nameof(IsValidationClean));
+        RaiseCommandStates();
+    }
+
+    partial void OnIsValidatedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowDiagnosticsEmpty));
+        OnPropertyChanged(nameof(DiagnosticsHeader));
+        OnPropertyChanged(nameof(IsValidationClean));
+        RaiseCommandStates();
+    }
+
+    partial void OnIsBusyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsIdle));
+        OnPropertyChanged(nameof(ShowEmptyState));
+        RaiseCommandStates();
+    }
+
+    // ---- 无容器场景的空实现（设计器 / 单测 new 出页面时不连服务） --------
+
+    private sealed class EmptyInstanceService : IInstanceService
+    {
+        public IReadOnlyList<InstanceInfo> Instances { get; } = Array.Empty<InstanceInfo>();
+
+        public InstanceInfo? Current => null;
+
+        public event Action? InstancesChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action<InstanceInfo?>? CurrentChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<OperationResult<IReadOnlyList<InstanceInfo>>> RefreshAsync(CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<IReadOnlyList<InstanceInfo>>.Ok(Array.Empty<InstanceInfo>()));
+
+        public Task<OperationResult<InstanceInfo>> SwitchAsync(string instanceName, CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<InstanceInfo>.Fail("尚未连接实例服务。"));
+
+        public Task<OperationResult<InstanceInfo>> AddAsync(string path, string? name = null, CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<InstanceInfo>.Fail("尚未连接实例服务。"));
+
+        public Task<OperationResult<InstanceInfo>> CloneAsync(string sourceName, string newName, CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<InstanceInfo>.Fail("尚未连接实例服务。"));
+
+        public Task<OperationResult<bool>> RemoveAsync(string instanceName, CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<bool>.Fail("尚未连接实例服务。"));
+
+        public Task<OperationResult<InstanceInfo>> RenameAsync(string instanceName, string newName, CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<InstanceInfo>.Fail("尚未连接实例服务。"));
+    }
+
+    private sealed class EmptySaveFileService : ISaveFileService
+    {
+        public string GetSavesDirectory(string gameDir) => Path.Combine(gameDir, "saves");
+
+        public Task<OperationResult<IReadOnlyList<SaveGameInfo>>> ListSavesAsync(string gameDir, CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<IReadOnlyList<SaveGameInfo>>.Ok(Array.Empty<SaveGameInfo>()));
+
+        public Task<OperationResult<SaveValidationReport>> ValidateAsync(string filePath, CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<SaveValidationReport>.Fail("尚未连接存档服务。"));
+
+        public Task<OperationResult<SaveFormatOutcome>> FormatAsync(SaveFormatRequest request, CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<SaveFormatOutcome>.Fail("尚未连接存档服务。"));
+    }
+
+    private sealed class EmptyDialogService : IDialogService
+    {
+        public Task<bool> ConfirmAsync(string title, string message, string? detail = null) =>
+            Task.FromResult(false);
+
+        public Task<int> SelectAsync(string title, string message, IReadOnlyList<string> options, int defaultIndex = 0) =>
+            Task.FromResult(-1);
+
+        public Task ShowMessageAsync(string title, string message) => Task.CompletedTask;
+
+        public Task ShowErrorAsync(string title, string message, string? detail = null) => Task.CompletedTask;
+
+        public Task<OperationResult<bool>> RunWithProgressAsync(
+            string title,
+            Func<IProgress<double>, CancellationToken, Task> work) =>
+            Task.FromResult(OperationResult<bool>.Fail("尚未连接对话框服务。"));
+    }
+
+    private sealed class EmptyErrorReporter : IErrorReporter
+    {
+        public event Action<ErrorEntry>? Reported
+        {
+            add { }
+            remove { }
+        }
+
+        public IReadOnlyList<ErrorEntry> Recent { get; } = Array.Empty<ErrorEntry>();
+
+        public void Report(Exception exception, string context, string? userMessage = null)
+        {
+        }
+
+        public void Report(string context, string userMessage, string? detail = null)
+        {
+        }
+    }
+}

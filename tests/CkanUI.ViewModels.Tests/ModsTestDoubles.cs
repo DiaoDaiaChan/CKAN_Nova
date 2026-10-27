@@ -21,7 +21,8 @@ internal static class ModsRowFactory
         long? sizeBytes = 1024,
         bool isCompatible = true,
         bool isAutoInstalled = false,
-        bool isImplicit = false)
+        bool isImplicit = false,
+        ModSearchFacts? facts = null)
     {
         var installed = installedVersion is not null;
         var hasUpdate = installed
@@ -42,7 +43,10 @@ internal static class ModsRowFactory
             IsCompatible: isCompatible,
             IsAutoInstalled: isAutoInstalled,
             IsSelected: false,
-            IsImplicit: isImplicit);
+            IsImplicit: isImplicit)
+        {
+            Facts = facts ?? default,
+        };
     }
 
     public static RepositorySnapshot Repository(params ModRowData[] rows) =>
@@ -64,6 +68,18 @@ internal static class ModsRowFactory
 
     public static InstanceInfo Instance(string name = "测试实例") =>
         new(name, "C:/ksp", "1.12.5", true, false, 12);
+}
+
+/// <summary>
+/// 搜索语法用例的统一入口：真实走服务层 <c>ModSearchParser</c>（内部即上游 <c>ModSearch.Parse</c>），
+/// 再交给 <c>ModsQuery</c> 做条件匹配，端到端验证"解析委托模型层"。
+/// </summary>
+internal static class Search
+{
+    public static readonly global::CkanUI.Services.Search.ModSearchParser Parser = new();
+
+    public static global::CkanUI.ViewModels.Pages.Mods.ModsQuery Parse(string? text) =>
+        global::CkanUI.ViewModels.Pages.Mods.ModsQuery.FromSpec(Parser.Parse(text));
 }
 
 /// <summary>假仓库服务：可设快照、可注入异常、可统计调用次数。</summary>

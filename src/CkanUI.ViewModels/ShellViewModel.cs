@@ -53,6 +53,8 @@ public sealed partial class ShellViewModel : ObservableObject
             new("repos", _translate("Ui_NavRail_Repos"), "Globe"),
             new("modpacks", _translate("Ui_NavRail_ModPacks"), "Exchange"),
             new("instances", _translate("Ui_NavRail_Instances"), "Folder"),
+            new("saves", _translate("Ui_NavRail_Saves"), "Archive"),
+            new("unmanaged", _translate("Ui_NavRail_Unmanaged"), "FolderOpen"),
             new("settings", _translate("Ui_NavRail_Settings"), "Settings")
         };
         _statusText = _translate("Ui_Common_Status_Ready");
@@ -95,6 +97,8 @@ public sealed partial class ShellViewModel : ObservableObject
         ["Ui_NavRail_Repos"] = "仓库",
         ["Ui_NavRail_ModPacks"] = "导入导出",
         ["Ui_NavRail_Instances"] = "游戏实例",
+        ["Ui_NavRail_Saves"] = "存档",
+        ["Ui_NavRail_Unmanaged"] = "未管理文件",
         ["Ui_NavRail_Settings"] = "设置",
         ["Ui_Common_Status_Ready"] = "就绪",
     };

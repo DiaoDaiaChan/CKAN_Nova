@@ -80,7 +80,10 @@ public static class ModListProjection
                 IsAutoInstalled: instInfo.IsAutoInstalled,
                 IsSelected: false,
                 IsImplicit: false
-            ));
+            )
+            {
+                Facts = instInfo.Facts,
+            });
         }
 
         return result;

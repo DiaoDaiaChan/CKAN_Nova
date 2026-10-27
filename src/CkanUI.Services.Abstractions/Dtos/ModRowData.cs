@@ -18,4 +18,11 @@ public readonly record struct ModRowData(
     bool IsCompatible,
     bool IsAutoInstalled,
     bool IsSelected,
-    bool IsImplicit);
+    bool IsImplicit)
+{
+    /// <summary>
+    /// 高级搜索事实（12 篇 F-20/F-21）：描述、许可证、语言、五类关系、标签组、缓存/新近/可替代状态。
+    /// 默认值表示"没有额外事实"，依赖这些字段的搜索条件一律不命中。
+    /// </summary>
+    public ModSearchFacts Facts { get; init; }
+}

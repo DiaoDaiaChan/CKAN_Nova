@@ -470,7 +470,14 @@ public static class ModIndexOperations
             IsCompatible: !mod.IsIncompatible,
             IsAutoInstalled: mod.IsAutoInstalled,
             IsSelected: isSelected,
-            IsImplicit: isImplicit);
+            IsImplicit: isImplicit)
+        {
+            Facts = ModSearchFactsFactory.From(
+                mod.Module,
+                isCached: mod.IsCached,
+                isNew: mod.IsNew,
+                isReplaceable: mod.IsInstalled && mod.HasReplacement),
+        };
 
     #endregion
 }

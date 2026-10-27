@@ -19,16 +19,18 @@ public sealed class ShellViewModelTests
     }
 
     [Test]
-    public void NavItems_HasSixConfiguredItems()
+    public void NavItems_HasEightConfiguredItems()
     {
         var vm = new ShellViewModel();
-        Assert.That(vm.NavItems.Count, Is.EqualTo(6));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(8));
         Assert.That(vm.NavItems[0].Key, Is.EqualTo("mods"));
         Assert.That(vm.NavItems[1].Key, Is.EqualTo("changes"));
         Assert.That(vm.NavItems[2].Key, Is.EqualTo("repos"));
         Assert.That(vm.NavItems[3].Key, Is.EqualTo("modpacks"));
         Assert.That(vm.NavItems[4].Key, Is.EqualTo("instances"));
-        Assert.That(vm.NavItems[5].Key, Is.EqualTo("settings"));
+        Assert.That(vm.NavItems[5].Key, Is.EqualTo("saves"));
+        Assert.That(vm.NavItems[6].Key, Is.EqualTo("unmanaged"));
+        Assert.That(vm.NavItems[7].Key, Is.EqualTo("settings"));
     }
 
     [Test]
@@ -37,7 +39,7 @@ public sealed class ShellViewModelTests
         var vm = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key);
         Assert.That(vm.NavItems[1].Title, Is.EqualTo("T:Ui_NavRail_Changes"));
         Assert.That(vm.NavItems[3].Title, Is.EqualTo("T:Ui_NavRail_ModPacks"));
-        Assert.That(vm.NavItems.Count, Is.EqualTo(6));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(8));
     }
 
     [Test]

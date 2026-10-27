@@ -113,7 +113,7 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
 7. **页面之间的交接只走一个窄接口**：模组页把勾选翻译成 `ChangeRequest` 后灌进 `IChangeRequestSink`（`src/CkanUI.ViewModels/Pages/IChangeRequestSink.cs`），
    再经 `INavigationService.NavigateAsync("changes")` 跳转；`ChangesPageViewModel` 是唯一实现。
    理由：两页互相持有具体类型会让"哪个页面持有谁的引用"变成隐式耦合，也让 DI 循环；窄接口让两个页面各自可独立测。
-8. **导航项顺序固定为 mods → changes → repos → modpacks → instances → settings**（`ShellViewModel.NavItems`），key 即 `PageTypes` 的键；
+8. **导航项顺序固定为 mods → changes → repos → modpacks → instances → saves → unmanaged → settings**（`ShellViewModel.NavItems`），key 即 `PageTypes` 的键；
    新增页面必须同时补 `LocalizationKeys` 与两份语言包（`i18n/packs/{zh-CN,en-US}.json`），否则 `ShellViewModelTests` 与 `verify-layout` 会红。
 9. **仓库管理的写事务封在 `IRepositoryStore` 后面**：`RegistryRepositoryStore` 是唯一碰 `Registry.RepositoriesSet` + `RegistryManager.Save()` 与网络的实现，
    校验/排序/重编号全在纯函数 `RepositoryCatalog`（可离线测）。`IRepositoryService` 的 8 个增量成员用 DIM（默认实现）追加，
@@ -133,6 +133,17 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
 14. **启动命令持久化在 `<GameDir>/CKAN/GUIConfig.json` 的 `CommandLines` 键**（与老 GUI 共用同一文件）：只改该键、其余字段原样保留，写 `.tmp` 再 `File.Move(overwrite:true)`；
     默认命令按 `KerbalSpaceProgram.DefaultCommandLines` 语义生成，命令解析口径与 Core `PlayGame` 一致（首个 token 为 binary）。
 
+15. **搜索语法不在页面层**：页面只认 `IModSearchParser` 返回的 `ModSearchSpec`，语法权威仍是上游 `ModSearch`（`ModSearch.cs` 公开签名未改）。
+    `ModsQuery` 逐条镜像 `ModSearch.Matches` 的语义，`UnsupportedTerms` 只用于"上游会静默丢弃"的情况（`is:`/`not:` 未知值、未知前缀、前缀缺值），
+    必须在状态栏用中文说明——**不许静默丢词**。需要实例上下文的事实（`is:cached`/`is:newly-compatible`/`label:`/关系前缀）由服务层写进 `ModRowData.Facts`，
+    页面不得自己解析模块元数据；宿主没注入 parser 时降级为"不过滤 + 逐词提示"，不许假装过滤。
+16. **未管理文件的安全边界在服务层**：`UnmanagedScanner` 不引用 CKAN（纯文件系统，可 headless 测），受管路径集合由 `IManagedPathProvider` 从
+    `registry.InstalledFileInfo()` + `InstalledDlls` 合成；`DeleteAsync` 默认 `dryRun:true`，**任一路径受管或包含受管内容即整批拒绝**（不可重试，提示去模组页卸载），
+    dry-run 也不放行——因为"预演成功、执行失败"比"预演就拒绝"更伤信任。界面必须两次 `ConfirmAsync` 才落盘。
+17. **存档格式化的安全边界**：默认只写 `<stem>.formatted.sfs`；就地重写先落 `.pre-edit-<yyyyMMdd-HHmmss>.sfs` 快照再 `File.Move` 原子写并还原 `LastWriteTime`；
+    源文件有 Error 诊断或自校验失败一律 `Refused` 且不落盘（**不猜修复**）；`*.sfs.bak` 永不覆盖；损坏存档返回 `Ok` + 诊断而不是抛异常。
+    `.sfs` 的键挂在根节点 `GAME` 下（不是顶层），读头部必须"顶层键值对 + 根节点直接子键"一起看，否则 `Title`/`scene` 恒为 null。
+
 ## 修订记录
 
 | 日期 | 版本 | 变更 |
@@ -142,4 +153,5 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
 | 2026-10-27 | v1.2 | 补 §11 M1 契约决策（IDialogPresenter 接缝、剪贴板通道、详情面板字段归属、单选取消值） |
 | 2026-10-27 | v1.4 | 补 §12.7–9（页面交接窄接口、导航项顺序与语言包义务、仓库写事务封在 IRepositoryStore 后、DIM 扩契约的方式） |
 | 2026-10-27 | v1.3 | 补 §12 M1 契约决策（语言真源、`UiSettings.Density`、ThemeHost 与高对比度变体、Changed 锁外触发、OperationProgress 不扩字段） |
+| 2026-10-27 | v1.6 | 导航项改为八项（新增 saves / unmanaged）；补 §12.15–17（搜索语法只走 IModSearchParser 且不许静默丢词、未管理文件删除的整批拒绝与双确认、存档格式化快照与 Refused 语义 + `.sfs` 根节点 GAME 的读法） |
 | 2026-10-27 | v1.5 | 导航项改为六项（新增 modpacks）；补 §12.10–14（页面 VM 放 Pages 根、modpack 导出走 Core ToJson、导入只做编排、下载两层与 NetAsyncDownloader 踩坑、启动命令持久化） |

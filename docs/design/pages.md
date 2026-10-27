@@ -272,6 +272,48 @@
 
 ---
 
+### 2.9 未管理文件页 (UnmanagedPageViewModel)
+
+**对应规格**：03 篇 §6 / 06 篇 UI-10 / 12 篇 F-42。
+
+**职责**：把 `<GameDir>/GameData` 下不属于任何受管安装的文件列成树，支持定位、预演删除与真实删除。受管路径集合由 `CkanManagedPathProvider` 从 `registry.InstalledFileInfo()` 的键（去 `GameData/` 前缀）+ 纯 DLL 安装合成；扫描与删除是纯文件系统逻辑（`UnmanagedScanner` 不引用 CKAN），因此可无实例 headless 测试。
+
+**关键成员**：
+
+| 成员 | 说明 |
+|---|---|
+| `Nodes` / `SelectedNodes` | 树节点投影（`UnmanagedNodeViewModel`）；目录条目只在「递归含未管理文件」时出现，尺寸为未管理文件合计，另带 `ManagedChildCount` |
+| `RefreshCommand` / `ExpandAllCommand` / `CollapseAllCommand` / `ResetFilterCommand` | 刷新与树视图操作 |
+| `FilterText` | 按相对路径筛选，命中项保留祖先链（`UnmanagedTreeBuilder` 剪枝） |
+| `PreviewDeleteCommand` / `DeleteCommand` | 前者走 `dryRun:true` 只列路径；后者连弹两次 `ConfirmAsync` 才落盘 |
+| `RevealInExplorerCommand` | 经 `IUnmanagedShellLauncher`（视图 code-behind 用 `??=` 注入）打开资源管理器定位 |
+
+**安全语义**：整批先做安全校验，任一路径受管或「包含受管内容」→ 整批拒绝且不可重试（提示去模组页卸载），dry-run 也不放行；目标已消失 → 可重试失败。「接管为受管安装」（`AdoptAsync`）留给 INT-09。
+
+---
+
+### 2.10 存档工作台 (SavesPageViewModel)
+
+**对应规格**：13 篇（savegame-sfs）/ M7·E1。
+
+**职责**：枚举 `<GameDir>/saves` 下的存档，展示头部元数据与校验诊断，并提供「按 SFS 规范重排格式」的格式化能力。格式化复用 SFS 内核（`SfsParser` / `SfsFormatter` / `SfsValidator`），磁盘语义全在服务层。
+
+**关键成员**：
+
+| 成员 | 说明 |
+|---|---|
+| `Saves` / `SelectedSave` | 存档行（`SaveRowViewModel`：标题、场景、游戏版本、资金、载具数、修改时间）；按 `LastWriteTime` 倒序 |
+| `Diagnostics` | 选中存档的校验诊断（级别 / 消息 / 行列），来自 `SaveValidationReport` |
+| `RefreshCommand` | 重新枚举；目录不存在按空列表处理，不报错 |
+| `FormatCommand` | 默认只写 `<stem>.formatted.sfs`；`Overwrite` 模式先落 `.pre-edit-<yyyyMMdd-HHmmss>.sfs` 快照再原子写并还原 `LastWriteTime` |
+| `RevealInExplorerCommand` | 经 `ISavesShellLauncher` 定位文件 |
+
+**安全语义**：源文件有 Error 级诊断或自校验失败一律 `Refused` 且绝不落盘（不猜修复）；`*.sfs.bak` 永不覆盖；损坏存档返回 `Ok` + 诊断而不是抛异常。元数据来源 = 头部 `GAME` 直接子键 + 同级 `.loadmeta`（后者优先 gameMode/kspVersion/UT/funds/vesselCount）。
+
+**已知缺口**：存档内嵌的 `.loadmeta` 一致性校验（V-09）未做；尚无「存档另存为」对话框。
+
+---
+
 ## 3. 对话框实现说明
 
 全部对话框继承自 `DialogViewModelBase`，并通过 `IDialogService` 在 UI 线程上弹窗呈现，解耦 Core 后台线程与 UI 窗口生命周期。
@@ -324,6 +366,8 @@
 | 变更集确认页 | `ChangesPageViewModel` | ✅ 已实现 | 03 篇 §4 / UI-04 | `IChangeSetService`, `IInstallerService`, `IOperationQueue` | `ChangeSetPreview`, `ChangeItemDto`, `OperationProgress` |
 | 仓库管理页 | `ReposPageViewModel` | ✅ 已实现 | 03 篇 §6 / UI-06 | `IRepositoryService`, `IDialogService` | `RepositoryEntryInfo`, `RepositoryEditRequest` |
 | 导入导出页 | `ModPacksPageViewModel` | ✅ 已实现（F-40/F-41/F-42 除外） | 03 篇 §6 / UI-20, UI-24 | `IModPackService`, `IInstanceService` | `ModPackPreview`, `ModPackImportReport`, `InstanceComparison` |
+| 存档工作台 | `SavesPageViewModel` | ✅ 已实现 | 13 篇 / M7·E1 | `ISaveFileService` | `SaveGameInfo`, `SaveValidationReport`, `SaveFormatOutcome` |
+| 未管理文件页 | `UnmanagedPageViewModel` | ✅ 已实现 | 03 篇 §6 / UI-10 | `IUnmanagedService` | `UnmanagedFileInfo` |
 | 实例管理页 | `InstancesPageViewModel` | ✅ 已实现（重命名已接 `RenameAsync`；启动命令编辑见 §2.8） | 03 篇 §5 / UI-05 | `IInstanceService`, `IDialogService` | `InstanceInfo` |
 | 设置页 | `SettingsPageViewModel` | ✅ 已实现 | 03 篇 §7 / UI-07 | `ISettingsService`, `IUiSettingsStore` | `UiSettings`, `SettingItemViewModel` |
 | 操作队列浮层 | `OperationQueueViewModel` | ✅ 已实现 | 03 篇 §1, §8 / UI-08 | `IOperationQueue` | `OperationProgress` |

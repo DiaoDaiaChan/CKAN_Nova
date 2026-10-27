@@ -51,10 +51,11 @@ public sealed partial class ModsPageViewModel : PageViewModel
     private readonly IUiSettingsStore? _settings;
     private readonly IChangeRequestSink? _changeSink;
     private readonly INavigationService? _navigation;
+    private readonly IModSearchParser? _searchParser;
 
     private readonly HashSet<string> _selected = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<ModRowData> _all = Array.Empty<ModRowData>();
-    private ModsQuery _query = ModsQuery.Parse(string.Empty);
+    private ModsQuery _query = ModsQuery.Empty;
 
     private CancellationTokenSource? _searchCts;
     private int _searchVersion;
@@ -77,7 +78,8 @@ public sealed partial class ModsPageViewModel : PageViewModel
         IChangeSetService? changeSets = null,
         IUiSettingsStore? settings = null,
         IChangeRequestSink? changeSink = null,
-        INavigationService? navigation = null)
+        INavigationService? navigation = null,
+        IModSearchParser? searchParser = null)
     {
         _repositories = repositories ?? throw new ArgumentNullException(nameof(repositories));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
@@ -87,6 +89,7 @@ public sealed partial class ModsPageViewModel : PageViewModel
         _settings = settings;
         _changeSink = changeSink;
         _navigation = navigation;
+        _searchParser = searchParser;
 
         RefreshDetail();
     }
@@ -266,7 +269,7 @@ public sealed partial class ModsPageViewModel : PageViewModel
 
             foreach (var term in _query.UnsupportedTerms)
             {
-                chips.Add($"不支持的条件：{term}");
+                chips.Add($"无法解析：{term}");
             }
 
             return chips;
@@ -462,7 +465,11 @@ public sealed partial class ModsPageViewModel : PageViewModel
     /// <summary>按当前搜索/过滤/排序重建可见行（纯计算，可 headless 调用）。</summary>
     public void ApplyFilter()
     {
-        _query = ModsQuery.Parse(SearchText);
+        // 语法解析委托给服务层（上游 ModSearch），本页只做条件匹配（12 篇 F-20/F-21）。
+        // 没有接线解析器时不做任何过滤，但把每个词都标成"无法解析"，状态栏会如实提示。
+        _query = _searchParser is null
+            ? ModsQuery.Unparsed(SearchText)
+            : ModsQuery.FromSpec(_searchParser.Parse(SearchText));
 
         IReadOnlyList<ModRowData> rows;
         try
@@ -600,7 +607,7 @@ public sealed partial class ModsPageViewModel : PageViewModel
 
         var line = ModsFormatter.StatusLine(Rows.Count, _all.Count, _selected.Count, installs, removals);
         StatusText = _query.HasUnsupportedTerms
-            ? $"{line} · {_query.UnsupportedTerms.Count} 个条件本页暂不支持"
+            ? $"{line} · {_query.UnsupportedMessage}"
             : line;
     }
 

@@ -24,8 +24,10 @@ public sealed class ModsPageViewModelTests
         _errors = new RecordingErrorReporter();
     }
 
-    private ModsPageViewModel CreateViewModel(IModsDelayScheduler? scheduler = null) =>
-        new(_repositories, _registry, _instances, _errors)
+    private ModsPageViewModel CreateViewModel(
+        IModsDelayScheduler? scheduler = null,
+        IModSearchParser? searchParser = null) =>
+        new(_repositories, _registry, _instances, _errors, searchParser: searchParser ?? Search.Parser)
         {
             Scheduler = scheduler ?? new ImmediateDelayScheduler(),
         };
@@ -147,6 +149,46 @@ public sealed class ModsPageViewModelTests
         vm.PendingSearch.GetAwaiter().GetResult();
 
         Assert.That(vm.Rows, Has.Count.EqualTo(3));
+    }
+
+    [Test]
+    public void UnsupportedSearchTerm_IsShownInStatusBar()
+    {
+        // 无法解析的词必须进 UnsupportedTerms 并在状态栏说明，不能静默忽略。
+        _repositories.Current = ModsRowFactory.Repository(
+            ModsRowFactory.Create("Alpha", "Alpha", "zoe", latestVersion: "1.0.0"));
+        var vm = CreateViewModel();
+        vm.Activate();
+
+        vm.SearchText = "is:bogus";
+        vm.PendingSearch.GetAwaiter().GetResult();
+
+        Assert.That(vm.HasUnsupportedQueryTerms, Is.True);
+        Assert.That(vm.StatusText, Does.Contain("当前无法解析：is:bogus"));
+        Assert.That(vm.StatusText, Does.Contain("未知的状态值"));
+        Assert.That(vm.ActiveFilterChips, Has.Some.EqualTo("无法解析：is:bogus"));
+        // 无法解析的条件不参与过滤，行仍然可见。
+        Assert.That(vm.Rows, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void SupportedSyntax_FiltersRows_AndKeepsStatusBarClean()
+    {
+        _repositories.Current = ModsRowFactory.Repository(
+            ModsRowFactory.Create("Alpha", "Alpha", "zoe", latestVersion: "1.0.0",
+                facts: new ModSearchFacts { Licenses = new[] { "MIT" } }),
+            ModsRowFactory.Create("Bravo", "Bravo", "adam", latestVersion: "2.0.0",
+                facts: new ModSearchFacts { Licenses = new[] { "GPL-3.0" } }));
+        var vm = CreateViewModel();
+        vm.Activate();
+
+        vm.SearchText = "lic:MIT";
+        vm.PendingSearch.GetAwaiter().GetResult();
+
+        Assert.That(vm.HasUnsupportedQueryTerms, Is.False);
+        Assert.That(vm.StatusText, Does.Not.Contain("当前无法解析"));
+        Assert.That(vm.Rows, Has.Count.EqualTo(1));
+        Assert.That(vm.Rows[0].Identifier, Is.EqualTo("Alpha"));
     }
 
     [Test]

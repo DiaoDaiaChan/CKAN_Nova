@@ -8,7 +8,10 @@ using CkanUI.Services.Instances;
 using CkanUI.Services.ModPacks;
 using CkanUI.Services.Operations;
 using CkanUI.Services.Registry;
+using CkanUI.Services.Saves;
 using CkanUI.Services.Repositories;
+using CkanUI.Services.Search;
+using CkanUI.Services.Unmanaged;
 using CKAN;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -34,6 +37,13 @@ public static class ServiceCollectionExtensions
         // 领域服务（顺序无关，构造函数注入会按需解析）。
         services.TryAddSingleton<IInstanceService, InstanceService>();
         services.TryAddSingleton<IRegistryService, RegistryService>();
+
+        // 未管理文件（F-42）：受管路径集合由 Core 注册表投影，扫描/删除是纯文件系统逻辑。
+        services.TryAddSingleton<IManagedPathProvider, CkanManagedPathProvider>();
+        services.TryAddSingleton<IUnmanagedService, UnmanagedService>();
+
+        // 搜索语法解析：页面只认 ModSearchSpec，语法权威仍在上游 ModSearch（F-20..F-23）。
+        services.TryAddSingleton<IModSearchParser, ModSearchParser>();
         services.TryAddSingleton<IRepositoryService, RepositoryService>();
         services.TryAddSingleton<IChangeSetPlanner, CoreChangeSetPlanner>();
         services.TryAddSingleton<IChangeSetService, ChangeSetService>();
@@ -41,6 +51,9 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IInstallerService, InstallerService>();
         services.TryAddSingleton<IUiSettingsStore, Settings.UiSettingsStore>();
         services.TryAddSingleton<ISettingsService, Settings.SettingsService>();
+
+        // 存档工作台（M7/E1）：格式化与诊断建立在 Sfs 内核之上，磁盘语义（快照 + 原子写）全在服务里。
+        services.TryAddSingleton<ISaveFileService, SaveFileService>();
 
         // 导入导出（F-39..F-42）：Core 能力收在 IModPackStore 后面，逻辑全在 ModPackCatalog。
         services.TryAddSingleton<IModPackStore>(provider => new CkanModPackStore(

@@ -72,6 +72,9 @@ public sealed class ContractShapeTests
     public void ModRowData_stays_a_small_readonly_struct()
     {
         Assert.That(typeof(ModRowData).IsValueType, Is.True, "3000 行的列表投影必须是 struct");
-        Assert.That(typeof(ModRowData).GetProperties().Length, Is.LessThanOrEqualTo(14));
+        // 14 → 15：新增的 Facts 一个属性承载 desc:/lic:/lang:/dep:/rec:/sug:/conf:/sup:/label:/
+        // is:cached/is:newly-compatible/is:replaceable 所需的全部服务层搜索事实（12 篇 F-20/F-21）。
+        // 宁可多一个聚合字段，也不把 10 个子字段摊平进行宽，struct 语义保持不变。
+        Assert.That(typeof(ModRowData).GetProperties().Length, Is.LessThanOrEqualTo(15));
     }
 }

@@ -25,6 +25,12 @@ public static class LocalizationKeys
 
     public const string NavRailInstances = "Ui_NavRail_Instances";
 
+    /// <summary>导航栏：未管理文件页（F-42）。</summary>
+    public const string NavRailUnmanaged = "Ui_NavRail_Unmanaged";
+
+    /// <summary>导航栏：存档工作台（M7/E1）。</summary>
+    public const string NavRailSaves = "Ui_NavRail_Saves";
+
     /// <summary>导航栏：设置。</summary>
     public const string NavRailSettings = "Ui_NavRail_Settings";
 

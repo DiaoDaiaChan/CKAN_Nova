@@ -262,6 +262,11 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
         var criteria = instance.VersionCriteria();
         var tolerance = instance.StabilityToleranceConfig;
 
+        // 高级搜索事实（12 篇 F-20/F-21）：标签组、下载缓存、新近兼容、可替代模组都在服务层求值一次。
+        var labels = ModSearchFactsFactory.LabelMembership(instance);
+        var cache = _instances.Cache;
+        var previouslyCompatible = PreviousCompatibility();
+
         var rows = new List<ModRowData>();
         foreach (var available in _repositoryData.GetAllAvailableModules(repositories))
         {
@@ -289,7 +294,21 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
                 IsCompatible: compatible,
                 IsAutoInstalled: registry.InstalledModule(latest.identifier)?.AutoInstalled ?? false,
                 IsSelected: false,
-                IsImplicit: false));
+                IsImplicit: false)
+            {
+                Facts = ModSearchFactsFactory.From(
+                    latest,
+                    labels.TryGetValue(latest.identifier, out var modLabels) ? modLabels : null,
+                    isCached: cache is not null
+                              && latest.download is { Count: > 0 }
+                              && cache.IsMaybeCachedZip(latest),
+                    // 镜像上游 GUIMod.IsNew：首份快照不做标记，之后"新出现"或"由不兼容转为兼容"才算新。
+                    isNew: previouslyCompatible.Count > 0
+                           && (!previouslyCompatible.TryGetValue(latest.identifier, out var wasCompatible)
+                               || (!wasCompatible && compatible)),
+                    isReplaceable: installed is not null
+                                   && registry.GetReplacement(latest, tolerance, criteria) is not null),
+            });
         }
 
         var age = repositories.Length == 0 ? TimeSpan.MaxValue : _repositoryData.LastUpdate(repositories);
@@ -301,6 +320,20 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
             repositories.Select(repository => repository.name).ToArray(),
             updatedAt, fromCache);
     }
+
+    /// <summary>上一份快照的 标识符→是否兼容 映射（用于 <c>is:newly-compatible</c> 的会话态差分）。</summary>
+    private IReadOnlyDictionary<string, bool> PreviousCompatibility()
+    {
+        var previous = _current.Available;
+        if (previous is not { Count: > 0 }) return EmptyCompatibility;
+
+        var map = new Dictionary<string, bool>(previous.Count, StringComparer.Ordinal);
+        foreach (var row in previous) map[row.Identifier] = row.IsCompatible;
+        return map;
+    }
+
+    private static readonly IReadOnlyDictionary<string, bool> EmptyCompatibility =
+        new Dictionary<string, bool>();
 
     private RepositorySnapshot Publish(RepositorySnapshot snapshot)
     {
