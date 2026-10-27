@@ -1,0 +1,27 @@
+term_en	zh_in_official	evidence_en	scope
+Repository	仓库：	Repository:	GUI.Catalog
+Instance	请输入新游戏实例名称.	Please enter a name for the new instance.	GUI.Catalog
+Changeset	更改列表	Changeset	GUI.Main
+Unmanaged	未被管理的文件	Unmanaged Files	GUI.Main
+Cached	筛选 (已缓存)	Filter (Cached)	GUI.Catalog
+Uncached	筛选 (未缓存)	Filter (Uncached)	GUI.Catalog
+Compatible	筛选 (兼容的模组)	Filter (Compatible)	GUI.Catalog
+Incompatible	筛选 (不兼容的模组)	Filter (Incompatible)	GUI.Catalog
+Upgradeable	筛选 (可更新)	Filter (Upgradeable)	GUI.Catalog
+Label	标签 ({0})	Label ({0})	GUI.Catalog
+Provider	"{1} 需要 {0}，可以由多个模组提供。
+
+您想要安装哪个 {0} 提供者？"	"{1} requires {0}, which can be provided by multiple mods.
+
+Which {0} provider would you like to install?"	Core.Resources
+Stability tolerance	稳定性偏好：	Stability tolerance:	GUI.SettingsDialog
+Identifier	标识符:	Identifier:	GUI.EditModpack
+Metadata	CKAN元数据 (*.ckan)|*.ckan	CKAN metadata (*.ckan)|*.ckan	GUI.Catalog
+Dependency	{0} 版本 {1} 的依赖项未满足	Dependency on {0} version {1} not satisfied	Core.Resources
+Recommendations	检查推荐	Audit &recommendations	GUI.Main
+Launch	启动	Launch	GUI.Catalog
+Host	服务器:	Host:	GUI.Catalog
+Filter	筛选 (全部模组)	Filter (All)	GUI.Catalog
+Refresh	刷新	Refresh	GUI.Main
+Install	安装	Install	GUI.Catalog
+Contents	目录内容	Directory Contents	GUI.DeleteDirectories

@@ -1,33 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- 本地测试入口。
-       VSTest 的 testhost 需要打开父进程句柄（PROCESS_QUERY_INFORMATION），
-       在本仓库的开发沙箱里被拒绝，dotnet test 会直接中止。
-       所以本地用 NUnitLite 在进程内跑；CI 上仍用标准 dotnet test。
-       用法：dotnet run（在 tests/CkanUI.TestRunner 下）或 dotnet run 加项目路径；额外参数透传给 NUnitLite。 -->
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <RootNamespace>CkanUI.TestRunner</RootNamespace>
-    <AssemblyName>CkanUI.TestRunner</AssemblyName>
     <IsPackable>false</IsPackable>
-    <!-- 测试项目带上 Microsoft.Testing.Platform 后会自动生成入口点，与我们的 global Main 冲突 -->
-    <GenerateTestingPlatformEntryPoint>false</GenerateTestingPlatformEntryPoint>
+    <!-- 只做"发现并跑"的宿主，不引用任何测试项目：这样并行开发时各 agent 只构建自己的
+         测试项目，本宿主不必随每次改动重编（避免 MSBuild 文件锁互相打架）。 -->
     <IsTestProject>false</IsTestProject>
+    <GenerateTestingPlatformEntryPoint>false</GenerateTestingPlatformEntryPoint>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="NUnitLite" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="../CkanUI.Architecture.Tests/CkanUI.Architecture.Tests.csproj" />
-    <ProjectReference Include="../CkanUI.Core.Tests/CkanUI.Core.Tests.csproj" />
-    <ProjectReference Include="../CkanUI.Localization.Tests/CkanUI.Localization.Tests.csproj" />
-    <ProjectReference Include="../CkanUI.ModText.Tests/CkanUI.ModText.Tests.csproj" />
-    <ProjectReference Include="../CkanUI.Services.Tests/CkanUI.Services.Tests.csproj" />
-    <ProjectReference Include="../CkanUI.Sfs.Tests/CkanUI.Sfs.Tests.csproj" />
-    <ProjectReference Include="../CkanUI.ViewModels.Tests/CkanUI.ViewModels.Tests.csproj" />
   </ItemGroup>
 
 </Project>

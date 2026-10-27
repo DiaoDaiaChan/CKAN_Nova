@@ -1,0 +1,1196 @@
+scope	key	en	zh
+GUI.Catalog	CKANFileFilter	CKAN metadata (*.ckan)|*.ckan	CKAN元数据 (*.ckan)|*.ckan
+GUI.Catalog	ExportInstalledModsDialogTitle	Export Mod List	导出模组列表
+GUI.Catalog	AboutDialogLabel2Text	Version {0}	版本 {0}
+GUI.Catalog	GameProgramFileDescription	Game program file	游戏程序文件
+GUI.Catalog	CloneFakeKspDialogEnterName	Please enter a name for the new instance.	请输入新游戏实例名称.
+GUI.Catalog	CloneFakeKspDialogEnterPath	Please enter a path for the new instance.	请输入新游戏实例路径.
+GUI.Catalog	CloneFakeKspDialogCloningInstance	"""Cloning instance..."""	"""正在克隆游戏实例..."""
+GUI.Catalog	CloneFakeKspDialogCloneFailed	Clone failed: {0}	克隆失败: {0}
+GUI.Catalog	CloneFakeKspDialogSuccessfulClone	Successfully cloned instance.	成功克隆游戏实例.
+GUI.Catalog	CloneGameInstanceToolTipShareStock	"Create junction points (Windows) or symbolic links (Unix) to stock directories instead of copying them.
+If you choose this option, DO NOT move or delete the old instance!!"	"在 Windows 系统中创建联接点，或在 Unix 系统中创建符号链接到原始目录，而不是复制它们。
+如果选择此选项，请不要移动或删除旧的实例！"
+GUI.Catalog	CompatibleGameVersionsDialogNone	<NONE>	<NONE>
+GUI.Catalog	CompatibleGameVersionsDialogDefaultedDetails	"Default compatibility has been set based on your installed game version. These settings should bring the greatest number of working mods to the most users, but it's still possible that some older mods might misbehave.
+
+If you want to be cautious, click ""Clear selection"" to uncheck all the boxes."	"默认兼容性已根据您安装的游戏版本设置。这些设置旨在为大多数用户提供尽可能多的可用模组，但某些旧模组仍可能出现问题。
+
+如果您想谨慎一些，可以点击“清除选择”取消勾选所有选项。"
+GUI.Catalog	CompatibleGameVersionsDialogGameUpdatedDetails	The game has been updated since you last reviewed your compatible game versions. Please make sure that settings are correct.	游戏自您上次检查兼容的游戏版本以来已更新。请确保设置正确。
+GUI.Catalog	CompatibleGameVersionsDialogVersionDetails	{0} (previous game version: {1})	{0} (上一个游戏版本: {1})
+GUI.Catalog	CompatibleGameVersionsDialogInvalidFormat	Version has invalid format	版本格式无效
+GUI.Catalog	CompatibleGameVersionsDialogErrorTitle	Error	错误
+GUI.Catalog	ConfigurationParseError	"Error trying to parse ""{0}""{1}
+Try to move {2} out of {3} and restart CKAN."	"尝试解析 ""{0}""{1} 时出错。
+请尝试将 {2} 移出 {3} 并重启 CKAN。"
+GUI.Catalog	GUIModNSlashA	N/A	N/A
+GUI.Catalog	GUIModUnknown	Unknown	未知
+GUI.Catalog	GUIModMethodNotCKAN	Method can not be called unless IsCKAN	Method can not be called unless IsCKAN
+GUI.Catalog	GUIModGameCompatibilityLong	{0} (using mod version {1})	{0} (正在使用的Mod版本: {1})
+GUI.Catalog	MainReleasesOrDevBuildsPrompt	"CKAN is configured to check for updates at launch. In addition to the regular stable releases, dev builds are also available. Using dev builds will give you early access to new features and bugfixes, but with a higher chance of bugs. Please consider using the dev builds to help us catch and fix bugs before they make it into a release.
+
+Which build would you like to use?
+
+(This setting can be changed later in the CKAN settings.)"	"CKAN被设置为在启动时检查更新。除了正常稳定的版本外，也可以使用开发版本。 使用开发版本将使您能够尽早访问新的功能和错误修正，但是出现未被发现或者未经修复错误的可能性更大。您可以考虑使用开发版本来帮助我们找到并修复错误，同时也可以切换至稳定版本。
+
+您想要使用哪个渠道的版本？
+
+(此设置可以在 CKAN 设置中更改。)"
+GUI.Catalog	MainReleasesOrDevBuildsYes	Use stable releases only	仅使用稳定版本
+GUI.Catalog	MainReleasesOrDevBuildsNo	Use dev builds	使用开发版本
+GUI.Catalog	MainAutoUpdateFailed	"Error in auto-update:
+{0}"	"自动更新错误:
+{0}"
+GUI.Catalog	MainQuitWithConflicts	"There are conflicts. Really quit?
+
+{0}"	"存在冲突. 真的要退出吗？
+
+{0}"
+GUI.Catalog	MainQuit	Quit	退出
+GUI.Catalog	MainGoBack	Go Back	返回
+GUI.Catalog	MainQuitWithUnappliedChanges	"You have unapplied changes. Really quit?
+
+{0}"	"您还有模组安装设置未更改. 真的要退出吗？
+
+{0}"
+GUI.Catalog	MainUpgradingWaitTitle	Updating CKAN	正在更新CKAN
+GUI.Catalog	MainUpgradingTo	Upgrading CKAN to {0}	更新CKAN到 {0}
+GUI.Catalog	MainFilterAll	Filter (All)	筛选 (全部模组)
+GUI.Catalog	MainFilterIncompatible	Filter (Incompatible)	筛选 (不兼容的模组)
+GUI.Catalog	MainFilterInstalled	Filter (Installed)	筛选 (已安装)
+GUI.Catalog	MainFilterUpgradeable	Filter (Upgradeable)	筛选 (可更新)
+GUI.Catalog	MainFilterReplaceable	Filter (Replaceable)	筛选 (可替换的模组)
+GUI.Catalog	MainFilterCached	Filter (Cached)	筛选 (已缓存)
+GUI.Catalog	MainFilterUncached	Filter (Uncached)	筛选 (未缓存)
+GUI.Catalog	MainFilterNew	Filter (New)	筛选 (新)
+GUI.Catalog	MainFilterNotInstalled	Filter (Not installed)	筛选 (未安装的模组)
+GUI.Catalog	MainFilterCompatible	Filter (Compatible)	筛选 (兼容的模组)
+GUI.Catalog	MainFilterLabel	Label ({0})	标签 ({0})
+GUI.Catalog	MainFilterTag	Tag ({0})	Tag ({0})
+GUI.Catalog	MainFilterUntagged	Tag (Untagged)	分类 (未分类)
+GUI.Catalog	MainLaunchWithIncompatible	"Some installed modules are incompatible! It might not be safe to launch the game. Really launch?
+
+{0}"	"有一些已安装的模组与您的游戏版本不兼容！启动游戏可能出现故障. 您真的要启动吗？
+
+{0}"
+GUI.Catalog	MainLaunchDontShow	Don't show this again for these mods on {0} {1}	在 {0} {1} 上不再显示这些模组
+GUI.Catalog	MainLaunch	Launch	启动
+GUI.Catalog	MainModPack	CKAN modpack (*.ckan)	CKAN 模块包 (*.ckan)
+GUI.Catalog	MainPlainText	Plain text (*.txt)	纯文本 (*.txt)
+GUI.Catalog	MainMarkdown	Markdown (*.md)	Markdown (*.md)
+GUI.Catalog	MainBBCode	BBCode (*.txt)	BBCode (*.txt)
+GUI.Catalog	MainCSV	Comma-separated values (*.csv)	逗号分隔值 (*.csv)
+GUI.Catalog	MainTSV	Tab-separated values (*.tsv)	标签分隔值 (*.tsv)
+GUI.Catalog	MainNotFound	Not found.	未找到.
+GUI.Catalog	MainCantInstallDLC	CKAN can't install expansion {0}!	CKAN无法安装DLC {0}！
+GUI.Catalog	MainLoadingGameInstance	Loading game instance	加载游戏实例
+GUI.Catalog	MainCorruptedRegistry	"Corrupted registry archived to {0}: {1}
+
+This means that CKAN forgot about all your installed mods, but they are still in GameData. You can reinstall them by importing the {2} file."	"损坏的注册表存档到 {0}: {1}
+
+这意味着CKAN丢失了您已安装的模组列表， 但它们仍在GameData文件夹中。 您可以通过导入 {2} 文件重新安装它们。"
+GUI.Catalog	MainDeleteLockfileYes	Force	强制
+GUI.Catalog	MainDeleteLockfileNo	Cancel	取消
+GUI.Catalog	AllModVersionsPrereleasePrompt	"{0} has a release status of '{1}', which is less stable than your stability tolerance setting of '{2}'.
+
+Are you sure you want to install it?"	"{0}的发布状态为{1}，低于您设定的偏好值{2}。
+确定要安装吗？"
+GUI.Catalog	AllModVersionsInstallPrompt	"{0} is not supported on your current compatible game versions ({1}) and may not work at all. If you have any problems with it, you should NOT ask its maintainers for help.
+
+Do you really want to install it?"	"{0} 不支持您的当前游戏版本 ({1}) 并很可能不能正常运行. 如果您遇到任何问题，请不要向其维护者求助.
+
+您真的想要安装它吗？"
+GUI.Catalog	AllModVersionsInstallYes	Install	安装
+GUI.Catalog	AllModVersionsInstallNo	Cancel	取消
+GUI.Catalog	MetapackageAddCompatibilityPrompt	"The selected modpacks are compatible with {0}, but your game instance is only compatible with {1}. This may cause some dependencies to fail to install.
+
+Do you want to add the additional versions to this game instance's compatibility list?"	"所选的模组包与 {0} 兼容，但您的游戏实例只兼容 {1}。 这可能导致一些依赖模组无法安装。
+
+您想要将额外的版本添加到游戏实例的兼容性列表中吗？"
+GUI.Catalog	MetapackageAddCompatibilityYes	Add compatible versions	添加兼容游戏版本
+GUI.Catalog	MetapackageAddCompatibilityNo	Keep current compatibility	保持当前兼容游戏版本
+GUI.Catalog	ModpackInstallIncompatiblePrompt	"Some of the selected mods (or their dependencies) are not supported on your current compatible game versions ({1}) and may not work at all. If you have any problems with them, you should NOT ask their maintainers for help.
+
+{0}
+
+Are you sure you want to install them? Cancelling will abort the entire installation."	"您当前兼容的游戏版本({1}) 不支持所选模组(或其依赖)，可能根本无法运行。 如果你对此有任何问题，不建议向模组的维护者提供帮助。
+
+{0}
+
+您确定要安装它们吗？取消将中止整个安装。"
+GUI.Catalog	MetapackageRelationshipVersionsPrompt	"Some of your chosen modpacks require certain specific versions of mods, rather than allowing all versions. If you leave it like that, you may miss out on updates for those mods. Overriding this is recommended.
+
+Do you want to override the specific-version requirements?"	
+GUI.Catalog	MetapackagePurgeRelationshipVersions	Allow any mod versions	
+GUI.Catalog	MetapackageKeepRelationshipVersions	Keep the mod version requirements	
+GUI.Catalog	MainChangesetUpdateSelected	Update to version {0}.	用户选择更新到 {0} 版本.
+GUI.Catalog	MainChangesetReinstallMetadataChanged	Re-install (metadata changed)	重新安装 (元数据已更改)
+GUI.Catalog	MainChangesetReinstallMissing	Re-install (missing folders or files)	重新安装 (缺少文件夹或文件)
+GUI.Catalog	MainChangesetReinstallUser	Re-install (user requested)	重新安装 (用户请求)
+GUI.Catalog	MainImportTitle	Import Mods	导入模组
+GUI.Catalog	MainImportFilter	Mods (*.zip)|*.zip	Mods (*.zip)|*.zip
+GUI.Catalog	MainImportWaitTitle	Status log	状态日志
+GUI.Catalog	MainInstallWaitTitle	Status log	状态日志
+GUI.Catalog	MainInstallInstallingMod	Installing {0}	正在安装{0}
+GUI.Catalog	MainInstallRemovingMod	Removing {0}	正在删除 {0}
+GUI.Catalog	MainInstallGameDataReverted	Your game folder has been returned to its original state.	您的GameData已恢复原样.
+GUI.Catalog	MainInstallOpenSettingsPrompt	"{0}
+
+Open settings now?"	"{0}
+
+现在打开设置吗？"
+GUI.Catalog	MainInstallOpenSettings	Open Settings	打开设置
+GUI.Catalog	MainInstallNo	No	不
+GUI.Catalog	MainInstallSuccess	Success!	成功！
+GUI.Catalog	MainInstallErrorInstalling	Error during installation!	安装时发生错误！
+GUI.Catalog	MainInstallKnownError	"If the above message indicates a download error, please try again. Otherwise, please open an issue for us to investigate.
+If you suspect a metadata problem: https://github.com/KSP-CKAN/NetKAN/issues/new/choose
+If you suspect a bug in the client: https://github.com/KSP-CKAN/CKAN/issues/new/choose"	"如果上面的消息指明是一个下载错误，请重试. 否则请向我们提交一个issue便于我们调查.
+如果怀疑是元数据问题: https://github.com/KSP-CKAN/NetKAN/issues/new/choose
+如果怀疑是客户端问题: https://github.com/KSP-CKAN/CKAN/issues/new/choose"
+GUI.Catalog	MainInstallFailed	Installation failed!	安装失败！
+GUI.Catalog	ModInfoNSlashA	N/A	N/A
+GUI.Catalog	ModInfoVirtual	{0} (virtual)	{0} (虚拟)
+GUI.Catalog	ModInfoNotIndexed	{0} (not indexed)	{0} (未索引)
+GUI.Catalog	ModInfoNotCached	This mod is not in the cache, click 'Download' to preview contents	这个Mod不在缓存中，点击'下载'以预览内容
+GUI.Catalog	ModInfoCached	Module is cached, preview available	Mod已缓存，预览可用
+GUI.Catalog	ModInfoDownload	Download ({0})	正在下载 ({0})
+GUI.Catalog	ModInfoNoDownload	Module has no download	模组未下载
+GUI.Catalog	ModInfoFolderNotFound	Folder not found!	找不到文件夹！
+GUI.Catalog	ModInfoFileNotFound	File not found!	找不到文件!
+GUI.Catalog	ModInfoHomepageLabel	Home page:	主页:
+GUI.Catalog	ModInfoSpaceDockLabel	SpaceDock:	SpaceDock：
+GUI.Catalog	ModInfoCurseLabel	Curse:	Curse:
+GUI.Catalog	ModInfoRepositoryLabel	Repository:	仓库：
+GUI.Catalog	ModInfoBugTrackerLabel	Bug tracker:	Bug 跟踪：
+GUI.Catalog	ModInfoDiscussionsLabel	Discussions:	论坛页:
+GUI.Catalog	ModInfoContinuousIntegrationLabel	Continuous integration:	持续集成：
+GUI.Catalog	ModInfoLicenseLabel	Licence:	模组协议:
+GUI.Catalog	ModInfoManualLabel	Manual:	使用说明：
+GUI.Catalog	ModInfoMetanetkanLabel	Metanetkan:	Metanetkan:
+GUI.Catalog	ModInfoRemoteAvcLabel	Remote version file:	远程版本文件：
+GUI.Catalog	ModInfoRemoteSWInfoLabel	Remote swinfo.json file:	远程 swinfo.json 文件：
+GUI.Catalog	ModInfoStoreLabel	Store:	商店：
+GUI.Catalog	ModInfoSteamStoreLabel	Steam store:	Steam商店：
+GUI.Catalog	ModInfoGogStoreLabel	GOG store:	GOG商店：
+GUI.Catalog	ModInfoEpicStoreLabel	Epic Games Store:	Epic 游戏商店：
+GUI.Catalog	ModInfoToolTipReverseRelationships	Ctrl-click or Shift-click to make sticky	Ctrl-单击或Shift-单击以置顶
+GUI.Catalog	DownloadFailed	Download failed!	下载失败!
+GUI.Catalog	Downloading	Downloading {0}	正在下载 {0}
+GUI.Catalog	ValidatingDownload	Validating {0}	正在验证 {0}
+GUI.Catalog	MainModListWaitTitle	Loading modules	正在加载Mod...
+GUI.Catalog	MainModListLoadingRegistry	Loading registry...	正在加载注册表...
+GUI.Catalog	MainModListLoadingInstalled	Loading installed modules...	正在加载已安装Mod...
+GUI.Catalog	MainModListPreservingNew	Preserving new flags...	保留新旗帜...
+GUI.Catalog	MainModListPopulatingList	Populating mod list...	正在按热门程度排序...
+GUI.Catalog	MainModListUpdatingFilters	Updating filters...	正在更新筛选器...
+GUI.Catalog	MainModListCompatible	Compatible ({0})	兼容 ({0})
+GUI.Catalog	MainModListInstalled	Installed ({0})	已安装 ({0})
+GUI.Catalog	MainModListUpgradeable	Upgradeable ({0})	可更新 ({0})
+GUI.Catalog	MainModListReplaceable	Replaceable ({0})	可替换 ({0})
+GUI.Catalog	MainModListCached	Cached ({0})	已缓存 ({0})
+GUI.Catalog	MainModListUncached	Uncached ({0})	未缓存 ({0})
+GUI.Catalog	MainModListNewlyCompatible	Newly compatible ({0})	新兼容 ({0})
+GUI.Catalog	MainModListNotInstalled	Not installed ({0})	未安装 ({0})
+GUI.Catalog	MainModListIncompatible	Incompatible ({0})	不兼容 ({0})
+GUI.Catalog	MainModListAll	All ({0})	所有 ({0})
+GUI.Catalog	MainModListAutoDetected	AD	AD
+GUI.Catalog	MainModListAutoInstalledToolTip	If checked, auto-uninstall this mod if everything that depends on it is removed	如果选中此项，在所有依赖它的模组被删除后，将自动删除此模组
+GUI.Catalog	MainRecommendationsNoneFound	No recommended, suggested, or supporting mods found.	没有找到推荐或建议Mod.
+GUI.Catalog	MainRepoWaitTitle	Updating repositories	正在更新模组数据库
+GUI.Catalog	LoadingCachedRepoData	Loading cached repository data	加载缓存存储库数据
+GUI.Catalog	MainRepoScanning	Scanning for DLCs and manually installed modules...	正在扫描游戏DLC和手动安装的Mod...
+GUI.Catalog	MainRepoContacting	Contacting repository...	正在连接模组数据库...
+GUI.Catalog	MainRepoUpdating	Updating repositories...	正在更新模组数据库...
+GUI.Catalog	MainRepoUpToDate	Repositories already up to date.	模组数据库已是最新.
+GUI.Catalog	MainRepoFailed	Repository update failed!	模组数据库更新失败！
+GUI.Catalog	MainRepoSuccess	Repositories successfully updated.	模组数据库成功更新.
+GUI.Catalog	MainRepoOutdatedClient	Repositories updated, but found modules that require a new version of CKAN. Checking for updates...	仓库已更新，但找到了需要新版本的CKAN的模组。正在检查更新...
+GUI.Catalog	MainRepoAutoRefreshPrompt	"Would you like CKAN to refresh the mod list automatically every time it is loaded?
+
+You can refresh the mod list manually with the Refresh button at the top, and you can change this setting later in the Settings. If you disable automatic refreshes, it's a good idea to refresh every few days."	您想要在CKAN在每次加载时刷新模组列表吗？ (您也可以通过上方的“刷新”按钮手动刷新.)
+GUI.Catalog	MainRepoBalloonTipDetails	"Updates available: {0}
+
+Click to install..."	{0} 个更新可用
+GUI.Catalog	MainRepoBalloonTipTooltip	Click to install updates	点击升级
+GUI.Catalog	MainTrayIconResume	Resume	继续
+GUI.Catalog	MainTrayIconPause	Pause	暂停
+GUI.Catalog	MainTrayNoUpdates	No available updates	没有可用模组更新
+GUI.Catalog	MainTrayUpdatesAvailable	Updates available: {0}	{0} 个可用模组更新
+GUI.Catalog	MainWaitPleaseWait	Please wait	请稍候
+GUI.Catalog	MainWaitDone	All done!	已完成！
+GUI.Catalog	ManageGameInstancesNotValid	Directory {0} is not a valid game directory.	目录 {0} 并非有效的游戏目录.
+GUI.Catalog	ManageGameInstancesDirectoryDeleted	"Directory ""{0}"" doesn't exist."	"目录 ""{0}"" 不存在."
+GUI.Catalog	ManageGameInstancesNameColumnInvalid	{0} (INVALID)	{0} (无效)
+GUI.Catalog	ManageGameInstancesNameColumnLocked	{0} (LOCKED)	{0} (锁定)
+GUI.Catalog	ManageGameInstancesInvalidFileSelected	"Not a valid game instance file:  ""{0}""
+
+If you selected a shortcut, don't do that; Windows won't let us hide them from this dialog even though they're invalid.
+
+Find the folder where your game is installed and choose one of these files:
+
+{1}"	"不是一个有效的游戏实例文件：""{0}""
+
+如果您选择了一个快捷方式，请不要这样做； Windows系统不会让我们在此对话框中隐藏它们，即使它们无效。
+
+查找安装您的游戏的文件夹并选择其中一个文件：
+
+{1}"
+GUI.Catalog	PluginsDialogFilter	CKAN Plugins (*.dll)|*.dll	CKAN Plugins (*.dll)|*.dll
+GUI.Catalog	SettingsToolTipRefreshTextBox	Setting to 0 will not refresh modlist	设置为 0 将不会刷新mod列表
+GUI.Catalog	SettingsToolTipChangeCacheButton	Choose a new download cache folder	选择新下载缓存文件夹
+GUI.Catalog	SettingsToolTipResetCacheButton	Use the default download cache folder 	使用默认下载缓存文件夹 
+GUI.Catalog	SettingsToolTipOpenCacheButton	Browse the cache folder	浏览缓存文件夹
+GUI.Catalog	SettingsToolTipClearCacheButton	Delete files from the cache	从缓存中删除文件
+GUI.Catalog	SettingsDialogCacheProgress	Moving... ({0}%)	移动中... ({0}%)
+GUI.Catalog	SettingsDialogSummmary	{0} files, {1}, {2} free	{0} 文件, {1}, {2} 空余
+GUI.Catalog	SettingsDialogSummmaryFreeSpaceUnknown	{0} files, {1}, free space unknown	{0} 个文件, {1}, 空闲空间未知
+GUI.Catalog	SettingsDialogSummaryInvalid	Invalid path: {0}	无效路径: {0}
+GUI.Catalog	SettingsDialogCacheDescrip	Choose a folder for storing CKAN's mod downloads:	选择一个文件夹来存储CKAN下载的Mod:
+GUI.Catalog	SettingsDialogDeleteConfirm	Do you really want to delete {0} cached files, freeing {1}?	您想要删除 {0} 个缓存文件来释放 {1} 空间?
+GUI.Catalog	SettingsDialogRepoDeleteConfirm	Are you sure you want to delete the {0} repo? This can't be undone!	您确定要`永久`删除 {0} 仓库吗？
+GUI.Catalog	SettingsDialogRepoDeleteDelete	Delete	删除
+GUI.Catalog	SettingsDialogRepoDeleteCancel	Cancel	取消
+GUI.Catalog	SettingsDialogRepoAddDuplicateURL	Repository with URL already in list: {0}	已经在列表中的 URL 仓库: {0}
+GUI.Catalog	SettingsDialogRepoAddBlacklist	"Not adding {0}:
+
+  {1}"	
+GUI.Catalog	AddAuthTokenTitle	Add Authentication Token	添加验证标记
+GUI.Catalog	AddAuthTokenHost	Host:	服务器:
+GUI.Catalog	AddAuthTokenToken	Token:	Token:
+GUI.Catalog	AddAuthTokenAccept	&Accept	&确定
+GUI.Catalog	AddAuthTokenCancel	&Cancel	&取消
+GUI.Catalog	AddAuthTokenHostRequired	Host field is required.	需要输入Host.
+GUI.Catalog	AddAuthTokenTokenRequired	Token field is required.	需要输入Token.
+GUI.Catalog	AddAuthTokenInvalidHost	{0} is not a valid host name.	{0} 并非有效服务器名.
+GUI.Catalog	AddAuthTokenDupHost	{0} already has an authentication token.	{0} 已经有验证标记.
+GUI.Catalog	SettingsDialogUpdateFailed	"Error during update.
+Can't update automatically, because ckan.exe is read-only or we are not allowed to overwrite it. Please update manually via https://github.com/KSP-CKAN/CKAN/releases/latest."	"更新时发生错误.
+无法自动更新，因为CKAN.exe为只读或者我们不允许覆盖它. 请在 https://github.com/KSP-CKAN/CKAN/releases/latest 中下载并手动更新."
+GUI.Catalog	URLHandlersPrompt	"CKAN requires permission to add a handler for ckan:// URLs.
+Do you want to allow CKAN to do this? If you click no you won't see this message again."	"CKAN需要获得计算机的管理员权限.
+您是否允许CKAN这么做? 如果您不允许，将不会再看到此消息."
+GUI.Catalog	UtilCopyLink	&Copy link address	&复制链接地址
+GUI.Catalog	UtilShowHideLink	&Toggle hiding of modules with tag {0}	&切换隐藏带标签 {0} 的模块
+GUI.Catalog	UtilAddRemoveModuleLink	&Toggle inclusion of current module in {0}	在 {0} 中包含/排除当前模块(&T)
+GUI.Catalog	StatusInstanceLabelTextWithPlayTime	Game instance: {0} ({1} {2}, played {3}h)	游戏实例： {0} ({1} {2}, 已游玩 {3}h)
+GUI.Catalog	StatusInstanceLabelText	Game instance: {0} ({1} {2})	游戏实例: {0} ({1} {2})
+GUI.Catalog	ModuleLabelListGlobal	Global	全局
+GUI.Catalog	EditLabelsDialogConfirmDelete	Are you sure you want to delete {0}? This can't be undone!	您真的要`永久`删除 {0} 吗？
+GUI.Catalog	EditLabelsDialogSavePrompt	Save changes?	保存更改？
+GUI.Catalog	EditLabelsDialogNoRecord	No record being edited!	没有记录被编辑！
+GUI.Catalog	EditLabelsDialogNameRequired	Name is required!	需要名称！
+GUI.Catalog	EditLabelsDialogAlreadyExists	{0} already exists in {1}!	{0} 已经存在于 {1} ！
+GUI.Catalog	EditLabelsDialogDelete	Delete	删除
+GUI.Catalog	EditLabelsDialogCancel	Cancel	取消
+GUI.Catalog	EditLabelsDialogSave	Save	保存
+GUI.Catalog	EditLabelsDialogDiscard	Discard	放弃
+GUI.Catalog	MainChangesetWarningInstallingModuleWithLabel	WARNING: INSTALLING MODULE WITH LABEL {0} ({1})	警告:正在安装带有 {0} ({1}) 标签的模组
+GUI.Catalog	ChangesetDeleteTooltip	Don't {0} {1}	不要 {0} {1}
+GUI.Catalog	ChangesetConfirmRemoveAutoRemoval	"{0} is being removed because it was installed as a dependency of another mod, which is being removed.
+
+Are you sure you want to keep it?"	"{0} 正在被移除，因为它是作为另一个正在移除的模组的依赖安装的。
+
+您确定要保留它吗？"
+GUI.Catalog	ChangesetConfirmRemoveAutoRemovalYes	Keep	保留
+GUI.Catalog	ChangesetConfirmRemoveAutoRemovalNo	Cancel	舍弃
+GUI.Catalog	ChangesetConfirmRemoveUserRequested	"You had chosen to {0} {1}.
+
+Are you sure you want to skip this change?"	"您已选择 {0} {1}。
+
+您确定要跳过此更改吗？"
+GUI.Catalog	ChangesetConfirmRemoveUserRequestedYes	Skip	跳过
+GUI.Catalog	ChangesetConfirmRemoveUserRequestedNo	Cancel	坚持
+GUI.Catalog	EditLabelsToolTipName	The label will appear in the Labels menu under this name, must be unique per install	这个标签将会以这个名称出现在标签菜单，在每个实例中必须唯一
+GUI.Catalog	EditLabelsToolTipColor	Rows for modules with this label will be drawn with this background color	带有这个标签的这行Mod会带有这个背景色
+GUI.Catalog	EditLabelsToolTipInstance	The instance for which this label is available, leave blank for all	该标签可用的实例，留空以应用到全部
+GUI.Catalog	EditLabelsToolTipHide	If checked, modules with this label will be hidden from standard filters	如果勾选，带有该标签的Mod会在被标准筛选器筛选时隐藏
+GUI.Catalog	EditLabelsToolTipNotifyOnChanges	If checked, a notification will be displayed if this module changes from incompatible to compatible	如果勾选，会在这个Mod从不兼容变为兼容时显示一个提醒
+GUI.Catalog	EditLabelsToolTipRemoveOnChanges	If checked, a module that changes from incompatible to compatible will be removed from this label	如果勾选，会在这个Mod从不兼容变为兼容时移除这个标签
+GUI.Catalog	EditLabelsToolTipAlertOnInstall	If checked, the change set screen will alert you if this mod is about to be installed	如果勾选，更改列表会提醒您这个Mod即将要被安装
+GUI.Catalog	EditLabelsToolTipRemoveOnInstall	If checked, modules will be removed from this label if they are installed	如果勾选，Mod在被安装后会被移除该标签
+GUI.Catalog	EditLabelsToolTipHoldVersion	If checked, modules will not be upgraded	如果选中此项，模组将不会升级
+GUI.Catalog	EditLabelsToolTipIgnoreMissingFiles	If checked, you will not be prompted to re-install missing files for modules with this label	如果选中此项，您将不会被提示重新安装带此标签模块的缺失文件
+GUI.Catalog	EditLabelsToolTipMoveUp	Move up	上移
+GUI.Catalog	EditLabelsToolTipMoveDown	Move down	下移
+GUI.Catalog	MainLabelsUpdateMessage	"Some of your watched mods have updated:
+
+{0}"	"一些您关注的Mod已经更新:
+
+{0}"
+GUI.Catalog	MainLabelsUpdateTitle	Update Notifications	更新提醒
+GUI.Catalog	MainLabelsUntagged	Untagged ({0})	未分类 ({0})
+GUI.Catalog	EditModpackBadIdentifier	Identifier must contain ONLY letters, numbers, and dashes, and must start with a letter or number	标识符必须包含一个或多个字母、数字及横杠，并必须以字母或数字开头
+GUI.Catalog	EditModpackBadName	Name is required	需要名称
+GUI.Catalog	EditModpackBadVersion	Version is required	需要版本
+GUI.Catalog	EditModpackBadGameVersions	Min game version must be less than or equal to max game version	最低游戏版本必须小于或等于最高游戏版本
+GUI.Catalog	EditModpackTooltipIdentifier	Internal name of this modpack; letters, numbers, and dashes only	该Mod包的内部名称；仅限字母、数字和横杠
+GUI.Catalog	EditModpackTooltipName	Publicly visible name of this modpack	该Mod包的公开名称
+GUI.Catalog	EditModpackTooltipAbstract	Short description of this modpack	Mod包的简短描述
+GUI.Catalog	EditModpackTooltipVersion	The version number for this modpack	Mod包版本号
+GUI.Catalog	EditModpackTooltipGameVersionMin	Earliest compatible game version, blank for all	最低兼容游戏版本，留空以应用全部
+GUI.Catalog	EditModpackTooltipGameVersionMax	Latest compatible game version, blank for all	最高兼容游戏版本，留空以应用全部
+GUI.Catalog	EditModpackTooltipLicense	The licence for this modpack	该Mod包的协议
+GUI.Catalog	EditModpackTooltipIncludeVersions	If checked, the modpack will include the specific versions of the mods shown, otherwise any version will do	如果勾选，Mod包将会包括特定版本的Mod，否则任何版本均可用
+GUI.Catalog	EditModpackTooltipIncludeOptRels	"If checked, users installing this modpack will be shown recommendations and suggestions from mods in the pack.
+If unchecked, only mods in the pack will be installed."	"如果勾选，安装此mod包的用户将看到来自包内mod的推荐和建议。
+如果未勾选，则只会安装包内的mod。"
+GUI.Catalog	EditModpackTooltipDepends	Move selected mods to the Depends group. These mods will definitely be installed.	移动选中Mod到依赖组. 这些Mod一定会被安装.
+GUI.Catalog	EditModpackTooltipRecommends	Move selected mods to the Recommends group. A user can drop these mods on installation.	移动选中Mod到推荐组. 用户在安装时可以取消. 
+GUI.Catalog	EditModpackTooltipSuggests	Move selected mods to the Suggests group. These mods will be available for installation, but you have to explicitly select them.	移动选中Mod到建议组. 这些Mod在安装时可用但您必须去选中它们.
+GUI.Catalog	EditModpackTooltipIgnore	Move selected mods to the Ignored group. These mods won't be included in the modpack.	移动选中Mod到忽略组. 这些Mod不会加入到Mod包中
+GUI.Catalog	EditModpackTooltipCancel	Abort modpack creation	中止Mod包创建
+GUI.Catalog	EditModpackTooltipExport	Choose a filename and save the modpack	选中一个文件名并保存Mod包
+GUI.Catalog	TriStateToggleYesTooltip	Yes	是
+GUI.Catalog	TriStateToggleBothTooltip	Yes or No	是 或 否
+GUI.Catalog	TriStateToggleNoTooltip	No	否
+GUI.Catalog	ModSearchDescriptionPrefix	desc:	描述:
+GUI.Catalog	ModSearchLicensePrefix	lic:	许可证：
+GUI.Catalog	ModSearchLanguagePrefix	lang:	语言:
+GUI.Catalog	ModSearchDependsPrefix	dep:	依赖:
+GUI.Catalog	ModSearchRecommendsPrefix	rec:	建议:
+GUI.Catalog	ModSearchSuggestsPrefix	sug:	推荐:
+GUI.Catalog	ModSearchConflictsPrefix	conf:	冲突:
+GUI.Catalog	ModSearchSupportsPrefix	sup:	sup:
+GUI.Catalog	ModSearchTagPrefix	tag:	分类：
+GUI.Catalog	ModSearchLabelPrefix	label:	标签:
+GUI.Catalog	ModSearchYesPrefix	is:	匹配：
+GUI.Catalog	ModSearchNoPrefix	not:	排除：
+GUI.Catalog	ModSearchCompatibleSuffix	compatible	兼容
+GUI.Catalog	ModSearchInstalledSuffix	installed	已安装
+GUI.Catalog	ModSearchCachedSuffix	cached	已缓存
+GUI.Catalog	ModSearchNewlyCompatibleSuffix	newly-compatible	新兼容
+GUI.Catalog	ModSearchUpgradeableSuffix	upgradeable	可升级
+GUI.Catalog	ModSearchReplaceableSuffix	replaceable	可替换
+GUI.Catalog	EditModSearchTooltipExpandButton	Expand or collapse the detailed search fields (Ctrl-Shift-F)	展开或折叠详细的搜索字段 (Ctrl-Shift-F)
+GUI.Catalog	EditModSearchesTooltipAddSearchButton	Combine a new search with your current searches	将新搜索与当前搜索合并为一个新搜索
+GUI.Catalog	ManageModsPlaying	Playing...	正在玩……
+GUI.Catalog	ManageModsSteamPlayTimeYesTooltip	(will count play time in Steam)	(将计入Steam游戏时间)
+GUI.Catalog	ManageModsSteamPlayTimeNoTooltip	(will NOT count play time in Steam)	(将不计入Steam游戏时间)
+GUI.Catalog	ManageModsInstallAllCheckboxTooltip	Uncheck to uninstall all mods, check to clear change set	取消选中以卸载所有模组，检查以清除更改列表
+GUI.Catalog	ManageModsHiddenLabels	Hidden labels:	隐藏标签：
+GUI.Catalog	ManageModsHiddenTags	Hidden tags:	隐藏分类：
+GUI.Catalog	ManageModsHiddenLabelsAndTags	Hidden labels and tags:	隐藏标签和分类：
+GUI.Catalog	ManageModsLabelAddMultiple	{0} (add {1} modules)	{0} (添加 {1} 模组)
+GUI.Catalog	ManageModsLabelRemoveMultiple	{0} (remove {1} modules)	{0} (删除 {1} 模组)
+GUI.Catalog	ManageModsRefreshStaleToolTip	"Your mod list was last updated {0} days ago.
+Click Refresh regularly to keep it up to date.
+Or choose ""Update repositories on launch"" in the settings."	"您的模组列表上次更新于 {0} 天前。
+请定期点击“刷新”以保持最新状态。
+或者在设置中选择“启动时更新库”。"
+GUI.Catalog	ManageModsRefreshVeryStaleToolTip	"Your mod list was last updated {0} days ago!
+Click Refresh to update!
+Or choose ""Update repositories on launch"" in the settings."	"您的模组列表上次更新于 {0} 天前！
+请点击“刷新”来更新它。
+或者在设置中选择“启动时更新库”。"
+GUI.Catalog	TotalPlayTime	Total play time: {0} hours	总游玩时间： {0} 小时
+GUI.Catalog	ChangeTypeNone	None	无协议
+GUI.Catalog	ChangeTypeInstall	Install	下载
+GUI.Catalog	ChangeTypeRemove	Remove	移除
+GUI.Catalog	ChangeTypeUpdate	Update	更新
+GUI.Catalog	ChangeTypeReplace	Replace	替换
+GUI.Catalog	ModDownloadsFailedMessage	The following mods failed to download. You can retry or abort, and if you retry, you can choose to remove some mods (and any mods that depend on them). Mods that share the same download link will automatically be updated to the same choice.	以下模组下载失败。 您可以重试或中止，如果您重试， 您可以选择从变更列表中移除一些模组(以及依赖它们的任何模组)。 共享相同下载链接的模组将自动更新到相同的选项。
+GUI.Catalog	ModDownloadsFailedColHdr	Mod	Mod
+GUI.Catalog	ModDownloadsFailedAbortBtn	Abort whole changeset	中止整个修改列表
+GUI.Catalog	ModDownloadsFailedAbortBtnNotInstalling	Abort download	
+GUI.Catalog	RepoDownloadsFailedMessage	The following repositories failed to download. You can retry or abort, and if you retry, you can choose to remove some repositories. Note that any repositories you skip will be PERMANENTLY removed from your configuration!	以下仓库下载失败。您可以重试或中止，如果您重试，您可以选择删除某些仓库。 请注意，您跳过的任何仓库都将从您的配置中永久删除！
+GUI.Catalog	RepoDownloadsFailedColHdr	Repository	仓库
+GUI.Catalog	RepoDownloadsFailedAbortBtn	Abort whole update	中止全部更新
+GUI.Catalog	AuthorSearchName	Mods by {0}	由 {0} 制作的模组
+GUI.Catalog	FilterLinkToolTip	"Click to search
+Ctrl-click or Shift-click or middle click to combine with current search"	"单击以搜索
+Ctrl-单击或Shift-单击以合并当前搜索"
+GUI.Catalog	FolderContainsManagedFiles	"Can't delete {0} because it contains files that were installed by CKAN.
+If you wish to remove this folder, uninstall these mods normally."	"无法删除 {0} ，因为它包含了CKAN安装的文件。
+如果您想要删除此文件夹，请正常卸载这些模组。"
+GUI.Catalog	DeleteUnmanagedFileConfirmation	"Are you sure you want to delete {0}?
+This action cannot be undone!"	"您确定要删除 {0} 吗？
+此操作不能撤销！"
+GUI.Catalog	DeleteUnmanagedFileDelete	Delete	删除
+GUI.Catalog	DeleteUnmanagedFileCancel	Cancel	取消
+GUI.Catalog	PreferredHostsPlaceholder	<ALL OTHER HOSTS>	<ALL OTHER HOSTS>
+GUI.Catalog	PreferredHostsTooltipMoveRight	Add selected host to preferences list	添加所选服务器到首选列表
+GUI.Catalog	PreferredHostsTooltipMoveLeft	Remove selected host from preferences list	从首选列表中删除所选服务器
+GUI.Catalog	PreferredHostsTooltipMoveUp	Make selected host higher priority	提高所选服务器的优先级
+GUI.Catalog	PreferredHostsTooltipMoveDown	Make selected host lower priority	降低所选服务器的优先级
+GUI.Catalog	SelectionDialogDefault	{0} (DEFAULT)	{0} (默认)
+GUI.Catalog	MainInstallDeduplicateScanning	Checking other game instances for possible duplicate installed files...	正在检查其他游戏实例，以排查可能重复的安装文件……
+GUI.Catalog	MainDeduplicateWaitTitle	Duplicating Installed Files	正在复制安装的文件
+GUI.Catalog	MainDeduplicateScanning	Scanning for duplicate installed files...	正在扫描重复安装的文件……
+GUI.Catalog	InstallFiltersAddPreset	Add {0}	过滤 {0}
+GUI.Catalog	InstallFiltersGlobalFiltersForGame	Global Filters for {0}	{0} 的全局筛选器
+GUI.Catalog	DownloadStatisticsPieChartTitle	Downloads by Host	下载量（按服务器）
+GUI.Catalog	DownloadStatisticsTableDonateLinkText	Donate	捐赠
+GUI.Catalog	DownloadStatisticsTableDonateLinkToolTip	Click to open the donation link for {0} in your browser	点击以在您的浏览器中打开 {0} 的捐赠链接
+GUI.Catalog	InstallAllCheckboxConfirmation	"You have some mods selected but not yet installed:
+
+{0}
+
+Using this checkbox will de-select these mods. This cannot be undone.
+Are you sure?"	"您已选择以下mod但尚未安装：
+
+{0}
+
+勾选此项将取消对上述mod的选择。此操作不可撤销。
+您确定要这样做吗？"
+GUI.Catalog	InstallAllCheckboxConfirmationYes	De-select	反选
+GUI.Catalog	InstallAllCheckboxConfirmationNo	Cancel	取消
+GUI.Main	FileToolStripMenuItem.Text	&File	&文件
+GUI.Main	ManageGameInstancesToolStripMenuItem.Text	&Manage game instances	&管理游戏
+GUI.Main	ManageGameInstancesToolStripMenuItem.ToolTipText	Add, clone, or switch to other game instances	添加、克隆或切换到其他游戏实例
+GUI.Main	OpenGameDirectoryToolStripMenuItem.Text	&Open game directory	&打开游戏目录
+GUI.Main	InstallationHistoryToolStripMenuItem.Text	Installation &history...	&历史安装记录...
+GUI.Main	InstallationHistoryToolStripMenuItem.ToolTipText	Browse history of which mods were installed in the past	浏览mod安装历史
+GUI.Main	InstallFromckanToolStripMenuItem.Text	&Install from .ckan...	&从.ckan文件安装Mod...
+GUI.Main	InstallFromckanToolStripMenuItem.ToolTipText	Choose a .ckan file containing metadata for a module and install it	选择包含一个模组元数据的.ckan文件并安装模组
+GUI.Main	ImportDownloadsToolStripMenuItem.Text	Import &downloaded mods...	&导入已下载Mod...
+GUI.Main	ImportDownloadsToolStripMenuItem.ToolTipText	Choose ZIP files downloaded outside of CKAN and put them in the cache for installation	选择从 CKAN 之外下载的 ZIP 文件并将它们放入缓存以进行安装
+GUI.Main	DeduplicateToolStripMenuItem.Text	Deduplicate installed files...	正在对已安装的文件去重……
+GUI.Main	DeduplicateToolStripMenuItem.ToolTipText	Scan installed files from all game instances and share the ones that can be shared	扫描所有游戏实例中已安装的文件并共享可以共享的文件
+GUI.Main	ExportModListToolStripMenuItem.Text	&Save installed mod list (cannot be re-imported)...	&保存已安装的模组列表 (无法重新导入)...
+GUI.Main	ExportModPackToolStripMenuItem.Text	&Export modpack (can be re-imported)...	&导出mod包(可用于重新导入)...
+GUI.Main	AuditRecommendationsToolStripMenuItem.Text	Audit &recommendations	检查推荐
+GUI.Main	AuditRecommendationsToolStripMenuItem.ToolTipText	Review recommendations and suggestions of all installed mods	查看所有已安装模组的推荐和建议
+GUI.Main	DownloadStatisticsToolStripMenuItem.Text	Download statistics...	下载统计……
+GUI.Main	ViewPlayTimeToolStripMenuItem.Text	Play &time...	&游玩时间...
+GUI.Main	ViewPlayTimeToolStripMenuItem.ToolTipText	See and edit how long you've played each game instance	查看并编辑您玩每个游戏实例的时间
+GUI.Main	ViewUnmanagedFilesToolStripMenuItem.Text	&Unmanaged files...	&未管理文件...
+GUI.Main	ViewUnmanagedFilesToolStripMenuItem.ToolTipText	List files in this game instance that weren't installed by CKAN	列出此游戏实例中未被CKAN安装的文件
+GUI.Main	ExitToolStripMenuItem.Text	E&xit	退出
+GUI.Main	settingsToolStripMenuItem.Text	&Settings	设置
+GUI.Main	cKANSettingsToolStripMenuItem.Text	CKAN &settings	CKAN设置
+GUI.Main	GameCommandlineToolStripMenuItem.Text	&Game command lines	&游戏启动选项
+GUI.Main	GameCommandlineToolStripMenuItem.ToolTipText	Configure how to run this game instance	配置此游戏实例运行方式
+GUI.Main	compatibleGameVersionsToolStripMenuItem.Text	&Compatible game versions	兼容的游戏版本
+GUI.Main	compatibleGameVersionsToolStripMenuItem.ToolTipText	Chose game versions to consider compatible for purposes of determining which mods are compatible	选择游戏版本以指定哪些mod是兼容的
+GUI.Main	preferredHostsToolStripMenuItem.Text	Preferred &hosts	首选&服务器
+GUI.Main	preferredHostsToolStripMenuItem.ToolTipText	Configure the priority of download servers	配置下载服务器优先级
+GUI.Main	installFiltersToolStripMenuItem.Text	Installation &filters	&安装路径过滤
+GUI.Main	installFiltersToolStripMenuItem.ToolTipText	Prevent some mod files from being installed	阻止安装一些模组文件
+GUI.Main	pluginsToolStripMenuItem.Text	&Plugins	&插件
+GUI.Main	helpToolStripMenuItem.Text	&Help	帮助
+GUI.Main	gameDiscordToolStripMenuItem.Text	Game &Discord	
+GUI.Main	gameDiscordToolStripMenuItem.ToolTipText	"Chat about game related topics
+(dump your B9PartSwitch error screenshots here!)"	
+GUI.Main	modSupportToolStripMenuItem.Text	Get help for an in-game problem with mods	获取有关游戏内mod问题的帮助
+GUI.Main	userGuideToolStripMenuItem.Text	CKAN &user guide	CKAN &用户指南
+GUI.Main	discordToolStripMenuItem.Text	CKAN &Discord	CKAN &Discord
+GUI.Main	discordToolStripMenuItem.ToolTipText	"Discuss CKAN and get help with CKAN-related problems
+(see the other Discord option for in-game help with mods)"	
+GUI.Main	reportClientIssueToolStripMenuItem.Text	Report an issue with the CKAN &client	报告CKAN客户端的问题
+GUI.Main	reportMetadataIssueToolStripMenuItem.Text	Report an issue with mod &metadata	报告Mod元数据的问题
+GUI.Main	aboutToolStripMenuItem.Text	&About	关于
+GUI.Main	minimizeNotifyIcon.Text	CKAN	CKAN
+GUI.Main	refreshToolStripMenuItem.Text	Refresh	刷新
+GUI.Main	pauseToolStripMenuItem.Text	Pause	暂停
+GUI.Main	openCKANToolStripMenuItem.Text	Open CKAN	打开CKAN
+GUI.Main	openGameToolStripMenuItem.Text	Launch Game	启动游戏
+GUI.Main	OpenGameDirectoryToolStripMenuItem1.Text	Open Game Directory	打开游戏目录
+GUI.Main	cKANSettingsToolStripMenuItem1.Text	CKAN Settings	CKAN设置
+GUI.Main	quitToolStripMenuItem.Text	Quit	退出
+GUI.Main	ManageModsTabPage.Text	Manage Mods	管理模组
+GUI.Main	ChangesetTabPage.Text	Changeset	更改列表
+GUI.Main	WaitTabPage.Text	Status Log	状态日志
+GUI.Main	ChooseProvidedModsTabPage.Text	Choose Mods	选择Mod
+GUI.Main	ChooseRecommendedModsTabPage.Text	Choose Recommended, Suggested, or Supporting Mods	选择推荐或建议Mod
+GUI.Main	PlayTimeTabPage.Text	Play Time	游戏时间
+GUI.Main	DeleteDirectoriesTabPage.Text	Delete Directories	删除目录
+GUI.Main	EditModpackTabPage.Text	Edit Modpack	编辑Mod包
+GUI.Main	UnmanagedFilesTabPage.Text	Unmanaged Files	未被管理的文件
+GUI.Main	InstallationHistoryTabPage.Text	Installation History	安装历史记录
+GUI.Main	DownloadStatisticsTabPage.Text	Download Statistics	下载统计信息
+GUI.Main	DownloadStatisticsOKButton.Text	OK	确认
+GUI.Changeset	ModColumn.HeaderText	Mod	Mod
+GUI.Changeset	ChangeTypeColumn.HeaderText	Change	更改
+GUI.Changeset	ReasonsColumn.HeaderText	Reasons for action	操作理由
+GUI.Changeset	DeleteColumn.HeaderText	Skip?	跳过？
+GUI.Changeset	CloseTheGameLabel.Text	Note: To apply these changes, CKAN must overwrite or delete files. If the game is running, close it before continuing!	注意：要应用这些更改，CKAN必须覆盖或删除文件。如果游戏正在运行，请在继续之前关闭！
+GUI.Changeset	BackButton.Text	Back	返回
+GUI.Changeset	CancelChangesButton.Text	Clear	取消更改
+GUI.Changeset	ConfirmChangesButton.Text	Apply	应用
+GUI.ChooseProvidedMods	ChooseProvidedModsCancelButton.Text	Cancel	取消
+GUI.ChooseProvidedMods	ChooseProvidedModsContinueButton.Text	Continue	继续
+GUI.ChooseProvidedMods	modNameColumnHeader.Text	Mod	Mod
+GUI.ChooseProvidedMods	modDescriptionColumnHeader.Text	Mod description	Mod描述
+GUI.ChooseProvidedMods	ChooseProvidedModsLabel.Text	Several mods provide the virtual module Foo, choose one of the following mods:	几个模组提供虚拟模块Foo，选择以下模组之一：
+GUI.ChooseRecommendedMods	UncheckAllButton.Text	Uncheck All	取消全选
+GUI.ChooseRecommendedMods	AlwaysUncheckAllButton.Text	Always uncheck all	总是取消全选
+GUI.ChooseRecommendedMods	CheckAllButton.Text	Check All	全选
+GUI.ChooseRecommendedMods	CheckRecommendationsButton.Text	Check Recommendations	检查推荐
+GUI.ChooseRecommendedMods	CheckSuggestionsButton.Text	Check Suggestions	检查建议
+GUI.ChooseRecommendedMods	RecommendedModsCancelButton.Text	Cancel	取消
+GUI.ChooseRecommendedMods	RecommendedModsContinueButton.Text	Continue	继续
+GUI.ChooseRecommendedMods	RecommendedDialogLabel.Text	The chosen modules recommend, suggest, or are supported by the following modules:	以下Mod被一个或多个选中Mod所推荐或建议
+GUI.ChooseRecommendedMods	RecommendationsGroup.Header	Recommendations	推荐
+GUI.ChooseRecommendedMods	SuggestionsGroup.Header	Suggestions	建议
+GUI.ChooseRecommendedMods	SupportedByGroup.Header	Supported By (not endorsed by chosen mods)	支持（不由选定mod背书）
+GUI.ChooseRecommendedMods	ModNameHeader.Text	Mod	Mod
+GUI.ChooseRecommendedMods	SourceModulesHeader.Text	Related mod	推荐自/建议自:
+GUI.ChooseRecommendedMods	DescriptionHeader.Text	Mod description	Mod描述
+GUI.DeleteDirectories	ExplanationLabel.Text	Warning, some folders have been left behind because CKAN does not know whether it is safe to delete their remaining files. Keeping these folders may break other mods! If you do not need these files, deleting them is recommended.	在移除一些Mod后有以下目录残留. 它们包含并非由CKAN安装的文件（可能是Mod生成或者手动安装）. CKAN不会自动删除并非由自己安装的文件，但如果您觉得安全的话您可以删除它们（推荐）. 注意，如果您决定不删除这个目录，ModuleManager可能错误地认为这个Mod仍已安装.
+GUI.DeleteDirectories	DirectoryColumn.Text	Directories	目录
+GUI.DeleteDirectories	FileColumn.Text	Directory Contents	目录内容
+GUI.DeleteDirectories	SelectDirPrompt.Text	Click a directory at the left to see its contents	点击左侧目录以显示其内容
+GUI.DeleteDirectories	OpenDirectoryButton.Text	Open Directory	打开目录
+GUI.DeleteDirectories	DeleteButton.Text	Delete Checked	删除选中
+GUI.DeleteDirectories	KeepAllButton.Text	Keep All	保留全部
+GUI.EditModpack	IdentifierLabel.Text	Identifier:	标识符:
+GUI.EditModpack	NameLabel.Text	Name:	名称:
+GUI.EditModpack	AbstractLabel.Text	Abstract:	概要:
+GUI.EditModpack	AuthorLabel.Text	Author:	按作者名筛选:
+GUI.EditModpack	VersionLabel.Text	Version:	版本:
+GUI.EditModpack	GameVersionLabel.Text	Game versions:	游戏版本:
+GUI.EditModpack	LicenseLabel.Text	Licence:	协议:
+GUI.EditModpack	IncludeVersionsCheckbox.Text	Save mod versions	保存mod版本
+GUI.EditModpack	IncludeOptRelsCheckbox.Text	Include optional relationships	包含可选关系
+GUI.EditModpack	ModNameColumn.Text	Mod	Mod
+GUI.EditModpack	ModVersionColumn.Text	Version	版本
+GUI.EditModpack	ModAbstractColumn.Text	Description	描述
+GUI.EditModpack	DependsGroup.Header	Depends	依赖
+GUI.EditModpack	RecommendationsGroup.Header	Recommends	推荐
+GUI.EditModpack	SuggestionsGroup.Header	Suggests	建议
+GUI.EditModpack	IgnoredGroup.Header	Ignored	忽略
+GUI.EditModpack	DependsRadioButton.Text	Depends	依赖
+GUI.EditModpack	RecommendsRadioButton.Text	Recommends	推荐
+GUI.EditModpack	SuggestsRadioButton.Text	Suggests	建议
+GUI.EditModpack	IgnoreRadioButton.Text	Ignore	忽略
+GUI.EditModpack	CancelExportButton.Text	Cancel	取消
+GUI.EditModpack	ExportModpackButton.Text	Export	导出
+GUI.EditModSearch	FilterCombinedLabel.Text	Search:	搜索:
+GUI.EditModSearch	FilterOrLabel.Text	Or:	或：
+GUI.EditModSearchDetails	FilterByNameLabel.Text	Name:	按Mod名称筛选:
+GUI.EditModSearchDetails	FilterByAuthorLabel.Text	Author:	按作者名筛选:
+GUI.EditModSearchDetails	FilterByDescriptionLabel.Text	Description:	按描述筛选:
+GUI.EditModSearchDetails	FilterByLicenseLabel.Text	Licence:	协议:
+GUI.EditModSearchDetails	FilterByLanguageLabel.Text	Language:	按语言筛选:
+GUI.EditModSearchDetails	FilterByDependsLabel.Text	Depends on:	按依赖Mod筛选:
+GUI.EditModSearchDetails	FilterByRecommendsLabel.Text	Recommends:	按推荐Mod筛选:
+GUI.EditModSearchDetails	FilterBySuggestsLabel.Text	Suggests:	按建议Mod筛选:
+GUI.EditModSearchDetails	FilterByConflictsLabel.Text	Conflicts with:	按冲突Mod筛选:
+GUI.EditModSearchDetails	FilterBySupportsLabel.Text	Supports:	支持:
+GUI.EditModSearchDetails	FilterByTagsLabel.Text	Tags:	分类:
+GUI.EditModSearchDetails	FilterByLabelsLabel.Text	Labels:	标签:
+GUI.EditModSearchDetails	CompatibleLabel.Text	Compatible:	兼容:
+GUI.EditModSearchDetails	InstalledLabel.Text	Installed:	已安装:
+GUI.EditModSearchDetails	CachedLabel.Text	Cached:	已缓存:
+GUI.EditModSearchDetails	NewlyCompatibleLabel.Text	Newly compatible:	新:
+GUI.EditModSearchDetails	UpgradeableLabel.Text	Upgradeable:	可更新:
+GUI.EditModSearchDetails	ReplaceableLabel.Text	Replaceable:	可替换:
+GUI.InstallationHistory	TimestampColumn.Text	Timestamp	时间戳
+GUI.InstallationHistory	NotInstalledGroup.Header	Not currently installed	当前未安装
+GUI.InstallationHistory	InstalledGroup.Header	Currently installed	已安装
+GUI.InstallationHistory	NameColumn.Text	Name	名称
+GUI.InstallationHistory	VersionColumn.Text	Version	版本
+GUI.InstallationHistory	AuthorColumn.Text	Authors	作者
+GUI.InstallationHistory	DescriptionColumn.Text	Description	描述
+GUI.InstallationHistory	SelectInstallMessage.Text	Click a timestamp at the left to see which mods were installed	点击左侧的时间戳来查看安装了哪些模组
+GUI.InstallationHistory	LoadingMessage.Text	Loading installation history...	正在加载安装历史……
+GUI.InstallationHistory	NoModsMessage.Text	No mods were installed	没有安装模组
+GUI.InstallationHistory	InstallButton.Text	Install	下载
+GUI.InstallationHistory	OKButton.Text	OK	确认
+GUI.ManageMods	LaunchGameToolStripMenuItem.Text	Play	开始游戏
+GUI.ManageMods	EditCommandLinesToolStripMenuItem.Text	Edit command lines...	编辑命令行...
+GUI.ManageMods	RefreshToolButton.Text	Refresh	刷新
+GUI.ManageMods	UpdateAllToolButton.Text	Update all	添加可用更新
+GUI.ManageMods	ApplyToolButton.Text	Apply	应用更改
+GUI.ManageMods	FilterToolButton.Text	Filters	筛选
+GUI.ManageMods	FilterCompatibleButton.Text	Compatible	兼容
+GUI.ManageMods	FilterInstalledButton.Text	Installed	已安装
+GUI.ManageMods	FilterInstalledUpdateButton.Text	Installed (update available)	已安装 (更新可用)
+GUI.ManageMods	FilterReplaceableButton.Text	Replaceable	可替换
+GUI.ManageMods	FilterCachedButton.Text	Cached	已缓存
+GUI.ManageMods	FilterUncachedButton.Text	Uncached	未缓存
+GUI.ManageMods	FilterNewButton.Text	Newly compatible	新兼容
+GUI.ManageMods	FilterNotInstalledButton.Text	Not installed	未安装
+GUI.ManageMods	FilterIncompatibleButton.Text	Incompatible	不兼容
+GUI.ManageMods	FilterAllButton.Text	All	所有
+GUI.ManageMods	FilterTagsToolButton.Text	Tags	分类
+GUI.ManageMods	FilterLabelsToolButton.Text	Labels	标签
+GUI.ManageMods	NavBackwardToolButton.ToolTipText	Previous selected mod...	上一个选中Mod...
+GUI.ManageMods	NavForwardToolButton.ToolTipText	Next selected mod...	下一个选中Mod...
+GUI.ManageMods	hiddenTagsLabelsLinkList.TagToolTipText	Click to show or hide tags	单击以显示或隐藏标签
+GUI.ManageMods	Installed.HeaderText	Installed	安装
+GUI.ManageMods	AutoInstalled.HeaderText	Auto-installed	自动安装
+GUI.ManageMods	UpdateCol.HeaderText	Update	更新
+GUI.ManageMods	ReplaceCol.HeaderText	Replace	替换
+GUI.ManageMods	ModName.HeaderText	Name	名称
+GUI.ManageMods	Author.HeaderText	Author	作者
+GUI.ManageMods	InstalledVersion.HeaderText	Installed version	当前版本
+GUI.ManageMods	LatestVersion.HeaderText	Latest version	最新版本
+GUI.ManageMods	GameCompatibility.HeaderText	Max game version	最高游戏版本
+GUI.ManageMods	DownloadSize.HeaderText	Download	下载大小
+GUI.ManageMods	InstallSize.HeaderText	Install	下载
+GUI.ManageMods	ReleaseDate.HeaderText	Release date	发布日期
+GUI.ManageMods	InstallDate.HeaderText	Install date	安装日期
+GUI.ManageMods	DownloadCount.HeaderText	Downloads	下载量
+GUI.ManageMods	Description.HeaderText	Description	描述
+GUI.ManageMods	reinstallToolStripMenuItem.Text	Reinstall	重新安装
+GUI.ManageMods	downloadContentsToolStripMenuItem.Text	Download to cache (does not install)	下载内容
+GUI.ManageMods	purgeContentsToolStripMenuItem.Text	Purge from cache	清除内容
+GUI.ManageMods	labelsToolStripMenuItem.Text	Labels	标签
+GUI.ManageMods	editLabelsToolStripMenuItem.Text	Edit labels...	编辑标签...
+GUI.ManageMods	FilterLabelsEditToolStripMenuItem.Text	Edit labels...	编辑标签...
+GUI.ManageMods	RefreshToolButton.ToolTipText	Ctrl-click or Shift-click to re-download metadata even if there are no changes since last refresh	Ctrl-单击或Shift-单击重新下载元数据，即使自上次刷新以来没有变化
+GUI.PlayTime	EditHelpLabel.Text	To edit, select a value and start typing or press F2	要编辑，请选择一个值并开始输入或按 F2
+GUI.PlayTime	NameColumn.HeaderText	Instance Name	实例名称
+GUI.PlayTime	TimeColumn.HeaderText	Hours Played	游戏时间
+GUI.PlayTime	OKButton.Text	OK	确认
+GUI.UnmanagedFiles	OKButton.Text	OK	确认
+GUI.UnmanagedFiles	RefreshButton.Text	Refresh	刷新
+GUI.UnmanagedFiles	ExpandAllButton.Text	Expand All	展开全部
+GUI.UnmanagedFiles	CollapseAllButton.Text	Collapse All	折叠全部
+GUI.UnmanagedFiles	ResetCollapseButton.Text	Reset	重置
+GUI.UnmanagedFiles	ShowInFolderButton.Text	Show in Folder	在文件管理器中显示
+GUI.UnmanagedFiles	DeleteButton.Text	Delete	删除
+GUI.Wait	CancelCurrentActionButton.Text	Cancel	取消
+GUI.Wait	RetryCurrentActionButton.Text	Retry	重试
+GUI.Wait	OkButton.Text	OK	确认
+GUI.Wait	MessageTextBox.Text	Waiting for operation to complete	正在等待操作完成
+GUI.Contents	ContentsDownloadButton.Text	Download	下载
+GUI.Contents	ContentsOpenButton.Text	Open ZIP	打开Zip文件
+GUI.Contents	NotCachedLabel.Text	This mod is not in the cache, click 'Download' to preview contents	这个Mod并不在缓存中，点击‘下载’来预览其内容
+GUI.Metadata	IdentifierLabel.Text	Identifier:	标识符:
+GUI.Metadata	ReplacementLabel.Text	Replaced by:	替换为:
+GUI.Metadata	GameCompatibilityLabel.Text	Max game ver.:	最高游戏版本:
+GUI.Metadata	ReleaseLabel.Text	Release status:	发布状态:
+GUI.Metadata	AuthorLabel.Text	Author:	作者:
+GUI.Metadata	DownloadCountLabel.Text	Downloads:	下载量：
+GUI.Metadata	LicenseLabel.Text	Licence:	协议:
+GUI.Metadata	MetadataModuleLicenseTextBox.Text	None	无协议
+GUI.Metadata	MetadataModuleAuthorTextBox.Text	Nobody	无作者
+GUI.Metadata	VersionLabel.Text	Version:	版本:
+GUI.ModInfo	MetadataTabPage.Text	Metadata	元数据
+GUI.ModInfo	RelationshipTabPage.Text	Relationships	关系
+GUI.ModInfo	ContentTabPage.Text	Contents	内容
+GUI.ModInfo	VersionsTabPage.Text	Versions	版本
+GUI.Relationships	LegendInstalledLabel.Text	Installed	已安装
+GUI.Relationships	LegendIncompatibleLabel.Text	Incompatible	不兼容
+GUI.Relationships	LegendVirtualLabel.Text	Virtual	虚拟
+GUI.Relationships	LegendProvidesLabel.Text	Provides	提供
+GUI.Relationships	LegendDependsLabel.Text	Depends	依赖
+GUI.Relationships	LegendRecommendsLabel.Text	Recommends	推荐
+GUI.Relationships	LegendSuggestsLabel.Text	Suggests	建议
+GUI.Relationships	LegendSupportsLabel.Text	Supports	支持
+GUI.Relationships	LegendConflictsLabel.Text	Conflicts	冲突
+GUI.Relationships	ReverseRelationshipsCheckbox.Text	Reverse relationships	依赖此Mod
+GUI.Versions	OverallSummaryLabel.Text	All available versions of selected mod:	选中Mod的所有可用版本
+GUI.Versions	ModVersion.Text	Mod version	Mod版本
+GUI.Versions	CompatibleGameVersion.Text	Game versions	兼容的游戏版本
+GUI.Versions	ReleaseDate.Text	Release date	发布日期
+GUI.Versions	LatestCompatibleLabel.Text	Latest compatible version (likely to be installed)	最新的兼容版本(将会被安装)
+GUI.Versions	CompatibleLabel.Text	Version is compatible with your game	兼容您的游戏的版本
+GUI.Versions	InstalledLabel.Text	Currently installed version	当前安装版本
+GUI.Versions	PrereleaseLabel.Text	Less stable than stability tolerance setting	稳定性低于偏好设置
+GUI.Versions	StabilityToleranceLabel.Text	Mod stability override:	强制设置MOD稳定性：
+GUI.AboutDialog	versionLabel.Text	Version	版本
+GUI.AboutDialog	projectNameLabel.Text	CKAN - The Comprehensive Kerbal Archive Network	CKAN - 坎巴拉综合档案网络
+GUI.AboutDialog	licenseLabel.Text	Licence	协议
+GUI.AboutDialog	authorsLabel.Text	Authors	作者
+GUI.AboutDialog	sourceLabel.Text	Source	源代码
+GUI.AboutDialog	forumthreadLabel.Text	Forum Thread	Forum
+GUI.AboutDialog	homepageLabel.Text	Homepage	主页
+GUI.AboutDialog	$this.Text	About	关于
+GUI.AskUserForAutoUpdatesDialog	autoCheckLabel.Text	"Would you like CKAN to check for new versions of CKAN automatically at start-up?
+
+You can check for new versions of CKAN manually or change this setting later in the Settings window."	"您想要CKAN在启动时自动检查新版本的 CKAN吗？
+
+您可以手动检查CKAN的新版本，或稍后在设置窗口中更改此设置。"
+GUI.AskUserForAutoUpdatesDialog	YesButton.Text	Yes, check for updates	是，检查更新
+GUI.AskUserForAutoUpdatesDialog	NoButton.Text	No	否
+GUI.AskUserForAutoUpdatesDialog	$this.Text	Check for updates	检查更新
+GUI.CloneGameInstanceDialog	labelOldInstance.Text	Instance to clone:	复制的实例
+GUI.CloneGameInstanceDialog	labelOldPath.Text	Path to clone:	复制的路径
+GUI.CloneGameInstanceDialog	buttonInstancePathSelection.Text	Select...	选择...
+GUI.CloneGameInstanceDialog	labelNewName.Text	Name for the new instance:	新实例名称:
+GUI.CloneGameInstanceDialog	labelNewPath.Text	Path for the new instance:	新实例路径:
+GUI.CloneGameInstanceDialog	buttonPathBrowser.Text	Select...	选择...
+GUI.CloneGameInstanceDialog	checkBoxSetAsDefault.Text	Set new instance as default	将新实例设为默认
+GUI.CloneGameInstanceDialog	checkBoxSwitchInstance.Text	Switch to new instance	切换到新实例
+GUI.CloneGameInstanceDialog	checkBoxShareStock.Text	Share stock files	分享库存文件
+GUI.CloneGameInstanceDialog	OptionalPathsLabel.Text	Optional paths to copy:	要复制的可选路径：
+GUI.CloneGameInstanceDialog	PathHeader.Text	Optional paths	可选路径
+GUI.CloneGameInstanceDialog	buttonOK.Text	Clone	复制
+GUI.CloneGameInstanceDialog	buttonCancel.Text	Cancel	取消
+GUI.CloneGameInstanceDialog	$this.Text	Clone Game Instance	复制游戏实例
+GUI.CompatibleGameVersionsDialog	$this.Text	Compatible Game Versions	兼容的游戏版本
+GUI.CompatibleGameVersionsDialog	InstancePathLabel.Text	Installation:	当前安装:
+GUI.CompatibleGameVersionsDialog	GameVersionLabel.Text	Game version:	游戏版本:
+GUI.CompatibleGameVersionsDialog	ListHeaderLabel.Text	Additionally install mods compatible with following game versions:	此外，安装兼容以下游戏版本的Mod:
+GUI.CompatibleGameVersionsDialog	ClearSelectionButton.Text	Clear selection	清除选中
+GUI.CompatibleGameVersionsDialog	AddVersionLabel.Text	Add version to list:	向列表中添加版本:
+GUI.CompatibleGameVersionsDialog	AddVersionToListButton.Text	Add	添加
+GUI.CompatibleGameVersionsDialog	WildcardExplanationLabel.Text	"Note: Adding a version like ""1.12"" will force all mods compatible with 1.12.x (1.12.0, 1.12.1, etc.) to be treated as compatible with this game instance."	注意:如果您添加类似于“1.2”的版本您将会强制所有兼容1.2.xx（例如1.2.0、1.2.1等等）的Mod与该版本兼容
+GUI.CompatibleGameVersionsDialog	FutureUpdatesLabel.Text	If the game is updated, this dialog will be shown again so you can adjust your settings.	如果游戏被更新，此对话框将重新弹出以便您调整设置。
+GUI.CompatibleGameVersionsDialog	WarningLabel.Text	Warning! There is no way to check if a mod is truly compatible with versions selected here! Please choose carefully.	警告！无法检查Mod是否真正与所选版本兼容！请小心操作。
+GUI.CompatibleGameVersionsDialog	CancelChooseCompatibleVersionsButton.Text	Cancel	取消
+GUI.CompatibleGameVersionsDialog	SaveButton.Text	Accept	确认
+GUI.DownloadsFailedDialog	$this.Text	Downloads Failed	下载失败
+GUI.DownloadsFailedDialog	RetryColumn.HeaderText	Retry?	重试?
+GUI.DownloadsFailedDialog	SkipColumn.HeaderText	Skip?	跳过？
+GUI.DownloadsFailedDialog	ErrorColumn.HeaderText	Error	错误
+GUI.DownloadsFailedDialog	CopyErrorToolStripMenuItem.Text	Copy errors to clipboard	
+GUI.DownloadsFailedDialog	RetryButton.Text	Retry	重试
+GUI.EditLabelsDialog	CreateButton.Text	Create	创建
+GUI.EditLabelsDialog	SelectOrCreateLabel.Text	Select a label to edit or create a new one	选中一个标签以编辑或创建一个新的
+GUI.EditLabelsDialog	NameLabel.Text	Name:	名称:
+GUI.EditLabelsDialog	ColorLabel.Text	Background:	背景色:
+GUI.EditLabelsDialog	ColorButton.Text	Select...	选择...
+GUI.EditLabelsDialog	InstanceNameLabel.Text	"Instance
+(blank for all):"	"实例
+（留空以应用
+到所有实例）:"
+GUI.EditLabelsDialog	HideFromOtherFiltersCheckBox.Text	Hide from other filters	有其它筛选条件时隐藏
+GUI.EditLabelsDialog	NotifyOnChangesCheckBox.Text	Notify on updates	更新时提醒
+GUI.EditLabelsDialog	RemoveOnChangesCheckBox.Text	Remove on updates	更新时移除
+GUI.EditLabelsDialog	AlertOnInstallCheckBox.Text	Alert on install	安装时警告
+GUI.EditLabelsDialog	RemoveOnInstallCheckBox.Text	Remove on install	安装时移除
+GUI.EditLabelsDialog	HoldVersionCheckBox.Text	Don't upgrade	不要升级
+GUI.EditLabelsDialog	IgnoreMissingFilesCheckBox.Text	Ignore missing files	忽略缺失的文件
+GUI.EditLabelsDialog	CloseButton.Text	Close	关闭
+GUI.EditLabelsDialog	SaveButton.Text	Save	保存
+GUI.EditLabelsDialog	CancelEditButton.Text	Cancel	取消
+GUI.EditLabelsDialog	DeleteButton.Text	Delete	删除
+GUI.EditLabelsDialog	ExportButton.Text	Export...	导出...
+GUI.EditLabelsDialog	$this.Text	Edit Labels	编辑标签
+GUI.ErrorDialog	DismissButton.Text	Dismiss	忽略
+GUI.ErrorDialog	$this.Text	Error!	错误!
+GUI.GameCommandLineOptionsDialog	CmdLineColumn.HeaderText	Command lines	命令行
+GUI.GameCommandLineOptionsDialog	ResetToDefaultsButton.Text	&Reset	&重置
+GUI.GameCommandLineOptionsDialog	AddButton.Text	Add	添加
+GUI.GameCommandLineOptionsDialog	AcceptChangesButton.Text	&Accept	&确定
+GUI.GameCommandLineOptionsDialog	CancelChangesButton.Text	&Cancel	&取消
+GUI.GameCommandLineOptionsDialog	$this.Text	Game command lines	游戏启动选项
+GUI.InstallFiltersDialog	GlobalFiltersGroupBox.Text	Global Filters	全局过滤器
+GUI.InstallFiltersDialog	InstanceFiltersGroupBox.Text	Instance Filters	对此游戏实例的过滤
+GUI.InstallFiltersDialog	WarningLabel.Text	NOTE: Changes to the install filters only take effect on future mod installations; already installed files are unaffected.	注意：修改安装过滤内容仅会对未来Mod的安装生效；已安装的文件不受影响。
+GUI.InstallFiltersDialog	$this.Text	Install Filters	安装过滤规则
+GUI.ManageGameInstancesDialog	openDirectoryMenuItem.Text	Open directory	打开目录
+GUI.ManageGameInstancesDialog	GameInstallName.Text	Name	名称
+GUI.ManageGameInstancesDialog	Game.Text	Game	游戏
+GUI.ManageGameInstancesDialog	GameInstallVersion.Text	Version	版本
+GUI.ManageGameInstancesDialog	GamePlayTime.Text	Hours Played	游戏时间
+GUI.ManageGameInstancesDialog	GameInstallPath.Text	Path	路径
+GUI.ManageGameInstancesDialog	SelectButton.Text	Select	选择
+GUI.ManageGameInstancesDialog	AddNewButton.Text	New game instance	新游戏实例
+GUI.ManageGameInstancesDialog	AddToCKANMenuItem.Text	Add instance to CKAN	添加实例到CKAN
+GUI.ManageGameInstancesDialog	ImportFromSteamMenuItem.Text	Import from Steam	从 Steam 导入
+GUI.ManageGameInstancesDialog	ImportFromSteamMenuItem.TooltipText	Scan your Steam library for recognized game directories and add them as instances	扫描您的Steam库以获取识别的游戏目录，并将其添加为实例
+GUI.ManageGameInstancesDialog	CloneGameInstanceMenuItem.Text	Clone instance	克隆实例
+GUI.ManageGameInstancesDialog	RenameButton.Text	Rename	重命名
+GUI.ManageGameInstancesDialog	SetAsDefaultCheckbox.Text	Set as default	设为默认
+GUI.ManageGameInstancesDialog	ForgetButton.Text	Forget	忽略
+GUI.ManageGameInstancesDialog	$this.Text	Manage Game Instances	管理游戏实例
+GUI.NewRepoDialog	RepositoryGroupBox.Text	Official repositories	官方元数据库
+GUI.NewRepoDialog	RepoCancel.Text	&Cancel	&取消
+GUI.NewRepoDialog	RepoOK.Text	&Add	&添加
+GUI.NewRepoDialog	RepoNameHeader.Text	Name	名称
+GUI.NewRepoDialog	RepoURLHeader.Text	URL	网址
+GUI.NewRepoDialog	RepoNameLabel.Text	Name:	按Mod名称筛选:
+GUI.NewRepoDialog	RepoUrlLabel.Text	URL:	网址:
+GUI.NewRepoDialog	$this.Text	Add Repository	设置
+GUI.NewUpdateDialog	label1.Text	Version:	CKAN版本:
+GUI.NewUpdateDialog	InstallUpdateButton.Text	Install	下载更新
+GUI.NewUpdateDialog	CancelUpdateButton.Text	Not now	放弃更新
+GUI.NewUpdateDialog	$this.Text	A new version of CKAN is available	您可以现在更新CKAN
+GUI.PluginsDialog	groupBox1.Text	Active Plugins	启用插件
+GUI.PluginsDialog	groupBox2.Text	Dormant Plugins	停用插件
+GUI.PluginsDialog	DeactivateButton.Text	Deactivate	停用
+GUI.PluginsDialog	ReloadPluginButton.Text	Reload	重新加载
+GUI.PluginsDialog	ActivatePluginButton.Text	Activate	启用
+GUI.PluginsDialog	AddNewPluginButton.Text	Add new...	添加新的...
+GUI.PluginsDialog	UnloadPluginButton.Text	Unload	卸载
+GUI.PluginsDialog	$this.Text	Plugins	插件
+GUI.PreferredHostsDialog	ExplanationLabel.Text	If a module has multiple download URLs, they will be prioritised by host according to the list on the right.	如果一个模块有多个下载网址，它们将根据右边的列表按服务器排序。
+GUI.PreferredHostsDialog	AvailableHostsLabel.Text	Available hosts (by popularity):	可用服务器(按流行程度):
+GUI.PreferredHostsDialog	PreferredHostsLabel.Text	Preferred hosts (by priority):	首选服务器(按优先级)：
+GUI.PreferredHostsDialog	$this.Text	Preferred Hosts	首选服务器
+GUI.RenameInstanceDialog	OKButton.Text	OK	确认
+GUI.RenameInstanceDialog	CancelRenameInstanceButton.Text	Cancel	取消
+GUI.RenameInstanceDialog	$this.Text	Rename installation	重命名当前安装
+GUI.SelectionDialog	MessageLabel.Text	Please select:	请选中:
+GUI.SelectionDialog	SelectButton.Text	Select	选择
+GUI.SelectionDialog	DefaultButton.Text	Default	默认
+GUI.SelectionDialog	CancelSelectionButton.Text	Cancel	取消
+GUI.SelectionDialog	$this.Text	CKAN Selection Dialog	CKAN 选择对话框
+GUI.SettingsDialog	RepositoryGroupBox.Text	Metadata Repositories	元数据库
+GUI.SettingsDialog	NewRepoButton.Text	New	新建
+GUI.SettingsDialog	UpRepoButton.Text	Up	上移
+GUI.SettingsDialog	DownRepoButton.Text	Down	下移
+GUI.SettingsDialog	DeleteRepoButton.Text	Delete	删除
+GUI.SettingsDialog	AuthTokensGroupBox.Text	Authentication Tokens	验证标记
+GUI.SettingsDialog	NewAuthTokenButton.Text	New	新建
+GUI.SettingsDialog	DeleteAuthTokenButton.Text	Delete	删除
+GUI.SettingsDialog	CacheGroupBox.Text	Download Cache	下载缓存
+GUI.SettingsDialog	CachePathEditButton.Text	Edit	修改
+GUI.SettingsDialog	CachePathSaveButton.Text	Save	保存
+GUI.SettingsDialog	CachePathCancelButton.Text	Cancel	取消
+GUI.SettingsDialog	CacheSummary.Text	N files, M MiB	N 个文件, M MB
+GUI.SettingsDialog	CacheLimitPreLabel.Text	Maximum cache size:	最大缓存大小:
+GUI.SettingsDialog	CacheLimitPostLabel.Text	MiB (empty for unlimited)	MB (留空代表无限制)
+GUI.SettingsDialog	ChangeCacheButton.Text	Change...	更改...
+GUI.SettingsDialog	ClearCacheButton.Text	Purge	清除
+GUI.SettingsDialog	PurgeToLimitMenuItem.Text	Purge to limit	清除到限制
+GUI.SettingsDialog	PurgeAllMenuItem.Text	Purge all	清除所有
+GUI.SettingsDialog	ResetCacheButton.Text	Reset	重置
+GUI.SettingsDialog	OpenCacheButton.Text	Open	打开
+GUI.SettingsDialog	AutoUpdateGroupBox.Text	Auto-Updates	自动更新
+GUI.SettingsDialog	LocalVersionPreLabel.Text	Local version:	本地版本:
+GUI.SettingsDialog	LocalVersionLabel.Text	v0.0.0	v0.0.0
+GUI.SettingsDialog	LatestVersionPreLabel.Text	Latest version:	最新版本:
+GUI.SettingsDialog	LatestVersionLabel.Text	???	???
+GUI.SettingsDialog	CheckUpdateOnLaunchCheckbox.Text	Check for CKAN updates on launch	在启动时检查CKAN更新
+GUI.SettingsDialog	DevBuildsCheckbox.Text	Use dev builds	使用开发版本
+GUI.SettingsDialog	CheckForUpdatesButton.Text	Check for updates	检查更新
+GUI.SettingsDialog	InstallUpdateButton.Text	Install update	安装更新
+GUI.SettingsDialog	BehaviourGroupBox.Text	Behaviour	行为
+GUI.SettingsDialog	EnableTrayIconCheckBox.Text	Enable tray icon	启用任务栏图标
+GUI.SettingsDialog	MinimizeToTrayCheckBox.Text	Minimise to tray	最小化到任务栏
+GUI.SettingsDialog	RefreshPreLabel.Text	Refresh modlist every	Mod列表刷新间隔:
+GUI.SettingsDialog	RefreshPostLabel.Text	minute(s)	分钟
+GUI.SettingsDialog	PauseRefreshCheckBox.Text	Pause refreshing	停止刷新
+GUI.SettingsDialog	MoreSettingsGroupBox.Text	More Settings	更多设置
+GUI.SettingsDialog	LanguageSelectionLabel.Text	Language (requires restart):	语言 (需要重启):
+GUI.SettingsDialog	RefreshOnStartupCheckbox.Text	Update repositories on launch	启动时更新元数据库
+GUI.SettingsDialog	HideEpochsCheckbox.Text	Hide epoch numbers in mod list (requires restart)	在mod列表中隐藏代数 (需要重启)
+GUI.SettingsDialog	HideVCheckbox.Text	"Hide ""v"" in mod list (requires restart)"	在mod列表中隐藏'v'(需要重启)
+GUI.SettingsDialog	AutoSortUpdateCheckBox.Text	"Automatically sort by ""Update""-column when clicking ""Add available updates"""	当点击添加可用更新时自动按‘更新’排序
+GUI.SettingsDialog	StabilityToleranceLabel.Text	Stability tolerance:	稳定性偏好：
+GUI.SettingsDialog	RepoNameHeader.Text	Name	名称
+GUI.SettingsDialog	RepoURLHeader.Text	URL	网址
+GUI.SettingsDialog	AuthHostHeader.Text	Host	服务器
+GUI.SettingsDialog	AuthTokenHeader.Text	Token	Token
+GUI.SettingsDialog	$this.Text	Settings	设置
+GUI.YesNoDialog	DescriptionLabel.Text	Yes / No?	是/否？
+GUI.YesNoDialog	YesButton.Text	Yes	是
+GUI.YesNoDialog	NoButton.Text	No	否
+GUI.YesNoDialog	$this.Text	CKAN	CKAN
+Core.Resources	AutoUpdateNotFetched	We have not fetched the release info yet. Can't update.	未能拉取到发布信息。无法更新。
+Core.Resources	NetDownloading	Downloading {0}	正在下载 {0} 
+Core.Resources	NetInvalidLocation	Invalid URL in Location header: {0}	Location Header含有无效URL: {0}
+Core.Resources	ByteRateCounterRateSummary	{0}/sec - {1} ({2}) left - {3}%	{0}/s - 剩余 {1} ({2}) - {3}%
+Core.Resources	ByteRateCounterSummary	{0} left - {1}%	剩余 {0} - {1}%
+Core.Resources	ByteRateCounterHoursMinutesSeconds	{0} hrs, {1} min, {2} sec	{0} h, {1} m, {2} s
+Core.Resources	ByteRateCounterMinutesSeconds	{0} min, {1} sec	{0} m, {1} s
+Core.Resources	ByteRateCounterSeconds	{0} sec	{0} s
+Core.Resources	NetAsyncDownloaderDownloading	Downloading {0} ...	"正在下载 ""{0}"" "
+Core.Resources	NetAsyncDownloaderCancelled	Download cancelled by user	用户取消下载
+Core.Resources	NetAsyncDownloaderValidating	Finished downloading {0}, validating and storing to cache...	下载 {0} 完成，验证并存储到缓存中...
+Core.Resources	NetFileCacheCannotFind	Cannot find cache directory: {0}	无法找到缓存目录: {0}
+Core.Resources	NetFileCacheZipError	Error in step {0} for {1}: {2}	在 {1} 的步骤 {0} 出现错误: {2}
+Core.Resources	NetFileCacheZipTestArchiveFalse	ZipFile.TestArchive(true) returned false	ZipFile.TestArchive(true) 返回了 false
+Core.Resources	NetFileCacheNullFileName	Null file name	空文件名
+Core.Resources	NetFileCacheMonoNotSupported	"{0}
+
+Install the `mono-complete` package or equivalent for your operating system."	"{0}
+
+请在您的操作系统安装 `mono-complete` 或其它等效应用。"
+Core.Resources	NetModuleCacheBadLength	{0}: {1} has length {2}, should be {3}	{0}: {1} 的长度为 {2}，但应该为 {3}
+Core.Resources	NetModuleCacheNotValidZIP	{0}: {1} is not a valid ZIP file: {2}	{0}: {1} 并不是一个有效的 ZIP 文件: {2}
+Core.Resources	NetModuleCacheMismatchSHA256	{0}: SHA256 {2} should be {3} for {1}	{0}: {1} 的 SHA256 值为 {2}，但应该为 {3}
+Core.Resources	NetRepoUpdatingBuildMap	Refreshing game version data	刷新游戏版本数据
+Core.Resources	NetRepoCheckingForUpdates	Checking for updates	检查更新中
+Core.Resources	NetRepoAlreadyUpToDate	Already up to date	已是最新版本
+Core.Resources	NetRepoNoChanges	No changes since last update	自上次更新以来无更改
+Core.Resources	NetRepoUpdating	Updating {0}	正在更新 {0}
+Core.Resources	NetRepoLoadingModulesFromRepo	Loading modules from downloaded {0} repository...	从下载的 {0} 仓库加载模块...
+Core.Resources	NetRepoNotATarGz	Not a .tar.gz or .zip, cannot process: {0}	不是 .tar.gz 或 .zip文件, 无法处理: {0}
+Core.Resources	NetRepoNotATarGzStream	Input stream is not a .tar.gz or .zip, cannot process	输入流不是 .tar.gz 或 .zip 文件，无法处理
+Core.Resources	JsonRelationshipConverterAnyOfCombined	`any_of` should not be combined with `{0}`	`any_of` 不应该与 `{0}` 结合使用
+Core.Resources	RegistryFileConflict	{0} wishes to install {1}, but this file is registered to {2}	{0} 想要安装 {1}，但该文件已被 {2} 注册
+Core.Resources	RegistryFileNotRemoved	Error unregistering {1}, file not removed: {0}	{0} 已被 {1} 注册但还未被删除！
+Core.Resources	RegistryDefaultDLCAbstract	An official expansion pack	一个官方扩展包
+Core.Resources	RegistryManagerDirectoryNotFound	Can't find a directory in {0}	无法在 {0} 找到目录
+Core.Resources	RegistryManagerExportFilenamePrefix	installed	已安装
+Core.Resources	RegistryManagerDefaultModpackAbstract	A list of modules installed on the {0} KSP instance	已安装在 KSP 实例 {0} 的模组列表
+Core.Resources	RegistryManagerRegistryVersionNotSupported	"This version of CKAN is too old to load:
+{0}
+Update CKAN to load this game instance."	"此版本的 CKAN 太旧无法加载:
+{0}
+更新 CKAN以加载游戏实例。"
+Core.Resources	CkanModuleDeserialisationError	JSON deserialisation error: {0}	JSON 反序列化错误: {0}
+Core.Resources	CkanModuleUnsupportedSpec	{0} requires CKAN {1}, we can't read it.	{0} 需要 CKAN {1}，我们无法读取它.
+Core.Resources	CkanModuleMissingRequired	{0} missing required field {1}	{0} 缺少必填字段 {1}
+Core.Resources	CkanModuleKspVersionMixed	ksp_version mixed with ksp_version_(min|max)	ksp_version 不能与 ksp_version_(min|max) 混用
+Core.Resources	CkanModuleNotAvailable	Module {0} version {1} not available	模组 {0} 的版本 {1} 不可用
+Core.Resources	CkanModuleAllVersions	All versions	所有版本
+Core.Resources	LicenceInvalid	The licence {0} is invalid	许可 {0} 无效
+Core.Resources	ModuleInstallDescriptorMustHaveInstallTo	Install stanzas must have an install_to	Install 句法必须含有一个 install_to
+Core.Resources	ModuleInstallDescriptorRequireFileFind	Install stanzas require either a file, find, or find_regexp directive	Install 句法必须含有 file, find, 或者 find_regexp 指令中的一个
+Core.Resources	ModuleInstallDescriptorTooManyFileFind	Install stanzas must only include one of file, find, or find_regexp directive	Install 句法只能含有 file, find, 或者 find_regexp 指令中的一个
+Core.Resources	ModuleInstallDescriptorTooManyFilterInclude	Install stanzas can only contain filter or include_only directives, not both	Install 句法只能含有 filter 或者 include_only 指令中的一个，而不是两个
+Core.Resources	ModuleInstallDescriptorInvalidInstallPath	Invalid installation path: {0}	无效安装路径: {0}
+Core.Resources	ModuleInstallDescriptorUnknownInstallPath	Unknown install_to: {0}	未知的 install_to: {0}
+Core.Resources	ModuleInstallDescriptorNoFilesFound	No files found matching {0} to install!	没有找到匹配 {0} 的文件来安装！
+Core.Resources	ModuleInstallDescriptorNotMatchingLeadingPath	Output file name ({0}) not matching leading path of stanza ({1})	输出文件名 ({0}) 不匹配stanza 的主要路径 ({1})
+Core.Resources	ModuleInstallDescriptorAsNoPathSeparators	`as` may not include path separators	`as` 不能含有路径分隔符
+Core.Resources	RelationshipDescriptorMinVersionOnly	{0} {1} or later	{0} {1} 或更新版本
+Core.Resources	RelationshipDescriptorMaxVersionOnly	{0} {1} or earlier	{0} {1} 或更旧版本
+Core.Resources	RelationshipDescriptorAnyOfJoiner	{0} OR {1}	{0} 或 {1}
+Core.Resources	ReleaseStatusInvalid	{0} is not a valid release status	{0} 不是有效的发布状态
+Core.Resources	RepositoryDefaultName	default	默认数据库
+Core.Resources	CkanModuleVersionToString	{0} aka {1}	{0} aka {1}
+Core.Resources	GameVersionYalovAny	any	任意版本
+Core.Resources	GameVersionSelectNeedOne	Needs at least Major and Minor	需要 Major 和 Minor 中的至少一个
+Core.Resources	GameVersionSelectHeader	The specified version is not unique, please select one:	选中的版本并不是独立的，请选择一个版本:
+Core.Resources	GameVersionSelectBuildHeader	The build number is not known for this patch. Please select one:	未在该版本中发现该 Build 版本号. 请选择一个 Build 版本:
+Core.Resources	GameVersionNotKnown	The version is not known to CKAN.	CKAN 无法识别该版本
+Core.Resources	GameVersionCriteriaToString	[Versions: {0}]	[版本: {0}]
+Core.Resources	GameVersionRangeMinOnly	{0} {1} and earlier	{0} {1} 及更旧版本
+Core.Resources	GameVersionRangeMaxOnly	{0} {1} and later	{0} {1} 及更新版本
+Core.Resources	ProvidesModuleVersionToString	{0} (provided by {1})	{0} (由 {1} 提供)
+Core.Resources	UnmanagedModuleVersionUnknown	(unmanaged)	(未管理)
+Core.Resources	UnmanagedModuleVersionKnown	{0} (unmanaged)	{0} (未管理)
+Core.Resources	PathUtilsNotAbsolute	{0} is not an absolute path	{0} 并不是一个绝对路径
+Core.Resources	PathUtilsNotInside	Oh snap. {0} isn't inside {1}	 {0} 不在 {1} 中
+Core.Resources	PathUtilsAlreadyAbsolute	{0} is already absolute	{0} 已经是绝对路径
+Core.Resources	PathUtilsNotRoot	{0} isn't an absolute root	{0} 不是绝对根路径
+Core.Resources	GameInstanceSettingUp	Setting up CKAN for the first time...	首次配置 CKAN 中...
+Core.Resources	GameInstanceCreatingDir	Creating {0}	正在创建 {0}
+Core.Resources	GameInstanceScanning	Scanning for installed mods...	扫描已安装的模组中...
+Core.Resources	GameInstanceVersionNotFound	Game version not found	未找到游戏版本
+Core.Resources	GameInstanceToString	{0} Install: {1}	{0} 安装: {1}
+Core.Resources	GameInstanceManagerPortable	portable	可移动
+Core.Resources	GameInstanceManagerAuto	Auto {0}	自动 {0}
+Core.Resources	GameInstanceManagerSelectGamePrompt	Please select the game that is installed at {0}	请选择已安装在 {0} 的游戏
+Core.Resources	GameInstanceManagerCacheMigrationPrompt	"Old cache folder contains {0}. New cache folder has {1} free.
+What would you like to do?"	"原缓存目录占用空间 {0}，新目录可用空间 {1}。
+请选择操作："
+Core.Resources	GameInstanceManagerCacheMigrationPromptFreeSpaceUnknown	"Old cache folder contains {0}. New cache folder has unknown free space.
+What would you like to do?"	"原缓存目录占用空间 {0}，新目录可用空间未知。
+请选择操作："
+Core.Resources	GameInstanceManagerCacheMigrationMove	Move old cached files to new cache folder	移动旧缓存文件到新缓存文件夹
+Core.Resources	GameInstanceManagerCacheMigrationDelete	Delete cached files	删除缓存文件
+Core.Resources	GameInstanceManagerCacheMigrationOpen	Open old and new cache folders in file browsers	在文件管理器中打开新旧缓存文件夹
+Core.Resources	GameInstanceManagerCacheMigrationNothing	Do nothing	取消
+Core.Resources	GameInstanceManagerCacheMigrationRevert	Revert back to using the old cache folder	恢复使用旧缓存文件夹
+Core.Resources	GameInstanceManagerCacheMigrationNotEnoughFreeSpace	Not enough space to move files!	没有足够的空间来移动文件！
+Core.Resources	GameInstanceCloneInvalid	The specified instance is not a valid {0} instance	所选实例并非有效的 {0} 实例
+Core.Resources	GameInstanceManagerCloneNotEnoughFreeSpace	Not enough space at target path to copy files!	目标路径空间不足，无法复制文件！
+Core.Resources	GameInstanceFakeBadVersion	The specified {0} version is not a known version: {1}	选中的 {0} 版本并非已知版本: {1}
+Core.Resources	GameInstanceFakeNotEmpty	The specified folder already exists and is not empty	选中的文件夹已经存在且不是空文件夹
+Core.Resources	GameInstanceFakeDLCNotAllowed	{0} version {1} or above is needed for {2} DLC	{0} 版本 {1} 或以上需要 {2} DLC
+Core.Resources	GameInstanceNoValidName	Could not return a valid name for the new instance	无法为新实例返回有效的名称
+Core.Resources	GameInstanceByPathName	custom	自定义
+Core.Resources	GameInstancePathNotFound	{0} does not exist	{0} 不存在
+Core.Resources	GameInstancePlayGameFailed	"Couldn't start game.
+
+{0}"	"无法启动游戏.
+
+{0}"
+Core.Resources	ModuleInstallerNothingToInstall	Nothing to install	没有需要安装的
+Core.Resources	ModuleInstallerAboutToInstall	About to install:	中止安装:
+Core.Resources	ModuleInstallerUserDeclined	User declined install list	用户取消安装列表
+Core.Resources	ModuleInstallerInstallingMod	Installing {0}...	"安装模组 ""{0}"""
+Core.Resources	ModuleInstallerInstalledMod	Finished installing {0}	安装 {0} 完成
+Core.Resources	ModuleInstallerInstalledModFiltered	Finished installing {0} ({1} files filtered out)	安装完成了 {0} ({1} 文件已过滤)
+Core.Resources	ModuleInstallerUpdatingRegistry	Updating registry	正在更新注册表
+Core.Resources	ModuleInstallerCommitting	Committing filesystem changes	正在提交文件系统更改
+Core.Resources	ModuleInstallerDone	Done!	完成！
+Core.Resources	ModuleInstallerAlreadyInstalled	{0} {1} already installed, skipped	{0} {1} 已经安装，跳过
+Core.Resources	ModuleInstallerZIPNotInCache	Trying to install {0}, but it's not downloaded or download is corrupted	尝试安装 {0}，但它没有被下载或下载被中断了
+Core.Resources	ModuleInstallerBadDLLLocation	DLL for module {0} found at {1}, but it's not where CKAN would install it. Aborting to prevent multiple copies of the same mod being installed. To install this module, uninstall it manually and try again.	在 {1} 发现了模组 {0} 的 DLL 文件 ，但 CKAN 无法在该位置安装它。正在中止安装以避免安装多个重复的模组。请手动卸载该模组并重试以安装它。
+Core.Resources	ModuleInstallerFileSame	same	相同
+Core.Resources	ModuleInstallerFileDifferent	DIFFERENT	不相同
+Core.Resources	ModuleInstallerOverwrite	"Module {0} wants to overwrite the following manually installed files:
+
+{1}
+
+Overwrite?"	"模组 {0} 想要覆盖以下手动安装文件:
+
+{1}
+
+覆盖吗?"
+Core.Resources	ModuleInstallerOverwriteCancelled	Not overwriting manually installed files, can't install {0}	取消覆盖手动安装文件，无法安装 {0}
+Core.Resources	ModuleInstallerAboutToRemove	About to remove:	中止删除:
+Core.Resources	ModuleInstallerContinuePrompt	Continue?	继续？
+Core.Resources	ModuleInstallerRemoveAborted	Mod removal aborted at user request	用户请求中止删除模组
+Core.Resources	ModuleInstallerRemovingMod	Removing {0}...	正在删除 {0}...
+Core.Resources	ModuleInstallerRemovedMod	Finished removing {0}	移除{0}已完成。
+Core.Resources	ModuleInstallerAboutToUpgrade	About to upgrade:	中止升级:
+Core.Resources	ModuleInstallerUpgradeInstalling	 * Install: {0}	 * 安装: {0}
+Core.Resources	ModuleInstallerUpgradeReinstalling	 * Re-install: {0}	 * 重新安装: {0}
+Core.Resources	ModuleInstallerUpgradeDowngrading	 * Downgrade: {0} from {1} to {2}	 * 降级: {0} 从 {1} 到 {2}
+Core.Resources	ModuleInstallerUpgradeUpgrading	 * Upgrade: {0} {1} to {2}	 * 升级: {0} {1} 到 {2}
+Core.Resources	ModuleInstallerUpgradeAutoRemoving	 * Auto-remove: {0} {1}	 * 自动移除: {0} {1}
+Core.Resources	ModuleInstallerUpgradeUserDeclined	User declined upgrade list	用户取消升级列表
+Core.Resources	ModuleInstallerReplaceAutodetected	"Can't replace {0} as it was not installed by CKAN.
+Please remove manually before trying to install it."	无法替换 {0} 因为它并不是由 CKAN 安装的。请在尝试安装前手动删除它。
+Core.Resources	ModuleInstallerReplaceNotInstalled	Can't replace {0} as it is not installed. Please attempt to install {1} instead.	无法替换 {0} 因为它还未安装。请尝试安装 {1}。
+Core.Resources	ModuleInstallerImportScanningFiles	Scanning files...	正在扫描文件...
+Core.Resources	ModuleInstallerImportAlreadyCached	Already cached: {0}	已缓存: {0}
+Core.Resources	ModuleInstallerImportNotFound	Not found in index: {0}	未找到索引: {0}
+Core.Resources	ModuleInstallerImportInstallPrompt	Install {0} compatible imported mods in game instance {1} ({2})?	安装 {0} 个兼容的导入的模组到游戏实例 {1} ({2}) 吗？
+Core.Resources	ModuleInstallerImportDeletePrompt	Scanning complete. Delete {0} old files after import?	导入完成。 删除 {0} 个旧文件吗？
+Core.Resources	ModuleInstallerCorruptInCache	"Download for {0} was corrupted and has been purged.
+This may be due to a failing storage device; you should back up all important data, scan your storage device for errors, and replace it as soon as you can.
+If you try installing this module again, it will be re-downloaded and may succeed.
+Exception details: {1}"	
+Core.Resources	KrakenDependencyNotSatisfied	Dependency on {0} version {1} not satisfied	 {0} 版本 {1} 的依赖项未满足
+Core.Resources	KrakenDependencyModuleNotFound	Module not found: {0} {1}	模组未找到: {0} {1}
+Core.Resources	KrakenProvidedByMoreThanOne	"{1} requires {0}, which can be provided by multiple mods.
+
+Which {0} provider would you like to install?"	"{1} 需要 {0}，可以由多个模组提供。
+
+您想要安装哪个 {0} 提供者？"
+Core.Resources	KrakenInconsistenciesHeader	Inconsistencies were found:	发现以下冲突:
+Core.Resources	KrakenFailedToDeleteFiles	"Unable to overwrite or delete files for {0}:
+
+{1}
+
+If the game is still running, close it and try again. Otherwise check the permissions."	"无法覆盖或删除 {0} 的文件：
+
+{1}
+
+如果游戏仍在运行， 关闭后再试一次。 否则请检查权限。"
+Core.Resources	KrakenMissingDependency	Unsatisfied dependency {1} needed for: {0}	{0} 缺少依赖 {1}
+Core.Resources	KrakenMissingDependencyNeededFor	needed for {0}	需要 {0}
+Core.Resources	KrakenRejectedProvidesConflict	{0} is needed for {3}, but cannot be installed because it conflicts with {2}, which also provides {1}	
+Core.Resources	KrakenRejectedConflict	{0} is needed for {2}, but cannot be installed because it conflicts with {1}	
+Core.Resources	KrakenRejectedVersionMismatch	Version conflict: {0} is needed for {2}, but {1} is already being installed	
+Core.Resources	KrakenRejectedVersionMismatchFor	Version conflict: {0} is needed for {2}, and {1} is needed for {3}, but both cannot be installed at the same time	
+Core.Resources	KrakenConflictsWith	{0} conflicts with {1}	{0} 与 {1} 冲突
+Core.Resources	KrakenFileExistsWithOwner	"Oh no! We tried to overwrite a file owned by another mod!
+
+Please report it at:
+https://github.com/KSP-CKAN/NetKAN/issues/new/choose
+
+Include the following information in your report:
+
+File: {0}
+Installing Mod: {1}
+Owning Mod: {2}"	"我们正在尝试去覆盖其它模组（或游戏本体）已经安装的文件！
+
+如果这个问题反复出现，可能是由于打包时出现bug.
+请在此处报告:
+
+https://github.com/KSP-CKAN/NetKAN/issues/new/choose
+
+报告时请包括以下信息:
+
+File(文件)      : {0}
+Installing Mod(正在安装的Mod) : {1}
+Owning Mod(已有Mod): {2}"
+Core.Resources	KrakenFileExistsWithoutOwner	"Oh no! We tried to overwrite a file!
+
+As a safety feature, CKAN will *never* overwrite or alter a file that it did not install itself.
+
+To install {1} via CKAN, manually uninstall the mod that owns:
+
+{0}
+
+and try again."	"
+看起来您正在尝试安装一个已经安装的Mod，或者正在尝试安装已经与其它已安装Mod冲突的Mod.
+
+作为一个安全特性，CKAN*永远不会*覆写或修改并非由自己安装的文件.
+
+如果您想要用CKAN安装 {1},
+请手动卸载以下Mod:
+
+{0}
+
+并重试."
+Core.Resources	KrakenFileExistsWithoutInstalling	"Oh no! We tried to overwrite a file!
+
+As a safety feature, CKAN will *never* overwrite or alter a file that it did not install itself.
+
+Manually uninstall the mod that owns:
+
+{0}
+
+and try again."	"
+看起来您正在尝试安装一个已经安装的Mod，或者正在尝试安装已经与其它已安装Mod冲突的Mod.
+
+作为一个安全特性，CKAN*永远不会*覆写或修改并非由自己安装的文件.
+
+请手动卸载以下Mod:
+
+{0}
+
+并重试."
+Core.Resources	KrakenBadMetadata	Bad metadata detected for module {0}: {1}	检测到 {0} 的元数据错误: {1}
+Core.Resources	KrakenDownloadErrorsHeader	Uh oh, the following things went wrong when downloading...	Uh oh，下载时以下东西出现了问题...
+Core.Resources	KrakenModuleDownloadErrorsHeader	One or more downloads were unsuccessful:	一个或多个下载未能成功:
+Core.Resources	KrakenModuleDownloadError	Error downloading {0}: {1}	下载错误 {0}: {1}
+Core.Resources	KrakenNotInstalled	Module {0} is not installed!	模组 {0} 未安装！
+Core.Resources	KrakenMissingCertificateUnix	"Download failed with certificate error: {1}
+
+Consult this page for help:
+{0}"	"我们的下载由于证书错误失败了！
+
+查看以下页面以获得帮助:
+{0}"
+Core.Resources	KrakenMissingCertificateNotUnix	Download failed with certificate error: {0}	我们的下载由于证书错误失败了！
+Core.Resources	KrakenRequestTimedOut	URL timed out: {0}	URL 超时： {0}
+Core.Resources	KrakenDownloadThrottled	Request to {0} throttled	"从 {0} 下载时被限速了。
+请考虑添加一个验证 token 来提高限制速率。"
+Core.Resources	KrakenAlreadyRunning	"Lock file with live process ID found at:
+{0}
+
+Another active CKAN process probably is accessing this game folder. Check your operating system's task manager application. If you are sure the lock file is stale, you may delete it to continue, but if it's not, then it's very likely that the two running CKANs will clash and corrupt your mod registry and game folder.
+
+Do you want to delete this lock file to force access?"	"CKAN 已经运行在该实例下了！
+
+如果您确定这里不是，请删除:
+""{0}"""
+Core.Resources	KrakenIsDLC	CKAN can't install, upgrade, or remove expansion '{0}' for you.	CKAN无法安装扩展‘ {0}’。
+Core.Resources	KrakenIsDLCStorePage	"To install, upgrade, or remove this expansion, purchase it from one of its store pages and follow the instructions:
+{0}"	"如需安装、升级或卸载此扩展包，请前往其商店页面购买，并按照指引进行操作：
+{0}"
+Core.Resources	NotEnoughSpaceToCache	Not enough space in cache folder to store modules!	缓存文件夹中没有足够空间来存储模块 ！
+Core.Resources	NotEnoughSpaceToInstall	Not enough space in game folder to install modules!	游戏文件夹空间不足，无法安装模块！
+Core.Resources	KrakenNotEnoughSpace	"{0}
+Need to store {3} to {1}, but only {2} is available!
+Free up space on that device or change your settings to use another location.
+"	"{0}
+需要存储 {3} 到 {1}，但只有 {2} 可用！
+释放该设备上的空间，或更改您的设置以使用另一个位置。
+"
+Core.Resources	KrakenNotGameDir	The instance is not valid: {0}	实例无效： {0}
+Core.Resources	KrakenInstanceNameTaken	This instance name is already taken: {0}	此实例名称已被占用： {0}
+Core.Resources	KrakenNoInstance	No instance with this name or at this path: {0}	没有具有此名称或此路径的实例: {0}
+Core.Resources	DirectoryNotEmpty	Directory not empty: {0}	目录非空: {0}
+Core.Resources	CannotCloneIntoSelf	Cannot clone {0} into itself	
+Core.Resources	RelationshipResolverConflictsWith	{0} conflicts with {1}	{0} 与 {1} 冲突
+Core.Resources	RelationshipResolverConflictingModDescription	{0} (needed for: {1})	{0} (需要 {1})
+Core.Resources	RelationshipResolverRequiredButResolver	{0} required, but an incompatible version is in the resolver	需要 {0} ，但解析器内有一个不兼容版本
+Core.Resources	RelationshipResolverRequiredButInstalled	{0} required, but an incompatible version is installed	需要 {0} ，但有一个已安装的不兼容版本
+Core.Resources	RelationshipResolverAnUnmanaged	an unmanaged DLL or DLC	一个未管理的 DLL 或 DLC
+Core.Resources	RelationshipResolverInstalledReason	Currently installed	已安装
+Core.Resources	RelationshipResolverUserReason	Requested by user	用户请求
+Core.Resources	RelationshipResolverDependencyRemoved	Dependency removed	已删除依赖项
+Core.Resources	RelationshipResolverNoLongerUsedReason	Auto-installed, depending modules removed	已自动安装，已删除依赖模组
+Core.Resources	RelationshipResolverReplacementReason	Replacing {0}	正在替换 {0}
+Core.Resources	RelationshipResolverSuggestedReason	Suggested by {0}	由 {0} 建议
+Core.Resources	RelationshipResolverDependsReason	Dependency of {0}	满足 {0} 的依赖项
+Core.Resources	RelationshipResolverVirtualDependsReason	Dependency of {0} to satisfy {1}	
+Core.Resources	RelationshipResolverRecommendedReason	Recommended by {0}	由 {0} 推荐
+Core.Resources	ResolvedRelationshipsTreeUnsatisfied	"Could not satisfy {0} while installing:
+{1}"	"安装时无法满足 {0} ：
+{1}"
+Core.Resources	NetModuleCacheMetapackage	{0} {1} (metapackage)	{0} {1} (元软件包)
+Core.Resources	NetModuleCacheModuleCached	{0} {1} (cached)	{0} {1} (已缓存)
+Core.Resources	NetModuleCacheModuleHostSize	{0} {1} ({2}, {3})	{0} {1} ({2}, {3})
+Core.Resources	NetModuleCacheModuleResuming	{0} {1} ({2}, {3} remaining)	{0} {1} ({2}, {3} 剩余)
+Core.Resources	ModpackName	installed-{0}	已安装-{0}
+Core.Resources	InstalledModuleToString	{0} (installed {1})	{0} (已安装 {1})
+Core.Resources	InstalledModuleToStringAutoInstalled	{0} (installed {1}, auto-installed)	{0} (已安装 {1}，自动安装)
+Core.Resources	ReleaseStatusStableName	Stable	稳定版
+Core.Resources	ReleaseStatusStableDescription	Normal releases	正常版本
+Core.Resources	ReleaseStatusTestingName	Testing	测试版
+Core.Resources	ReleaseStatusTestingDescription	Pre-releases for adventurous users	尝鲜版（适合冒险型用户）
+Core.Resources	ReleaseStatusDevelopmentName	Development	开发版
+Core.Resources	ReleaseStatusDevelopmentDescription	Bleeding edge unstable	前沿尝鲜版（极不稳定）
+Core.Resources	FoundDuplicatesConfirmation	Found {0} duplicate installed files. De-duplicate?	找到 {0} 重复的已安装文件。是否去重？
+Core.Resources	DeduplicatedRelPath	Deduplicated {0} copies of {1}	删除了{1}的{0}份重复文件
+Core.Resources	DoneDeduplicatingFiles	Deduplication complete. Space saved: {0}	去重完成。节省空间：{0}
+Core.Resources	NoDuplicatesFound	No duplicate installed files found.	未找到重复安装的文件。
+Core.Resources	ModuleLabelListFavourites	Favourites	收藏
+Core.Resources	ModuleLabelListHidden	Hidden	隐藏
+Core.Resources	ModuleLabelListHeld	Held	已使用
+Core.Resources	RelationshipTypeProvides	Provides	提供
+Core.Resources	RelationshipTypeDepends	Depends	依赖
+Core.Resources	RelationshipTypeRecommends	Recommends	推荐
+Core.Resources	RelationshipTypeSuggests	Suggests	建议
+Core.Resources	RelationshipTypeSupports	Supports	支持
+Core.Resources	RelationshipTypeConflicts	Conflicts	冲突
