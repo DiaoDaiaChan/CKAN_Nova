@@ -143,6 +143,28 @@ public sealed class ModPackCatalogTests
         Assert.That(text, Does.Not.Contain("\"Auto\""));
     }
 
+
+    [TestCase(ExportListFormat.PlainText, ".txt")]
+    [TestCase(ExportListFormat.Markdown, ".md")]
+    [TestCase(ExportListFormat.BbCode, ".txt")]
+    [TestCase(ExportListFormat.Csv, ".csv")]
+    [TestCase(ExportListFormat.Tsv, ".tsv")]
+    public void Export_NonCkanFormats_AppendsDefaultExtensionAndWritesContent(ExportListFormat format, string expectedExtension)
+    {
+        _store.SeedInstalled("ModA", "1.0");
+        _store.SeedInstalled("ModB", "2.0");
+
+        var targetWithoutExt = _workspace.Combine("export_test");
+        var result = _catalog.Export(new ModPackExportRequest(targetWithoutExt, Format: format));
+
+        Assert.That(result.IsSuccess, Is.True, result.Message);
+        Assert.That(result.Value!.Path, Does.EndWith(expectedExtension));
+        Assert.That(File.Exists(result.Value.Path), Is.True);
+        Assert.That(result.Value.ModuleCount, Is.EqualTo(2));
+        var content = File.ReadAllText(result.Value.Path);
+        Assert.That(content, Does.Contain($"Exported:{format}"));
+    }
+
     [Test]
     public void Export_PassesFlagsToStore()
     {

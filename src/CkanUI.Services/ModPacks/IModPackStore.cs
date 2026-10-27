@@ -29,6 +29,13 @@ public interface IModPackStore
     /// </summary>
     string BuildModPackJson(bool useRecommends, bool withVersions);
 
+    /// <summary>
+    /// 将当前实例已安装模组以指定格式导出到指定输出流（F-45 / UI-24）。
+    /// </summary>
+    /// <param name="format">导出文件格式（PlainText, Markdown, BbCode, Csv, Tsv）。</param>
+    /// <param name="stream">目标文件写入流。</param>
+    void ExportInstalledList(ExportListFormat format, Stream stream);
+
     /// <summary>解析一个 <c>.ckan</c> 文件：对应上游 <c>CkanModule.FromFile</c> 的投影。</summary>
     ModPackFile LoadModPackFile(string path);
 

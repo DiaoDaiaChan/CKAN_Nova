@@ -1,5 +1,6 @@
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Pages.Cache;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -15,6 +16,8 @@ public sealed partial class CachePageViewModel : PageViewModel
     private readonly ICacheService _service;
     private readonly IErrorReporter _errors;
     private readonly IDialogService _dialogs;
+    private readonly IChangeRequestSink? _changeSink;
+    private readonly INavigationService? _navigation;
     private bool _loaded;
     private ICacheShellLauncher? _shellLauncher;
 
@@ -25,7 +28,12 @@ public sealed partial class CachePageViewModel : PageViewModel
     }
 
     /// <summary>运行时构造。</summary>
-    public CachePageViewModel(ICacheService service, IErrorReporter errors, IDialogService dialogs)
+    public CachePageViewModel(
+        ICacheService service,
+        IErrorReporter errors,
+        IDialogService dialogs,
+        IChangeRequestSink? changeSink = null,
+        INavigationService? navigation = null)
     {
         ArgumentNullException.ThrowIfNull(service);
         ArgumentNullException.ThrowIfNull(errors);
@@ -33,6 +41,8 @@ public sealed partial class CachePageViewModel : PageViewModel
         _service = service;
         _errors = errors;
         _dialogs = dialogs;
+        _changeSink = changeSink;
+        _navigation = navigation;
     }
 
     /// <inheritdoc />
@@ -252,6 +262,21 @@ public sealed partial class CachePageViewModel : PageViewModel
         var entry = result.Value;
         await LoadCoreAsync();
         if (!HasError) SetStatus("已灌入 " + entry.ModuleLabel + "（" + CacheFormat.FormatSize(entry.SizeBytes) + "）。");
+
+        if (!entry.IsReferenced && !string.IsNullOrWhiteSpace(entry.Identifier))
+        {
+            var confirmed = await _dialogs.ConfirmAsync(
+                "安装模组",
+                $"已成功将 {entry.ModuleLabel} 导入缓存。是否立即前往变更集安装此模组？");
+            if (confirmed)
+            {
+                _changeSink?.SetRequests(new[] { new ChangeRequest(entry.Identifier, ChangeAction.Install) });
+                if (_navigation is not null)
+                {
+                    await _navigation.NavigateAsync("changes");
+                }
+            }
+        }
     }, "从 ZIP 灌入下载缓存", "正在校验并复制 ZIP…");
 
     /// <summary>删除勾选中的条目。</summary>

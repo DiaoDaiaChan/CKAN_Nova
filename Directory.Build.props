@@ -4,6 +4,7 @@
        用项目名前缀判定而不是路径判定：external/CKAN 是目录联接，路径判定在 MSBuild 里要处理反斜杠转义，
        前缀判定简单且不会误伤。 -->
   <PropertyGroup>
+    <NuGetAudit>false</NuGetAudit>
     <CkanIsOwnProject>false</CkanIsOwnProject>
     <CkanIsOwnProject Condition="$(MSBuildProjectName.StartsWith('CkanUI'))">true</CkanIsOwnProject>
   </PropertyGroup>

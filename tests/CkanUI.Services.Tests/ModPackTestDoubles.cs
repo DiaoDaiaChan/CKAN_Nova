@@ -77,6 +77,13 @@ internal sealed class FakeModPackStore : IModPackStore
         return modules.ToList();
     }
 
+    public void ExportInstalledList(ExportListFormat format, Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        using var writer = new StreamWriter(stream, leaveOpen: true);
+        writer.Write($"Exported:{format}");
+    }
+
     public string BuildModPackJson(bool useRecommends, bool withVersions)
     {
         LastUseRecommends = useRecommends;
@@ -107,6 +114,8 @@ internal sealed class FakeModPackStore : IModPackStore
 
         return JsonSerializer.Serialize(document, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine;
     }
+
+    
 
     public ModPackFile LoadModPackFile(string path)
     {

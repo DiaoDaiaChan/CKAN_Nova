@@ -18,12 +18,63 @@ public interface IModPackService
     /// <summary>当前实例名；没有实例时为 null。</summary>
     string? InstanceName => null;
 
-    /// <summary>把当前实例的已安装模组导出成 <c>.ckan</c> 元数据包（可选连同缓存里的下载包打包成 zip）。</summary>
+    /// <summary>把当前实例的已安装模组导出成 <c>.ckan</c> 元数据包或非 ckan 文本/表格格式（可选连同缓存里的下载包打包成 zip）。</summary>
     Task<OperationResult<ModPackExportResult>> ExportAsync(
         ModPackExportRequest request,
         IProgress<OperationProgress>? progress = null,
         CancellationToken ct = default)
         => Task.FromResult(OperationResult<ModPackExportResult>.Fail("当前导入导出服务不可用。"));
+
+    /// <summary>
+    /// 将当前实例的已安装模组导出为非 ckan 的纯文本/标记/表格格式（F-45 / UI-24）。
+    /// 支持 PlainText, Markdown, BbCode, CSV, TSV 格式。
+    /// 默认实现（DIM）将请求转发给通用的 ExportAsync。
+    /// </summary>
+    /// <param name="request">导出请求参数（目标路径、导出格式）。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>操作结果，包含成功写入的文件绝对路径。</returns>
+    Task<OperationResult<string>> ExportInstalledListAsync(
+        ExportInstalledListRequest request,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var exportRequest = new ModPackExportRequest(
+            TargetPath: request.TargetPath,
+            WithVersions: true,
+            BundleDownloads: false,
+            UseRecommends: false,
+            Format: request.Format);
+
+        return ExportAsync(exportRequest, progress: null, ct)
+            .ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                {
+                    var ex = t.Exception?.GetBaseException() ?? new Exception("导出失败");
+                    return OperationResult<string>.Fail(ex.Message, ex.GetType().FullName);
+                }
+
+                var res = t.Result;
+                if (!res.IsSuccess)
+                {
+                    return OperationResult<string>.Fail(res.Message ?? "导出失败", res.Detail, res.Retryable);
+                }
+
+                return OperationResult<string>.Ok(res.Value?.Path ?? request.TargetPath);
+            }, TaskScheduler.Default);
+    }
+
+    /// <summary>
+    /// 将当前已安装的模组列表渲染为指定格式的文本（供一键复制到剪贴板，UI-21 / F-45）。
+    /// </summary>
+    /// <param name="format">导出格式（纯文本、Markdown、BBCode、CSV、TSV）。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>操作结果，包含格式化后的文本内容。</returns>
+    Task<OperationResult<string>> RenderInstalledListTextAsync(
+        InstalledListExportFormat format,
+        CancellationToken ct = default)
+        => Task.FromResult(OperationResult<string>.Fail("当前导入导出服务不可用。"));
 
     /// <summary>预览一组 <c>.ckan</c> 文件会带来什么变化；绝不落盘、绝不静默安装。</summary>
     Task<OperationResult<ModPackPreview>> PreviewImportAsync(

@@ -1,0 +1,246 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                    xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                    xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                    mc:Ignorable="d"
+                    d:DesignWidth="700" d:DesignHeight="550"
+                    Width="720" Height="560"
+                    MinWidth="600" MinHeight="450"
+                    x:Class="CkanUI.App.Views.Dialogs.LabelEditDialogView"
+                    x:DataType="vm:LabelEditDialogViewModel"
+                    Icon="/Assets/ckan.ico"
+                    Title="{Binding Title}">
+
+    <dialogs:DialogWindow.Styles>
+        <Style Selector="TextBlock.section-header">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+            <Setter Property="Margin" Value="0,10,0,4" />
+        </Style>
+        <Style Selector="CheckBox">
+            <Setter Property="Margin" Value="0,3,0,3" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+    </dialogs:DialogWindow.Styles>
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
+
+        <!-- 顶部简短提示 -->
+        <Border Grid.Row="0" Margin="0,0,0,10" Padding="10,8"
+                Background="{DynamicResource CkanCardBackgroundBrush}"
+                BorderBrush="{DynamicResource CkanCardBorderBrush}"
+                BorderThickness="1" CornerRadius="4">
+            <TextBlock Text="管理模组自定义标签组。设置标签属性、提醒机制或特定游戏实例可见范围。"
+                       FontSize="12"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </Border>
+
+        <!-- 主体：左侧标签列表，右侧详细编辑表单 -->
+        <Grid Grid.Row="1" ColumnDefinitions="220,12,*">
+
+            <!-- 左侧列表 -->
+            <Border Grid.Column="0"
+                    Background="{DynamicResource CkanCardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CkanCardBorderBrush}"
+                    BorderThickness="1" CornerRadius="4">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <!-- 列表头工具栏 -->
+                    <Grid Grid.Row="0" Margin="8,8,8,4" ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="标签列表" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" FontSize="12"
+                                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                        <Button Grid.Column="1"
+                                Content="＋ 新建"
+                                Command="{Binding AddLabelCommand}"
+                                Padding="8,4" FontSize="11" />
+                    </Grid>
+
+                    <Separator Grid.Row="0" VerticalAlignment="Bottom" Margin="0" Height="1"
+                               Background="{DynamicResource CkanBorderBrush}" />
+
+                    <!-- 标签列表 -->
+                    <ListBox Grid.Row="1"
+                             ItemsSource="{Binding Items}"
+                             SelectedItem="{Binding SelectedItem}"
+                             Background="Transparent">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LabelEditItemViewModel">
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+                                    <!-- 颜色圆点或小色块 -->
+                                    <Border Grid.Column="0" Width="10" Height="10" CornerRadius="5"
+                                            Margin="0,0,8,0" VerticalAlignment="Center"
+                                            IsVisible="{Binding HasColor}">
+                                        <Border.Background>
+                                            <SolidColorBrush Color="{Binding ColorHex}" />
+                                        </Border.Background>
+                                    </Border>
+                                    <Border Grid.Column="0" Width="10" Height="10" CornerRadius="5"
+                                            Margin="0,0,8,0" VerticalAlignment="Center"
+                                            BorderBrush="{DynamicResource CkanBorderBrush}"
+                                            BorderThickness="1"
+                                            IsVisible="{Binding !HasColor}" />
+
+                                    <!-- 标签名称 -->
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                               FontSize="12" />
+
+                                    <!-- 模组计数或作用域标识 -->
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding ModuleCount, StringFormat='({0})'}"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                               VerticalAlignment="Center"
+                                               Margin="4,0,0,0" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- 列表底部操作 -->
+                    <Border Grid.Row="2" Padding="8" BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,1,0,0">
+                        <Button Content="删除选中标签"
+                                Command="{Binding DeleteLabelCommand}"
+                                IsEnabled="{Binding CanDeleteSelected}"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center"
+                                FontSize="11"
+                                Padding="4,6" />
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- 分割占位 -->
+            <GridSplitter Grid.Column="1" Width="1" Background="{DynamicResource CkanBorderBrush}" />
+
+            <!-- 右侧属性编辑表单 -->
+            <Border Grid.Column="2"
+                    Background="{DynamicResource CkanCardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CkanCardBorderBrush}"
+                    BorderThickness="1" CornerRadius="4"
+                    Padding="14,10">
+                <Grid>
+                    <!-- 未选中提示 -->
+                    <TextBlock Text="请在左侧选择一个标签组或点击“新建”创建新标签。"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                               FontSize="12"
+                               IsVisible="{Binding !HasSelectedItem}" />
+
+                    <!-- 已选中编辑区 -->
+                    <ScrollViewer IsVisible="{Binding HasSelectedItem}">
+                        <StackPanel Spacing="6" DataContext="{Binding SelectedItem}">
+
+                            <!-- 基本属性 -->
+                            <TextBlock Text="基础信息" Classes="section-header" Margin="0,0,0,4" />
+
+                            <Grid ColumnDefinitions="70,*" RowDefinitions="Auto,Auto" Margin="0,0,0,6">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="标签名称:" VerticalAlignment="Center" FontSize="12" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name}" Margin="0,2,0,4" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="颜色代码:" VerticalAlignment="Center" FontSize="12" />
+                                <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto,Auto" Margin="0,2,0,4">
+                                    <TextBox Grid.Column="0" Text="{Binding ColorHex}" PlaceholderText="#RRGGBB" />
+                                    <!-- 颜色预览色块 -->
+                                    <Border Grid.Column="1" Width="26" Height="26" Margin="6,0,0,0"
+                                            CornerRadius="3" BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1">
+                                        <Border.Background>
+                                            <SolidColorBrush Color="{Binding ColorHex}" />
+                                        </Border.Background>
+                                    </Border>
+                                    <Button Grid.Column="2" Content="清除颜色"
+                                            Command="{Binding $parent[dialogs:DialogWindow].((vm:LabelEditDialogViewModel)DataContext).ClearColorCommand}"
+                                            Margin="6,0,0,0" FontSize="11" Padding="6,4" />
+                                </Grid>
+                            </Grid>
+
+                            <!-- 预设颜色调色板 -->
+                            <TextBlock Text="快捷预设颜色:" FontSize="11" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                            <ItemsControl ItemsSource="{Binding $parent[dialogs:DialogWindow].((vm:LabelEditDialogViewModel)DataContext).AvailablePresetColors}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="6" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="x:String">
+                                        <Button Width="20" Height="20" Padding="0"
+                                                BorderThickness="1" BorderBrush="{DynamicResource CkanBorderBrush}"
+                                                CornerRadius="3"
+                                                Command="{Binding $parent[dialogs:DialogWindow].((vm:LabelEditDialogViewModel)DataContext).SelectPresetColorCommand}"
+                                                CommandParameter="{Binding}">
+                                            <Border CornerRadius="2">
+                                                <Border.Background>
+                                                    <SolidColorBrush Color="{Binding}" />
+                                                </Border.Background>
+                                            </Border>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- 实例适用范围 -->
+                            <TextBlock Text="作用范围" Classes="section-header" />
+                            <CheckBox IsChecked="{Binding IsGlobal}"
+                                      Content="全局通用标签（在所有游戏实例中均可见）" />
+                            <TextBlock Text="取消勾选时，该标签仅绑定并保存在当前游戏实例。"
+                                       FontSize="11" Margin="26,-2,0,4"
+                                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+
+                            <!-- 过滤与提醒行为 -->
+                            <TextBlock Text="行为与过滤选项" Classes="section-header" />
+                            <CheckBox IsChecked="{Binding HideFromOtherFilters}"
+                                      Content="从其它常规筛选列表中隐藏此标签下的模组 (Hide)" />
+                            <CheckBox IsChecked="{Binding HoldVersion}"
+                                      Content="锁定模组版本 (HoldVersion，禁止自动或批量升级)" />
+                            <CheckBox IsChecked="{Binding IgnoreMissingFiles}"
+                                      Content="忽略缺失的模组文件 (IgnoreMissingFiles)" />
+                            <CheckBox IsChecked="{Binding NotifyOnChanges}"
+                                      Content="模组发生更新变动时发出通知 (NotifyOnChanges)" />
+                            <CheckBox IsChecked="{Binding RemoveOnChanges}"
+                                      Content="模组更新后自动从此标签中移除 (RemoveOnChanges)" />
+                            <CheckBox IsChecked="{Binding AlertOnInstall}"
+                                      Content="安装此标签下的模组时弹出警告提醒 (AlertOnInstall)" />
+                            <CheckBox IsChecked="{Binding RemoveOnInstall}"
+                                      Content="安装完成后自动从此标签中移除 (RemoveOnInstall)" />
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- 状态/错误提示条 -->
+        <Border Grid.Row="2" Margin="0,8,0,0">
+            <StackPanel Spacing="4">
+                <TextBlock Text="{Binding StatusMessage}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           FontSize="11"
+                           IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <Border Background="#20FF0000" BorderBrush="#80FF0000" BorderThickness="1"
+                        CornerRadius="4" Padding="8,4"
+                        IsVisible="{Binding HasValidationError}">
+                    <TextBlock Text="{Binding ValidationError}"
+                               Foreground="#FFFF6666" FontSize="11" TextWrapping="Wrap" />
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- 底部确定/取消按钮 -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,12,0,0">
+            <Button Content="{Binding SecondaryButtonText}"
+                    Command="{Binding SecondaryCommand}"
+                    Width="90" Height="30"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+            <Button Content="{Binding PrimaryButtonText}"
+                    Command="{Binding PrimaryCommand}"
+                    Width="110" Height="30"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                    Classes="accent" />
+        </StackPanel>
+
+    </Grid>
+</dialogs:DialogWindow>

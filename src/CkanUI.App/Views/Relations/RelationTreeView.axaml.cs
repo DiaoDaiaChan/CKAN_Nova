@@ -4,9 +4,16 @@ using CkanUI.ViewModels.Relations;
 
 namespace CkanUI.App.Views.Relations;
 
-/// <summary>关系树视图，将双击操作委托给 VM。</summary>
+/// <summary>关系树视图，将双击操作委托给 VM 进行模组跳转导航（UI-18）。</summary>
 public partial class RelationTreeView : UserControl
 {
     public RelationTreeView() => InitializeComponent();
-    private void OnNodeDoubleTapped(object? sender,TappedEventArgs e) { if(sender is Control {DataContext:RelationNodeViewModel node} && DataContext is RelationTreeViewModel vm) vm.Navigate(node); }
+
+    private void OnNodeDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is Control { DataContext: RelationNodeViewModel node } && DataContext is RelationTreeViewModel vm)
+        {
+            vm.Navigate(node);
+        }
+    }
 }

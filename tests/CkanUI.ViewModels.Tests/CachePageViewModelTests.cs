@@ -1,5 +1,6 @@
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Pages;
 using CkanUI.ViewModels.Pages.Cache;
 using NUnit.Framework;
@@ -210,6 +211,96 @@ public sealed class CachePageViewModelTests
     }
 
     [Test]
+    public async Task ImportZip_UninstalledMod_UserConfirms_QueuesInstallAndNavigatesToChanges()
+    {
+        var service = new FakeCacheService();
+        service.ImportResult = OperationResult<CacheEntryInfo>.Ok(
+            new CacheEntryInfo("AAAA1111-mod.zip", 2048, T0, "TestMod", "1.0.0", false));
+        var dialogs = new FakeDialogService { ConfirmAnswer = true };
+        var changeSink = new FakeChangeRequestSink();
+        var nav = new FakeNavigationService();
+
+        var vm = Create(service, dialogs: dialogs, changeSink: changeSink, navigation: nav);
+        vm.ZipPicker = new FakeZipPicker("C:/tmp/mod.zip");
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        await vm.ImportZipCommand.ExecuteAsync(null);
+
+        Assert.That(dialogs.ConfirmTitles, Has.Count.EqualTo(1));
+        Assert.That(dialogs.ConfirmTitles[0], Is.EqualTo("安装模组"));
+        Assert.That(dialogs.ConfirmMessages[0], Does.Contain("TestMod"));
+        Assert.That(changeSink.Calls, Is.EqualTo(1));
+        Assert.That(changeSink.Last, Is.Not.Null);
+        var req = changeSink.Last!.Single();
+        Assert.That(req.Identifier, Is.EqualTo("TestMod"));
+        Assert.That(req.Action, Is.EqualTo(ChangeAction.Install));
+        Assert.That(nav.Requested, Is.EqualTo(new[] { "changes" }));
+    }
+
+    [Test]
+    public async Task ImportZip_UninstalledMod_UserDeclines_DoesNotQueueOrNavigate()
+    {
+        var service = new FakeCacheService();
+        service.ImportResult = OperationResult<CacheEntryInfo>.Ok(
+            new CacheEntryInfo("AAAA1111-mod.zip", 2048, T0, "TestMod", "1.0.0", false));
+        var dialogs = new FakeDialogService { ConfirmAnswer = false };
+        var changeSink = new FakeChangeRequestSink();
+        var nav = new FakeNavigationService();
+
+        var vm = Create(service, dialogs: dialogs, changeSink: changeSink, navigation: nav);
+        vm.ZipPicker = new FakeZipPicker("C:/tmp/mod.zip");
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        await vm.ImportZipCommand.ExecuteAsync(null);
+
+        Assert.That(dialogs.ConfirmTitles, Has.Count.EqualTo(1));
+        Assert.That(changeSink.Calls, Is.EqualTo(0));
+        Assert.That(nav.Requested, Is.Empty);
+    }
+
+    [Test]
+    public async Task ImportZip_InstalledMod_DoesNotPromptOrQueue()
+    {
+        var service = new FakeCacheService();
+        service.ImportResult = OperationResult<CacheEntryInfo>.Ok(
+            new CacheEntryInfo("AAAA1111-mod.zip", 2048, T0, "TestMod", "1.0.0", true));
+        var dialogs = new FakeDialogService { ConfirmAnswer = true };
+        var changeSink = new FakeChangeRequestSink();
+        var nav = new FakeNavigationService();
+
+        var vm = Create(service, dialogs: dialogs, changeSink: changeSink, navigation: nav);
+        vm.ZipPicker = new FakeZipPicker("C:/tmp/mod.zip");
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        await vm.ImportZipCommand.ExecuteAsync(null);
+
+        Assert.That(dialogs.ConfirmTitles, Is.Empty);
+        Assert.That(changeSink.Calls, Is.EqualTo(0));
+        Assert.That(nav.Requested, Is.Empty);
+    }
+
+    [Test]
+    public async Task ImportZip_UnknownIdentifier_DoesNotPromptOrQueue()
+    {
+        var service = new FakeCacheService();
+        service.ImportResult = OperationResult<CacheEntryInfo>.Ok(
+            new CacheEntryInfo("AAAA1111-mod.zip", 2048, T0, null, null, false));
+        var dialogs = new FakeDialogService { ConfirmAnswer = true };
+        var changeSink = new FakeChangeRequestSink();
+        var nav = new FakeNavigationService();
+
+        var vm = Create(service, dialogs: dialogs, changeSink: changeSink, navigation: nav);
+        vm.ZipPicker = new FakeZipPicker("C:/tmp/mod.zip");
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        await vm.ImportZipCommand.ExecuteAsync(null);
+
+        Assert.That(dialogs.ConfirmTitles, Is.Empty);
+        Assert.That(changeSink.Calls, Is.EqualTo(0));
+        Assert.That(nav.Requested, Is.Empty);
+    }
+
+    [Test]
     public async Task OpenCacheFolder_WithLauncher_OpensDirectory()
     {
         var service = new FakeCacheService { CacheDirectory = "C:/fake/cache" };
@@ -328,8 +419,10 @@ public sealed class CachePageViewModelTests
     private static CachePageViewModel Create(
         FakeCacheService service,
         FakeErrorReporter? errors = null,
-        FakeDialogService? dialogs = null)
-        => new(service, errors ?? new FakeErrorReporter(), dialogs ?? new FakeDialogService());
+        FakeDialogService? dialogs = null,
+        IChangeRequestSink? changeSink = null,
+        INavigationService? navigation = null)
+        => new(service, errors ?? new FakeErrorReporter(), dialogs ?? new FakeDialogService(), changeSink, navigation);
 
     private static async Task WaitForAsync(Func<bool> condition)
     {
@@ -492,6 +585,9 @@ internal sealed class FakeDialogService : IDialogService
     /// <summary>确认过的标题（按调用顺序）。</summary>
     public List<string> ConfirmTitles { get; } = new();
 
+    /// <summary>确认过的消息（按调用顺序）。</summary>
+    public List<string> ConfirmMessages { get; } = new();
+
     /// <summary>SelectAsync 的选择项索引；默认 0，-1 表示取消。</summary>
     public int SelectAnswer { get; set; } = 0;
 
@@ -501,6 +597,7 @@ internal sealed class FakeDialogService : IDialogService
     public Task<bool> ConfirmAsync(string title, string message, string? detail = null)
     {
         ConfirmTitles.Add(title);
+        ConfirmMessages.Add(message);
         return Task.FromResult(ConfirmAnswer);
     }
 
@@ -557,5 +654,33 @@ internal sealed class FakeCacheShellLauncher : ICacheShellLauncher
     {
         OpenedPaths.Add(path);
         return Task.FromResult(Result);
+    }
+}
+
+internal sealed class FakeChangeRequestSink : IChangeRequestSink
+{
+    public int Calls { get; private set; }
+    public IReadOnlyCollection<ChangeRequest>? Last { get; private set; }
+
+    public void SetRequests(IReadOnlyCollection<ChangeRequest>? requests)
+    {
+        Calls++;
+        Last = requests;
+    }
+}
+
+internal sealed class FakeNavigationService : INavigationService
+{
+    public object? CurrentPage => null;
+    public string CurrentKey => "cache";
+    public List<string> Requested { get; } = new();
+
+    public event Action<object?, string>? Navigated;
+
+    public Task<bool> NavigateAsync(string pageKey, object? parameter = null, CancellationToken ct = default)
+    {
+        Requested.Add(pageKey);
+        Navigated?.Invoke(null, pageKey);
+        return Task.FromResult(true);
     }
 }

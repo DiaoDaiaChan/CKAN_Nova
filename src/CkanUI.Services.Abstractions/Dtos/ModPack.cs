@@ -7,11 +7,54 @@ namespace CkanUI.Services.Abstractions.Dtos;
 /// <param name="WithVersions">是否在依赖项里锁定精确版本（对应上游 <c>GenerateModpack(with_versions)</c>）。</param>
 /// <param name="BundleDownloads">是否把缓存里已下载的模组 zip 一起打进同名 <c>.zip</c> 归档。</param>
 /// <param name="UseRecommends">true 写 recommends（可选依赖），false 写 depends（对应上游 recommends 开关）。</param>
+/// <summary>
+/// 导出格式枚举（F-45 / UI-24）。
+/// 支持 .ckan 元数据包（可回导）以及多种人类可读 / 外部交换格式（不可回导）。
+/// </summary>
+public enum ExportListFormat
+{
+    /// <summary>CKAN 元数据包（.ckan，依赖/推荐关系，完整可回导）。</summary>
+    Ckan,
+
+    /// <summary>纯文本列表（.txt，每行一个标识与版本）。</summary>
+    PlainText,
+
+    /// <summary>Markdown 表格/列表（.md，适用于文档与 GitHub Release）。</summary>
+    Markdown,
+
+    /// <summary>BBCode 列表（.txt / .bbcode，适用于 KSP 官方论坛贴）。</summary>
+    BbCode,
+
+    /// <summary>逗号分隔值（.csv，适用于 Excel / 电子表格）。</summary>
+    Csv,
+
+    /// <summary>制表符分隔值（.tsv，适用于文本表格分析）。</summary>
+    Tsv,
+}
+
+/// <summary>
+/// 导出模组列表（非 ckan 格式）的轻量请求（F-45 / UI-24）。
+/// </summary>
+/// <param name="TargetPath">目标文件完整路径。</param>
+/// <param name="Format">导出格式（PlainText, Markdown, BbCode, Csv, Tsv）。</param>
+public sealed record ExportInstalledListRequest(
+    string TargetPath,
+    ExportListFormat Format);
+
+/// <summary>
+/// 导出请求（03 篇 §7 导出对话框 / 06 篇 UI-24 / F-45）：把当前实例的已安装模组写成 <c>.ckan</c> 元数据包或文本列表。
+/// </summary>
+/// <param name="TargetPath">目标文件路径；省略后缀时自动补上对应格式的后缀。</param>
+/// <param name="WithVersions">是否在依赖项里锁定精确版本（仅 .ckan 格式有效）。</param>
+/// <param name="BundleDownloads">是否把缓存里已下载的模组 zip 一起打进同名 <c>.zip</c> 归档（仅 .ckan 格式有效）。</param>
+/// <param name="UseRecommends">true 写 recommends，false 写 depends（仅 .ckan 格式有效）。</param>
+/// <param name="Format">导出格式；默认 <see cref="ExportListFormat.Ckan"/>。</param>
 public sealed record ModPackExportRequest(
     string TargetPath,
     bool WithVersions = true,
     bool BundleDownloads = false,
-    bool UseRecommends = false);
+    bool UseRecommends = false,
+    ExportListFormat Format = ExportListFormat.Ckan);
 
 /// <summary>导入源里的一条模组请求：<c>.ckan</c> 的 depends / recommends 里的一项。</summary>
 /// <param name="Identifier">模组标识。</param>

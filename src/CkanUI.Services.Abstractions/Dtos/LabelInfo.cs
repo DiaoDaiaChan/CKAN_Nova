@@ -11,17 +11,17 @@ namespace CkanUI.Services.Abstractions.Dtos;
 /// 视图模型不持有活的 <c>ModuleLabel</c>。</para>
 /// </remarks>
 public sealed record LabelInfo(
-    string Name,
-    string? ColorHex,
-    bool IsGlobal,
-    bool HideFromOtherFilters,
-    bool NotifyOnChanges,
-    bool RemoveOnChanges,
-    bool AlertOnInstall,
-    bool RemoveOnInstall,
-    bool HoldVersion,
-    bool IgnoreMissingFiles,
-    int ModuleCount)
+    string Name = "",
+    string? ColorHex = null,
+    bool IsGlobal = true,
+    bool HideFromOtherFilters = false,
+    bool NotifyOnChanges = false,
+    bool RemoveOnChanges = false,
+    bool AlertOnInstall = false,
+    bool RemoveOnInstall = false,
+    bool HoldVersion = false,
+    bool IgnoreMissingFiles = false,
+    int ModuleCount = 0)
 {
     /// <summary>只有名字、没有任何属性的标签（用于"该标签组当前实例不可用"的占位）。</summary>
     public static LabelInfo Named(string name) =>

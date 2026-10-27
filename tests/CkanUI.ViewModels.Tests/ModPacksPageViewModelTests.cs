@@ -145,6 +145,45 @@ public sealed class ModPacksPageViewModelTests
         Assert.That(vm.IsBusy, Is.False);
     }
 
+
+    [TestCase(ExportListFormat.Ckan, true, ".ckan")]
+    [TestCase(ExportListFormat.PlainText, false, ".txt")]
+    [TestCase(ExportListFormat.Markdown, false, ".md")]
+    [TestCase(ExportListFormat.BbCode, false, ".txt")]
+    [TestCase(ExportListFormat.Csv, false, ".csv")]
+    [TestCase(ExportListFormat.Tsv, false, ".tsv")]
+    public void ExportForm_FormatSelection_UpdatesCanConfigureModpackOptionsAndPathHint(
+        ExportListFormat format,
+        bool expectedCanConfigure,
+        string expectedExtension)
+    {
+        var vm = CreateViewModel("主实例");
+        var option = vm.ExportForm.FormatOptions.Single(o => o.Format == format);
+
+        vm.ExportForm.SelectedFormatOption = option;
+
+        Assert.That(vm.ExportForm.SelectedFormat, Is.EqualTo(format));
+        Assert.That(vm.ExportForm.CanConfigureModpackOptions, Is.EqualTo(expectedCanConfigure));
+        Assert.That(vm.ExportForm.SelectedFormatOption.DefaultExtension, Is.EqualTo(expectedExtension));
+        Assert.That(vm.ExportForm.PathHint, Does.Contain(expectedExtension));
+    }
+
+    [Test]
+    public async Task Export_NonCkanFormat_PassesFormatToService()
+    {
+        _modPacks.ExportResult = OperationResult<ModPackExportResult>.Ok(
+            ModPacksFakeModPackService.Export("D:/out/mods.md", 5));
+        var vm = CreateViewModel("主实例");
+        vm.ExportForm.SelectedFormatOption = vm.ExportForm.FormatOptions.Single(o => o.Format == ExportListFormat.Markdown);
+        vm.ExportForm.TargetPath = "D:/out/mods.md";
+
+        await vm.ExportCommand.ExecuteAsync(null);
+
+        Assert.That(_modPacks.ExportCalls, Is.EqualTo(1));
+        Assert.That(_modPacks.LastRequest!.Format, Is.EqualTo(ExportListFormat.Markdown));
+        Assert.That(vm.StatusText, Does.Contain("已导出 5 个模组"));
+    }
+
     [Test]
     public async Task Export_RetryableFailure_ShowsRetryableText()
     {

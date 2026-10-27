@@ -40,6 +40,13 @@ public sealed class ModPackCatalog
     /// <summary>当前实例名。</summary>
     public string? InstanceName => _store.InstanceName;
 
+    /// <summary>将当前实例已装模组导出到流（F-45 / UI-24）。</summary>
+    public void ExportInstalledListToStream(ExportListFormat format, Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        _store.ExportInstalledList(format, stream);
+    }
+
     /// <summary>
     /// 导出当前实例的已装模组为 .ckan 元数据包。
     /// 元数据包的字段语义完全交给上游 <c>RegistryManager.GenerateModpack</c>（F-45 / UI-24：
@@ -57,7 +64,7 @@ public sealed class ModPackCatalog
             return FailExport(NoInstanceMessage, retryable: true);
         }
 
-        var path = NormalizeTargetPath(request.TargetPath, out var pathError);
+        var path = NormalizeTargetPath(request.TargetPath, request.Format, out var pathError);
         if (path is null)
         {
             return FailExport(pathError!);
@@ -83,6 +90,39 @@ public sealed class ModPackCatalog
         if (exportable.Count == 0)
         {
             return FailExport("当前实例还没有已安装的模组，没有可导出的内容。");
+        }
+
+        // F-45: 非 ckan 格式导出 (PlainText, Markdown, BbCode, Csv, Tsv)
+        if (request.Format != ExportListFormat.Ckan)
+        {
+            try
+            {
+                using var fileStream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+                _store.ExportInstalledList(request.Format, fileStream);
+            }
+            catch (IOException exception)
+            {
+                return FailExport($"写入导出文件失败：{Path.GetFileName(path)} 可能正被占用。", exception.Message, retryable: true);
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                return FailExport($"没有权限写入导出文件：{path}", exception.Message, retryable: true);
+            }
+            catch (Exception exception)
+            {
+                return FailExport("写入导出文件失败。", exception.Message);
+            }
+
+            var listFileBytes = TryLength(path);
+            return OperationResult<ModPackExportResult>.Ok(
+                new ModPackExportResult(
+                    Path: path,
+                    ModuleCount: exportable.Count,
+                    ArchivePath: null,
+                    BundledCount: 0,
+                    BundleBytes: 0,
+                    FileBytes: listFileBytes,
+                    Warnings: Array.Empty<string>()));
         }
 
         string json;
@@ -494,7 +534,7 @@ public sealed class ModPackCatalog
         _ => 5,
     };
 
-    private static string? NormalizeTargetPath(string? targetPath, out string? error)
+    private static string? NormalizeTargetPath(string? targetPath, ExportListFormat format, out string? error)
     {
         error = null;
         if (string.IsNullOrWhiteSpace(targetPath))
@@ -528,9 +568,19 @@ public sealed class ModPackCatalog
             return null;
         }
 
-        if (!full.EndsWith(".ckan", StringComparison.OrdinalIgnoreCase))
+        var extension = Path.GetExtension(full);
+        if (string.IsNullOrEmpty(extension))
         {
-            full += ".ckan";
+            var defaultExt = format switch
+            {
+                ExportListFormat.PlainText => ".txt",
+                ExportListFormat.Markdown => ".md",
+                ExportListFormat.BbCode => ".txt",
+                ExportListFormat.Csv => ".csv",
+                ExportListFormat.Tsv => ".tsv",
+                _ => ".ckan"
+            };
+            full += defaultExt;
         }
 
         return full;

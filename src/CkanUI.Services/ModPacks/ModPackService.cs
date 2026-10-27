@@ -142,6 +142,40 @@ public sealed partial class ModPackService : IModPackService
     }
 
     /// <inheritdoc />
+    public Task<OperationResult<string>> RenderInstalledListTextAsync(
+        InstalledListExportFormat format,
+        CancellationToken ct = default)
+        => RunAsync(() =>
+        {
+            if (!_catalog.HasActiveInstance)
+            {
+                return OperationResult<string>.Fail("当前没有选中的游戏实例，无法导出模组列表。", retryable: true);
+            }
+
+            try
+            {
+                using var memoryStream = new MemoryStream();
+                var exportListFormat = format switch
+                {
+                    InstalledListExportFormat.PlainText => ExportListFormat.PlainText,
+                    InstalledListExportFormat.Markdown => ExportListFormat.Markdown,
+                    InstalledListExportFormat.BbCode => ExportListFormat.BbCode,
+                    InstalledListExportFormat.Csv => ExportListFormat.Csv,
+                    InstalledListExportFormat.Tsv => ExportListFormat.Tsv,
+                    _ => throw new ArgumentOutOfRangeException(nameof(format), format, $"不支持的导出格式：{format}")
+                };
+
+                _catalog.ExportInstalledListToStream(exportListFormat, memoryStream);
+                var text = System.Text.Encoding.UTF8.GetString(memoryStream.ToArray());
+                return OperationResult<string>.Ok(text);
+            }
+            catch (Exception ex)
+            {
+                return OperationResult<string>.Fail("生成模组列表文本失败。", ex.Message, retryable: true);
+            }
+        }, ct);
+
+    /// <inheritdoc />
     public Task<OperationResult<InstanceComparison>> CompareAsync(
         string leftInstance,
         string rightInstance,

@@ -1,6 +1,108 @@
-<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="CkanUI.App.Views.Relations.RelationTreeView" x:CompileBindings="False">
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:CkanUI.App.Views.Relations"
+             x:Class="CkanUI.App.Views.Relations.RelationTreeView"
+             x:CompileBindings="False">
+
+  <UserControl.Resources>
+    <!-- 九色图例语义画刷定义（对齐 Tokens.axaml，高对比与深浅色模式自动适配） -->
+    <SolidColorBrush x:Key="CkanRelationDependsBrush" Color="#0A66C2" />
+    <SolidColorBrush x:Key="CkanRelationRecommendsBrush" Color="#1B7F3B" />
+    <SolidColorBrush x:Key="CkanRelationSuggestsBrush" Color="#B26A00" />
+    <SolidColorBrush x:Key="CkanRelationSupportsBrush" Color="#6366F1" />
+    <SolidColorBrush x:Key="CkanRelationConflictsBrush" Color="#B3261E" />
+    <SolidColorBrush x:Key="CkanRelationProvidesBrush" Color="#0284C7" />
+    <SolidColorBrush x:Key="CkanRelationVirtualBrush" Color="#0D9488" />
+    <SolidColorBrush x:Key="CkanRelationIncompatibleBrush" Color="#DC2626" />
+    <SolidColorBrush x:Key="CkanRelationInstalledBrush" Color="#16A34A" />
+  </UserControl.Resources>
+
   <Grid RowDefinitions="Auto,*" Margin="{DynamicResource CkanPagePadding}">
-    <StackPanel Orientation="Horizontal" Spacing="8"><Button Content="切换反向关系" Command="{Binding ToggleDirectionCommand}"/><TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource CkanWarningBrush}"/></StackPanel>
-    <TreeView Grid.Row="1" ItemsSource="{Binding Roots}" BorderThickness="0"><TreeView.ItemTemplate><TreeDataTemplate ItemsSource="{Binding Children}"><TextBlock Text="{Binding Name}" Foreground="{DynamicResource CkanTextPrimaryBrush}" FontSize="{DynamicResource CkanFontSizeBody}" DoubleTapped="OnNodeDoubleTapped"/></TreeDataTemplate></TreeView.ItemTemplate></TreeView>
+    <!-- 顶部工具栏与九色图例展示区（F-28 / UI-18） -->
+    <Border Grid.Row="0" Margin="0,0,0,12" Padding="12,10"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}">
+      <StackPanel Spacing="10">
+        <!-- 控制与模式信息行 -->
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button Content="{Binding DirectionButtonText}"
+                    Command="{Binding ToggleDirectionCommand}"
+                    Padding="10,5"
+                    CornerRadius="{DynamicResource CkanCornerRadiusSmall}" />
+            <TextBlock Text="{Binding DirectionStatusText}"
+                       Opacity="0.8"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       VerticalAlignment="Center" />
+          </StackPanel>
+
+          <TextBlock Grid.Column="2"
+                     Text="{Binding StatusText}"
+                     Foreground="{DynamicResource CkanWarningBrush}"
+                     FontWeight="SemiBold"
+                     VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- 九色关系图例文本与颜色圆点（WrapPanel 响应式排列） -->
+        <ItemsControl ItemsSource="{Binding Legends}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Margin="0,2,10,2" Padding="6,2"
+                      Background="{DynamicResource CkanSidebarBackgroundBrush}"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                      ToolTip.Tip="{Binding Description}">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                  <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                           Fill="{Binding Kind, Converter={x:Static local:RelationKindToBrushConverter.Instance}}" />
+                  <TextBlock Text="{Binding Label}"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                             VerticalAlignment="Center" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+
+    <!-- 关系树展示主体（双击节点跳转模组导航） -->
+    <TreeView Grid.Row="1" ItemsSource="{Binding Roots}" BorderThickness="0">
+      <TreeView.ItemTemplate>
+        <TreeDataTemplate ItemsSource="{Binding Children}">
+          <StackPanel Orientation="Horizontal" Spacing="6" DoubleTapped="OnNodeDoubleTapped">
+            <!-- 关系分类徽章（[依赖]、[冲突] 等） -->
+            <Border IsVisible="{Binding ShowBadge}"
+                    CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                    Padding="5,1"
+                    Background="{DynamicResource CkanSidebarBackgroundBrush}">
+              <TextBlock Text="{Binding BadgeText}"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         FontWeight="SemiBold"
+                         Foreground="{Binding Kind, Converter={x:Static local:RelationKindToBrushConverter.Instance}}" />
+            </Border>
+
+            <!-- 具体模组节点的关系类别彩色标记圆点 -->
+            <Ellipse IsVisible="{Binding ShowDot}"
+                     Width="7" Height="7"
+                     VerticalAlignment="Center"
+                     Fill="{Binding Kind, Converter={x:Static local:RelationKindToBrushConverter.Instance}}" />
+
+            <!-- 节点显示名称 -->
+            <TextBlock Text="{Binding Name}"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                       FontSize="{DynamicResource CkanFontSizeBody}"
+                       VerticalAlignment="Center" />
+          </StackPanel>
+        </TreeDataTemplate>
+      </TreeView.ItemTemplate>
+    </TreeView>
   </Grid>
 </UserControl>

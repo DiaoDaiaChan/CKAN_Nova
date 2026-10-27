@@ -34,32 +34,42 @@
         <TextBlock Text="导出当前实例的模组列表"
                    FontSize="{DynamicResource CkanFontSizeSubtitle}"
                    Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-        <StackPanel Spacing="4">
-          <TextBlock Text="目标文件路径"
-                     FontSize="{DynamicResource CkanFontSizeCaption}"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <TextBox Text="{Binding ExportForm.TargetPath, Mode=TwoWay}"
-                   PlaceholderText="{Binding ExportForm.PathHint}" />
-          <TextBlock Text="{Binding ExportForm.ValidationText}"
-                     IsVisible="{Binding ExportForm.HasValidation}"
-                     FontSize="{DynamicResource CkanFontSizeCaption}"
-                     Foreground="{DynamicResource CkanDangerBrush}"
-                     TextWrapping="Wrap" />
-        </StackPanel>
-        <WrapPanel Orientation="Horizontal">
+        <Grid ColumnDefinitions="*,260" Margin="0,0,0,4">
+          <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,12,0">
+            <TextBlock Text="目标文件路径"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBox Text="{Binding ExportForm.TargetPath, Mode=TwoWay}"
+                     PlaceholderText="{Binding ExportForm.PathHint}" />
+            <TextBlock Text="{Binding ExportForm.ValidationText}"
+                       IsVisible="{Binding ExportForm.HasValidation}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanDangerBrush}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Spacing="4">
+            <TextBlock Text="导出格式"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <ComboBox ItemsSource="{Binding ExportForm.FormatOptions}"
+                      SelectedItem="{Binding ExportForm.SelectedFormatOption, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch" />
+          </StackPanel>
+        </Grid>
+        <WrapPanel Orientation="Horizontal" IsEnabled="{Binding ExportForm.CanConfigureModpackOptions}">
           <CheckBox Content="锁定版本号" IsChecked="{Binding ExportForm.WithVersions, Mode=TwoWay}"
                     Margin="0,0,16,0"
-                    ToolTip.Tip="勾选时写出每个模组的确切版本；不勾选只写模组标识" />
+                    ToolTip.Tip="勾选时写出每个模组的确切版本；不勾选只写模组标识（仅适用于 .ckan 格式）" />
           <CheckBox Content="同时打包已下载的 zip" IsChecked="{Binding ExportForm.BundleDownloads, Mode=TwoWay}"
                     Margin="0,0,16,0"
-                    ToolTip.Tip="把缓存里已有的下载包一起打进同名 .zip，换台机器也能离线装" />
+                    ToolTip.Tip="把缓存里已有的下载包一起打进同名 .zip，换台机器也能离线装（仅适用于 .ckan 格式）" />
           <CheckBox Content="用 recommends 语义" IsChecked="{Binding ExportForm.UseRecommends, Mode=TwoWay}"
-                    ToolTip.Tip="勾选时模组写进 recommends（可选依赖），不勾选写进 depends（必需依赖）" />
+                    ToolTip.Tip="勾选时模组写进 recommends（可选依赖），不勾选写进 depends（必需依赖；仅适用于 .ckan 格式）" />
         </WrapPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
           <Button Content="导出" Command="{Binding ExportCommand}"
                   IsEnabled="{Binding CanExport}"
-                  ToolTip.Tip="把当前实例的已安装模组写成 .ckan 元数据包" />
+                  ToolTip.Tip="把当前实例的已安装模组导出为指定格式文件" />
           <TextBlock Text="{Binding ExportResultText}" IsVisible="{Binding HasExportResult}"
                      VerticalAlignment="Center"
                      TextWrapping="Wrap" MaxWidth="640"

@@ -1,6 +1,8 @@
+using System.IO;
 using CkanUI.Services.Abstractions.Dtos;
 
 using CKAN;
+using CKAN.Exporters;
 using CKAN.Versioning;
 
 namespace CkanUI.Services.ModPacks;
@@ -66,6 +68,30 @@ internal sealed class CkanModPackStore : IModPackStore
                        ?? throw new InvalidOperationException("当前没有选中的游戏实例。");
         var manager = RegistryManager.Instance(instance, _repositoryData);
         return manager.GenerateModpack(useRecommends, withVersions).ToJson();
+    }
+
+    /// <inheritdoc />
+    public void ExportInstalledList(ExportListFormat format, Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+
+        var instance = _instances.CurrentInstance
+                       ?? throw new InvalidOperationException("当前没有选中的游戏实例。");
+        var manager = RegistryManager.Instance(instance, _repositoryData);
+        var registry = manager.registry;
+
+        var exportType = format switch
+        {
+            ExportListFormat.PlainText => CKAN.Types.ExportFileType.PlainText,
+            ExportListFormat.Markdown => CKAN.Types.ExportFileType.Markdown,
+            ExportListFormat.BbCode => CKAN.Types.ExportFileType.BbCode,
+            ExportListFormat.Csv => CKAN.Types.ExportFileType.Csv,
+            ExportListFormat.Tsv => CKAN.Types.ExportFileType.Tsv,
+            _ => throw new ArgumentOutOfRangeException(nameof(format), format, $"不支持的已装模组列表导出格式：{format}")
+        };
+
+        var exporter = new Exporter(exportType);
+        exporter.Export(manager, registry, stream);
     }
 
     /// <inheritdoc />
