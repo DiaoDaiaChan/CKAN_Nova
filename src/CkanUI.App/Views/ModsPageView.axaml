@@ -40,7 +40,7 @@
 
     <!-- 工具条（03 篇 §3.1）：搜索、过滤下拉、排序、刷新、应用 -->
     <Border Grid.Row="0" Padding="8" CornerRadius="6" Background="{DynamicResource SystemControlBackgroundListLowBrush}">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto">
         <TextBox x:Name="SearchBox"
                  Grid.Column="0"
                  MinWidth="220"
@@ -82,13 +82,16 @@
         <Button Grid.Column="6" Margin="12,0,0,0" Content="刷新仓库"
                 Command="{Binding RefreshRepositoriesCommand}"
                 ToolTip.Tip="联网刷新仓库索引（Ctrl+R）" />
-        <Button Grid.Column="7" Margin="6,0,0,0" Content="应用变更"
+        <Button Grid.Column="7" Margin="6,0,0,0" Content="全量更新"
+                Command="{Binding UpdateAllCommand}"
+                ToolTip.Tip="勾选所有可更新模组（F-32）" />
+        <Button Grid.Column="8" Margin="6,0,0,0" Content="应用变更"
                 Command="{Binding ApplyChangesCommand}"
-                ToolTip.Tip="应用当前变更集（Ctrl+Enter，M2 接入安装器后可用）" />
+                ToolTip.Tip="审查并应用当前变更集（F-32）" />
 
         <!-- 标签组筛选（F-24）：多选为"或"（命中任一选中标签即通过），每个开关自带命令。
              未接线 ILabelService 时整行隐藏，不影响既有布局。 -->
-        <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="8" Margin="0,8,0,0"
+        <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="9" Margin="0,8,0,0"
                 Padding="6,4" CornerRadius="4" BorderThickness="1"
                 BorderBrush="{DynamicResource CkanBorderBrush}"
                 IsVisible="{Binding HasLabelService}">

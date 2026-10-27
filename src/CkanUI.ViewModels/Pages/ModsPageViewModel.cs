@@ -1046,6 +1046,7 @@ public sealed partial class ModsPageViewModel : PageViewModel
         OnPropertyChanged(nameof(DownloadSummary));
         OnPropertyChanged(nameof(PreviewHasConflicts));
         OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(HasUpdates));
         OnPropertyChanged(nameof(ActiveFilterChips));
         OnPropertyChanged(nameof(SelectedLabels));
         OnPropertyChanged(nameof(HasLabelFilter));
@@ -1058,6 +1059,7 @@ public sealed partial class ModsPageViewModel : PageViewModel
         OnPropertyChanged(nameof(HasUnsupportedQueryTerms));
         RefreshDetail();
         ApplyChangesCommand.NotifyCanExecuteChanged();
+        UpdateAllCommand.NotifyCanExecuteChanged();
     }
 
     private void RefreshDetail()
@@ -1582,11 +1584,47 @@ public sealed partial class ModsPageViewModel : PageViewModel
         return requests;
     }
 
-    /// <summary>应用变更（M1 仅占位：安装器在 M2 接入，见 INT-08）。</summary>
-    [RelayCommand(CanExecute = nameof(HasPendingChanges))]
-    private void ApplyChanges()
+    /// <summary>是否有可更新的模组（F-32）。</summary>
+    public bool HasUpdates => _all.Any(m => m.HasUpdate);
+
+    /// <summary>全量更新：将所有有新版本的已装模组加入变更勾选并预览（F-32）。</summary>
+    [RelayCommand(CanExecute = nameof(HasUpdates))]
+    private void UpdateAll()
     {
-        StatusText = "变更应用将在 M2 接入安装器后可用（INT-08）。";
+        var updatable = _all.Where(m => m.HasUpdate).Select(m => m.Identifier).Where(id => id is not null).ToList();
+        if (updatable.Count == 0)
+        {
+            StatusText = "当前所有已安装模组均为最新版本。";
+            return;
+        }
+
+        var addedCount = 0;
+        foreach (var id in updatable!)
+        {
+            if (_selected.Add(id))
+            {
+                addedCount++;
+            }
+        }
+
+        RebuildSelectionPreview();
+        Rows = Rows.Select(view => view.WithSelected(_selected.Contains(view.Identifier))).ToList();
+        UpdateStatusText();
+        RefreshDerived();
+        StatusText = $"已将 {addedCount} 个有更新的模组加入待变更列表。";
+    }
+
+    /// <summary>应用变更（F-32）：若有勾选直接转交变更集页；无勾选给出提示。</summary>
+    [RelayCommand(CanExecute = nameof(HasPendingChanges))]
+    private async Task ApplyChangesAsync()
+    {
+        if (_selected.Count == 0)
+        {
+            StatusText = "当前没有待应用的变更，请先勾选模组或点击全量更新。";
+            return;
+        }
+
+        await ReviewChangesAsync().ConfigureAwait(true);
     }
 
     // ---- 无服务时的空实现（设计器 / 无参构造）-----------------------------
