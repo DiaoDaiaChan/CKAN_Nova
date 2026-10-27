@@ -10,16 +10,8 @@ using NUnit.Framework;
 namespace CkanUI.ViewModels.Tests;
 
 /// <summary>
-/// F-36 推荐审计对话框测试（UI-17 / INT-07）：
-/// 1. 空已安装列表时无推荐候选
-/// 2. 提取 recommendations 与 suggests 并聚合推荐来源
-/// 3. 过滤已安装的模组
-/// 4. 过滤处于待安装列表中的模组
-/// 5. 模组元数据（名称、版本、简介）从仓库快照正确映射
-/// 6. 默认全选可选项，全选与全不选命令行为正确
-/// 7. 未勾选任何模组时点击主按钮触发校验错误且不提交
-/// 8. 勾选模组后点击「加入待安装」将变更请求正确灌入 IChangeRequestSink 并关窗
-/// 9. 点击「关闭」或取消时不提交变更且 AppliedRequests 为空
+/// F-36 推荐与建议审计对话框测试（UI-17 / INT-07）：
+/// 覆盖扫描过滤、按原发起模组分组、多选勾选、全选/全不选、组内全选/全不选、确认导出变更请求等场景。
 /// </summary>
 [TestFixture]
 public sealed class AuditRecommendationsDialogTests
@@ -93,13 +85,14 @@ public sealed class AuditRecommendationsDialogTests
         var vm = new AuditRecommendationsDialogViewModel(registry, repo);
 
         Assert.That(vm.TotalCount, Is.EqualTo(0));
+        Assert.That(vm.Groups, Is.Empty);
         Assert.That(vm.HasCandidates, Is.False);
         Assert.That(vm.CanApply, Is.False);
         Assert.That(vm.SummaryText, Does.Contain("未发现任何新的推荐或建议模组"));
     }
 
     [Test]
-    public void 用例2_提取推荐与建议并合并多来源模组()
+    public void 用例2_提取推荐与建议并按原发起模组分组呈现()
     {
         var installed = new Dictionary<string, InstalledModuleInfo>
         {
@@ -110,6 +103,8 @@ public sealed class AuditRecommendationsDialogTests
         var repo = new RepositorySnapshot(
             new[]
             {
+                CreateRow("ModA", "Mod A Name"),
+                CreateRow("ModB", "Mod B Name"),
                 CreateRow("TargetMod", "Target Mod Name", "2.0.0", "Target abstract"),
                 CreateRow("SuggestMod", "Suggest Mod Name", "1.5.0", "Suggest abstract")
             },
@@ -120,21 +115,23 @@ public sealed class AuditRecommendationsDialogTests
         var vm = new AuditRecommendationsDialogViewModel(registry, repo);
 
         Assert.That(vm.TotalCount, Is.EqualTo(2));
-        var target = vm.Items.FirstOrDefault(i => i.Identifier == "TargetMod");
-        Assert.That(target, Is.Not.Null);
-        Assert.That(target!.Kind, Is.EqualTo(RecommendationKind.Recommended));
-        Assert.That(target.SourceModules, Is.EquivalentTo(new[] { "ModA", "ModB" }));
-        Assert.That(target.SourceModulesText, Does.Contain("ModA"));
-        Assert.That(target.SourceModulesText, Does.Contain("ModB"));
+        Assert.That(vm.Groups, Has.Count.EqualTo(2));
 
-        var suggest = vm.Items.FirstOrDefault(i => i.Identifier == "SuggestMod");
-        Assert.That(suggest, Is.Not.Null);
-        Assert.That(suggest!.Kind, Is.EqualTo(RecommendationKind.Suggested));
-        Assert.That(suggest.SourceModules, Is.EquivalentTo(new[] { "ModB" }));
+        var groupA = vm.Groups.FirstOrDefault(g => g.SourceIdentifier == "ModA");
+        Assert.That(groupA, Is.Not.Null);
+        Assert.That(groupA!.SourceName, Is.EqualTo("Mod A Name"));
+        Assert.That(groupA.Items, Has.Count.EqualTo(1));
+        Assert.That(groupA.Items[0].Identifier, Is.EqualTo("TargetMod"));
+
+        var groupB = vm.Groups.FirstOrDefault(g => g.SourceIdentifier == "ModB");
+        Assert.That(groupB, Is.Not.Null);
+        Assert.That(groupB!.SourceName, Is.EqualTo("Mod B Name"));
+        Assert.That(groupB.Items, Has.Count.EqualTo(2));
+        Assert.That(groupB.Items.Select(i => i.Identifier), Is.EquivalentTo(new[] { "TargetMod", "SuggestMod" }));
     }
 
     [Test]
-    public void 用例3_过滤已安装的模组()
+    public void 用例3_过滤已安装模组()
     {
         var installed = new Dictionary<string, InstalledModuleInfo>
         {
@@ -156,10 +153,12 @@ public sealed class AuditRecommendationsDialogTests
 
         Assert.That(vm.TotalCount, Is.EqualTo(1));
         Assert.That(vm.Items[0].Identifier, Is.EqualTo("UninstalledMod"));
+        Assert.That(vm.Groups, Has.Count.EqualTo(1));
+        Assert.That(vm.Groups[0].Items[0].Identifier, Is.EqualTo("UninstalledMod"));
     }
 
     [Test]
-    public void 用例4_过滤处于待安装列表中的模组()
+    public void 用例4_过滤待安装队列中的模组()
     {
         var installed = new Dictionary<string, InstalledModuleInfo>
         {
@@ -208,7 +207,7 @@ public sealed class AuditRecommendationsDialogTests
     }
 
     [Test]
-    public void 用例6_默认全选且全选与全不选命令正常切换()
+    public void 用例6_全局全选与全局全不选行为正确()
     {
         var installed = new Dictionary<string, InstalledModuleInfo>
         {
@@ -227,13 +226,13 @@ public sealed class AuditRecommendationsDialogTests
         Assert.That(vm.SelectedCount, Is.EqualTo(2));
         Assert.That(vm.CanApply, Is.True);
 
-        // 全不选
+        // 全局全不选
         vm.UncheckAllCommand.Execute(null);
         Assert.That(vm.SelectedCount, Is.EqualTo(0));
         Assert.That(vm.CanApply, Is.False);
         Assert.That(vm.SelectedIdentifiers, Is.Empty);
 
-        // 全选
+        // 全局全选
         vm.CheckAllCommand.Execute(null);
         Assert.That(vm.SelectedCount, Is.EqualTo(2));
         Assert.That(vm.CanApply, Is.True);
@@ -241,7 +240,43 @@ public sealed class AuditRecommendationsDialogTests
     }
 
     [Test]
-    public void 用例7_未勾选时点击主按钮触发校验错误且不提交()
+    public void 用例7_组级全选与组级清空行为正确()
+    {
+        var installed = new Dictionary<string, InstalledModuleInfo>
+        {
+            ["ModA"] = CreateInstalled("ModA", recommends: new[] { "Rec1" }),
+            ["ModB"] = CreateInstalled("ModB", recommends: new[] { "Rec2" }),
+        };
+        var registry = new RegistrySnapshot("test", "1.0", installed, new HashSet<string>(), DateTime.UtcNow);
+        var repo = new RepositorySnapshot(
+            new[] { CreateRow("Rec1", "Rec 1"), CreateRow("Rec2", "Rec 2") },
+            new[] { "default" },
+            DateTime.UtcNow,
+            false);
+
+        var vm = new AuditRecommendationsDialogViewModel(registry, repo);
+        Assert.That(vm.Groups, Has.Count.EqualTo(2));
+
+        var groupA = vm.Groups.First(g => g.SourceIdentifier == "ModA");
+        var groupB = vm.Groups.First(g => g.SourceIdentifier == "ModB");
+
+        // 清空 groupA
+        groupA.ClearSelectionCommand.Execute(null);
+        Assert.That(groupA.SelectedCount, Is.EqualTo(0));
+        Assert.That(groupA.CountText, Is.EqualTo("0/1"));
+        Assert.That(groupB.SelectedCount, Is.EqualTo(1));
+        Assert.That(vm.SelectedCount, Is.EqualTo(1));
+        Assert.That(vm.SelectedIdentifiers, Is.EquivalentTo(new[] { "Rec2" }));
+
+        // 组全选 groupA
+        groupA.SelectAllCommand.Execute(null);
+        Assert.That(groupA.SelectedCount, Is.EqualTo(1));
+        Assert.That(groupA.CountText, Is.EqualTo("1/1"));
+        Assert.That(vm.SelectedCount, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void 用例8_未勾选时点击主按钮触发校验错误且不导出变更请求()
     {
         var installed = new Dictionary<string, InstalledModuleInfo>
         {
@@ -268,7 +303,7 @@ public sealed class AuditRecommendationsDialogTests
     }
 
     [Test]
-    public void 用例8_勾选后点击加入待安装将请求灌入Sink并关窗()
+    public void 用例9_勾选后确认一键批量加入待变更集并导出请求()
     {
         var installed = new Dictionary<string, InstalledModuleInfo>
         {
@@ -303,15 +338,16 @@ public sealed class AuditRecommendationsDialogTests
     }
 
     [Test]
-    public void 用例9_点击关闭或取消时不提交变更且AppliedRequests为空()
+    public void 用例10_多来源指向同一推荐模组时勾选状态同步且去重导出()
     {
         var installed = new Dictionary<string, InstalledModuleInfo>
         {
-            ["ModA"] = CreateInstalled("ModA", recommends: new[] { "Rec1" }),
+            ["ModA"] = CreateInstalled("ModA", recommends: new[] { "SharedRec" }),
+            ["ModB"] = CreateInstalled("ModB", suggests: new[] { "SharedRec" }),
         };
         var registry = new RegistrySnapshot("test", "1.0", installed, new HashSet<string>(), DateTime.UtcNow);
         var repo = new RepositorySnapshot(
-            new[] { CreateRow("Rec1", "Rec 1") },
+            new[] { CreateRow("SharedRec", "Shared Mod", "1.1.0") },
             new[] { "default" },
             DateTime.UtcNow,
             false);
@@ -319,11 +355,22 @@ public sealed class AuditRecommendationsDialogTests
         var sink = new FakeChangeRequestSink();
         var vm = new AuditRecommendationsDialogViewModel(registry, repo, changeSink: sink);
 
-        vm.SecondaryCommand.Execute(null);
+        // 尽管两个组都有 SharedRec，唯一候选总数为 1
+        Assert.That(vm.TotalCount, Is.EqualTo(1));
+        Assert.That(vm.Groups, Has.Count.EqualTo(2));
+        Assert.That(vm.Groups[0].Items[0], Is.SameAs(vm.Groups[1].Items[0]));
 
-        Assert.That(vm.IsClosed, Is.True);
-        Assert.That(vm.IsConfirmed, Is.False);
-        Assert.That(vm.AppliedRequests, Is.Empty);
-        Assert.That(sink.ReceivedRequests, Is.Null);
+        // 取消组 A 的勾选，组 B 和全局均同步
+        vm.Groups[0].ClearSelectionCommand.Execute(null);
+        Assert.That(vm.Groups[1].SelectedCount, Is.EqualTo(0));
+        Assert.That(vm.SelectedCount, Is.EqualTo(0));
+
+        // 勾选后确认，导出的变更请求唯一去重
+        vm.Groups[1].SelectAllCommand.Execute(null);
+        vm.PrimaryCommand.Execute(null);
+
+        Assert.That(vm.AppliedRequests, Has.Count.EqualTo(1));
+        Assert.That(sink.ReceivedRequests!.Count, Is.EqualTo(1));
+        Assert.That(sink.ReceivedRequests!.First().Identifier, Is.EqualTo("SharedRec"));
     }
 }
