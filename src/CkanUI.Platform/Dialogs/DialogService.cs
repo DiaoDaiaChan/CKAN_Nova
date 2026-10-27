@@ -31,22 +31,38 @@ public sealed class DialogService : IDialogService
 
     private readonly IDispatcher _dispatcher;
     private readonly Func<Window?>? _ownerProvider;
+    private readonly IDialogPresenter? _presenter;
 
     /// <param name="dispatcher">UI 线程封送入口。</param>
     /// <param name="ownerProvider">
     /// 返回 owner 窗口的函数（通常取桌面主窗口）。返回 null 时降级为非模态 Show()——
     /// 设计时预览与启动早期（主窗口还没建）没有 owner，此时仍要能把错误显示出来。
     /// </param>
-    public DialogService(IDispatcher dispatcher, Func<Window?>? ownerProvider = null)
+    /// <param name="presenter">
+    /// 可选的真实视图呈现者（App 层实现）。为 null 或某类对话框返回 null 时，退回本类内置的代码建窗版本。
+    /// </param>
+    public DialogService(IDispatcher dispatcher, Func<Window?>? ownerProvider = null, IDialogPresenter? presenter = null)
     {
         ArgumentNullException.ThrowIfNull(dispatcher);
         _dispatcher = dispatcher;
         _ownerProvider = ownerProvider;
+        _presenter = presenter;
     }
 
     /// <inheritdoc />
     public async Task<bool> ConfirmAsync(string title, string message, string? detail = null)
     {
+        if (_presenter is { } presenter)
+        {
+            var delegated = await _dispatcher
+                .InvokeAsync(() => presenter.ConfirmAsync(title, message, detail))
+                .ConfigureAwait(false);
+            if (await delegated.ConfigureAwait(false) is { } confirmed)
+            {
+                return confirmed;
+            }
+        }
+
         var pending = await _dispatcher.InvokeAsync(() => ShowChoiceCore(title, message, detail))
             .ConfigureAwait(false);
         return await pending.ConfigureAwait(false) == 0;
@@ -56,6 +72,18 @@ public sealed class DialogService : IDialogService
     public async Task<int> SelectAsync(string title, string message, IReadOnlyList<string> options, int defaultIndex = 0)
     {
         ArgumentNullException.ThrowIfNull(options);
+
+        if (_presenter is { } presenter)
+        {
+            var delegated = await _dispatcher
+                .InvokeAsync(() => presenter.SelectAsync(title, message, options, defaultIndex))
+                .ConfigureAwait(false);
+            if (await delegated.ConfigureAwait(false) is { } selected)
+            {
+                return selected;
+            }
+        }
+
         var pending = await _dispatcher.InvokeAsync(() => ShowSelectionCore(title, message, options, defaultIndex))
             .ConfigureAwait(false);
         return await pending.ConfigureAwait(false);
@@ -64,6 +92,11 @@ public sealed class DialogService : IDialogService
     /// <inheritdoc />
     public async Task ShowMessageAsync(string title, string message)
     {
+        if (await TryShowNoticeAsync(isError: false, title, message, detail: null).ConfigureAwait(false))
+        {
+            return;
+        }
+
         var pending = await _dispatcher.InvokeAsync(() => ShowNoticeCore(title, message, detail: null))
             .ConfigureAwait(false);
         await pending.ConfigureAwait(false);
@@ -72,6 +105,11 @@ public sealed class DialogService : IDialogService
     /// <inheritdoc />
     public async Task ShowErrorAsync(string title, string message, string? detail = null)
     {
+        if (await TryShowNoticeAsync(isError: true, title, message, detail).ConfigureAwait(false))
+        {
+            return;
+        }
+
         var pending = await _dispatcher.InvokeAsync(() => ShowNoticeCore(title, message, detail))
             .ConfigureAwait(false);
         await pending.ConfigureAwait(false);
@@ -106,6 +144,20 @@ public sealed class DialogService : IDialogService
             // 对话框自己也要保证异常不穿透接口（契约 §3），现场记日志由调用方的 IErrorReporter 负责
             return OperationResult<bool>.Fail("操作失败", exception.Message, retryable: true);
         }
+    }
+
+    /// <summary>把通知类对话框交给呈现者；返回 false 表示不接管，调用方退回内置实现。</summary>
+    private async Task<bool> TryShowNoticeAsync(bool isError, string title, string message, string? detail)
+    {
+        if (_presenter is not { } presenter)
+        {
+            return false;
+        }
+
+        var delegated = await _dispatcher
+            .InvokeAsync(() => presenter.ShowNoticeAsync(isError, title, message, detail))
+            .ConfigureAwait(false);
+        return await delegated.ConfigureAwait(false) is not null;
     }
 
     private static void CancelQuietly(CancellationTokenSource cancellation)

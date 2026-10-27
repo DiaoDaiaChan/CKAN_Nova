@@ -20,6 +20,10 @@
 | [ops/team-brief.md](ops/team-brief.md) | 并行开发简报：作用域划分、提交纪律、报告格式 |
 | [ops/verify-layout.md](ops/verify-layout.md) | `verify-layout` 仓库卫生门禁：12 条 H-01..H-12 用法与分级 |
 | [design/service-contracts.md](design/service-contracts.md) | 服务层契约冻结表：13 个接口 + 8 组 DTO + 实现归属 |
+| [design/pages.md](design/pages.md) | 页面设计：M1 各页布局、控件与交互落点 |
+| [design/theme-tokens.md](design/theme-tokens.md) | 主题 token 表：Ckan* 语义色/字号/间距在三套主题下的取值 |
+| [design/feature-matrix.md](design/feature-matrix.md) | F-01..F-55 实现状态矩阵（已实现 13 / 部分 22 / 未开始 20）与四波次优先级 |
+| [ops/i18n-guide.md](ops/i18n-guide.md) | 本地化指南：语言包格式、回退链、App 侧接线契约（§6） |
 
 ## 索引 · 规格正文（docs/plan）
 

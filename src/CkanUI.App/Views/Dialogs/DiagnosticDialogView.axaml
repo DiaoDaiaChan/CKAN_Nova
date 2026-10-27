@@ -1,0 +1,42 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.DiagnosticDialogView"
+                       x:DataType="vm:DiagnosticDialogViewModel"
+                       Title="{Binding Title}"
+                       Width="500"
+                       SizeToContent="Height">
+  <StackPanel Margin="20" Spacing="10">
+    <TextBlock Text="{Binding ItemsHeaderText}" FontWeight="SemiBold" />
+    <TextBlock Text="{Binding EmptyText}" IsVisible="{Binding IsEmpty}" Opacity="0.6" />
+    <ScrollViewer MaxHeight="320" IsVisible="{Binding !IsEmpty}">
+      <ItemsControl ItemsSource="{Binding Items}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:DiagnosticItem">
+            <Grid ColumnDefinitions="140,*" Margin="0,2">
+              <TextBlock Grid.Column="0" Text="{Binding Name}" Opacity="0.7" FontSize="12" TextWrapping="Wrap" />
+              <SelectableTextBlock Grid.Column="1" Text="{Binding Value}" FontSize="12" TextWrapping="Wrap" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+    <TextBlock Text="{Binding CopyStatus}"
+               IsVisible="{Binding HasCopyStatus}"
+               Opacity="0.75"
+               FontSize="12" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding PrimaryCommand}"
+              MinWidth="120"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding SecondaryButtonText}"
+              Command="{Binding SecondaryCommand}"
+              IsCancel="True"
+              IsVisible="{Binding HasSecondaryButton}"
+              MinWidth="80"
+              HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </StackPanel>
+</dialogs:DialogWindow>

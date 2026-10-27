@@ -85,9 +85,37 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
    XML 解析失败时 `XmlConfigurator` 只写内部日志、不抛异常，结果是仓库保持"未配置"、日志静默丢失。
    `LoggingSetupTests` + `ShippedLogConfigTests` 会拦住这类回归。
 
+## §11 M1 契约决策（对话框与详情面板）
+
+1. **对话框的分层**：契约 `IDialogService` 在 `CkanUI.Services.Abstractions`，唯一实现 `DialogService` 在 `CkanUI.Platform`（Avalonia 可用、看不到 App 的视图），
+   真实视图由 `CkanUI.Platform.Dialogs.IDialogPresenter` 接缝注入，实现在 `src/CkanUI.App/Dialogs/DialogPresenter.cs`。
+   每个呈现方法返回可空值：`null` = "这类对话框我不接"，`DialogService` 退回内置代码建窗实现。**禁止**让 Services 层 new 任何视图或在 Services 里实现 IDialogService。
+2. **纯提示不接管**：`ShowMessageAsync` 一律走内置轻量窗口；只有 `ShowErrorAsync` 走 `ErrorDialogView`（带技术细节折叠与复制诊断）。把普通提示渲染成"出错了"加堆栈是语义错位。
+3. **剪贴板通道**：VM 只拿 `Func<string, Task>`，由 `ServiceRegistration.CreateClipboardWriter` 注册（`TopLevel.GetTopLevel(owner)?.Clipboard`）；没有 owner 或剪贴板时抛 `NotSupportedException`，VM 转成"当前环境没有剪贴板通道"的提示而不是崩溃。
+4. **详情面板富字段**：`ModDetailsSnapshot`/`ModRelationItem` 暂留 `CkanUI.ViewModels.Dialogs`，由页面 VM 通过 `DetailsProvider` 属性注入；**不**提升进 `Services.Abstractions.Dtos`，直到 Core 侧落一个 `CkanModule → ModDetailsSnapshot` 适配器（避免契约里塞 UI 专属形状）。
+5. **单选取消值**：`SelectDialogViewModel` 取消返回 `-1`，与 `IDialogService.SelectAsync` 注释一致；若 SP-04 发现某个 Core 调用点期望 0 或 null，只改 `SelectDialogViewModel.OnSecondary`，不动契约。
+
+## §12 M1 契约决策（设置、主题与操作队列）
+
+1. **界面语言的唯一真源是 `IUiSettingsStore.Locale`**（存 `%LocalAppData%/CKAN/ckan-ui.json`），不回写 Core 的 `SettingKeys.Language`。
+   理由：UI 语言是纯表现层偏好，Core 的 `config.json` 还要被 CLI 与旧 GUI 读写，两处真源必然漂移；`LocalizationHost` 与设置页都只认 `Locale`。
+2. **`UiSettings` 新增 `Density`（compact / standard / comfortable，默认 "standard"）**：密度属于外观偏好，必须持久化，所以从"仅本次会话"升级为落盘字段；
+   `Equals`/`GetHashCode` 已同步（record 合成相等对字典属性不可靠，本类型手写了值相等）。
+3. **主题生效点**：`src/CkanUI.App/ThemeHost.cs` 订阅 `IUiSettingsStore.Changed`，在首帧前 `Load()` 并设置 `Application.RequestedThemeVariant`；
+   设置页只负责存值，**不得**直接改 `Application`（VM 层禁止引用 Avalonia）。
+   Avalonia 12 的 `ThemeVariant` 只有 Light/Dark/Default 三个内置值，高对比度用自定义变体 `ThemeHost.HighContrastVariant = new("HighContrast", ThemeVariant.Dark)`，
+   key 必须与 `src/CkanUI.App/Resources/Tokens.axaml` 的 ThemeDictionaries key 一致。
+4. **`IUiSettingsStore.Changed` 在锁外触发**：订阅方会同步回读 `Current`，持锁回调容易把锁序搞乱；订阅方异常只记日志，不影响保存结果（05 篇 §7）。
+5. **`OperationProgress` 暂不扩字节/重试字段**：浮层的字节与速率从 `Message` 文本解析（解析不到显示 `—`，绝不拿 0 冒充）。
+   扩契约要同时改 Services 的订阅侧与全部生产方，收益不足以进 M1；等 M2 安装器打通真实下载后再一次性加 `BytesTransferred/BytesTotal`。
+6. **安装器后端保持 public**：`IInstallerBackend`/`IInstallerBackendFactory` 在 `CkanUI.Services.Installers` 内公开，便于 `tests/CkanUI.Services.Tests` 用假后端离线跑；
+   要改 internal 需给 Services 加 `InternalsVisibleTo`，M1 不做（收益只是少两个公开类型）。
+
 ## 修订记录
 
 | 日期 | 版本 | 变更 |
 | --- | --- | --- |
 | 2026-10-27 | v1.0 | 新建：M0 开工时的工程约定，供并行 agent 共同遵守 |
 | 2026-10-27 | v1.1 | 补 §3 runner 不重建测试项目、§8 M0 进度、§9 沙箱环境限制、§10 日志配置硬约束 |
+| 2026-10-27 | v1.2 | 补 §11 M1 契约决策（IDialogPresenter 接缝、剪贴板通道、详情面板字段归属、单选取消值） |
+| 2026-10-27 | v1.3 | 补 §12 M1 契约决策（语言真源、`UiSettings.Density`、ThemeHost 与高对比度变体、Changed 锁外触发、OperationProgress 不扩字段） |

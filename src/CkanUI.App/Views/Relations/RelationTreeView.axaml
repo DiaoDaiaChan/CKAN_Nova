@@ -1,0 +1,6 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="CkanUI.App.Views.Relations.RelationTreeView" x:CompileBindings="False">
+  <Grid RowDefinitions="Auto,*" Margin="{DynamicResource CkanPagePadding}">
+    <StackPanel Orientation="Horizontal" Spacing="8"><Button Content="切换反向关系" Command="{Binding ToggleDirectionCommand}"/><TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource CkanWarningBrush}"/></StackPanel>
+    <TreeView Grid.Row="1" ItemsSource="{Binding Roots}" BorderThickness="0"><TreeView.ItemTemplate><TreeDataTemplate ItemsSource="{Binding Children}"><TextBlock Text="{Binding Name}" Foreground="{DynamicResource CkanTextPrimaryBrush}" FontSize="{DynamicResource CkanFontSizeBody}" DoubleTapped="OnNodeDoubleTapped"/></TreeDataTemplate></TreeView.ItemTemplate></TreeView>
+  </Grid>
+</UserControl>

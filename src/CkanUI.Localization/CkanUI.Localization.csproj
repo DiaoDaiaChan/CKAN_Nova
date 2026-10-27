@@ -5,6 +5,19 @@
     <AssemblyName>CkanUI.Localization</AssemblyName>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!-- `LocalizationKeys` 的常量按 16 篇 §5.1 键规范用下划线分隔（Ui.<Area>_<Element>），
+         CA1707 会按普通 C# 命名规则误报，故在此豁免；其余分析器保持开启。 -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 语言包随包分发：内嵌一份，保证单文件发布与缺目录时仍可显示；
+         运行期磁盘上的 i18n/packs 优先（翻译后可替换，不必重新编译）。 -->
+    <EmbeddedResource Include="..\..\i18n\packs\*.json"
+                      LogicalName="CkanUI.Localization.Packs.%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="$(CkanCoreProject)" />
   </ItemGroup>

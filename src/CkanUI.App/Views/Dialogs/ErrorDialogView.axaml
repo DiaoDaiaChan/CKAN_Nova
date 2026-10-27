@@ -1,0 +1,49 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.ErrorDialogView"
+                       x:DataType="vm:ErrorDialogViewModel"
+                       Title="{Binding Title}"
+                       Width="500"
+                       SizeToContent="Height">
+  <StackPanel Margin="20" Spacing="10">
+    <TextBlock Text="{Binding UserMessage}" TextWrapping="Wrap" FontWeight="SemiBold" />
+    <StackPanel Orientation="Horizontal" Spacing="10">
+      <TextBlock Text="{Binding ContextLabelText}" Opacity="0.6" FontSize="12" />
+      <TextBlock Text="{Binding ContextText}" Opacity="0.8" FontSize="12" TextWrapping="Wrap" />
+      <TextBlock Text="{Binding TimestampText}" Opacity="0.6" FontSize="12" />
+    </StackPanel>
+    <Expander Header="{Binding DetailHeaderText}" IsExpanded="{Binding IsDetailExpanded}" HorizontalAlignment="Stretch">
+      <StackPanel Spacing="6">
+        <SelectableTextBlock Text="{Binding Detail}"
+                             IsVisible="{Binding HasDetail}"
+                             TextWrapping="Wrap"
+                             FontSize="12" />
+        <ScrollViewer MaxHeight="220" HorizontalScrollBarVisibility="Auto">
+          <SelectableTextBlock Text="{Binding ExceptionText}"
+                               IsVisible="{Binding HasException}"
+                               FontFamily="Consolas"
+                               FontSize="11"
+                               TextWrapping="NoWrap" />
+        </ScrollViewer>
+      </StackPanel>
+    </Expander>
+    <TextBlock Text="{Binding CopyStatus}"
+               IsVisible="{Binding HasCopyStatus}"
+               Opacity="0.75"
+               FontSize="12" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding PrimaryCommand}"
+              MinWidth="120"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding SecondaryButtonText}"
+              Command="{Binding SecondaryCommand}"
+              IsCancel="True"
+              IsVisible="{Binding HasSecondaryButton}"
+              MinWidth="80"
+              HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </StackPanel>
+</dialogs:DialogWindow>

@@ -1,0 +1,33 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.ConfirmDialogView"
+                       x:DataType="vm:ConfirmDialogViewModel"
+                       Title="{Binding Title}"
+                       Width="440"
+                       SizeToContent="Height">
+  <StackPanel Margin="20" Spacing="12">
+    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+    <TextBlock Text="{Binding Detail}"
+               IsVisible="{Binding HasDetail}"
+               TextWrapping="Wrap"
+               Opacity="0.75"
+               FontSize="12" />
+    <CheckBox Content="{Binding DoNotAskAgainText}"
+              IsChecked="{Binding DoNotAskAgain, Mode=TwoWay}"
+              IsVisible="{Binding ShowDoNotAskAgain}" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding PrimaryCommand}"
+              IsDefault="True"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding SecondaryButtonText}"
+              Command="{Binding SecondaryCommand}"
+              IsVisible="{Binding HasSecondaryButton}"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </StackPanel>
+</dialogs:DialogWindow>

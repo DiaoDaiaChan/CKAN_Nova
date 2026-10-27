@@ -1,0 +1,25 @@
+{
+  "locale": "en-US",
+  "nativeName": "English (United States)",
+  "englishName": "English, United States",
+  "strings": {
+    "Ui_NavRail_ManageMods": "Mods",
+    "Ui_NavRail_Instances": "Instances",
+    "Ui_NavRail_Settings": "Settings",
+    "Ui_ManageMods_Title": "Manage mods",
+    "Ui_Instances_Title": "Instances",
+    "Ui_Settings_Title": "Settings",
+    "Ui_Settings_Language": "Interface language",
+    "Ui_Settings_Language_Hint": "The interface updates immediately after switching. No restart and no code change needed.",
+    "Ui_Settings_Language_LegacyWarning": "The legacy CKAN client does not support this language; the interface falls back to English.",
+    "Ui_Common_Page_Pending": "Coming in M1",
+    "Ui_Common_Page_ImplNote": "This page will be implemented in the M1 milestone",
+    "Ui_Common_Status_Ready": "Ready",
+    "Ui_Common_Status_StartupIncomplete": "Startup incomplete: {0}",
+    "Ui_Common_Status_StartupFailed": "Startup failed. See the log for details.",
+    "Ui_Common_LanguageSwitched": "Interface language changed to {0}",
+    "Ui_Common_Error_Unhandled_Title": "CKAN UI encountered an error",
+    "Ui_Common_Error_Unhandled_Body": "An unhandled error occurred. Details have been written to the log.\n\n{0}",
+    "Ui_Common_Error_Unknown": "Unknown error"
+  }
+}

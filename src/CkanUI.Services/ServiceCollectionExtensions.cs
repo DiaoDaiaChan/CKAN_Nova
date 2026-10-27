@@ -1,6 +1,7 @@
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Bootstrap;
 using CkanUI.Services.Errors;
+using CkanUI.Services.Installers;
 using CkanUI.Services.Instances;
 using CkanUI.Services.Operations;
 using CkanUI.Services.Registry;
@@ -30,6 +31,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IInstanceService, InstanceService>();
         services.TryAddSingleton<IRegistryService, RegistryService>();
         services.TryAddSingleton<IRepositoryService, RepositoryService>();
+        services.TryAddSingleton<IInstallerBackendFactory, CkanInstallerBackendFactory>();
+        services.TryAddSingleton<IInstallerService, InstallerService>();
         services.TryAddSingleton<IUiSettingsStore, Settings.UiSettingsStore>();
         services.TryAddSingleton<ISettingsService, Settings.SettingsService>();
 

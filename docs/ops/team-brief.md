@@ -8,16 +8,21 @@
 | --- | --- |
 | ENV-01 骨架 | ✅ 完成（`dotnet build ckan-ui.sln` = 0 警告 0 错误） |
 | ENV-02 接 Core | ✅ 完成（`$(CkanCoreProject)` → `external/CKAN/Core/CKAN-core.csproj`，目录联接） |
-| ENV-03 日志落位 | 🚧 INT-01 待做 |
-| ENV-04 CI | ⬜ 未做 |
-| ENV-05 架构测试 | 🟡 部分（9 个测试已绿） |
+| ENV-03 日志落位 | ✅ 完成（`LoggingSetup` + `__CKAN_LOG_DIR__` 占位符，见 conventions §10） |
+| ENV-04 CI | ✅ 工作流已写（`.github/workflows/ci.yml`、`hygiene.yml`），本机无法验证 |
+| ENV-05 架构测试 | ✅ 9 个用例（依赖规则 7 + 命名空间 2） |
+| ARC-01..05 外壳 | ✅ DI 组装根 / IDispatcher / ViewLocator / 异常兜底 / 单实例 + `ckan://` |
+| INT-01..03 | ✅ 启动序列 / 设置服务 / IUser 线程回调 |
+| MOD-01..04 | ✅ 搜索语法 / ModChange / GUIMod / 过滤排序投影 |
 | 服务契约冻结 | ✅ `src/CkanUI.Services.Abstractions/` 13 接口 + 8 组 DTO，见 `docs/design/service-contracts.md` |
-| 本地测试通道 | ✅ `dotnet run --project tests/CkanUI.TestRunner` |
+| 本地测试通道 | ✅ `dotnet run --project tests/CkanUI.TestRunner`（83 用例全绿） |
+| M1 页面 | 🚧 进行中，见 §9 波次表 |
 
 ## 2. 构建与测试（沙箱里 dotnet test 不可用）
 
 ```bash
-# 只构建自己的链路，不要构建整个 sln（会和其他 agent 抢文件锁）
+# M1 起页面 VM 与视图分散在 ViewModels/App 两个项目，通常需要整链构建；
+# 若只改自己的项目，优先只构建自己那一段
 dotnet build src/CkanUI.<你的项目> -v q --nologo
 
 # 全量验证（Lead 负责）
@@ -77,3 +82,22 @@ dotnet run --project tests/CkanUI.TestRunner --no-build -- <项目名过滤词>
 3. 构建结果（命令 + 是否 0 警告）。
 4. 测试结果（跑了哪些测试、几个通过）。
 5. 未完成项 / 发现的问题 / 需要 Lead 决策的点。
+
+## 9. M1 波次表（页面层）
+
+M0（外壳）已交付 `d06c64c`。M1 把三个占位页换成真实页面，按写入范围切分，互不重叠：
+
+| 波次 | 负责人 | 任务 | 写入范围 |
+| --- | --- | --- | --- |
+| 1 | mods-page | UI-02 / UI-03 / VM-01 / VM-02 | `src/CkanUI.ViewModels/Pages/Mods/**`、`ModsPageViewModel.cs`、`src/CkanUI.App/Views/ModsPageView.*`、`tests/CkanUI.ViewModels.Tests/Mods*` |
+| 1 | installer-service | INT-07 / INT-08 | `src/CkanUI.Services/Installers/**`、`ServiceCollectionExtensions.cs`（只加一行）、`tests/CkanUI.Services.Tests/Installer*` |
+| 1 | settings-page | UI-07 / VM-03 | `src/CkanUI.ViewModels/Pages/Settings/**`、`SettingsPageViewModel.cs`、`src/CkanUI.App/Views/SettingsPageView.*`、`tests/CkanUI.ViewModels.Tests/Settings*` |
+| 1 | dialog-kit | UI-09 / VM-04 | `src/CkanUI.ViewModels/Dialogs/**`、`src/CkanUI.App/Views/Dialogs/**`、`tests/CkanUI.ViewModels.Tests/Dialogs*` |
+| 1 | i18n-localization | UI-13 | `src/CkanUI.Localization/**`、`i18n/**`、`tests/CkanUI.Localization.Tests/**`、`docs/ops/i18n-guide.md` |
+| 2 | instances-page | UI-04 / UI-05 / UI-32 / VM-04 | `src/CkanUI.ViewModels/Pages/Instances/**`、`src/CkanUI.App/Views/Instances*` |
+| 2 | ops-overlay | UI-08 / VM-05 | `src/CkanUI.ViewModels/Operations/**`、`src/CkanUI.App/Views/Operation*/` |
+| 2 | theme-tokens | THM-01 / THM-06 | `themes/**`、`src/CkanUI.App/Resources/**`、`App.axaml`（仅资源字典合并段） |
+
+Lead 独占：`ServiceRegistration.cs`（页面单例与工厂）、`MainWindow.axaml`、`ShellViewModel.cs`、`PageViewModel.cs`、`NavigationService.cs`、`App.axaml.cs`、`Program.cs`、`src/CkanUI.Services.Abstractions/**`、`ckan-ui.sln`、`Directory.*.props/targets`、`docs/README.md`。
+
+页面 VM 一律由容器按类型解析（`services.AddSingleton<ModsPageViewModel>()` + `PageTypes` 表），所以**页面 VM 的构造参数必须全部可由容器解析**；新增依赖接口先找 Lead。

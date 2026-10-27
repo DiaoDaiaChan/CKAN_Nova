@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                x:Class="CkanUI.App.Views.Dialogs.InstanceDialogs.InstanceFormPanel"
+                x:CompileBindings="False">
+  <!-- 实例表单（03 篇 §8 D-06）：新增 / 克隆 / 重命名共用；提交与取消都落到 InstanceFormViewModel 的命令上。 -->
+  <Border Padding="16" CornerRadius="8" MinWidth="420"
+          Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+          BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+          BorderThickness="1">
+    <StackPanel Spacing="10">
+      <TextBlock Text="{Binding Title}" FontSize="18" />
+
+      <TextBlock Text="{Binding SourceSummary}" FontSize="12" Opacity="0.75" TextWrapping="Wrap"
+                 IsVisible="{Binding ShowsSource}" />
+
+      <!-- 实例名称 -->
+      <StackPanel Spacing="4">
+        <TextBlock Text="实例名称" FontSize="12" Opacity="0.7" />
+        <TextBox Text="{Binding Name, Mode=TwoWay}" MinWidth="380"
+                 PlaceholderText="例如 My KSP 1.12" />
+      </StackPanel>
+
+      <!-- 游戏目录（仅新增模式可填） -->
+      <StackPanel Spacing="4" IsVisible="{Binding ShowsPath}">
+        <TextBlock Text="游戏目录" FontSize="12" Opacity="0.7" />
+        <TextBox Text="{Binding Path, Mode=TwoWay}" MinWidth="380"
+                 PlaceholderText="KSP 安装目录的绝对路径" />
+      </StackPanel>
+
+      <TextBlock Text="{Binding HintText}" FontSize="12" Opacity="0.7" TextWrapping="Wrap" MaxWidth="420" />
+
+      <!-- 校验错误（03 篇 §8：红字，主按钮不提交） -->
+      <TextBlock Text="{Binding ValidationError}" Foreground="#D13438" FontSize="12" TextWrapping="Wrap"
+                 IsVisible="{Binding HasValidationError}" />
+
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+        <Button Content="取消" Command="{Binding CancelCommand}" />
+        <Button Content="{Binding PrimaryButtonText}" Command="{Binding SubmitCommand}" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

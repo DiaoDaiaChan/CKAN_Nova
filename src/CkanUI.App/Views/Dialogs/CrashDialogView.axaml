@@ -1,0 +1,41 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.CrashDialogView"
+                       x:DataType="vm:CrashDialogViewModel"
+                       Title="{Binding Title}"
+                       Width="520"
+                       SizeToContent="Height">
+  <StackPanel Margin="20" Spacing="10">
+    <TextBlock Text="{Binding SummaryText}" TextWrapping="Wrap" FontWeight="SemiBold" />
+    <StackPanel Orientation="Horizontal" Spacing="10">
+      <TextBlock Text="{Binding LogPathLabelText}" Opacity="0.6" FontSize="12" />
+      <SelectableTextBlock Text="{Binding LogPathText}" Opacity="0.8" FontSize="12" TextWrapping="Wrap" />
+    </StackPanel>
+    <Expander Header="{Binding DetailHeaderText}" IsExpanded="{Binding IsDetailExpanded}" HorizontalAlignment="Stretch">
+      <ScrollViewer MaxHeight="260" HorizontalScrollBarVisibility="Auto">
+        <SelectableTextBlock Text="{Binding ExceptionText}"
+                             FontFamily="Consolas"
+                             FontSize="11"
+                             TextWrapping="NoWrap" />
+      </ScrollViewer>
+    </Expander>
+    <TextBlock Text="{Binding CopyStatus}"
+               IsVisible="{Binding HasCopyStatus}"
+               Opacity="0.75"
+               FontSize="12" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding PrimaryCommand}"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding SecondaryButtonText}"
+              Command="{Binding SecondaryCommand}"
+              IsDefault="True"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding CopyButtonText}" Command="{Binding CopyDetailsCommand}" MinWidth="120" HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </StackPanel>
+</dialogs:DialogWindow>

@@ -17,9 +17,13 @@ public sealed class ViewLocator : IDataTemplate
     {
         if (param is null) return null;
 
+        // 顺序很重要：先换命名空间再换类型后缀。
+        // 反过来的话 "CkanUI.ViewModels.Pages.ModsPageViewModel" 会变成 "...Views.Pages.ModsPageView"（Pages 段被留下），
+        // 而页面视图都在 CkanUI.App.Views 下，于是所有页面静默回退到占位视图。
         var viewModelName = param.GetType().FullName!;
-        var viewName = viewModelName.Replace("ViewModel", "View", StringComparison.Ordinal)
-                                    .Replace(".ViewModels.", ".App.Views.", StringComparison.Ordinal);
+        var viewName = viewModelName.Replace(".ViewModels.Pages.", ".App.Views.", StringComparison.Ordinal)
+                                    .Replace(".ViewModels.", ".App.Views.", StringComparison.Ordinal)
+                                    .Replace("ViewModel", "View", StringComparison.Ordinal);
 
         if (Type.GetType(viewName) is { } viewType && Activator.CreateInstance(viewType) is Control view)
         {

@@ -1,0 +1,284 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+
+namespace CkanUI.ViewModels.Pages.Settings;
+
+/// <summary>
+/// 单个设置项的视图模型（03 篇 §7 / 04 篇 §2）：同时持有「已落盘值」与「编辑中的值」，
+/// 因此天然支持脏标记与「放弃修改」；行内校验错误与失败可重试标记也挂在它身上。
+/// 本类**不做任何 IO**：保存动作由页面注入（<paramref name="saveHandler"/> 由
+/// <c>SettingsPageViewModel</c> 提供），保证 VM 可 headless 单测且违反分层时编不过。
+/// </summary>
+public sealed partial class SettingItemViewModel : ObservableObject
+{
+    private readonly Func<SettingItemViewModel, Task>? _saveHandler;
+    private readonly Func<string, string>? _toWire;
+    private readonly Func<string?, string>? _fromWire;
+
+    /// <summary>创建一个设置项。</summary>
+    /// <param name="key">配置键（Core 的键名，或 ckan-ui.json 的字段键）。</param>
+    /// <param name="displayName">界面显示名。</param>
+    /// <param name="kind">编辑形态，决定视图控件与校验规则。</param>
+    /// <param name="persistence">保存去向，决定走哪个服务。</param>
+    /// <param name="group">所属分组。</param>
+    /// <param name="description">行内说明（可为空）。</param>
+    /// <param name="requiresRestart">是否「重启后生效」。</param>
+    /// <param name="choices">单选候选。</param>
+    /// <param name="min">整数下限。</param>
+    /// <param name="max">整数上限。</param>
+    /// <param name="toWire">编辑空间 → 线格式的自定义转换（如 MiB → 字节）；为空时按 kind 走默认转换。</param>
+    /// <param name="fromWire">线格式 → 编辑空间的自定义转换；为空时按 kind 走默认转换。</param>
+    /// <param name="saveHandler">页面提供的保存委托；为空时保存命令什么都不做（设计时预览用）。</param>
+    public SettingItemViewModel(
+        string key,
+        string displayName,
+        SettingItemKind kind,
+        SettingPersistence persistence,
+        SettingGroupKey group,
+        string? description = null,
+        bool requiresRestart = false,
+        IReadOnlyList<SettingChoice>? choices = null,
+        long? min = null,
+        long? max = null,
+        Func<string, string>? toWire = null,
+        Func<string?, string>? fromWire = null,
+        Func<SettingItemViewModel, Task>? saveHandler = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(key);
+        ArgumentException.ThrowIfNullOrEmpty(displayName);
+
+        Key = key;
+        DisplayName = displayName;
+        Kind = kind;
+        Persistence = persistence;
+        Group = group;
+        Description = description;
+        RequiresRestart = requiresRestart;
+        Choices = choices ?? Array.Empty<SettingChoice>();
+        Min = min;
+        Max = max;
+        _toWire = toWire;
+        _fromWire = fromWire;
+        _saveHandler = saveHandler;
+
+        SaveCommand = new AsyncRelayCommand(ExecuteSaveAsync, () => CanSave);
+    }
+
+    /// <summary>配置键。</summary>
+    public string Key { get; }
+
+    /// <summary>界面显示名。</summary>
+    public string DisplayName { get; }
+
+    /// <summary>行内说明。</summary>
+    public string? Description { get; }
+
+    /// <summary>是否有行内说明。</summary>
+    public bool HasDescription => !string.IsNullOrEmpty(Description);
+
+    /// <summary>编辑形态。</summary>
+    public SettingItemKind Kind { get; }
+
+    /// <summary>保存去向。</summary>
+    public SettingPersistence Persistence { get; }
+
+    /// <summary>所属分组。</summary>
+    public SettingGroupKey Group { get; }
+
+    /// <summary>是否重启后生效。</summary>
+    public bool RequiresRestart { get; }
+
+    /// <summary>右侧提示文案：重启后生效（外观类设置即时生效，不给提示）。</summary>
+    public string? HintText => RequiresRestart ? "重启后生效" : null;
+
+    /// <summary>是否有提示文案。</summary>
+    public bool HasHint => HintText is not null;
+
+    /// <summary>单选候选。</summary>
+    public IReadOnlyList<SettingChoice> Choices { get; }
+
+    /// <summary>整数下限。</summary>
+    public long? Min { get; }
+
+    /// <summary>整数上限。</summary>
+    public long? Max { get; }
+
+    /// <summary>视图是否用文本框（含多行列表）。</summary>
+    public bool IsTextKind => Kind is SettingItemKind.Text or SettingItemKind.Path or SettingItemKind.Integer or SettingItemKind.LineList;
+
+    /// <summary>视图是否用复选框。</summary>
+    public bool IsBooleanKind => Kind == SettingItemKind.Boolean;
+
+    /// <summary>视图是否用下拉框。</summary>
+    public bool IsChoiceKind => Kind == SettingItemKind.Choice;
+
+    /// <summary>文本框是否接受回车（列表形态需要）。</summary>
+    public bool IsMultiline => Kind == SettingItemKind.LineList;
+
+    /// <summary>编辑框最小高度：列表形态给三行。</summary>
+    public double EditorMinHeight => IsMultiline ? 84 : 32;
+
+    /// <summary>编辑中的值（字符串化；布尔为 "true"/"false"）。</summary>
+    [ObservableProperty]
+    private string _editValue = string.Empty;
+
+    /// <summary>已落盘的值（编辑空间）。与 <see cref="EditValue"/> 不同即脏。</summary>
+    [ObservableProperty]
+    private string _savedValue = string.Empty;
+
+    /// <summary>行内错误文案。</summary>
+    [ObservableProperty]
+    private string? _errorText;
+
+    /// <summary>上次保存失败是否可重试（来自 <c>OperationResult.Retryable</c> 语义）。</summary>
+    [ObservableProperty]
+    private bool _isRetryable;
+
+    /// <summary>是否正在保存。</summary>
+    [ObservableProperty]
+    private bool _isSaving;
+
+    /// <summary>保存命令（由页面注入的委托执行）。</summary>
+    public IAsyncRelayCommand SaveCommand { get; }
+
+    /// <summary>是否有未保存修改。</summary>
+    public bool IsDirty => !string.Equals(EditValue, SavedValue, StringComparison.Ordinal);
+
+    /// <summary>是否有行内错误。</summary>
+    public bool HasError => !string.IsNullOrEmpty(ErrorText);
+
+    /// <summary>是否允许点保存：有修改、无错误、不在保存中。</summary>
+    public bool CanSave => IsDirty && !HasError && !IsSaving;
+
+    /// <summary>要写进配置的线格式值（列表形态序列化为 JSON 字符串数组，缓存上限换成字节）。</summary>
+    public string WireValue => _toWire is not null ? _toWire(EditValue) : SettingWireFormat.ToWire(Kind, EditValue);
+
+    /// <summary>布尔形态的双向绑定入口。</summary>
+    public bool BooleanValue
+    {
+        get => string.Equals(EditValue, "true", StringComparison.Ordinal);
+        set => EditValue = value ? "true" : "false";
+    }
+
+    /// <summary>单选形态的双向绑定入口；赋 null 视为用户清空（不改值）。</summary>
+    public SettingChoice? SelectedChoice
+    {
+        get
+        {
+            foreach (var choice in Choices)
+            {
+                if (string.Equals(choice.Value, EditValue, StringComparison.Ordinal))
+                {
+                    return choice;
+                }
+            }
+
+            return null;
+        }
+
+        set
+        {
+            if (value is not null)
+            {
+                EditValue = value.Value;
+            }
+        }
+    }
+
+    /// <summary>按当前 kind 重新校验，返回是否不合法。</summary>
+    public bool Validate()
+    {
+        var error = SettingValidator.Validate(Kind, EditValue, Choices, Min, Max);
+        ErrorText = error;
+        if (error is null)
+        {
+            IsRetryable = false;
+        }
+
+        return error is not null;
+    }
+
+    /// <summary>把服务读回的线格式值装进编辑空间，并清掉错误与脏标记。</summary>
+    public void Load(string? wireValue) =>
+        ApplyLoaded(_fromWire is not null ? _fromWire(wireValue) : SettingWireFormat.FromWire(Kind, wireValue));
+
+    /// <summary>保存成功：把编辑值确认为已落盘值，清掉错误与可重试标记。</summary>
+    public void MarkSaved()
+    {
+        SavedValue = EditValue;
+        ErrorText = null;
+        IsRetryable = false;
+    }
+
+    /// <summary>放弃未保存修改。</summary>
+    public void Revert()
+    {
+        EditValue = SavedValue;
+        ErrorText = null;
+        IsRetryable = false;
+    }
+
+    /// <summary>保存失败的行内呈现：可重试与永久失败在文案上必须能区分（01 篇 §8 的 Retryable 语义）。</summary>
+    /// <param name="message">用户可读消息。</param>
+    /// <param name="detail">技术细节。</param>
+    /// <param name="retryable">是否可重试。</param>
+    public void MarkFailed(string message, string? detail, bool retryable)
+    {
+        // 文案只说事实（消息 + 技术细节），「能不能重试」交给 FailureHint 表达，
+        // 免得用户在错误消息里读到半句指令（01 篇 §8 的 Retryable 语义）。
+        ErrorText = string.IsNullOrEmpty(detail) ? message : $"{message}（{detail}）";
+        IsRetryable = retryable;
+    }
+
+    /// <summary>失败处理提示：区分「可重试」与「永久失败」（<c>OperationResult.Retryable</c> 的界面呈现）。</summary>
+    public string? FailureHint => HasError
+        ? IsRetryable
+            ? "可重试：确认服务与文件权限后再点保存，或用「重试失败项」批量重试"
+            : "该项不会被接受：请修改为合法值后重新保存"
+        : null;
+
+    /// <summary>是否显示失败处理提示。</summary>
+    public bool HasFailureHint => HasError;
+
+    /// <summary>页面加载时直接写入已落盘值（不经线格式转换，用于 UI 自有设置）。</summary>
+    /// <param name="editValue">编辑空间的值。</param>
+    public void ApplyLoaded(string editValue)
+    {
+        SavedValue = editValue;
+        ErrorText = null;
+        IsRetryable = false;
+        EditValue = editValue;
+    }
+
+    partial void OnEditValueChanged(string value)
+    {
+        Validate();
+        RaiseDerived();
+    }
+
+    partial void OnSavedValueChanged(string value) => RaiseDerived();
+
+    partial void OnErrorTextChanged(string? value) => RaiseDerived();
+
+    partial void OnIsSavingChanged(bool value) => RaiseDerived();
+
+    partial void OnIsRetryableChanged(bool value)
+    {
+        OnPropertyChanged(nameof(HasHint));
+        OnPropertyChanged(nameof(FailureHint));
+    }
+
+    private void RaiseDerived()
+    {
+        OnPropertyChanged(nameof(IsDirty));
+        OnPropertyChanged(nameof(HasError));
+        OnPropertyChanged(nameof(HasFailureHint));
+        OnPropertyChanged(nameof(FailureHint));
+        OnPropertyChanged(nameof(CanSave));
+        OnPropertyChanged(nameof(BooleanValue));
+        OnPropertyChanged(nameof(SelectedChoice));
+        SaveCommand.NotifyCanExecuteChanged();
+    }
+
+    private Task ExecuteSaveAsync() => _saveHandler?.Invoke(this) ?? Task.CompletedTask;
+}

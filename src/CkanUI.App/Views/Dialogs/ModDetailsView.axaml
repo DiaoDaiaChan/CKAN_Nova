@@ -1,0 +1,82 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+             x:Class="CkanUI.App.Views.Dialogs.ModDetailsView"
+             x:DataType="vm:ModDetailsViewModel">
+  <Panel>
+    <!-- 空状态（03 篇 §10：每页必须有空状态） -->
+    <TextBlock Text="{Binding EmptyText}"
+               IsVisible="{Binding IsEmpty}"
+               Opacity="0.6"
+               HorizontalAlignment="Center"
+               VerticalAlignment="Center"
+               TextWrapping="Wrap" />
+
+    <ScrollViewer IsVisible="{Binding HasSelection}" VerticalScrollBarVisibility="Auto">
+      <StackPanel Margin="16" Spacing="12">
+        <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="{Binding AuthorText}" Opacity="0.7" FontSize="12" />
+          <Border CornerRadius="3" Padding="6,1" Background="#22808080">
+            <TextBlock Text="{Binding CompatibilityText}" FontSize="11" />
+          </Border>
+        </StackPanel>
+
+        <TextBlock Text="{Binding AbstractText}"
+                   IsVisible="{Binding HasAbstract}"
+                   TextWrapping="Wrap"
+                   Opacity="0.85"
+                   FontStyle="Italic"
+                   FontSize="12" />
+
+        <!-- 元数据键值（标签与格式都在 VM 内集中，03 篇 §11） -->
+        <ItemsControl ItemsSource="{Binding MetadataItems}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:DiagnosticItem">
+              <Grid ColumnDefinitions="96,*" Margin="0,1">
+                <TextBlock Grid.Column="0" Text="{Binding Name}" Opacity="0.6" FontSize="12" />
+                <SelectableTextBlock Grid.Column="1" Text="{Binding Value}" FontSize="12" TextWrapping="Wrap" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- 描述（Markdown 原文；渲染由后续 Markdown 控件接入，UI-03 遗留项） -->
+        <TextBlock Text="{Binding DescriptionHeaderText}" FontWeight="SemiBold" Margin="0,6,0,0" />
+        <SelectableTextBlock Text="{Binding DescriptionText}" TextWrapping="Wrap" FontSize="12" />
+
+        <!-- 依赖树：文字 + 状态双通道（03 篇 §9 不靠颜色单一通道） -->
+        <TextBlock Text="{Binding DependenciesHeaderText}" FontWeight="SemiBold" Margin="0,6,0,0" />
+        <TextBlock Text="{Binding DependencySummaryText}" Opacity="0.7" FontSize="12" />
+        <ItemsControl ItemsSource="{Binding Dependencies}" IsVisible="{Binding HasDependencies}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ModRelationItem">
+              <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                <TextBlock Grid.Column="0" Text="{Binding DisplayText}" FontSize="12" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="11" Opacity="0.7" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock Text="{Binding RecommendationsHeaderText}" FontWeight="SemiBold" IsVisible="{Binding HasRecommendations}" Margin="0,6,0,0" />
+        <ItemsControl ItemsSource="{Binding Recommendations}" IsVisible="{Binding HasRecommendations}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ModRelationItem">
+              <TextBlock Text="{Binding DisplayText}" FontSize="12" TextWrapping="Wrap" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock Text="{Binding ConflictsHeaderText}" FontWeight="SemiBold" IsVisible="{Binding HasConflicts}" Margin="0,6,0,0" />
+        <ItemsControl ItemsSource="{Binding Conflicts}" IsVisible="{Binding HasConflicts}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ModRelationItem">
+              <TextBlock Text="{Binding DisplayText}" FontSize="12" TextWrapping="Wrap" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
+  </Panel>
+</UserControl>

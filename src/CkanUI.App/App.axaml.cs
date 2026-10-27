@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using CkanUI.App.Localization;
+using CkanUI.Localization;
 using CkanUI.Platform.SingleInstance;
 using CkanUI.Services.Abstractions;
 using CkanUI.ViewModels;
@@ -16,6 +18,8 @@ public sealed partial class App : Application
     private static readonly ILog Log = LogManager.GetLogger(typeof(App));
 
     private ServiceProvider? _services;
+    private LocalizationHost? _localization;
+    private ThemeHost? _theme;
     private bool _shutdownDone;
 
     /// <summary>当前应用实例（供单实例转发把外部参数送进窗口）。</summary>
@@ -34,6 +38,18 @@ public sealed partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             _services = ServiceRegistration.Build(() => desktop.MainWindow);
+
+            // 语言包必须在窗口显示前灌进资源字典，否则首帧会看到裸 key（i18n-guide §6.2）。
+            var localizer = _services.GetRequiredService<ILocalizer>();
+            _localization = new LocalizationHost(localizer, _services.GetRequiredService<IDispatcher>(), this);
+            _localization.Install();
+
+            // 主题与语言一样必须在首帧前生效，否则会看到默认变体闪一下（20 篇 P-08）。
+            _theme = new ThemeHost(
+                _services.GetRequiredService<IUiSettingsStore>(),
+                _services.GetRequiredService<IDispatcher>(),
+                this);
+            _theme.Install();
 
             var shell = _services.GetRequiredService<ShellViewModel>();
             var window = new MainWindow { DataContext = shell };
@@ -58,7 +74,10 @@ public sealed partial class App : Application
             var result = await services.GetRequiredService<IAppBootstrapper>()
                                        .StartupAsync(CancellationToken.None)
                                        .ConfigureAwait(false);
-            var status = result.IsSuccess ? "就绪" : $"启动未完成：{result.Message}";
+            var localizer = services.GetRequiredService<ILocalizer>();
+            var status = result.IsSuccess
+                ? localizer.Get("Ui_Common_Status_Ready")
+                : localizer.Format("Ui_Common_Status_StartupIncomplete", result.Message);
             if (!result.IsSuccess) Log.Warn($"启动未完成：{result.Message} {result.Detail}");
             await dispatcher.InvokeAsync(() => shell.StatusText = status).ConfigureAwait(false);
         }
@@ -66,7 +85,8 @@ public sealed partial class App : Application
         {
             Log.Error("启动序列抛出未捕获异常。", ex);
             errors.Report(ex, "启动序列", "CKAN UI 启动失败。");
-            await dispatcher.InvokeAsync(() => shell.StatusText = "启动失败，请查看日志。").ConfigureAwait(false);
+            var failedText = services.GetRequiredService<ILocalizer>().Get("Ui_Common_Status_StartupFailed");
+            await dispatcher.InvokeAsync(() => shell.StatusText = failedText).ConfigureAwait(false);
         }
     }
 
@@ -87,6 +107,8 @@ public sealed partial class App : Application
         }
         finally
         {
+            _theme?.Dispose();
+            _localization?.Dispose();
             _services.Dispose();
         }
     }

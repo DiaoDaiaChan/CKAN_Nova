@@ -1,0 +1,190 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CkanUI.App.Views.ModsPageView"
+             x:CompileBindings="False"
+             KeyDown="OnRootKeyDown">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="12">
+
+    <!-- 工具条（03 篇 §3.1）：搜索、过滤下拉、排序、刷新、应用 -->
+    <Border Grid.Row="0" Padding="8" CornerRadius="6" Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+        <TextBox x:Name="SearchBox"
+                 Grid.Column="0"
+                 MinWidth="220"
+                 VerticalAlignment="Center"
+                 Text="{Binding SearchText, Mode=TwoWay}"
+                 PlaceholderText="搜索模组：名称 / @作者 / tag: / is:installed / -否定"
+                 KeyDown="OnSearchKeyDown" />
+        <Button Grid.Column="1" Margin="6,0,0,0" Content="清空" Command="{Binding ClearSearchTextCommand}"
+                ToolTip.Tip="清空搜索（Esc）" />
+        <ComboBox Grid.Column="2" Margin="12,0,0,0" MinWidth="110" VerticalAlignment="Center"
+                  SelectedIndex="{Binding InstallFilterIndex, Mode=TwoWay}"
+                  ToolTip.Tip="安装状态过滤">
+          <ComboBoxItem>全部</ComboBoxItem>
+          <ComboBoxItem>已装</ComboBoxItem>
+          <ComboBoxItem>未装</ComboBoxItem>
+          <ComboBoxItem>有更新</ComboBoxItem>
+        </ComboBox>
+        <ComboBox Grid.Column="3" Margin="8,0,0,0" MinWidth="110" VerticalAlignment="Center"
+                  SelectedIndex="{Binding CompatibilityFilterIndex, Mode=TwoWay}"
+                  ToolTip.Tip="兼容性过滤（默认仅兼容）">
+          <ComboBoxItem>全部</ComboBoxItem>
+          <ComboBoxItem>仅兼容</ComboBoxItem>
+          <ComboBoxItem>仅不兼容</ComboBoxItem>
+        </ComboBox>
+        <ComboBox Grid.Column="4" Margin="8,0,0,0" MinWidth="120" VerticalAlignment="Center"
+                  SelectedIndex="{Binding SortColumnIndex, Mode=TwoWay}"
+                  ToolTip.Tip="排序依据">
+          <ComboBoxItem>名称</ComboBoxItem>
+          <ComboBoxItem>标识符</ComboBoxItem>
+          <ComboBoxItem>已装版本</ComboBoxItem>
+          <ComboBoxItem>最新版本</ComboBoxItem>
+          <ComboBoxItem>作者</ComboBoxItem>
+          <ComboBoxItem>下载量</ComboBoxItem>
+          <ComboBoxItem>体积</ComboBoxItem>
+          <ComboBoxItem>已装状态</ComboBoxItem>
+        </ComboBox>
+        <Button Grid.Column="5" Margin="6,0,0,0" Content="↑↓" Command="{Binding ToggleSortCommand}"
+                ToolTip.Tip="切换升序 / 降序" />
+        <Button Grid.Column="6" Margin="12,0,0,0" Content="刷新仓库"
+                Command="{Binding RefreshRepositoriesCommand}"
+                ToolTip.Tip="联网刷新仓库索引（Ctrl+R）" />
+        <Button Grid.Column="7" Margin="6,0,0,0" Content="应用变更"
+                Command="{Binding ApplyChangesCommand}"
+                ToolTip.Tip="应用当前变更集（Ctrl+Enter，M2 接入安装器后可用）" />
+      </Grid>
+    </Border>
+
+    <!-- 主体：左列表 + 右详情（03 篇 §3.1） -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,4,360" Margin="0,8,0,0">
+
+      <Grid Grid.Column="0" RowDefinitions="Auto,*">
+        <!-- 列头（03 篇 §3.2） -->
+        <Border Grid.Row="0" Padding="6,4" Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+          <Grid ColumnDefinitions="3,28,*,86,86,140,80,200,70">
+            <TextBlock Grid.Column="1" Text="选" FontSize="12" Opacity="0.7" />
+            <TextBlock Grid.Column="2" Text="名称" FontSize="12" Opacity="0.7" />
+            <TextBlock Grid.Column="3" Text="已装" FontSize="12" Opacity="0.7" />
+            <TextBlock Grid.Column="4" Text="最新" FontSize="12" Opacity="0.7" />
+            <TextBlock Grid.Column="5" Text="作者" FontSize="12" Opacity="0.7" />
+            <TextBlock Grid.Column="6" Text="下载量" FontSize="12" Opacity="0.7" HorizontalAlignment="Right" />
+            <TextBlock Grid.Column="7" Text="标签" FontSize="12" Opacity="0.7" />
+            <TextBlock Grid.Column="8" Text="大小" FontSize="12" Opacity="0.7" HorizontalAlignment="Right" />
+          </Grid>
+        </Border>
+
+        <!-- 虚拟化列表（ListBox 默认 VirtualizingStackPanel，3,000 行滚动只实体化可见行） -->
+        <ListBox x:Name="ModsList"
+                 Grid.Row="1"
+                 ItemsSource="{Binding Rows}"
+                 SelectionChanged="OnRowSelectionChanged"
+                 BorderThickness="0">
+          <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+              <VirtualizingStackPanel />
+            </ItemsPanelTemplate>
+          </ListBox.ItemsPanel>
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Grid ColumnDefinitions="3,28,*,86,86,140,80,200,70" Height="26">
+                <!-- 已装绿色竖条（§3.3） -->
+                <Border Grid.Column="0" Width="3" Margin="0,2" CornerRadius="1"
+                        Background="#2E7D32" IsVisible="{Binding IsInstalled}" />
+                <CheckBox Grid.Column="1" IsChecked="{Binding IsSelected, Mode=OneWay}"
+                          Click="OnSelectionCheckBoxClick" VerticalAlignment="Center"
+                          ToolTip.Tip="加入 / 移出变更集（Space）" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  <Border Background="#1F6FEB" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowUpdateBadge}">
+                    <TextBlock Text="↑ 更新" FontSize="11" Foreground="White" />
+                  </Border>
+                  <Border Background="#6E7781" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowAutoBadge}">
+                    <TextBlock Text="自动" FontSize="11" Foreground="White" />
+                  </Border>
+                  <Border Background="#8250DF" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowDependencyBadge}">
+                    <TextBlock Text="依赖" FontSize="11" Foreground="White" />
+                  </Border>
+                  <Border Background="#B35900" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowIncompatibleBadge}">
+                    <TextBlock Text="⚠ 不兼容" FontSize="11" Foreground="White" />
+                  </Border>
+                </StackPanel>
+                <TextBlock Grid.Column="3" Text="{Binding InstalledVersionText}" VerticalAlignment="Center" Opacity="0.85" />
+                <TextBlock Grid.Column="4" Text="{Binding LatestVersionText}" VerticalAlignment="Center" Opacity="0.85" />
+                <TextBlock Grid.Column="5" Text="{Binding AuthorText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Opacity="0.85" />
+                <TextBlock Grid.Column="6" Text="{Binding DownloadText}" HorizontalAlignment="Right" VerticalAlignment="Center" Opacity="0.85" />
+                <TextBlock Grid.Column="7" Text="{Binding TagsText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Opacity="0.7" />
+                <TextBlock Grid.Column="8" Text="{Binding SizeText}" HorizontalAlignment="Right" VerticalAlignment="Center" Opacity="0.85" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <!-- 空状态（03 篇 §10） -->
+        <Border Grid.Row="1" IsVisible="{Binding ShowEmptyState}"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+          <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="420">
+            <TextBlock Text="{Binding EmptyStateTitle}" FontSize="18" HorizontalAlignment="Center" />
+            <TextBlock Text="{Binding EmptyStateHint}" Opacity="0.7" TextWrapping="Wrap" TextAlignment="Center" />
+            <ItemsControl ItemsSource="{Binding ActiveFilterChips}" HorizontalAlignment="Center">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Background="{DynamicResource SystemControlBackgroundListLowBrush}" CornerRadius="10"
+                          Padding="8,2" Margin="2">
+                    <TextBlock Text="{Binding}" FontSize="12" />
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+              <Button Content="清除过滤条件" Command="{Binding ResetFiltersCommand}" />
+              <Button Content="立即刷新" Command="{Binding RefreshRepositoriesCommand}"
+                      IsVisible="{Binding CanRefreshFromEmptyState}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <GridSplitter Grid.Column="1" Background="Transparent" ResizeDirection="Columns" />
+
+      <!-- 详情面板（03 篇 §3.1 / 06 篇 UI-03 骨架） -->
+      <Border Grid.Column="2" Padding="12" CornerRadius="6"
+              Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+        <ScrollViewer>
+          <StackPanel Spacing="6">
+            <TextBlock Text="{Binding DetailName}" FontSize="18" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding DetailIdentifier}" FontSize="12" Opacity="0.6" />
+            <TextBlock Text="{Binding DetailStatusText}" FontSize="12" Opacity="0.8" />
+            <Separator Margin="0,6" />
+            <TextBlock Text="{Binding DetailVersionText}" />
+            <TextBlock Text="{Binding DetailAuthor, StringFormat='作者：{0}'}" />
+            <TextBlock Text="{Binding DetailDownloadText, StringFormat='下载量：{0}'}" />
+            <TextBlock Text="{Binding DetailSizeText, StringFormat='体积：{0}'}" />
+            <TextBlock Text="{Binding DetailTagsText, StringFormat='标签：{0}'}" TextWrapping="Wrap" />
+            <Separator Margin="0,6" />
+            <TextBlock Text="描述、依赖树、版本列表与主页链接将在 UI-03 完整实现。" Opacity="0.6"
+                       TextWrapping="Wrap" FontSize="12" />
+            <TextBlock Text="{Binding StatusText}" Opacity="0.5" FontSize="11" TextWrapping="Wrap" />
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+
+    <!-- 状态栏（03 篇 §3.1） -->
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,8,0,0">
+      <TextBlock Grid.Column="0" Text="{Binding CountText}" FontSize="12" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="1" Text="{Binding SelectionSummary}" FontSize="12" Margin="12,0,0,0"
+                 VerticalAlignment="Center" />
+      <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="12" Opacity="0.7" Margin="12,0,0,0"
+                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="{Binding DownloadSummary}" FontSize="12" VerticalAlignment="Center" />
+        <Button Content="预览变更" Command="{Binding PreviewChangesCommand}" FontSize="12" Padding="8,2" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</UserControl>

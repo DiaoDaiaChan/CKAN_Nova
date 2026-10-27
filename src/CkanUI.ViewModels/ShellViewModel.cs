@@ -15,17 +15,13 @@ public sealed record NavItem(string Key, string Title, string Glyph);
 public sealed partial class ShellViewModel : ObservableObject
 {
     private readonly INavigationService _navigation;
+    private readonly Func<string, string> _translate;
 
-    /// <summary>导航项列表（mods / instances / settings）。</summary>
-    public IReadOnlyList<NavItem> NavItems { get; } = new List<NavItem>
-    {
-        new("mods", "模组", "Apps"),
-        new("instances", "实例", "Folder"),
-        new("settings", "设置", "Settings")
-    };
+    /// <summary>导航项列表（mods / instances / settings）。标题在构造时按当前语言解析。</summary>
+    public IReadOnlyList<NavItem> NavItems { get; }
 
     [ObservableProperty]
-    private string _statusText = "就绪";
+    private string _statusText = string.Empty;
 
     [ObservableProperty]
     private string _title = "CKAN UI";
@@ -35,20 +31,40 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>无参构造函数，供设计时与 XAML 预览使用。</summary>
     public ShellViewModel()
-        : this(new EmptyNavigationService())
+        : this(new EmptyNavigationService(), null)
     {
     }
 
     /// <summary>带导航服务注入的构造函数。</summary>
     /// <param name="navigation">导航服务实例。</param>
-    public ShellViewModel(INavigationService navigation)
+    /// <param name="translate">取译文委托（视图模型层不引用本地化层，见架构铁律 2）；为空时直接回显 key。</param>
+    public ShellViewModel(INavigationService navigation, Func<string, string>? translate = null, Operations.OperationQueueViewModel? operationQueue = null)
     {
         _navigation = navigation ?? throw new ArgumentNullException(nameof(navigation));
+        OperationQueue = operationQueue;
+        // 没有本地化注入（设计时预览、headless 单测）时给出中文兜底文案，
+        // 而不是把 Ui_* 键名直接显示给用户。
+        _translate = translate ?? (key => FallbackTexts.TryGetValue(key, out var text) ? text : key);
+
+        NavItems = new List<NavItem>
+        {
+            new("mods", _translate("Ui_NavRail_ManageMods"), "Apps"),
+            new("instances", _translate("Ui_NavRail_Instances"), "Folder"),
+            new("settings", _translate("Ui_NavRail_Settings"), "Settings")
+        };
+        _statusText = _translate("Ui_Common_Status_Ready");
+
         _currentPage = _navigation.CurrentPage;
         _navigation.Navigated += OnNavigated;
 
         NavigateCommand = new AsyncRelayCommand<string>(ExecuteNavigateAsync);
     }
+
+    /// <summary>后台操作队列浮层（UI-08 / VM-05）。为空表示未接线（设计时预览），此时浮层不显示。</summary>
+    public Operations.OperationQueueViewModel? OperationQueue { get; }
+
+    /// <summary>浮层是否接线；供视图决定要不要挂载（空引用时避免渲染空壳）。</summary>
+    public bool HasOperationQueue => OperationQueue is not null;
 
     /// <summary>页面导航异步命令。</summary>
     public IAsyncRelayCommand<string> NavigateCommand { get; }
@@ -67,6 +83,15 @@ public sealed partial class ShellViewModel : ObservableObject
 
         return _navigation.NavigateAsync(key, null, ct);
     }
+
+    /// <summary>无本地化层时的中文兜底文案（键名与 LocalizationKeys 保持一致）。</summary>
+    private static readonly Dictionary<string, string> FallbackTexts = new(StringComparer.Ordinal)
+    {
+        ["Ui_NavRail_ManageMods"] = "管理模组",
+        ["Ui_NavRail_Instances"] = "游戏实例",
+        ["Ui_NavRail_Settings"] = "设置",
+        ["Ui_Common_Status_Ready"] = "就绪",
+    };
 
     private sealed class EmptyNavigationService : INavigationService
     {

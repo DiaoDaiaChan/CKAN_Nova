@@ -44,6 +44,9 @@ public sealed class UiSettingsStore : IUiSettingsStore
 
     public string FilePath { get; }
 
+    /// <inheritdoc />
+    public event Action<UiSettings>? Changed;
+
     public UiSettings Current
     {
         get
@@ -70,6 +73,8 @@ public sealed class UiSettingsStore : IUiSettingsStore
     {
         ArgumentNullException.ThrowIfNull(settings);
 
+        OperationResult<bool> result;
+
         // 进程内串行；临时文件名带 Guid，跨进程同时写也不会互相覆盖临时文件。
         lock (_gate)
         {
@@ -87,17 +92,44 @@ public sealed class UiSettingsStore : IUiSettingsStore
 
                 MoveWithRetry(temp, FilePath);
                 _current = settings;
-                return OperationResult<bool>.Ok(true);
+                result = OperationResult<bool>.Ok(true);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
             {
                 Log.Warn($"保存 UI 设置失败：{FilePath}", ex);
-                return OperationResult<bool>.Fail("无法保存界面设置", ex.Message, retryable: true);
+                result = OperationResult<bool>.Fail("无法保存界面设置", ex.Message, retryable: true);
             }
             finally
             {
                 TryDelete(temp);
             }
+        }
+
+        // 变更通知在锁外触发：订阅方（主题宿主）会同步回读 Current，持锁回调容易把锁序搞乱。
+        if (result.IsSuccess)
+        {
+            RaiseChanged(settings);
+        }
+
+        return result;
+    }
+
+    private void RaiseChanged(UiSettings settings)
+    {
+        var handler = Changed;
+        if (handler is null)
+        {
+            return;
+        }
+
+        try
+        {
+            handler(settings);
+        }
+        catch (Exception ex)
+        {
+            // 05 篇 §7：事件处理不抛，一个订阅方失败不能影响落盘结果。
+            Log.Warn("UI 设置变更订阅方抛出异常。", ex);
         }
     }
 

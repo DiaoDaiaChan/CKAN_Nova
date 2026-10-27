@@ -1,0 +1,37 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.SelectDialogView"
+                       x:DataType="vm:SelectDialogViewModel"
+                       Title="{Binding Title}"
+                       Width="460"
+                       SizeToContent="Height">
+  <StackPanel Margin="20" Spacing="12">
+    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+    <ListBox x:Name="OptionsList"
+             ItemsSource="{Binding Options}"
+             SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
+             IsVisible="{Binding HasOptions}"
+             MaxHeight="280"
+             DoubleTapped="OnOptionsDoubleTapped" />
+    <TextBlock Text="{Binding ValidationError}"
+               IsVisible="{Binding HasValidationError}"
+               Foreground="Firebrick"
+               TextWrapping="Wrap"
+               FontSize="12" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding PrimaryCommand}"
+              IsDefault="True"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding SecondaryButtonText}"
+              Command="{Binding SecondaryCommand}"
+              IsCancel="True"
+              IsVisible="{Binding HasSecondaryButton}"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </StackPanel>
+</dialogs:DialogWindow>

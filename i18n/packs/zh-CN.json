@@ -1,0 +1,25 @@
+{
+  "locale": "zh-CN",
+  "nativeName": "简体中文",
+  "englishName": "Chinese, Simplified",
+  "strings": {
+    "Ui_NavRail_ManageMods": "模组",
+    "Ui_NavRail_Instances": "实例",
+    "Ui_NavRail_Settings": "设置",
+    "Ui_ManageMods_Title": "模组管理",
+    "Ui_Instances_Title": "实例",
+    "Ui_Settings_Title": "设置",
+    "Ui_Settings_Language": "界面语言",
+    "Ui_Settings_Language_Hint": "切换后界面立即生效，无需重启，也无需修改任何代码。",
+    "Ui_Settings_Language_LegacyWarning": "旧版 CKAN 客户端不支持该语言，界面将回退为英文。",
+    "Ui_Common_Page_Pending": "待 M1 实现",
+    "Ui_Common_Page_ImplNote": "该页面将在 M1 里程碑实现",
+    "Ui_Common_Status_Ready": "就绪",
+    "Ui_Common_Status_StartupIncomplete": "启动未完成：{0}",
+    "Ui_Common_Status_StartupFailed": "启动失败，请查看日志。",
+    "Ui_Common_LanguageSwitched": "界面语言已切换为 {0}",
+    "Ui_Common_Error_Unhandled_Title": "CKAN UI 遇到错误",
+    "Ui_Common_Error_Unhandled_Body": "程序遇到未处理的错误，详细信息已写入日志。\n\n{0}",
+    "Ui_Common_Error_Unknown": "未知错误"
+  }
+}

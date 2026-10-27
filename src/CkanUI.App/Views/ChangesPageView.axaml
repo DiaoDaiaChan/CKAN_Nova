@@ -1,0 +1,283 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CkanUI.App.Views.ChangesPageView"
+             x:CompileBindings="False"
+             KeyDown="OnRootKeyDown">
+  <!--
+    变更集页（03 篇 §4 V-02 / 06 篇 UI-04）。
+    约束（03 篇 §9 / §11）：本文件不写任何用户可见文案、不写颜色字面量；
+    所有文案来自 ChangesPageViewModel，所有颜色/字号/圆角来自 Resources/Tokens.axaml 的 Ckan* token。
+  -->
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}">
+
+    <!-- 摘要区（03 篇 §4 摘要块）：数量统计 + 预计下载体积 + 状态徽章 -->
+    <Border Grid.Row="0" Padding="{DynamicResource CkanToolbarPadding}"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+          <TextBlock Text="{Binding SummaryText}"
+                     FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="{Binding DownloadText}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Border Background="{DynamicResource CkanAccentBrush}"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="6,1">
+            <TextBlock Text="{Binding StateBadgeText}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanAccentTextBrush}" />
+          </Border>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- 冲突区（03 篇 §4 / §9）：红框 + 逐条文字 + 处理建议；有冲突时主按钮不可用 -->
+    <Border Grid.Row="1" IsVisible="{Binding HasConflicts}"
+            AutomationProperties.Name="{Binding ConflictRegionName}"
+            Margin="0,8,0,0" Padding="{DynamicResource CkanToolbarPadding}"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1">
+      <StackPanel Spacing="4">
+        <TextBlock Text="{Binding ConflictTitle}"
+                   FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                   Foreground="{DynamicResource CkanDangerBrush}" TextWrapping="Wrap" />
+        <ItemsControl ItemsSource="{Binding Conflicts}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding}"
+                         FontSize="{DynamicResource CkanFontSizeBody}"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                         TextWrapping="Wrap" Margin="0,1" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="{Binding ConflictHint}"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <!-- 告警区（不阻断执行，但必须显式可见） -->
+    <Border Grid.Row="2" IsVisible="{Binding HasWarnings}"
+            Margin="0,8,0,0" Padding="{DynamicResource CkanToolbarPadding}"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanWarningBrush}" BorderThickness="1">
+      <StackPanel Spacing="4">
+        <TextBlock Text="{Binding WarningTitle}"
+                   FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                   Foreground="{DynamicResource CkanWarningBrush}" TextWrapping="Wrap" />
+        <ItemsControl ItemsSource="{Binding Warnings}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding}"
+                         FontSize="{DynamicResource CkanFontSizeBody}"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                         TextWrapping="Wrap" Margin="0,1" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+
+    <!-- 执行结果 / 错误（03 篇 §9 双通道：颜色 + 文字） -->
+    <StackPanel Grid.Row="3" Spacing="6" Margin="0,8,0,0">
+      <Border IsVisible="{Binding HasResult}"
+              Padding="{DynamicResource CkanToolbarPadding}"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1">
+        <StackPanel Spacing="2">
+          <TextBlock Text="{Binding ResultTitle}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBlock Text="{Binding ResultText}"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+      <Border IsVisible="{Binding HasErrorText}"
+              Padding="{DynamicResource CkanToolbarPadding}"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1">
+        <StackPanel Spacing="2">
+          <TextBlock Text="{Binding ErrorTitle}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanDangerBrush}" />
+          <TextBlock Text="{Binding LastErrorText}"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <!-- 明细表（03 篇 §4）：列头 + 虚拟化列表 + 空状态叠加 -->
+    <Grid Grid.Row="4" RowDefinitions="Auto,*" Margin="0,8,0,0">
+      <Border Grid.Row="0" Padding="6,4"
+              Background="{DynamicResource CkanStatusBarBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
+        <Grid ColumnDefinitions="3,*,80,190,64,80,72">
+          <TextBlock Grid.Column="1" Text="{Binding ColumnNameHeader}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBlock Grid.Column="2" Text="{Binding ColumnActionHeader}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBlock Grid.Column="3" Text="{Binding ColumnVersionHeader}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBlock Grid.Column="4" Text="{Binding ColumnOriginHeader}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBlock Grid.Column="5" Text="{Binding ColumnSizeHeader}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                     HorizontalAlignment="Right" />
+          <TextBlock Grid.Column="6" Text="{Binding ColumnOperationsHeader}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                     HorizontalAlignment="Right" />
+        </Grid>
+      </Border>
+
+      <ListBox x:Name="ChangeList"
+               Grid.Row="1"
+               ItemsSource="{Binding Rows}"
+               Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+               BorderThickness="0">
+        <ListBox.ItemsPanel>
+          <ItemsPanelTemplate>
+            <VirtualizingStackPanel />
+          </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid ColumnDefinitions="3,*,80,190,64,80,72" Height="{DynamicResource CkanRowHeight}"
+                  ToolTip.Tip="{Binding StatusText}">
+              <!-- 卸载类动作的危险色竖条（配合"卸载"文字，不单靠颜色） -->
+              <Border Grid.Column="0" Width="3" Margin="0,3"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                      Background="{DynamicResource CkanDangerBrush}"
+                      IsVisible="{Binding IsRemoval}" />
+              <TextBlock Grid.Column="1" Text="{Binding Name}"
+                         VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                         FontSize="{DynamicResource CkanFontSizeBody}" />
+              <TextBlock Grid.Column="2" Text="{Binding ActionText}"
+                         VerticalAlignment="Center"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                         FontSize="{DynamicResource CkanFontSizeBody}" />
+              <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="{Binding FromVersionText}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           FontSize="{DynamicResource CkanFontSizeBody}" />
+                <TextBlock Text="{Binding ToVersionText}"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                           FontSize="{DynamicResource CkanFontSizeBody}" />
+              </StackPanel>
+              <!-- 来源徽章：用户 / 依赖 / 推荐 / 自动，四者只显示其一，文字始终可见 -->
+              <Grid Grid.Column="4" VerticalAlignment="Center">
+                <Border Background="{DynamicResource CkanAccentBrush}"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="5,0"
+                        HorizontalAlignment="Left" IsVisible="{Binding ShowUserBadge}">
+                  <TextBlock Text="{Binding OriginBadgeText}"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanAccentTextBrush}" />
+                </Border>
+                <Border Background="{DynamicResource CkanSuccessBrush}"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="5,0"
+                        HorizontalAlignment="Left" IsVisible="{Binding ShowDependencyBadge}">
+                  <TextBlock Text="{Binding OriginBadgeText}"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanAccentTextBrush}" />
+                </Border>
+                <Border Background="{DynamicResource CkanWarningBrush}"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="5,0"
+                        HorizontalAlignment="Left" IsVisible="{Binding ShowRecommendationBadge}">
+                  <TextBlock Text="{Binding OriginBadgeText}"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanAccentTextBrush}" />
+                </Border>
+                <Border Background="{DynamicResource CkanTextSecondaryBrush}"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="5,0"
+                        HorizontalAlignment="Left" IsVisible="{Binding ShowAutoBadge}">
+                  <TextBlock Text="{Binding OriginBadgeText}"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextInverseBrush}" />
+                </Border>
+              </Grid>
+              <TextBlock Grid.Column="5" Text="{Binding SizeText}"
+                         HorizontalAlignment="Right" VerticalAlignment="Center"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                         FontSize="{DynamicResource CkanFontSizeBody}" />
+              <Button Grid.Column="6" Margin="0,1" Padding="6,0"
+                      HorizontalAlignment="Right" VerticalAlignment="Center"
+                      FontSize="{DynamicResource CkanFontSizeCaption}"
+                      Content="{Binding RemoveButtonText}"
+                      Click="OnRemoveItemClick"
+                      ToolTip.Tip="{Binding StatusText}" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <!-- 空状态（03 篇 §10） -->
+      <Border Grid.Row="1" IsVisible="{Binding ShowEmptyState}"
+              Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="460">
+          <TextBlock Text="{Binding EmptyStateTitle}"
+                     FontSize="{DynamicResource CkanFontSizeTitle}"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                     HorizontalAlignment="Center" />
+          <TextBlock Text="{Binding EmptyStateHint}"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                     TextWrapping="Wrap" TextAlignment="Center" />
+          <Button Content="{Binding RecomputeButtonText}" Command="{Binding RecomputeCommand}"
+                  HorizontalAlignment="Center" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- 状态栏 + 主按钮（03 篇 §4：开始 / 取消 / 重新计算） -->
+    <Border Grid.Row="5" Margin="0,8,0,0" Padding="{DynamicResource CkanToolbarPadding}"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Background="{DynamicResource CkanStatusBarBackgroundBrush}"
+            AutomationProperties.Name="{Binding StatusRegionName}">
+      <Grid ColumnDefinitions="Auto,140,*,Auto,Auto,Auto">
+        <!-- 状态文字（双通道：状态徽章之外一定有可读文字） -->
+        <TextBlock Grid.Column="0" Text="{Binding StateText}" MaxWidth="360"
+                   FontSize="{DynamicResource CkanFontSizeBody}"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                   VerticalAlignment="Center" TextWrapping="Wrap" />
+        <ProgressBar Grid.Column="1" Minimum="0" Maximum="100"
+                     Value="{Binding ExecutionPercent}"
+                     IsVisible="{Binding IsApplying}"
+                     VerticalAlignment="Center" Margin="8,0,0,0" />
+        <TextBlock Grid.Column="2" Text="{Binding StatusText}" Margin="12,0,0,0"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        <Button Grid.Column="3" Content="{Binding RecomputeButtonText}"
+                Command="{Binding RecomputeCommand}"
+                IsEnabled="{Binding IsBusy, Converter={x:Static BoolConverters.Not}}"
+                ToolTip.Tip="{Binding CancelHint}" />
+        <Button Grid.Column="4" Margin="6,0,0,0" Content="{Binding CancelButtonText}"
+                Command="{Binding CancelCommand}"
+                IsVisible="{Binding IsApplying}" />
+        <!-- 开始：Command 的 CanExecute=CanApply，冲突时自动禁用（06 篇 UI-04 门禁） -->
+        <Button Grid.Column="5" Margin="6,0,0,0" Content="{Binding ApplyButtonText}"
+                Command="{Binding ApplyCommand}"
+                IsVisible="{Binding IsApplying, Converter={x:Static BoolConverters.Not}}"
+                ToolTip.Tip="{Binding CancelHint}" />
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

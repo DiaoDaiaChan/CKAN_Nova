@@ -13,6 +13,8 @@
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Avalonia.Fonts.Inter" />
+    <!-- UI-02：虚拟化表格控件（列定义/列宽持久化需要它，ListBox 只能凑合） -->
+    <PackageReference Include="Avalonia.Controls.DataGrid" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>
 
@@ -30,6 +32,8 @@
   <ItemGroup>
     <!-- 02 篇 §2：随包分发日志配置，覆盖 Core 传递过来的同名 log4net.xml -->
     <Content Include="log4net.xml" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 16 篇 §7：语言包随包分发（i18n/packs），磁盘版本优先于内嵌版本，便于用户替换译文 -->
+    <Content Include="../../i18n/packs/*.json" Link="i18n/packs/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
