@@ -14,6 +14,9 @@ public static class LocalizationKeys
     /// <summary>导航栏：变更集。</summary>
     public const string NavRailChanges = "Ui_NavRail_Changes";
 
+    /// <summary>导航：内容预览页（12 篇 F-29）。</summary>
+    public const string NavRailContent = "Ui_NavRail_Content";
+
     /// <summary>页面标题：变更集。</summary>
     public const string ChangesetTitle = "Ui_Changeset_Title";
 
@@ -22,6 +25,9 @@ public static class LocalizationKeys
 
     /// <summary>导航栏：导入导出页。</summary>
     public const string NavRailModPacks = "Ui_NavRail_ModPacks";
+
+    /// <summary>导航栏：modpack 编辑器页（F-46）。</summary>
+    public const string NavRailModPackEditor = "Ui_NavRail_ModPackEditor";
 
     public const string NavRailInstances = "Ui_NavRail_Instances";
 
@@ -38,6 +44,9 @@ public static class LocalizationKeys
     public const string NavRailCache = "Ui_NavRail_Cache";
 
     /// <summary>导航栏：跨实例去重页（F-41）。</summary>
+    /// <summary>导航：下载统计页（12 篇 F-47 / 06 篇 UI-25）。</summary>
+    public const string NavRailDownloadStats = "Ui_NavRail_DownloadStats";
+
     public const string NavRailDedup = "Ui_NavRail_Dedup";
 
     /// <summary>导航栏：安装历史（F-44）。</summary>

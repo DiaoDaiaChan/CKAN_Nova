@@ -161,6 +161,23 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
       「是否已装」在读取时按当前注册表现算（历史不因注册表变化而失真）；自动记账靠 `HistoryRecordingInstaller` 装饰器，重装时用 `InstallHistoryScope`
       （AsyncLocal）抑制双记；截断按行数（默认 2000），写入走 `.tmp` + `File.Move(overwrite:true)`。
 
+### 12.21 M2 契约决策（内容预览 / 下载统计 / modpack 编辑器 / 托盘）
+
+- **内容预览（F-29）只读不猜**：`ContentService` 用 `ZipArchive` 中央目录建树，补全隐式中间目录，含 `..` 或绝对路径的条目直接丢弃（防路径穿越），条目数上限 20000。
+  未缓存时的下载必须先落 `<缓存目录>/<id>-<guid>.zip.part` 再 `NetModuleCache.Store(move:true, validate:true)` —— **不允许**先 Store 再校验，
+  否则校验失败会在缓存里留下脏文件，后续所有「已缓存」判断都会错。
+- **下载统计（F-47）不许编数据**：`RepositorySnapshot` 只有 `(Available, RepositoryIds, UpdatedAt, IsFromCache)`，没有 per-module 仓库映射，
+  因此「按仓库」维度不做（做了就是假数据）；三档维度定为 `Mods`（对齐上游饼图）/ `Tags` / `Installed`。
+  下载量为 0 的模组归入「下载量不可用」单一段，不画 0% 扇区；超过 12 段一律合并末尾为「其他」，避免环形图退化成噪点。
+- **modpack 编辑器（F-46）不发明磁盘字段**：读写全部走上游 `CkanModule`（`new CkanModule(json, StrictGameComparator)` / `ToJson()`）。
+  两条上游硬约束必须记牢：① `ksp_version` 与 `ksp_version_min/max` 互斥，混用写得出去但读不回来（`CheckHealth` 抛
+  `InvalidModuleAttributesKraken`），故校验判 Error 且 `BuildModule` 有上下限时绝不写精确版本；② `new ModuleVersion("一.零")` 不抛异常
+  （上游完全按字符串比较），判断「版本串是否合法」只能按 Spec.md 的字符集正则，不能靠 try/catch。
+- **托盘（F-51）只描述与装配分离**：菜单结构与开关口径留在 `TrayMenuViewModel`（可单测），图标与 `NativeMenu` 装配在 App 层 `TrayHost`。
+  Avalonia 12 没有 `Application.TrayIcons`，用 `TrayIcon.GetIcons/SetIcons(Application)` 附加属性；隐藏窗口必须 `Hide()` 而不是 `Close()`
+  （`ShutdownMode=OnMainWindowClose` 会直接退进程）；无托盘环境必须把 `IsTrayAvailable` 置 false 并让两个开关失效，绝不把用户留在
+  「既没窗口也没图标」的进程里。图标零二进制资源：`RenderTargetBitmap` 现画，失败降级到平台默认图标。
+
 ## 修订记录
 
 | 日期 | 版本 | 变更 |
@@ -174,3 +191,4 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
 | 2026-10-27 | v1.5 | 导航项改为六项（新增 modpacks）；补 §12.10–14（页面 VM 放 Pages 根、modpack 导出走 Core ToJson、导入只做编排、下载两层与 NetAsyncDownloader 踩坑、启动命令持久化） |
 | 2026-10-27 | v1.8 | 导航项改为十三项（新增 playtime / cache / dedup / installhistory / plugins）；补 §12.20（插件 ALC 加载、去重六条安全边界与组内回滚、安装历史 JSONL 与防双记） |
 | 2026-10-27 | v1.7 | 补 §12.18（资源释放可逆 + 分层独立 + 退出信号必须保留进程句柄）与 §12.19（CKAN 版本事实只走 Services 薄壳）；F-25/F-55 收口（导航历史、关于框） |
+| 2026-10-27 | v1.9 | 导航项改为十六项（新增 content / modpack-editor / downloadstats）并接入托盘；补 §12.21（内容预览只读不猜 + 下载先落 .part、下载统计不许编仓库维度、modpack 编辑器不发明磁盘字段与两条上游硬约束、托盘描述/装配分离与 Hide 语义） |

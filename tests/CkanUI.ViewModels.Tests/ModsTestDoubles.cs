@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -181,6 +181,16 @@ internal sealed class FakeInstanceService : IInstanceService
     public IReadOnlyList<InstanceInfo> Instances { get; set; } = Array.Empty<InstanceInfo>();
 
     public InstanceInfo? Current { get; set; }
+    /// <summary>F-33：测试里直接设定游戏是否在跑，不用真起进程。</summary>
+    public bool GameRunning { get; set; }
+
+    public int IsGameRunningCalls { get; private set; }
+
+    public bool IsGameRunning(string instanceName = "")
+    {
+        IsGameRunningCalls++;
+        return GameRunning;
+    }
 
     public event Action? InstancesChanged;
 

@@ -34,4 +34,13 @@ public interface IInstanceService
     /// GameInstanceManager.RenameInstance 一致）。名称被占用时返回可重试失败。
     /// </summary>
     Task<OperationResult<InstanceInfo>> RenameAsync(string instanceName, string newName, CancellationToken ct = default);
+
+    /// <summary>
+    /// 游戏进程是否正在运行（12 篇 F-33：运行中安装会与游戏抢文件）。
+    /// <para>
+    /// 判据是"有进程的可执行文件位于该实例的游戏目录之下"，只做保守推断：探测不到就返回
+    /// <c>false</c>（宁可少警告，不要误拦）。<paramref name="instanceName"/> 为空表示当前实例。
+    /// </para>
+    /// </summary>
+    bool IsGameRunning(string instanceName = "") => false;
 }

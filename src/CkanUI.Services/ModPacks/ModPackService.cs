@@ -13,7 +13,7 @@ namespace CkanUI.Services.ModPacks;
 /// 否则会出现两套并行的安装路径（12 篇 F-39 的验收要求）。
 /// 所有异常在这里收口成中文 <see cref="OperationResult{T}"/>，UI 侧只负责显示。
 /// </remarks>
-public sealed class ModPackService : IModPackService
+public sealed partial class ModPackService : IModPackService
 {
     private const string ExportTaskId = "modpack-export";
     private const string ImportTaskId = "modpack-import";

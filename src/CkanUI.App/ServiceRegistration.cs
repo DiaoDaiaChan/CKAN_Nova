@@ -1,7 +1,10 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input.Platform;
 using CkanUI.App.Dialogs;
 using CkanUI.App.Localization;
+using CkanUI.App.Tray;
 using CkanUI.Localization;
 using CkanUI.Platform.Dialogs;
 using CkanUI.Platform.Threading;
@@ -14,6 +17,8 @@ using CkanUI.ViewModels;
 using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Operations;
 using CkanUI.ViewModels.Pages;
+using CkanUI.ViewModels.Pages.Settings;
+using CkanUI.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CkanUI.App;
@@ -93,8 +98,13 @@ public static class ServiceRegistration
             sp.GetService<INavigationService>(),
             sp.GetService<IModSearchParser>(),
             sp.GetService<ILabelService>()));
+        // 内容预览页要拿模组页的当前选中项（F-29）：只经 IContentTargetProvider 窄接口，不直接耦合。
+        services.AddSingleton<IContentTargetProvider>(sp =>
+            new ModsSelectionContentTarget(sp.GetRequiredService<ModsPageViewModel>()));
+        services.AddSingleton<ContentPageViewModel>();
         services.AddSingleton<ReposPageViewModel>();
         services.AddSingleton<ModPacksPageViewModel>();
+        services.AddSingleton<ModPackEditorPageViewModel>();
         // 实例页要拿资源释放服务与 UI 设置（18 篇 E6）：视图层的 ??= 注入拿不到容器，只能在这里挂。
         services.AddSingleton(sp =>
         {
@@ -106,6 +116,7 @@ public static class ServiceRegistration
         services.AddSingleton<SavesPageViewModel>();
         services.AddSingleton<UnmanagedPageViewModel>();
         services.AddSingleton<CachePageViewModel>();
+        services.AddSingleton<DownloadStatsPageViewModel>();
         services.AddSingleton<PlayTimePageViewModel>();
         services.AddSingleton<DedupPageViewModel>();
         services.AddSingleton<InstallHistoryPageViewModel>();
@@ -138,6 +149,23 @@ public static class ServiceRegistration
         services.AddSingleton<INavigationService>(sp => new NavigationService(CreatePageFactory(sp)));
         services.AddSingleton<ShellViewModel>();
 
+        // 托盘（12 篇 F-51 / UI-26）：VM 只描述菜单，图标与原生菜单由 App 层的 TrayHost 装。
+        services.AddSingleton<TrayHostActions>(sp => new TrayHostActions(
+            ownerProvider,
+            () => SettingsPaths.DefaultConfigDirectory,
+            () => null,
+            () => sp.GetService<IInstanceService>()?.Current?.GameDir,
+            sp.GetService<IRepositoryService>(),
+            () => (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.TryShutdown(0),
+            sp.GetRequiredService<IDispatcher>(),
+            sp.GetService<ISettingsService>()));
+        services.AddSingleton<TrayMenuViewModel>(sp => new TrayMenuViewModel(sp.GetRequiredService<TrayHostActions>()));
+        services.AddSingleton<TrayHost>(sp => new TrayHost(
+            Application.Current!,
+            sp.GetRequiredService<TrayMenuViewModel>(),
+            sp.GetRequiredService<IUiSettingsStore>(),
+            sp.GetRequiredService<IDispatcher>()));
+
         return services.BuildServiceProvider(new ServiceProviderOptions
         {
             ValidateOnBuild = false,
@@ -166,12 +194,15 @@ public static class ServiceRegistration
     {
         ["mods"] = typeof(ModsPageViewModel),
         ["changes"] = typeof(ChangesPageViewModel),
+        ["content"] = typeof(ContentPageViewModel),
         ["repos"] = typeof(ReposPageViewModel),
         ["modpacks"] = typeof(ModPacksPageViewModel),
+        ["modpack-editor"] = typeof(ModPackEditorPageViewModel),
         ["instances"] = typeof(InstancesPageViewModel),
         ["saves"] = typeof(SavesPageViewModel),
         ["unmanaged"] = typeof(UnmanagedPageViewModel),
         ["cache"] = typeof(CachePageViewModel),
+        ["downloadstats"] = typeof(DownloadStatsPageViewModel),
         ["playtime"] = typeof(PlayTimePageViewModel),
         ["dedup"] = typeof(DedupPageViewModel),
         ["installhistory"] = typeof(InstallHistoryPageViewModel),

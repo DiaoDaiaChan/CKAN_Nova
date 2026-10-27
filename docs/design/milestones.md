@@ -37,7 +37,7 @@
 
 | 模块 | 入口文件 | 说明 |
 | --- | --- | --- |
-| 外壳与导航 | `src/CkanUI.ViewModels/ShellViewModel.cs` | 十三项导航：模组 / 变更集 / 仓库 / 导入导出 / 实例 / 游戏时长 / 存档 / 未管理文件 / 下载缓存 / 跨实例去重 / 安装历史 / 插件 / 设置 |
+| 外壳与导航 | `src/CkanUI.ViewModels/ShellViewModel.cs` | 十六项导航：模组 / 内容预览 / 变更集 / 仓库 / 导入导出 / modpack 编辑器 / 实例 / 游戏时长 / 存档 / 未管理文件 / 下载缓存 / 下载统计 / 跨实例去重 / 安装历史 / 插件 / 设置 |
 | 模组管理 | `src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs` | DataGrid 8 列、列宽持久化、80ms 防抖搜索、勾选→变更请求 |
 | 变更集 | `src/CkanUI.ViewModels/Pages/ChangesPageViewModel.cs` | 预览/应用状态机；有 `IInstallerService` 时执行真实安装 |
 | 仓库管理 | `src/CkanUI.ViewModels/Pages/ReposPageViewModel.cs` | 增删/上下移/单仓库刷新/恢复默认（F-10） |
@@ -57,6 +57,10 @@
 | 存档内核 | `src/CkanUI.Sfs/**` + `src/CkanUI.Sfs.Cli/**` | SFS 解析 / 格式化 / 校验（含 `format` / `validate` 子命令） |
 | 导航历史 | `src/CkanUI.ViewModels/Navigation/NavigationService.cs` | 页面级前进/后退（双栈、深度 64）+ 模组选中历史（深度 32），外壳与详情面板各两个按钮（F-25） |
 | 关于框 | `src/CkanUI.ViewModels/Dialogs/AboutDialogViewModel.cs` | 版本矩阵四行 + 三条官方链接 + GPL-3.0；外链走 Avalonia `Launcher`，失败只在框内提示（F-55） |
+| 内容预览 | `src/CkanUI.ViewModels/Pages/ContentPageViewModel.cs` | ZIP 中央目录建树、未缓存时下载入库、路径复制与目录定位（F-29） |
+| modpack 编辑器 | `src/CkanUI.ViewModels/Pages/ModPackEditorPageViewModel.cs` | 元数据/作者/许可/关系行编辑、版本折叠、互斥校验（F-46） |
+| 下载统计 | `src/CkanUI.ViewModels/Pages/DownloadStatsPageViewModel.cs` | 自绘环图 + 排序表格，三档维度、超 12 段合并「其他」（F-47） |
+| 系统托盘 | `src/CkanUI.App/Tray/TrayHost.cs` | 七项原生菜单、图标现画、最小化/关闭到托盘两个开关（F-51） |
 | 资源释放 | `src/CkanUI.Services/Lifecycle/ResourceReleaseService.cs` | 五层（视图/缓存/注册表锁+L2/GC/工作集）四档（关/保守/均衡/激进），可逆（`RestoreAsync`），退出即还原（18 篇 E6） |
 
 ## 4. 已知缺口（按影响排序）
@@ -69,7 +73,8 @@
 6. **未管理文件的「接管为受管安装」未实现**：`IUnmanagedService.AdoptAsync` 仍返回不可重试失败，等 INT-09。
 7. **资源释放的 L0/L1 生产参与方为空**：`IViewResourceParticipant` / `IAppCacheParticipant` 接口已就位，但缓存与视图侧尚未实现——当前保守档实际只统计 0 项；L4（工作集归还）返回 `Unsupported` 记 Skipped，需要 psapi P/Invoke 与权限，沙箱内无法验证真实工作集变化。
 8. **插件声明的页签未渲染**：`PluginPageDescriptor` 只带 Key/Title/VM 类型全名，`PageTypes` 是静态字典，需要支持动态 key 并按 ViewLocator 规则解析插件 VM 类型。
-9. **托盘、打包发布、性能验收**（M8–M14 主体）尚未开工。
+9. **托盘只到编译与 VM 单测**：`TrayHost` 的真实图标、菜单点击与两个开关联动需要桌面手测（沙箱无 GUI 会话）；图标固定 32×32 不随 DPI 重绘，菜单文案是 VM 内中文常量。
+10. **打包发布、性能验收**（M8–M14 主体）尚未开工。
 
 ## 5. 如何复核本表
 

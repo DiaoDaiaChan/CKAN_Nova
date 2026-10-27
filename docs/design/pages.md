@@ -1,4 +1,4 @@
-# 页面与对话框实现设计说明（Pages & Dialogs Architecture）
+﻿# 页面与对话框实现设计说明（Pages & Dialogs Architecture）
 
 > 真相源与对应规格：
 > - 规格清单：`docs/plan/03-ui-spec.md`（§1 架构、§2 页面清单、§3 ModsView、§4 ChangesView、§5 InstancesView、§6 RepositoriesView、§7 SettingsView、§8 对话框、§10 空态与错误态、§13 全特性对照）
@@ -62,7 +62,7 @@
 ---
 
 ### 2.2 变更集确认与执行页 (ChangesPageViewModel)
-- **实现状态**：🚧 待落地（按规格设计并已有变更集预览 DTO 契约）
+- **实现状态**：✅ 已实现（`src/CkanUI.ViewModels/Pages/ChangesPageViewModel.cs`；含冲突横幅、警告横幅、游戏运行中横幅与执行状态机）
 - **规格对应**：03 篇 §4 (V-02)；06 篇 UI-04 (变更集页)、VM-02；02 篇 §4
 
 #### 2.2.1 视图模型职责
@@ -93,6 +93,7 @@
 #### 2.2.4 空状态与错误收口
 - **空变更集**：当 `Preview.Items` 为空时，展示「暂无待应用的模组变更，请在模组管理页选择需要安装或移除的模组」，主按钮置灰。
 - **存在冲突**：顶部以危险警示色展示冲突面板，列出冲突模组对与互斥原因，禁用 [开始] 按钮。
+- **游戏正在运行（12 篇 F-33）**：页面激活时调 `IInstanceService.IsGameRunning()`（判据 = 有进程的可执行文件落在实例游戏目录之下，探测失败按没在跑处理）。命中时顶部给黄框横幅「游戏正在运行」+ 说明，主按钮 `CanApply` 变为 false，另给「仍要执行」（`ApplyAnywayCommand`，只在横幅可见时可点）。用户点过之后本次页面生命周期内不再拦。
 - **执行失败**：事务失败时接收 `InstallReport`，呈现失败模组及原因列表；提供「复制错误日志」与「重试失败项」按钮，Core 自动触发的事务回滚保证游戏目录无半装脏文件（08 篇 R-03）。
 
 ---
@@ -353,6 +354,46 @@
 | 语义 | 插件目录默认 `%LocalAppData%/CKAN/plugins`；扫描一律以 `activate:false` 加载进 Dormant，**必须用户显式点「激活」才执行插件 `Initialize`**；加载用可回收 `AssemblyLoadContext`，对契约程序集与 System/Avalonia 前缀返回 null（否则插件会加载出第二份 Abstractions）；用 `LoadFromStream` 而非 `LoadFromAssemblyPath`，避免长期占用 dll 句柄；同进程、不沙箱，页面页头明示 |
 | 缺口 | 插件声明的页签尚未渲染成导航项（`PageTypes` 是静态字典，需要动态 key + 按 ViewLocator 解析插件 VM 类型）；ALC 卸载尽力而为（插件持有静态引用/线程时不会真回收）；不校验签名；不递归子目录；页面拉取式刷新，不订阅 `IPluginService.Changed` |
 
+### 2.14 内容预览页 (ContentPageViewModel)
+
+| 项 | 值 |
+| --- | --- |
+| 视图 | `src/CkanUI.App/Views/ContentPageView.axaml`（TreeView 折叠树） |
+| 依赖 | `IContentService`、`IContentTargetProvider`（宿主注入当前选中模组）；剪贴板与「打开目录」走视图注入的 `IContentShellLauncher` |
+| 关键成员 | `Roots` / `SelectedNode` / `StatusText` / `EntryCountText` / `LoadCommand` / `EnsureCachedCommand` / `CopyPathCommand` / `OpenDirectoryCommand` |
+| 语义 | 只读 ZIP 中央目录建树（目录在前、同层按名排序、首层展开）；路径穿越条目一律丢弃；ZIP 未缓存时给「下载到缓存」——先下到 `<缓存目录>/<id>-<guid>.zip.part` 再 `cache.Store(move:true, validate:true)` 原子入库，残缺文件不会污染缓存 |
+| 缺口 | 无真实实例的端到端下载集成测试；条目超过 20000 直接拒绝；只读不编辑 |
+
+### 2.15 modpack 编辑器页 (ModPackEditorPageViewModel)
+
+| 项 | 值 |
+| --- | --- |
+| 视图 | `src/CkanUI.App/Views/ModPackEditorPageView.axaml` |
+| 依赖 | `IModPackService`（编辑器能力是它上面的三个 DIM：`LoadEditorAsync` / `SaveEditorAsync` / `ValidateEditor`） |
+| 关键成员 | `Document` / `Authors` / `Licenses` / `Relations` / `Issues` / `LoadCommand` / `SaveCommand` / `ValidateCommand` / `AddRelationCommand` |
+| 语义 | 读写都走上游 `CkanModule`（`new CkanModule(json, StrictGameComparator)` / `ToJson()`），不发明磁盘字段；关系行 `multi` 模式保存时展开成 N 条 `name` 行（磁盘上没有「多选」概念），读回永不产生 `multi`；精确版本读成 min==max 再折叠回 `version`，避免「打开→保存」把精确版本降级成范围 |
+| 上游硬约束 | `ksp_version` 与 `ksp_version_min/max` 互斥（`CkanModule.CheckHealth` 抛 `InvalidModuleAttributesKraken`，写得出去读不回来）→ 校验判 Error（`ksp_version.conflict`），`BuildModule` 有上下限时绝不写精确版本；`ModuleVersion` 对任意字符串都不抛异常，版本改用 Spec.md 字符集 `^([0-9]+:)?[0-9A-Za-z.+\-_]+$` 校验 |
+| 缺口 | `resources` / `provides` / `localizations` / `install` / `download_hash` 打开再保存会丢（定位是 metapackage 编辑器）；手填 `spec_version` 保存时被 `SpecVersionAnalyzer.MinimumSpecVersion` 覆盖；无标识自动补全，「包不存在」这类问题校验查不出 |
+
+### 2.16 下载统计页 (DownloadStatsPageViewModel)
+
+| 项 | 值 |
+| --- | --- |
+| 视图 | `src/CkanUI.App/Views/DownloadStatsPageView.axaml` + `src/CkanUI.App/Controls/DonutChart.cs`（自绘环图，无第三方图表库） |
+| 依赖 | `IDownloadStatsService`（实现内部用 `IRepositoryService` + `ICacheService` + `IRegistryService`） |
+| 关键成员 | `Slices` / `ChartSlices` / `Rows` / `Dimension` / `Sort` / `Descending` / `RefreshCommand` / `SetDimensionCommand` / `SetSortCommand` |
+| 语义 | 三档维度 `Mods`（对齐上游饼图）/ `Tags` / `Installed`；超过 12 段合并为「其他」；下载量为 0 的模组归入「下载量不可用」单一段而不是画 0% 扇区；同列再点翻转方向、新列重置为降序；`OnActivated` 自动刷新 |
+| 缺口 | **按仓库维度未做**：`RepositorySnapshot` 只有 `(Available, RepositoryIds, UpdatedAt, IsFromCache)`，没有 per-module 仓库映射，强行统计会给出假数据；行数上限 200 且无导出 |
+
+### 2.17 系统托盘（外壳级，F-51）
+
+| 项 | 值 |
+| --- | --- |
+| 组成 | `src/CkanUI.ViewModels/Shell/TrayMenuViewModel.cs`（菜单与口径）+ `ITrayHostActions`（七个动作的窄接口）+ `src/CkanUI.App/Tray/TrayHost.cs`（图标与 `NativeMenu` 装配）+ `TrayHostActions.cs`（窗口/目录/刷新/退出实现） |
+| 菜单 | 七项固定顺序：显示主窗口 / 隐藏到托盘 / 打开日志目录 / 打开下载缓存目录 / 打开实例目录 / 刷新仓库列表 / 退出 |
+| 语义 | Avalonia 12 没有 `Application.TrayIcons`，用 `TrayIcon.GetIcons/SetIcons(Application)` 附加属性；图标零二进制资源，`RenderTargetBitmap` 现画 32×32，失败降级到平台默认图标并 `SetTrayAvailable(false)`；隐藏一律 `Hide()` 不用 `Close()`（`ShutdownMode=OnMainWindowClose` 会退进程）；两个开关 `MinimizeToTray` / `CloseToTray` 的真源是 `UiSettings`，钩子挂在 `App.axaml.cs` 的 `Closing` 与 `WindowState` 变化上，`MainWindow.axaml.cs` 一行未改 |
+| 缺口 | 真实图标点击/开关联动只在 VM 层单测，需桌面手测；图标不随 DPI 重绘（固定 32×32）；菜单文案是 VM 内中文常量（原生菜单由 OS 绘制，拿不到语言切换重绘时机）；开机自启 + 启动即最小化未实现 |
+
 ## 3. 对话框实现说明
 
 全部对话框继承自 `DialogViewModelBase`，并通过 `IDialogService` 在 UI 线程上弹窗呈现，解耦 Core 后台线程与 UI 窗口生命周期。
@@ -421,6 +462,10 @@
 | 跨实例去重页 | `DedupPageViewModel` | ✅ 已实现 | 03 篇 §6 / UI-21 | `IInstanceDedupService` | `DedupScanReport`, `DedupGroup`, `DedupExecuteReport` |
 | 安装历史页 | `InstallHistoryPageViewModel` | ✅ 已实现 | 03 篇 §6 / UI-23 | `IInstallHistoryService` | `InstallHistoryEntry`, `InstallHistorySnapshot`, `InstallHistoryRestorePlan` |
 | 插件页 | `PluginsPageViewModel` | ✅ 已实现 | 03 篇 §6 / UI-33 | `IPluginService` | `PluginInfo`, `PluginLoadFailure` |
+| 内容预览页 | `ContentPageViewModel` | ✅ 已实现 | 12 篇 F-29 / UI-03 | `IContentService`, `IContentTargetProvider` | `ContentPreview`, `ContentEntry` |
+| modpack 编辑器页 | `ModPackEditorPageViewModel` | ✅ 已实现 | 12 篇 F-46 / UI-24 | `IModPackService`（三个 DIM） | `ModPackEditorDocument`, `ModPackEditorIssue` |
+| 下载统计页 | `DownloadStatsPageViewModel` | ✅ 已实现 | 12 篇 F-47 / UI-25 | `IDownloadStatsService` | `DownloadStatsReport`, `DownloadStatsSlice` |
+| 系统托盘 | `TrayMenuViewModel` | ✅ 已实现（真实点击待手测） | 12 篇 F-51 / UI-26 | `ITrayHostActions`（App 层实现） | `TrayMenuItemViewModel` |
 | 实例管理页 | `InstancesPageViewModel` | ✅ 已实现（重命名已接 `RenameAsync`；启动命令编辑见 §2.8） | 03 篇 §5 / UI-05 | `IInstanceService`, `IDialogService` | `InstanceInfo` |
 | 设置页 | `SettingsPageViewModel` | ✅ 已实现 | 03 篇 §7 / UI-07 | `ISettingsService`, `IUiSettingsStore` | `UiSettings`, `SettingItemViewModel` |
 | 操作队列浮层 | `OperationQueueViewModel` | ✅ 已实现 | 03 篇 §1, §8 / UI-08 | `IOperationQueue` | `OperationProgress` |

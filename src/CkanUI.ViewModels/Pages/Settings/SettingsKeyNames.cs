@@ -61,6 +61,12 @@ public static class SettingsKeyNames
     /// <summary>ckan-ui.json：不再询问推荐模组（F-35 的「不再提示」落盘）。</summary>
     public const string SuppressRecommendations = "SuppressRecommendations";
 
+    /// <summary>ckan-ui.json：最小化到托盘（F-51）。</summary>
+    public const string MinimizeToTray = "MinimizeToTray";
+
+    /// <summary>ckan-ui.json：关闭到托盘（F-51）。</summary>
+    public const string CloseToTray = "CloseToTray";
+
     /// <summary>拼出某个主机的认证令牌键。</summary>
     public static string AuthToken(string host) => AuthTokenPrefix + host;
 

@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="CkanUI.App.Views.ChangesPageView"
              x:CompileBindings="False"
@@ -36,8 +36,29 @@
       </Grid>
     </Border>
 
+    <!-- 冲突区与游戏运行横幅共用一行（12 篇 F-33），纵向排列互不遮挡 -->
+    <StackPanel Grid.Row="1">
+    <!-- 游戏正在运行（12 篇 F-33）：不直接禁止，先给横幅与"仍要执行" -->
+    <Border IsVisible="{Binding HasGameRunningWarning}"
+            Margin="0,8,0,0" Padding="{DynamicResource CkanToolbarPadding}"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanWarningBrush}" BorderThickness="1">
+      <StackPanel Spacing="6">
+        <TextBlock Text="{Binding GameRunningTitle}"
+                   FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                   Foreground="{DynamicResource CkanWarningBrush}" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding GameRunningHint}"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}" TextWrapping="Wrap" />
+        <Button Content="{Binding ApplyAnywayButtonText}"
+                Command="{Binding ApplyAnywayCommand}"
+                HorizontalAlignment="Left" />
+      </StackPanel>
+    </Border>
+
     <!-- 冲突区（03 篇 §4 / §9）：红框 + 逐条文字 + 处理建议；有冲突时主按钮不可用 -->
-    <Border Grid.Row="1" IsVisible="{Binding HasConflicts}"
+    <Border IsVisible="{Binding HasConflicts}"
             AutomationProperties.Name="{Binding ConflictRegionName}"
             Margin="0,8,0,0" Padding="{DynamicResource CkanToolbarPadding}"
             CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
@@ -62,6 +83,7 @@
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" TextWrapping="Wrap" />
       </StackPanel>
     </Border>
+    </StackPanel>
 
     <!-- 告警区（不阻断执行，但必须显式可见） -->
     <Border Grid.Row="2" IsVisible="{Binding HasWarnings}"

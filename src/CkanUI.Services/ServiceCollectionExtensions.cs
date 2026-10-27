@@ -3,6 +3,7 @@ using CkanUI.Services.Bootstrap;
 using CkanUI.Services.Cache;
 using CkanUI.Services.ChangeSets;
 using CkanUI.Services.Cleanup;
+using CkanUI.Services.Content;
 using CkanUI.Services.Dedup;
 using CkanUI.Services.Downloads;
 using CkanUI.Services.Errors;
@@ -19,6 +20,7 @@ using CkanUI.Services.Registry;
 using CkanUI.Services.Saves;
 using CkanUI.Services.Repositories;
 using CkanUI.Services.Search;
+using CkanUI.Services.Stats;
 using CkanUI.Services.Unmanaged;
 using CKAN;
 using Microsoft.Extensions.DependencyInjection;
@@ -113,6 +115,16 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IDownloadTransport>(provider =>
             new NetAsyncDownloaderTransport(provider.GetRequiredService<IUser>()));
         services.TryAddSingleton<IDownloadService, DownloadService>();
+
+        // 内容预览（F-29）：ZIP 只读中央目录；未缓存时先下到临时文件再原子 Store。
+        services.TryAddSingleton<IContentZipStore>(provider => new NetModuleCacheZipStore(
+            provider.GetRequiredService<GameInstanceManager>(),
+            provider.GetRequiredService<RepositoryDataManager>(),
+            provider.GetRequiredService<IDownloadService>()));
+        services.TryAddSingleton<IContentService, ContentService>();
+
+        // 下载统计（F-47）：纯本地聚合，输入是仓库快照 + 缓存清单 + 注册表快照。
+        services.TryAddSingleton<IDownloadStatsService, DownloadStatsService>();
 
         // 启动编排放在最后：它依赖上面三个领域服务。
         services.TryAddSingleton<IAppBootstrapper, AppBootstrapper>();

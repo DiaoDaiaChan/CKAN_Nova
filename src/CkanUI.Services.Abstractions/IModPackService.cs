@@ -49,4 +49,26 @@ public interface IModPackService
         string rightInstance,
         CancellationToken ct = default)
         => Task.FromResult(OperationResult<InstanceComparison>.Fail("当前导入导出服务不可用。"));
+
+    /// <summary>读取一个 <c>.ckan</c> 文件并投影成编辑器文档（UI-24 编辑器表单）。</summary>
+    /// <param name="path">目标 <c>.ckan</c> 文件路径。</param>
+    /// <param name="ct">取消令牌。</param>
+    Task<OperationResult<ModPackEditorDocument>> LoadEditorAsync(
+        string path,
+        CancellationToken ct = default)
+        => Task.FromResult(OperationResult<ModPackEditorDocument>.Fail("当前导入导出服务不可用。"));
+
+    /// <summary>校验并写回一个 <c>.ckan</c> 文件；存在 Error 级问题时不写盘。</summary>
+    /// <param name="document">编辑器文档。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>成功时给出实际写盘路径。</returns>
+    Task<OperationResult<string>> SaveEditorAsync(
+        ModPackEditorDocument document,
+        CancellationToken ct = default)
+        => Task.FromResult(OperationResult<string>.Fail("当前导入导出服务不可用。"));
+
+    /// <summary>纯函数校验：不读盘、不写盘、不抛异常，返回全部问题（含提醒）。</summary>
+    /// <param name="document">编辑器文档。</param>
+    IReadOnlyList<ModPackEditorIssue> ValidateEditor(ModPackEditorDocument document)
+        => Array.Empty<ModPackEditorIssue>();
 }

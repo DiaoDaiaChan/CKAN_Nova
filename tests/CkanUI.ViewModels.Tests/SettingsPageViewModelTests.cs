@@ -65,6 +65,8 @@ public sealed class SettingsPageViewModelTests
                 SettingsKeyNames.HideVersionVPrefix,
                 SettingsKeyNames.AutoSortUpdates,
                 SettingsKeyNames.SuppressRecommendations,
+                SettingsKeyNames.MinimizeToTray,
+                SettingsKeyNames.CloseToTray,
             }));
         Assert.That(page.Groups[7].Items.All(item => item.IsBooleanKind), Is.True);
     }

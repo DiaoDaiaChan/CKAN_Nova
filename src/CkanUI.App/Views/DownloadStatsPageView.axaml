@@ -1,0 +1,157 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:CkanUI.App.Controls"
+             xmlns:dtos="using:CkanUI.Services.Abstractions.Dtos"
+             x:Class="CkanUI.App.Views.DownloadStatsPageView"
+             x:CompileBindings="False">
+  <!-- 下载统计页（规格 F-47 / 06 篇 UI-25）：环形图 + 图例 + 可排序明细表。
+       颜色只用 Tokens.axaml 的语义 token；页面只读，唯一的写操作是「刷新」。 -->
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+    <Style Selector="Button.chip">
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="Margin" Value="0,0,6,0" />
+      <Setter Property="MinHeight" Value="26" />
+    </Style>
+    <Style Selector="TextBlock.caption">
+      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*" Margin="16"
+        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+
+    <!-- 页头 -->
+    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
+      <TextBlock Text="{Binding Title}"
+                 FontSize="{DynamicResource CkanFontSizeTitle}"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      <TextBlock Text="按本地仓库索引与下载缓存聚合，不联网；下载量缺字段的模组按 0 计。"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 TextWrapping="Wrap" />
+    </StackPanel>
+
+    <!-- 工具条：分组维度 + 排序 + 刷新 -->
+    <Border Grid.Row="1" Padding="{DynamicResource CkanToolbarPadding}"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1">
+      <StackPanel Spacing="8">
+        <WrapPanel Orientation="Horizontal">
+          <TextBlock Text="分组" VerticalAlignment="Center" Margin="0,0,8,0"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <Button Classes="chip" Content="按模组"
+                  Command="{Binding SwitchDimensionCommand}"
+                  CommandParameter="{x:Static dtos:DownloadStatsDimension.Mods}" />
+          <Button Classes="chip" Content="按标签"
+                  Command="{Binding SwitchDimensionCommand}"
+                  CommandParameter="{x:Static dtos:DownloadStatsDimension.Tags}" />
+          <Button Classes="chip" Content="按安装状态"
+                  Command="{Binding SwitchDimensionCommand}"
+                  CommandParameter="{x:Static dtos:DownloadStatsDimension.Installed}" />
+          <Button Classes="chip" Content="按仓库"
+                  Command="{Binding SwitchDimensionCommand}"
+                  CommandParameter="{x:Static dtos:DownloadStatsDimension.Repositories}" />
+          <TextBlock Text="排序" VerticalAlignment="Center" Margin="16,0,8,0"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <Button Classes="chip" Content="下载量"
+                  Command="{Binding SetSortCommand}"
+                  CommandParameter="{x:Static dtos:DownloadStatsSortColumn.Downloads}" />
+          <Button Classes="chip" Content="缓存占用"
+                  Command="{Binding SetSortCommand}"
+                  CommandParameter="{x:Static dtos:DownloadStatsSortColumn.Cache}" />
+          <Button Classes="chip" Content="名称"
+                  Command="{Binding SetSortCommand}"
+                  CommandParameter="{x:Static dtos:DownloadStatsSortColumn.Name}" />
+          <Button Content="刷新" Command="{Binding RefreshCommand}"
+                  Margin="16,0,0,0" MinHeight="26"
+                  ToolTip.Tip="重新读取仓库索引与缓存清单" />
+        </WrapPanel>
+        <WrapPanel Orientation="Horizontal">
+          <TextBlock Classes="caption" Text="{Binding ModuleCountText, StringFormat='模组 {0}'}" Margin="0,0,16,0" />
+          <TextBlock Classes="caption" Text="{Binding TotalDownloadsText, StringFormat='下载合计 {0}'}" Margin="0,0,16,0" />
+          <TextBlock Classes="caption" Text="{Binding CacheTotalText, StringFormat='缓存合计 {0}'}" Margin="0,0,16,0" />
+          <TextBlock Classes="caption" Text="{Binding DimensionLabel, StringFormat='当前维度: {0}'}" Margin="0,0,16,0" />
+          <TextBlock Classes="caption" Text="{Binding TakenAt, StringFormat='统计于 {0:HH:mm:ss}'}"
+                     IsVisible="{Binding TakenAt, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        </WrapPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- 主体：左图例 + 右明细 -->
+    <Grid Grid.Row="2" ColumnDefinitions="280,*" Margin="0,12,0,0">
+
+      <Border Grid.Column="0" Padding="12" Margin="0,0,12,0"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              BorderBrush="{DynamicResource CkanBorderBrush}"
+              BorderThickness="1">
+        <Grid RowDefinitions="Auto,*">
+          <controls:DonutChart Height="180" RingThickness="22"
+                               Slices="{Binding ChartSlices}"
+                               CenterText="{Binding ModuleCountText}"
+                               CenterCaption="个模组" />
+          <ScrollViewer Grid.Row="1" Margin="0,12,0,0">
+            <ItemsControl ItemsSource="{Binding Slices}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <StackPanel Spacing="2" Margin="0,0,0,8">
+                    <TextBlock Text="{Binding DisplayText}"
+                               FontSize="{DynamicResource CkanFontSizeBody}"
+                               Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding DetailText}"
+                               FontSize="{DynamicResource CkanFontSizeCaption}"
+                               Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+
+      <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto">
+        <Border Grid.Row="0" Background="{DynamicResource CkanWarningBrush}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="8,4" Margin="0,0,0,8"
+                IsVisible="{Binding HasUnavailableDownloads}">
+          <TextBlock Text="{Binding UnavailableHint}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextInverseBrush}"
+                     TextWrapping="Wrap" />
+        </Border>
+
+        <TextBlock Grid.Row="1" Text="没有可统计的模组：先刷新仓库索引，或到仓库页添加索引后重试。"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                   IsVisible="{Binding ShowEmptyState}"
+                   TextWrapping="Wrap" Margin="0,0,0,8" />
+
+        <DataGrid Grid.Row="2"
+                  ItemsSource="{Binding Rows}"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserSortColumns="False"
+                  CanUserResizeColumns="True"
+                  RowHeight="26"
+                  GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="模组" Binding="{Binding Name}" Width="260" />
+            <DataGridTextColumn Header="标识符" Binding="{Binding Identifier}" Width="220" />
+            <DataGridTextColumn Header="下载量" Binding="{Binding DownloadsText}" Width="100" />
+            <DataGridTextColumn Header="缓存" Binding="{Binding CacheText}" Width="90" />
+            <DataGridTextColumn Header="状态" Binding="{Binding InstalledText}" Width="80" />
+          </DataGrid.Columns>
+        </DataGrid>
+
+        <TextBlock Grid.Row="3" Text="{Binding StatusText}"
+                   Foreground="{DynamicResource CkanDangerBrush}"
+                   IsVisible="{Binding HasError}"
+                   TextWrapping="Wrap" Margin="0,8,0,0" />
+      </Grid>
+    </Grid>
+  </Grid>
+</UserControl>

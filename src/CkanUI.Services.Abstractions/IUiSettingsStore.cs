@@ -37,6 +37,12 @@ public sealed record UiSettings
     /// <summary>推荐对话框「总是取消全选」的记忆位（12 篇 F-35）。</summary>
     public bool SuppressRecommendations { get; init; }
 
+    /// <summary>最小化到托盘（12 篇 F-51）：最小化时只留托盘图标，不占任务栏。默认关闭。</summary>
+    public bool MinimizeToTray { get; init; }
+
+    /// <summary>关闭到托盘（12 篇 F-51）：点关闭按钮时隐藏窗口而不退出进程。默认关闭。</summary>
+    public bool CloseToTray { get; init; }
+
     public IReadOnlyDictionary<string, double> ColumnWidths { get; init; } =
         new Dictionary<string, double>();
 
@@ -59,6 +65,8 @@ public sealed record UiSettings
         && HideVersionVPrefix == other.HideVersionVPrefix
         && AutoSortUpdates == other.AutoSortUpdates
         && SuppressRecommendations == other.SuppressRecommendations
+        && MinimizeToTray == other.MinimizeToTray
+        && CloseToTray == other.CloseToTray
         && ColumnWidthsEqual(ColumnWidths, other.ColumnWidths);
 
     public override int GetHashCode()
@@ -78,6 +86,8 @@ public sealed record UiSettings
         hash.Add(HideVersionVPrefix);
         hash.Add(AutoSortUpdates);
         hash.Add(SuppressRecommendations);
+        hash.Add(MinimizeToTray);
+        hash.Add(CloseToTray);
 
         // 字典无序：逐项哈希异或，保证顺序无关。
         var columns = 0;

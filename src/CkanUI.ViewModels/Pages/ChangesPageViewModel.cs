@@ -34,6 +34,8 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     private CancellationTokenSource? _applyCts;
     private int _buildVersion;
     private bool _subscribed;
+    private bool _gameRunning;
+    private bool _ignoreGameRunning;
 
     /// <summary>设计器 / 无参构造：不连任何服务，只展示空状态。</summary>
     public ChangesPageViewModel()
@@ -152,6 +154,22 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     /// <summary>告警明细。</summary>
     public IReadOnlyList<string> Warnings => Preview.Warnings;
 
+    /// <summary>当前实例的游戏进程是否正在运行（12 篇 F-33）。</summary>
+    public bool IsGameRunning => _gameRunning;
+
+    /// <summary>是否要展示"游戏正在运行"横幅（用户已选择强制继续后不再展示）。</summary>
+    public bool HasGameRunningWarning => _gameRunning && !_ignoreGameRunning;
+
+    /// <summary>游戏运行横幅文案。</summary>
+    public string GameRunningTitle => "游戏正在运行";
+
+    /// <summary>"仍要执行"按钮文案。</summary>
+    public string ApplyAnywayButtonText => "仍要执行";
+
+    /// <summary>游戏运行横幅说明（03 篇 §4：运行中安装会与游戏争用文件）。</summary>
+    public string GameRunningHint =>
+        "当前实例的游戏进程还在运行，安装/卸载可能与游戏争用文件并导致模组损坏。建议先完全退出游戏；确实要继续请点「仍要执行」。";
+
     /// <summary>告警区标题。</summary>
     public string WarningTitle => Preview.Warnings.Count > 0
         ? $"{Preview.Warnings.Count} 条提示（不阻断执行）"
@@ -180,10 +198,13 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     /// <summary>是否有错误文案要展示。</summary>
     public bool HasErrorText => !string.IsNullOrWhiteSpace(LastErrorText);
 
-    /// <summary>是否具备开始执行的前提：有变更项、无冲突、不在计算/执行中。</summary>
+    /// <summary>是否具备开始执行的前提：有变更项、无冲突、不在计算/执行中、且没有刚执行完待刷新的结果。</summary>
     public bool CanApply => HasRows
                             && !HasConflicts
-                            && State is not (ChangeExecutionState.Computing or ChangeExecutionState.Applying);
+                            && !HasGameRunningWarning
+                            && State is not (ChangeExecutionState.Computing
+                                or ChangeExecutionState.Applying
+                                or ChangeExecutionState.Done);
 
     /// <summary>是否可以取消（只有执行中可取消；下载中立即停，安装中等待回滚）。</summary>
     public bool CanCancel => State == ChangeExecutionState.Applying;
@@ -266,6 +287,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     protected override void OnActivated()
     {
         Subscribe();
+        RefreshGameRunning();
         RebuildFromRequests();
     }
 
@@ -600,8 +622,11 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         OnPropertyChanged(nameof(CanCancel));
         OnPropertyChanged(nameof(EmptyStateTitle));
         OnPropertyChanged(nameof(EmptyStateHint));
+        OnPropertyChanged(nameof(IsGameRunning));
+        OnPropertyChanged(nameof(HasGameRunningWarning));
 
         ApplyCommand.NotifyCanExecuteChanged();
+        ApplyAnywayCommand.NotifyCanExecuteChanged();
         CancelCommand.NotifyCanExecuteChanged();
     }
 
@@ -628,6 +653,38 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     /// <summary>重新计算变更集（含依赖解析与冲突检测）。</summary>
     [RelayCommand]
     private Task RecomputeAsync() => RebuildCoreAsync();
+
+    /// <summary>游戏正在运行时仍然强制继续（用户已明确选择）。</summary>
+    [RelayCommand(CanExecute = nameof(HasGameRunningWarning))]
+    private async Task ApplyAnywayAsync()
+    {
+        _ignoreGameRunning = true;
+        RefreshDerived();
+        await ApplyAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>重新探测游戏进程是否在运行（只在页面激活与执行结束后探测，避免轮询开销）。</summary>
+    private void RefreshGameRunning()
+    {
+        bool running = false;
+        try
+        {
+            running = _instances?.IsGameRunning() ?? false;
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "探测游戏进程", "无法判断游戏是否正在运行，已按未运行处理。");
+        }
+
+        if (running == _gameRunning)
+        {
+            return;
+        }
+
+        _gameRunning = running;
+        _ignoreGameRunning = false;
+        RefreshDerived();
+    }
 
     /// <summary>开始执行（03 篇 §4 主按钮；冲突时命令不可执行）。</summary>
     [RelayCommand(CanExecute = nameof(CanApply))]

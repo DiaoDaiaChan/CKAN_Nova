@@ -4,10 +4,12 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using CkanUI.App.Localization;
 using CkanUI.App.Theming;
+using CkanUI.App.Tray;
 using CkanUI.Localization;
 using CkanUI.Platform.SingleInstance;
 using CkanUI.Services.Abstractions;
 using CkanUI.ViewModels;
+using CkanUI.ViewModels.Shell;
 using log4net;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -22,6 +24,7 @@ public sealed partial class App : Application
     private LocalizationHost? _localization;
     private ThemeHost? _theme;
     private DensityHost? _density;
+    private TrayHost? _tray;
     private bool _shutdownDone;
 
     /// <summary>当前应用实例（供单实例转发把外部参数送进窗口）。</summary>
@@ -65,6 +68,28 @@ public sealed partial class App : Application
             desktop.MainWindow = window;
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
             desktop.Exit += (_, _) => Shutdown();
+
+            // 托盘（12 篇 F-51）：窗口建好后再装图标；「最小化到托盘 / 关闭到托盘」两个开关的生效点就在这里。
+            var trayMenu = _services.GetRequiredService<TrayMenuViewModel>();
+            _tray = _services.GetRequiredService<TrayHost>();
+            _tray.Install();
+
+            window.Closing += (_, e) =>
+            {
+                if (!trayMenu.HideOnClose) return;
+                e.Cancel = true;
+                window.Hide();
+            };
+
+            window.PropertyChanged += (_, e) =>
+            {
+                if (e.Property == Window.WindowStateProperty
+                    && window.WindowState == WindowState.Minimized
+                    && trayMenu.HideOnMinimize)
+                {
+                    window.Hide();
+                }
+            };
 
             // 启动序列放后台跑：UI 线程必须保持空闲，否则 02 篇 §1 里的网络/磁盘步骤会冻住窗口。
             _ = StartAsync(shell);
@@ -116,6 +141,7 @@ public sealed partial class App : Application
         }
         finally
         {
+            _tray?.Dispose();
             _density?.Dispose();
             _theme?.Dispose();
             _localization?.Dispose();

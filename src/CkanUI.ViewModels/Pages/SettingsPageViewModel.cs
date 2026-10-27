@@ -522,6 +522,22 @@ public sealed partial class SettingsPageViewModel : PageViewModel
                 SettingGroupKey.Advanced,
                 description: "安装时跳过推荐模组选择框（F-35）；可在推荐框内随时改回来。",
                 saveHandler: vm => SaveItemAsync(vm)),
+            new SettingItemViewModel(
+                SettingsKeyNames.MinimizeToTray,
+                "最小化到托盘",
+                SettingItemKind.Boolean,
+                SettingPersistence.UiSettings,
+                SettingGroupKey.Advanced,
+                description: "最小化时只留托盘图标，不占任务栏（F-51）。",
+                saveHandler: vm => SaveItemAsync(vm)),
+            new SettingItemViewModel(
+                SettingsKeyNames.CloseToTray,
+                "关闭到托盘",
+                SettingItemKind.Boolean,
+                SettingPersistence.UiSettings,
+                SettingGroupKey.Advanced,
+                description: "点关闭按钮时隐藏窗口而不退出（F-51）；退出请用托盘菜单的「退出」。",
+                saveHandler: vm => SaveItemAsync(vm)),
         };
         _items.AddRange(advancedItems);
 
@@ -589,6 +605,8 @@ public sealed partial class SettingsPageViewModel : PageViewModel
         ApplyFlag(SettingsKeyNames.HideVersionVPrefix, current.HideVersionVPrefix);
         ApplyFlag(SettingsKeyNames.AutoSortUpdates, current.AutoSortUpdates);
         ApplyFlag(SettingsKeyNames.SuppressRecommendations, current.SuppressRecommendations);
+        ApplyFlag(SettingsKeyNames.MinimizeToTray, current.MinimizeToTray);
+        ApplyFlag(SettingsKeyNames.CloseToTray, current.CloseToTray);
     }
 
     private void ApplyFlag(string key, bool value) =>
@@ -790,6 +808,14 @@ public sealed partial class SettingsPageViewModel : PageViewModel
 
             case SettingsKeyNames.SuppressRecommendations:
                 next = current with { SuppressRecommendations = item.BooleanValue };
+                break;
+
+            case SettingsKeyNames.MinimizeToTray:
+                next = current with { MinimizeToTray = item.BooleanValue };
+                break;
+
+            case SettingsKeyNames.CloseToTray:
+                next = current with { CloseToTray = item.BooleanValue };
                 break;
 
             default:

@@ -1,4 +1,4 @@
-using CkanUI.Services.Abstractions;
+﻿using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CKAN;
 using CKAN.Configuration;
@@ -12,16 +12,19 @@ public sealed class InstanceService : IInstanceService
     private readonly RepositoryDataManager _repositoryData;
     private readonly IDispatcher _dispatcher;
     private readonly IOperationQueue? _operations;
+    private readonly IGameProcessProbe _processProbe;
     private IReadOnlyList<InstanceInfo> _instances = Array.Empty<InstanceInfo>();
     private InstanceInfo? _current;
 
     public InstanceService(GameInstanceManager manager, RepositoryDataManager repositoryData,
-        IDispatcher dispatcher, IOperationQueue? operations = null)
+        IDispatcher dispatcher, IOperationQueue? operations = null,
+        IGameProcessProbe? processProbe = null)
     {
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
         _repositoryData = repositoryData ?? throw new ArgumentNullException(nameof(repositoryData));
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _operations = operations;
+        _processProbe = processProbe ?? new GameProcessProbe();
         _manager.InstanceChanged += OnInstanceChanged;
         RefreshProjection();
     }
@@ -115,6 +118,25 @@ public sealed class InstanceService : IInstanceService
             RefreshProjection();
             return OperationResult<bool>.Ok(true);
         });
+
+    public bool IsGameRunning(string instanceName = "")
+    {
+        var name = string.IsNullOrWhiteSpace(instanceName)
+            ? _manager.CurrentInstance?.Name
+            : instanceName;
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        if (!_manager.Instances.TryGetValue(name, out var instance)) return false;
+
+        foreach (var path in _processProbe.GetProcessImagePaths())
+        {
+            if (GameProcessProbe.IsInsideGameDir(path, instance.GameDir))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private void OnInstanceChanged(GameInstance? _, GameInstance? current) => _dispatcher.Post(() =>
     {

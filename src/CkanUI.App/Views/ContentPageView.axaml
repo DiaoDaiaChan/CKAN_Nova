@@ -1,0 +1,130 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CkanUI.App.Views.ContentPageView"
+             x:CompileBindings="False">
+  <!-- 内容预览页（F-29 / UI-03）：可折叠树形结构展示 ZIP 内目录与文件；支持未缓存时下载、复制路径、定位目录。
+       颜色与圆角严格遵循 Tokens.axaml 语义资源，无硬编码字面量。 -->
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16"
+        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+
+    <!-- 页头 -->
+    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
+      <TextBlock Text="内容预览"
+                 FontSize="{DynamicResource CkanFontSizeTitle}"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      <TextBlock Text="查看模组 ZIP 包内的文件结构与大小；只读取中央目录，不会将文件解压到磁盘。"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 TextWrapping="Wrap" />
+    </StackPanel>
+
+    <!-- 工具栏 -->
+    <Border Grid.Row="1" Margin="0,0,0,8"
+            Padding="{DynamicResource CkanToolbarPadding}"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}">
+      <WrapPanel Orientation="Horizontal">
+        <Button Content="预览 / 刷新" Command="{Binding PreviewCommand}"
+                Margin="0,0,8,0"
+                ToolTip.Tip="重新读取 ZIP 目录" />
+        <Button Content="下载到缓存" Command="{Binding DownloadCommand}"
+                Margin="0,0,8,0"
+                ToolTip.Tip="若尚未缓存，下载模组 ZIP 到本地缓存" />
+        <Button Content="复制路径" Command="{Binding CopyPathCommand}"
+                Margin="0,0,8,0"
+                ToolTip.Tip="复制当前选中项的相对路径" />
+        <Button Content="打开 ZIP 所在目录" Command="{Binding OpenDirectoryCommand}"
+                Margin="0,0,8,0"
+                ToolTip.Tip="在系统文件管理器中打开缓存 ZIP 所在文件夹" />
+        <Button Content="取消" Command="{Binding CancelCommand}"
+                Margin="0,0,8,0"
+                IsVisible="{Binding CanCancel}"
+                ToolTip.Tip="取消当前正在进行的操作" />
+      </WrapPanel>
+    </Border>
+
+    <!-- 树形内容与空状态区域 -->
+    <Grid Grid.Row="2">
+      <!-- 可折叠树 -->
+      <Border BorderBrush="{DynamicResource CkanBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              IsVisible="{Binding HasNodes}">
+        <TreeView ItemsSource="{Binding RootNodes}"
+                  SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
+                  BorderThickness="0" Background="Transparent">
+          <TreeView.Styles>
+            <Style Selector="TreeViewItem">
+              <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+            </Style>
+          </TreeView.Styles>
+          <TreeView.ItemTemplate>
+            <TreeDataTemplate ItemsSource="{Binding Children}">
+              <Grid ColumnDefinitions="*,Auto" Height="{DynamicResource CkanRowHeight}" Margin="4,0">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Name}"
+                             Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                             VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding KindText}"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                             VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding SizeText}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           VerticalAlignment="Center"
+                           Margin="16,0,8,0" />
+              </Grid>
+            </TreeDataTemplate>
+          </TreeView.ItemTemplate>
+        </TreeView>
+      </Border>
+
+      <!-- 空状态 -->
+      <Border IsVisible="{Binding ShowEmptyState}"
+              Padding="16"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <TextBlock Text="{Binding EmptyText}"
+                   FontSize="{DynamicResource CkanFontSizeBody}"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                   TextAlignment="Center" />
+      </Border>
+    </Grid>
+
+    <!-- 页脚：错误提示、状态栏与总计 -->
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <!-- 错误提示与重试 -->
+        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasError}">
+          <TextBlock Text="{Binding ErrorText}"
+                     Foreground="{DynamicResource CkanDangerBrush}"
+                     VerticalAlignment="Center" />
+          <Button Content="重试" Command="{Binding RetryCommand}"
+                  VerticalAlignment="Center" Margin="4,0,0,0" />
+          <Button Content="关闭" Command="{Binding ClearErrorCommand}"
+                  VerticalAlignment="Center" />
+        </StackPanel>
+        <!-- 正常操作提示 -->
+        <TextBlock Text="{Binding StatusText}"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                   VerticalAlignment="Center" />
+      </StackPanel>
+
+      <!-- 未压缩总大小统计 -->
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+        <TextBlock Text="未压缩大小合计："
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        <TextBlock Text="{Binding TotalText}"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      </StackPanel>
+    </Grid>
+
+  </Grid>
+</UserControl>
