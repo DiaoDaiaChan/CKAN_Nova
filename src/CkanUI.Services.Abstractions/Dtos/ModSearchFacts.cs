@@ -52,4 +52,10 @@ public readonly record struct ModSearchFacts
 
     /// <summary>已安装且存在替代模组（`is:replaceable`，对应上游 <c>isInstalled &amp;&amp; hasReplacement</c>）。</summary>
     public bool IsReplaceable { get; init; }
+
+    /// <summary>主页 URL。</summary>
+    public string? Homepage { get; init; }
+
+    /// <summary>下载地址。</summary>
+    public string? DownloadUrl { get; init; }
 }

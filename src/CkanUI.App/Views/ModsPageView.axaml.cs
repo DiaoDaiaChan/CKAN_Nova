@@ -1,3 +1,4 @@
+using Avalonia.Input.Platform;
 using System;
 using System.Collections.Generic;
 using Avalonia;
@@ -48,6 +49,34 @@ public partial class ModsPageView : UserControl
     {
         ApplyColumnWidths();
         HookColumnWidths();
+        WireContextMenuLaunchers();
+    }
+
+    private void WireContextMenuLaunchers()
+    {
+        if (ViewModel is not { } vm) return;
+        if (vm.ClipboardWriter is null)
+        {
+            vm.ClipboardWriter = new Func<string, Task>(async text =>
+            {
+                var topLevel = TopLevel.GetTopLevel(this);
+                if (topLevel?.Clipboard is { } clipboard)
+                {
+                    await clipboard.SetTextAsync(text).ConfigureAwait(true);
+                }
+            });
+        }
+        if (vm.UriLauncher is null)
+        {
+            vm.UriLauncher = new Func<string, Task>(async url =>
+            {
+                var topLevel = TopLevel.GetTopLevel(this);
+                if (topLevel?.Launcher is { } launcher && Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                {
+                    await launcher.LaunchUriAsync(uri).ConfigureAwait(true);
+                }
+            });
+        }
     }
 
     private void OnViewUnloaded(object? sender, RoutedEventArgs e) => UnhookColumnWidths();

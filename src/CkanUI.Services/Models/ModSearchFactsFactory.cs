@@ -48,6 +48,8 @@ public static class ModSearchFactsFactory
             IsCached = isCached,
             IsNew = isNew,
             IsReplaceable = isReplaceable,
+            Homepage = mod.resources?.homepage?.ToString(),
+            DownloadUrl = mod.download is { Count: > 0 } ? mod.download[0].ToString() : null,
         };
     }
 

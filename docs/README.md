@@ -27,6 +27,7 @@
 | [design/labels.md](design/labels.md) | F-24 标签组：分层、DIM 契约、Mods 页筛选与四条缺口 |
 | [design/mod-dialogs.md](design/mod-dialogs.md) | F-34/35/36 模组对话框族：推荐、虚拟提供者、冲突明细 |
 | [design/audit-recommendations.md](design/audit-recommendations.md) | F-36 推荐与建议审计对话框设计与实现（UI-17） |
+| [design/context-menu.md](design/context-menu.md) | F-31 模组列表上下文菜单（重装、复制标识符、复制下载地址与打开主页 UI-18） |
 | [design/cache-panel.md](design/cache-panel.md) | F-50/F-40 下载缓存面板：上限、清理顺序与 ZIP 灌缓存链路 |
 | [design/residual-cleanup.md](design/residual-cleanup.md) | F-43 卸载残留目录清理：数据流、四类拒绝理由与逐个跳过语义 |
 | [design/play-time-and-version-display.md](design/play-time-and-version-display.md) | F-48 游戏时长存储与 F-54 版本文本格式 |

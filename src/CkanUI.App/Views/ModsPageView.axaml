@@ -141,6 +141,17 @@
                   GridLinesVisibility="None"
                   RowHeight="26"
                   BorderThickness="0">
+          <!-- 右键上下文菜单（F-31 / UI-18） -->
+          <DataGrid.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="重新安装" Command="{Binding ReinstallSelectedCommand}" IsEnabled="{Binding CanReinstallSelected}" />
+              <Separator />
+              <MenuItem Header="复制模组标识符" Command="{Binding CopySelectedIdentifierCommand}" />
+              <MenuItem Header="复制下载链接" Command="{Binding CopySelectedDownloadUrlCommand}" />
+              <Separator />
+              <MenuItem Header="打开主页" Command="{Binding OpenSelectedHomepageCommand}" IsEnabled="{Binding CanOpenHomepage}" />
+            </ContextMenu>
+          </DataGrid.ContextMenu>
           <DataGrid.Columns>
             <!-- 行首：已装绿色竖条 + 勾选框（§3.3） -->
             <DataGridTemplateColumn Header="选" Width="32" CanUserResize="False">

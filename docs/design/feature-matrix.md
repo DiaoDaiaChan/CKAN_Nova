@@ -40,7 +40,7 @@
 | F-28 | 关系树（九色图例、反向关系、双击跳转） | UI-18 | `src/CkanUI.ViewModels/Dialogs/ModRelationKind.cs:4`, `src/CkanUI.ViewModels/Dialogs/ModRelationItem.cs:7`, `src/CkanUI.ViewModels/Dialogs/ModDetailsViewModel.cs:149` | 部分 | 已实现关系分类、多项依赖数据绑定与显示；九色图例树形控件与双击跳转待 UI-18 完善 |
 | F-29 | 内容页（未缓存时提示、下载、打开 ZIP 预览文件树） | UI-03 | — | 已实现 | @BT@src/CkanUI.Services/Content/{ContentService,NetModuleCacheZipStore}.cs@BT@（中央目录建树 + 临时分卷下载后 @BT@cache.Store(move:true,validate:true)@BT@）、@BT@src/CkanUI.ViewModels/Pages/ContentPageViewModel.cs@BT@、@BT@src/CkanUI.App/Views/ContentPageView.axaml@BT@（TreeView）；测试 @BT@ContentServiceTests@BT@(11) + @BT@ContentPageViewModelTests@BT@(12) |
 | F-30 | 版本页（全部版本、兼容/已装/不稳定标记、发布日期） | UI-03 | `src/CkanUI.Services/Models/GUIMod.cs:23`, `src/CkanUI.ViewModels/Pages/Mods/ModsFormatter.cs:15` | 部分 | 数据层具备版本枚举与兼容判定；详情面板独立版本页签与标记展示待 UI-03 完善 |
-| F-31 | 右键动作（重装、下载到缓存、从缓存清除、Labels 子菜单） | UI-02, INT-07 | `src/CkanUI.Services/ChangeSets/ModChange.cs:24` | 部分 | 变更集底层具备重装/下载语义；模组列表右键上下文菜单（ContextMenu）待 UI-02 接入 |
+| F-31 | 右键动作（重装、复制标识符、复制下载地址、打开主页） | UI-02, UI-18 | `src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:1630` | 已实现 | 模组列表 DataGrid.ContextMenu 接入，支持重装、复制标识符、复制下载地址与系统浏览器打开主页，单测覆盖（10 例） |
 | F-32 | 全量更新（Update all）、应用（Apply） | UI-02, UI-04 | `src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:1587`, `src/CkanUI.App/Views/ModsPageView.axaml:85` | 已实现 | 全量更新（`UpdateAllCommand`）识别并全选可更新模组，应用变更（`ApplyChangesCommand`）校验并交接 `ChangesPageViewModel` 导航（`ModsUpdateAllTests` 5 例） |
 | F-33 | 变更集页（Mod / Change / Reasons / Skip? 四列、清空、应用、游戏运行警告） | UI-04, VM-02 | `src/CkanUI.ViewModels/Pages/ChangesPageViewModel.cs:1`, `src/CkanUI.App/Views/ChangesPageView.axaml:1`, `src/CkanUI.Services/ChangeSets/CoreChangeSetPlanner.cs:1` | 已实现 | 变更集页：冲突/警告横幅、六列明细（名称/动作/版本/来源/体积/操作）、清空、单条剔除、应用与执行状态机（Idle→Computing→Ready→Applying→Done/Failed/Cancelled）、**游戏运行中横幅**（12 篇 §F-33：探测实例目录下的进程，拦下主按钮并提供「仍要执行」，见 `src/CkanUI.Services/Instances/InstanceService.cs:122` `IsGameRunning` 与 `src/CkanUI.ViewModels/Pages/ChangesPageViewModel.cs` `HasGameRunningWarning`，用例 `tests/CkanUI.Services.Tests/GameProcessProbeTests.cs`、`tests/CkanUI.ViewModels.Tests/ChangesGameRunningTests.cs`）。「跳过」仍与原因合并进明细说明文本 |
 | F-34 | 提供者选择（虚拟 mod 多候选单选） | UI-16 | `src/CkanUI.ViewModels/Dialogs/VirtualModuleDialogViewModel.cs:1`, `src/CkanUI.App/Views/Dialogs/VirtualModuleDialogView.axaml:1`, `src/CkanUI.Services.Abstractions/IModDialogService.cs:1` | 部分 | 对话框本身已完成：单选互斥、默认第一项、未选拒绝确认、双击即确认，取消返回 `null`（`ModDialogsTests` 25 例）。缺口：`CkanInstallerBackend` 抛 `TooManyModsProvideKraken` 处尚未调用（安装编排接入点未接） |
@@ -74,8 +74,8 @@
 
 | 状态 | 数量 | 占比 | 包含特性的主要范围 |
 |---|---|---|---|
-| **已实现** | **36** | 65.5% | 基础与导航（F-01..F-04, F-07..F-11, F-25）、实例与启动命令（F-05, F-06）、仓库刷新协议（F-12）、模组搜索与过滤语法（F-20..F-23）、全量更新与交接（F-32）、游戏运行探测与横幅（F-33）、推荐与建议审计（F-36）、内容预览（F-29）、下载失败处置（F-38）、Modpack 导出与编辑器（F-39, F-46）、去重与未管理扫描（F-41, F-42）、卸载残留清理（F-43）、安装历史（F-44）、下载统计（F-47）、设置项持久化与版本显示（F-48, F-54）、下载缓存完整管理（F-50）、系统托盘（F-51）、关于框（F-55）、插件发现与加载（F-17） |
-| **部分** | **19** | 34.5% | 版本与容忍度（F-13..F-16）、组合搜索与关系（F-26, F-28, F-30）、变更集与安装执行（F-31, F-37）、Label 属性（F-24）、推荐与虚拟模组对话框（F-34, F-35）、ZIP 灌缓存与导出（F-40, F-45）、自建更新（F-52） |
+| **已实现** | **37** | 67.3% | 基础与导航（F-01..F-04, F-07..F-11, F-25）、实例与启动命令（F-05, F-06）、仓库刷新协议（F-12）、模组搜索与过滤语法（F-20..F-23）、全量更新与交接（F-32）、游戏运行探测与横幅（F-33）、推荐与建议审计（F-36）、内容预览（F-29）、下载失败处置（F-38）、Modpack 导出与编辑器（F-39, F-46）、去重与未管理扫描（F-41, F-42）、卸载残留清理（F-43）、安装历史（F-44）、下载统计（F-47）、设置项持久化与版本显示（F-48, F-54）、下载缓存完整管理（F-50）、系统托盘（F-51）、关于框（F-55）、插件发现与加载（F-17） |
+| **部分** | **18** | 32.7% | 版本与容忍度（F-13..F-16）、组合搜索与关系（F-26, F-28, F-30）、安装执行（F-37）、Label 属性（F-24）、推荐与虚拟模组对话框（F-34, F-35）、ZIP 灌缓存与导出（F-40, F-45）、自建更新（F-52） |
 | **未开始** | **0** | 0.0% | 无（F-01..F-55 全部进入已实现或部分） |
 | **总计** | **55** | 100.0% | 覆盖全特性清单（A 9 + B 8 + C 17 + D 14 + E 7）全部条目 |
 

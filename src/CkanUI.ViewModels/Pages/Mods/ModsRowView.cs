@@ -34,6 +34,9 @@ public sealed record ModsRowView(ModRowData Data)
     /// <summary>最新版本（缺失显示"—"）。</summary>
     public string LatestVersionText => FormatVersion(Data.LatestVersion);
 
+    /// <summary>高级搜索与元数据事实（包含主页、下载链接等，F-31）。</summary>
+    public ModSearchFacts Facts => Data.Facts;
+
     /// <summary>下载量（千分位）。</summary>
     public string DownloadText => Data.DownloadCount > 0 ? ModsFormatter.Count(Data.DownloadCount) : "—";
 

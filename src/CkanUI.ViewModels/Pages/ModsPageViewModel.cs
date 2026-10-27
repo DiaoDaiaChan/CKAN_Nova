@@ -1060,6 +1060,8 @@ public sealed partial class ModsPageViewModel : PageViewModel
         RefreshDetail();
         ApplyChangesCommand.NotifyCanExecuteChanged();
         UpdateAllCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanReinstallSelected));
+        OnPropertyChanged(nameof(CanOpenHomepage));
     }
 
     private void RefreshDetail()
@@ -1625,6 +1627,136 @@ public sealed partial class ModsPageViewModel : PageViewModel
         }
 
         await ReviewChangesAsync().ConfigureAwait(true);
+    }
+
+    // ---- F-31 右键上下文动作（UI-18）----------------------------------------
+
+    /// <summary>剪贴板复制委托（由视图注入，用于 F-31 复制标识符与下载地址）。</summary>
+    public Func<string, Task>? ClipboardWriter { get; set; }
+
+    /// <summary>外部主页打开委托（由视图注入，用于 F-31 打开主页）。</summary>
+    public Func<string, Task>? UriLauncher { get; set; }
+
+    /// <summary>当前选中模组是否已安装（供右键菜单控制可用性）。</summary>
+    public bool CanReinstallSelected => SelectedRow is { IsInstalled: true };
+
+    /// <summary>当前选中模组是否有主页 URL。</summary>
+    public bool CanOpenHomepage => !string.IsNullOrWhiteSpace(SelectedRow?.Facts.Homepage);
+
+    /// <summary>重装选中模组（F-31）：将其标记为重装并加入变更列表。</summary>
+    [RelayCommand]
+    public void ReinstallSelected()
+    {
+        if (SelectedRow is not { IsInstalled: true } row)
+        {
+            StatusText = "请先选择一个已安装的模组。";
+            return;
+        }
+
+        _selected.Add(row.Identifier);
+        RebuildSelectionPreview();
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(HasPendingChanges));
+        ApplyChangesCommand.NotifyCanExecuteChanged();
+        StatusText = $"已将模组 {row.Name} 加入变更列表（准备重新安装）。";
+    }
+
+    /// <summary>复制选中模组标识符（F-31）。</summary>
+    [RelayCommand]
+    public async Task CopySelectedIdentifierAsync()
+    {
+        if (SelectedRow is null)
+        {
+            StatusText = "未选中任何模组。";
+            return;
+        }
+
+        if (ClipboardWriter is null)
+        {
+            StatusText = $"标识符：{SelectedRow.Identifier}（当前宿主未接入剪贴板）";
+            return;
+        }
+
+        try
+        {
+            await ClipboardWriter(SelectedRow.Identifier).ConfigureAwait(true);
+            StatusText = $"已复制标识符“{SelectedRow.Identifier}”到剪贴板。";
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "复制模组标识符", "写入系统剪贴板失败。");
+            StatusText = "写入剪贴板失败。";
+        }
+    }
+
+    /// <summary>复制选中模组的下载地址（F-31）。</summary>
+    [RelayCommand]
+    public async Task CopySelectedDownloadUrlAsync()
+    {
+        if (SelectedRow is null)
+        {
+            StatusText = "未选中任何模组。";
+            return;
+        }
+
+        var url = SelectedRow.Facts.DownloadUrl;
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            StatusText = "该模组没有记录下载链接。";
+            return;
+        }
+
+        if (ClipboardWriter is null)
+        {
+            StatusText = $"下载链接：{url}（当前宿主未接入剪贴板）";
+            return;
+        }
+
+        try
+        {
+            await ClipboardWriter(url).ConfigureAwait(true);
+            StatusText = "已复制模组下载地址到剪贴板。";
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "复制模组下载链接", "写入系统剪贴板失败。");
+            StatusText = "写入剪贴板失败。";
+        }
+    }
+
+    /// <summary>在外部浏览器中打开模组主页（F-31）。</summary>
+    [RelayCommand]
+    public async Task OpenSelectedHomepageAsync()
+    {
+        if (SelectedRow is null)
+        {
+            StatusText = "未选中任何模组。";
+            return;
+        }
+
+        var homepage = SelectedRow.Facts.Homepage;
+        if (string.IsNullOrWhiteSpace(homepage))
+        {
+            StatusText = "该模组没有配置主页链接。";
+            return;
+        }
+
+        if (UriLauncher is null)
+        {
+            StatusText = $"主页链接：{homepage}（当前宿主未接入外壳浏览器能力）";
+            return;
+        }
+
+        try
+        {
+            await UriLauncher(homepage).ConfigureAwait(true);
+            StatusText = "正在打开主页…";
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "打开模组主页", "启动外部浏览器打开主页失败。");
+            StatusText = "打开主页失败。";
+        }
     }
 
     // ---- 无服务时的空实现（设计器 / 无参构造）-----------------------------
