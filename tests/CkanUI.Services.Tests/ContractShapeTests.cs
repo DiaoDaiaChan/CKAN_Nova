@@ -15,19 +15,20 @@ public sealed class ContractShapeTests
     [Test]
     public void Dispatcher_has_the_four_authoritative_members()
     {
-        var members = typeof(IDispatcher).GetMembers(BindingFlags.Public | BindingFlags.Instance)
-            .Where(m => m.MemberType is MemberTypes.Method or MemberTypes.Property)
-            .Select(m => m.Name)
-            .OrderBy(n => n, StringComparer.Ordinal)
+        var properties = typeof(IDispatcher).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        // 接口上属性的访问器（get_IsOnUiThread 等）也会被 GetMethods 返回，必须排除 IsSpecialName，
+        // 否则断言会把属性当成"多出来的方法"。
+        var methods = typeof(IDispatcher).GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Where(m => !m.IsSpecialName)
             .ToArray();
 
-        Assert.That(members, Is.EquivalentTo(new[]
-        {
-            "IsOnUiThread", "Post", "InvokeAsync", "get_IsOnUiThread",
-        }).Or.EquivalentTo(new[]
-        {
-            "get_IsOnUiThread", "Post", "InvokeAsync",
-        }));
+        // 05 篇 §2 的权威四成员：IsOnUiThread / Post / InvokeAsync(Action) / InvokeAsync<T>(Func<T>)。
+        // 两个 InvokeAsync 是重载，GetMethods 会各返回一次，所以按名字去重后再比较集合。
+        Assert.That(properties.Select(p => p.Name), Is.EquivalentTo(new[] { "IsOnUiThread" }));
+        Assert.That(methods.Select(m => m.Name).Distinct(StringComparer.Ordinal),
+            Is.EquivalentTo(new[] { "Post", "InvokeAsync" }));
+        Assert.That(methods.Count(m => m.Name == "InvokeAsync"), Is.EqualTo(2),
+            "InvokeAsync 必须保留两个重载（Action 与 Func<T>）");
     }
 
     [Test]

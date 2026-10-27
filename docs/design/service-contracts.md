@@ -51,8 +51,41 @@
 4. **快照整体替换**，不做增量通知（04 篇 §2.1：3000 项 `CollectionChanged` 是卡顿主因）。
 5. 新增成员要同步改 `tests/CkanUI.Services.Tests` 的契约测试（`ContractShapeTests`）。
 
+## §4 实现决策（Lead 裁定，实现 agent 照此办）
+
+### §4.1 INT-04 InstanceService 的构造形状
+
+契约只规定**行为**，不规定构造形状。实现依赖用构造函数注入，全部必需参数，禁止 optional/nullable 兜底（DI 组装根负责提供）：
+
+```csharp
+public InstanceService(
+    GameInstanceManager manager,        // Core
+    RepositoryDataManager repositoryData, // Core，RegistryManager.Instance 的第二参数
+    IRegistryService registry,
+    IOperationQueue operations,
+    IDispatcher dispatcher)
+```
+
+- `RepositoryDataManager` 直接从 Core 注入：Services 层是唯一允许接触 CKAN 命名空间的层（01 篇 §5）。
+- `IOperationQueue` 依赖**接口**即可，实现属 VM-05，暂由测试侧 `tests/CkanUI.TestSupport/FakeOperationQueue.cs` 承担（新建文件，不要改已有 `FakeDispatcher`）。
+
+### §4.2 实例切换第 6 步"取消进行中操作"的判定
+
+02 篇 §5 的原文是"下载可保留，安装必须取消"。落地规则：
+
+- 遍历 `IOperationQueue.Operations` 快照，`OperationProgress.Kind` 前缀为 `install` 或 `registry` 的任务调 `Cancel(taskId)`；
+- 前缀为 `download` 的**不取消**；
+- 该前缀约定是 INT-05 与 VM-05 之间的临时契约，代码内必须写注释标明。
+
+### §4.3 锁定检测与回滚
+
+- `GameInstanceManager` 若无可用的"是否可能被锁"入口，改用实例目录下 lock 文件的独占打开检测；失败返回 `OperationResult.Fail("实例正在被另一个 CKAN 使用", ...)`，Retryable=false。
+- 顺序铁律：`RegistryManager.DisposeAll()` 必须在**锁定检测之后、SetCurrentInstance 之前**。
+- 回滚：切换过程放 try/finally，任一环节失败必须把旧实例恢复为当前实例并释放已取得的新锁。
+
 ## 修订记录
 
 | 日期 | 版本 | 变更 |
 | --- | --- | --- |
 | 2026-10-27 | v1.0 | 新建：冻结 13 个服务接口 + 8 组 DTO，登记实现归属 |
+| 2026-10-27 | v1.1 | 新增 §4 实现决策：InstanceService 构造形状、取消判定、锁定检测与回滚 |

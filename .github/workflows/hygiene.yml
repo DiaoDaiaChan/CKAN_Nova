@@ -1,0 +1,61 @@
+# 卫生门禁（ENV-04/ENV-05；规则见 21 篇 §12，工具见 tools/verify-layout）
+#
+# 分级（21 篇 §12 / R-81）
+#   阻断 H-01 H-02 H-03 H-06 H-08 H-09 H-10 H-12  → 退出码 1，CI 红
+#   警告 H-04 H-05 H-07                           → 打印但不失败
+#   独立 H-11（--prune）                          → 由定时/手动清理任务负责，这里只 dry-run 预演
+#
+# 门禁只读工作树（git ls-files 为主），不需要 submodule：external/CKAN 是联接/submodule，
+# 不参与任何一条判定，因此不带 submodules: recursive，省一次大克隆。
+name: hygiene
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: hygiene-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+
+jobs:
+  verify-layout:
+    name: verify-layout
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # H-02/H-03/H-07/H-10 走 git ls-files，需要完整索引
+
+      - name: 安装 .NET SDK 10.0.401
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+
+      - name: 门禁（--all：阻断级不通过即红）
+        run: >
+          dotnet run --project tools/verify-layout -c Release --
+          --all --root "${{ github.workspace }}"
+
+      - name: 警告级汇总（--strict：H-04/H-05/H-07 也计为失败，仅作可见性）
+        # 不设 continue-on-error 的反面：这里刻意保留，等 H-05 的索引补齐（Lead 维护 docs/README.md）
+        # 再决定是否升级为硬门，避免 M0 期因为别人的文档欠账把整条流水线锁死。
+        continue-on-error: true
+        run: >
+          dotnet run --project tools/verify-layout -c Release --
+          --all --strict --root "${{ github.workspace }}"
+
+      - name: 临时区时效预演（--prune --dry-run，只报告不删除）
+        continue-on-error: true
+        run: >
+          dotnet run --project tools/verify-layout -c Release --
+          --prune --dry-run --root "${{ github.workspace }}"

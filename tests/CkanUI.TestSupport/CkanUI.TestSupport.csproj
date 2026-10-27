@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
     <ProjectReference Include="../../src/CkanUI.Core/CkanUI.Core.csproj" />
+    <ProjectReference Include="../../external/CKAN/Core/CKAN-core.csproj" />
   </ItemGroup>
 
 </Project>

@@ -11,8 +11,72 @@ public sealed record UiSettings
     public string LastPage { get; init; } = "mods";
     public string Theme { get; init; } = "dark";
     public string? Locale { get; init; }
+
     public IReadOnlyDictionary<string, double> ColumnWidths { get; init; } =
         new Dictionary<string, double>();
+
+    // record 合成的 Equals 对 ColumnWidths 走引用比较（IReadOnlyDictionary 不是 record 友好的值类型），
+    // 会让「内容完全相同的两份设置」判为不等。这里改成按列名序数比较的结构相等：
+    // 一是让测试与 UI 层能可靠断言默认值，二是给后续「设置未变更就跳过落盘」的脏检查用。
+    public bool Equals(UiSettings? other) =>
+        other is not null
+        && WindowWidth.Equals(other.WindowWidth)
+        && WindowHeight.Equals(other.WindowHeight)
+        && Nullable.Equals(WindowX, other.WindowX)
+        && Nullable.Equals(WindowY, other.WindowY)
+        && IsMaximized == other.IsMaximized
+        && string.Equals(LastPage, other.LastPage, StringComparison.Ordinal)
+        && string.Equals(Theme, other.Theme, StringComparison.Ordinal)
+        && string.Equals(Locale, other.Locale, StringComparison.Ordinal)
+        && ColumnWidthsEqual(ColumnWidths, other.ColumnWidths);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(WindowWidth);
+        hash.Add(WindowHeight);
+        hash.Add(WindowX);
+        hash.Add(WindowY);
+        hash.Add(IsMaximized);
+        hash.Add(LastPage, StringComparer.Ordinal);
+        hash.Add(Theme, StringComparer.Ordinal);
+        hash.Add(Locale, StringComparer.Ordinal);
+
+        // 字典无序：逐项哈希异或，保证顺序无关。
+        var columns = 0;
+        foreach (var pair in ColumnWidths)
+        {
+            columns ^= HashCode.Combine(pair.Key, pair.Value);
+        }
+
+        hash.Add(columns);
+        return hash.ToHashCode();
+    }
+
+    private static bool ColumnWidthsEqual(
+        IReadOnlyDictionary<string, double> left,
+        IReadOnlyDictionary<string, double> right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null || left.Count != right.Count)
+        {
+            return false;
+        }
+
+        foreach (var pair in left)
+        {
+            if (!right.TryGetValue(pair.Key, out var value) || !value.Equals(pair.Value))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }
 
 public interface IUiSettingsStore

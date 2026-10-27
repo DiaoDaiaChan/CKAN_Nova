@@ -27,4 +27,9 @@
     <ProjectReference Include="../CkanUI.ModText/CkanUI.ModText.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 02 篇 §2：随包分发日志配置，覆盖 Core 传递过来的同名 log4net.xml -->
+    <Content Include="log4net.xml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

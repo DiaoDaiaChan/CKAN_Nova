@@ -1,6 +1,6 @@
 # CKAN UI 重构 · 计划总览（00 Index）
 
-> 上层依据：[doc/ui-refactor-feasibility.md](../ui-refactor-feasibility.md)（可行性评估，11 节）
+> 上层依据：[00a-feasibility.md](00a-feasibility.md)（可行性评估，12 节；自规格仓 `doc/ui-refactor-feasibility.md` 迁入）
 > 本文档集面向：执行者（开发者）与决策者（要不要投这个工）
 > 状态：计划稿 **v2.6**（31 项待确认已全部拍板；E3 MemGraph 取证完成）（技术栈已定稿、范围为完全特性对齐 + E1 存档 + E2 可观测性 + E3 Mod 配置 + E4 国际化 + E5 元数据本地化 + E6 启动后资源释放 + E7 Windows 标准安装/卸载/注册 + E8 外观个性化 + 工程规范与工作区卫生 + 测试用例规格），未开工
 

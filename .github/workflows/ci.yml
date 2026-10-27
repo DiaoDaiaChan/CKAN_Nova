@@ -1,0 +1,126 @@
+# CI：三平台构建 + 测试（ENV-04；验收口径见 06 篇 §2 M0-①⑤、07 篇 §3）
+#
+# 设计要点
+# 1. 三平台 matrix：windows-latest / ubuntu-latest / macos-latest，fail-fast: false
+#    （一个平台红不能掩盖另两个平台的结论）。
+# 2. external/CKAN 在本地是目录联接（.gitignore 已忽略），在 CI 上是 submodule，
+#    所以 checkout 带 submodules: recursive。仓库当前还没有 .gitmodules，
+#    这种情况下 submodule 拉取是空操作，下面的"取上游兜底"步骤会补一份浅克隆。
+# 3. 不加 --warnaserror：自有项目的 0 警告由 Directory.Build.props 的
+#    TreatWarningsAsErrors 保证（ENV-05），再叠一层会把上游 Core 的
+#    NU1904 / SYSLIB0050 也算成错误，违反"不改上游"的约束。
+# 4. dotnet test 在 CI 上可用（沙箱里才不可用，见 engineering-conventions.md §3）。
+#    需要 TxF 的用例单独在 Windows 跑（07 篇 §3）。
+name: ci
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+  # 上游 Core 的兜底来源（只读；转成 submodule 后这几步自动跳过）
+  CKAN_CORE_REPO: https://github.com/KSP-CKAN/CKAN
+  CKAN_CORE_REF: master
+
+jobs:
+  build-test:
+    name: build · test · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+      - name: 检出（含 submodule：external/CKAN）
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: 取上游 Core 兜底（尚无 .gitmodules 时）
+        shell: bash
+        run: |
+          if [ -f external/CKAN/Core/CKAN-core.csproj ]; then
+            echo "external/CKAN 已由 submodule 提供，跳过"
+            exit 0
+          fi
+          echo "::notice::仓库尚无 .gitmodules，按 ${{ env.CKAN_CORE_REF }} 浅克隆上游 Core"
+          rm -rf external/CKAN
+          git clone --depth 1 --branch "${{ env.CKAN_CORE_REF }}" "${{ env.CKAN_CORE_REPO }}" external/CKAN
+
+      - name: 安装 .NET SDK 10.0.401
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
+
+      - name: 还原
+        run: dotnet restore ckan-ui.sln
+
+      - name: 构建（自有项目 0 警告）
+        run: dotnet build ckan-ui.sln -c Release --no-restore
+
+      - name: 构建门禁工具（tools/verify-layout 暂未入 sln）
+        run: dotnet build tools/verify-layout -c Release --nologo
+
+      - name: 测试（默认集合，排除 RequiresTxF）
+        run: >
+          dotnet test ckan-ui.sln -c Release --no-build
+          --filter "TestCategory!=RequiresTxF"
+          --logger "trx;LogFileName=test-${{ matrix.os }}.trx"
+          --results-directory artifacts/test-results
+
+      - name: 测试（RequiresTxF，仅 Windows）
+        if: runner.os == 'Windows'
+        run: >
+          dotnet test ckan-ui.sln -c Release --no-build
+          --filter "TestCategory=RequiresTxF"
+          --logger "trx;LogFileName=test-txf-windows.trx"
+          --results-directory artifacts/test-results
+
+      - name: 发布（仅 Windows，产出可分发的前端目录）
+        if: runner.os == 'Windows'
+        run: >
+          dotnet publish src/CkanUI.App/CkanUI.App.csproj -c Release -r win-x64
+          --self-contained false -o artifacts/publish/win-x64
+
+      - name: 上传测试结果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: artifacts/test-results
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: 上传发布产物
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-win-x64
+          path: artifacts/publish/win-x64
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: 上传构建日志（失败时）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ matrix.os }}
+          path: |
+            **/*.binlog
+            artifacts/test-results
+          if-no-files-found: warn
+          retention-days: 7

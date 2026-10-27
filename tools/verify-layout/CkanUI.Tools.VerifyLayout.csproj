@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 卫生门禁 CLI（21 篇 §12，任务 ENV-04/ENV-05 配套）。
+       目录名按规格固定为 tools/verify-layout；项目名带 CkanUI 前缀是为了沿用 Directory.Build.props
+       里"自有项目"的规范（net10.0 / Nullable / TreatWarningsAsErrors / 中央包管理），
+       这样门禁本身的代码也受 0 警告约束。项目不入 sln 由 Lead 统一登记（并行期共享文件不改）。 -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>verify-layout</AssemblyName>
+    <RootNamespace>CkanUI.Tools.VerifyLayout</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- adapter.json 的兜底 JSON Schema（15 篇 §4.1）：docs/design/adapter.schema.json 存在时优先用它 -->
+    <None Include="adapter.schema.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

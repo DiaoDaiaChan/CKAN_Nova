@@ -12,9 +12,46 @@
 | `ops/` | 运维/发布手册 |
 | `test/manual/` | 手工用例 `H-NN-name.md`（与 07 篇编号对齐） |
 
-## 索引
+## 索引 · 运维与设计
 
 | 文档 | 说明 |
 | --- | --- |
 | [ops/engineering-conventions.md](ops/engineering-conventions.md) | 工程约定：构建、测试、代码风格、架构铁律、提交纪律 |
+| [ops/team-brief.md](ops/team-brief.md) | 并行开发简报：作用域划分、提交纪律、报告格式 |
+| [ops/verify-layout.md](ops/verify-layout.md) | `verify-layout` 仓库卫生门禁：12 条 H-01..H-12 用法与分级 |
 | [design/service-contracts.md](design/service-contracts.md) | 服务层契约冻结表：13 个接口 + 8 组 DTO + 实现归属 |
+
+## 索引 · 规格正文（docs/plan）
+
+| 文档 | 说明 |
+| --- | --- |
+| [plan/00-index.md](plan/00-index.md) | 计划总览：22 份执行计划导航、总工时与里程碑（v2.6） |
+| [plan/00a-feasibility.md](plan/00a-feasibility.md) | 可行性评估：Core 边界、风险与方案选型（12 节） |
+| [plan/01-architecture.md](plan/01-architecture.md) | 01 目标架构：分层表、依赖规则、组装根 |
+| [plan/02-core-integration.md](plan/02-core-integration.md) | 02 Core 集成契约：启动序列、`IUser`、切换实例、事件表 |
+| [plan/03-ui-spec.md](plan/03-ui-spec.md) | 03 UI 规格：页面、导航、控件与交互 |
+| [plan/04-mvvm-and-models.md](plan/04-mvvm-and-models.md) | 04 MVVM 结构与 Model 迁移 |
+| [plan/05-threading.md](plan/05-threading.md) | 05 线程模型与封送规范 |
+| [plan/06-wbs-milestones.md](plan/06-wbs-milestones.md) | 06 WBS 与里程碑（M0–M14） |
+| [plan/07-testing.md](plan/07-testing.md) | 07 测试策略：分层、替身、门禁 |
+| [plan/08-risk-register.md](plan/08-risk-register.md) | 08 风险登记表 |
+| [plan/09-migration-packaging.md](plan/09-migration-packaging.md) | 09 迁移、共存、打包与发布 |
+| [plan/10-spike-plan.md](plan/10-spike-plan.md) | 10 Spike 计划（2–3 天任务卡） |
+| [plan/11-tech-stack-decision.md](plan/11-tech-stack-decision.md) | 11 技术栈与系统兼容性决策（Avalonia 12 + net10.0） |
+| [plan/12-feature-parity.md](plan/12-feature-parity.md) | 12 全特性对齐清单（55 条 F-01..F-55） |
+| [plan/13-savegame-sfs.md](plan/13-savegame-sfs.md) | 13 存档工作台与 SFS 格式化工具 |
+| [plan/14-log-and-ai-debug.md](plan/14-log-and-ai-debug.md) | 14 日志审查与 AI 辅助排障（E2） |
+| [plan/15-mod-config-adapters.md](plan/15-mod-config-adapters.md) | 15 社区 Mod 配置适配层（E3） |
+| [plan/16-i18n.md](plan/16-i18n.md) | 16 国际化与官方文案复用（E4） |
+| [plan/17-mod-metadata-i18n.md](plan/17-mod-metadata-i18n.md) | 17 Mod 源信息 i18n 与仓库同步（E5） |
+| [plan/18-launch-resource-release.md](plan/18-launch-resource-release.md) | 18 游戏启动后的资源释放（E6） |
+| [plan/19-windows-install-flow.md](plan/19-windows-install-flow.md) | 19 Windows 标准安装 / 卸载 / 注册（E7） |
+| [plan/20-appearance-personalization.md](plan/20-appearance-personalization.md) | 20 外观个性化（E8） |
+| [plan/21-repo-layout.md](plan/21-repo-layout.md) | 21 仓库布局、模块边界与工作区卫生 |
+| [plan/22-test-cases.md](plan/22-test-cases.md) | 22 测试用例与单元测试规格 |
+
+## 未登记目录（按需增长）
+
+- `adr/`：尚未产生决策记录；第一条 ADR 落地后在此登记。
+- `research/`：取证记录；现有 `research/i18n-evidence/`（`coverage-official.csv`、`glossary-zh.tsv`、`seed-zh.tsv`），供 16/17 篇使用。
+- `test/manual/`：手工用例目录，随 07 篇 H-NN 用例落地后逐条登记。
