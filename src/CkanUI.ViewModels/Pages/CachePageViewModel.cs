@@ -6,13 +6,17 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace CkanUI.ViewModels.Pages;
 
-/// <summary>下载缓存管理页（F-50 / F-40 / UI-19）：看占用、按上限清理、清空、从 ZIP 灌入。</summary>
+/// <summary>下载缓存管理页（F-50 / F-40 / UI-19）：看占用、按上限清理、清空、从 ZIP 灌入、打开目录、重置上限。</summary>
 public sealed partial class CachePageViewModel : PageViewModel
 {
+    /// <summary>推荐的默认缓存容量上限（2048 MiB = 2 GiB）。</summary>
+    public const long DefaultRecommendedLimitBytes = 2048L * 1024L * 1024L;
+
     private readonly ICacheService _service;
     private readonly IErrorReporter _errors;
     private readonly IDialogService _dialogs;
     private bool _loaded;
+    private ICacheShellLauncher? _shellLauncher;
 
     /// <summary>设计时构造：全部能力用空实现，保证预览器不崩。</summary>
     public CachePageViewModel()
@@ -36,6 +40,29 @@ public sealed partial class CachePageViewModel : PageViewModel
 
     /// <summary>宿主注入的 ZIP 选择器；为 <c>null</c> 时「从 ZIP 灌入」会给出中文错误。</summary>
     public ICacheZipPicker? ZipPicker { get; set; }
+
+    /// <summary>
+    /// 打开目录的宿主外壳服务：由视图在 DataContext 就绪后注入（与 SettingsPageView / InstancesPageView 同一套先例），
+    /// VM 因此不引用 Avalonia；未注入时按钮给出友好的降级提示而不是崩。
+    /// </summary>
+    public ICacheShellLauncher? ShellLauncher
+    {
+        get => _shellLauncher;
+        set
+        {
+            if (ReferenceEquals(_shellLauncher, value))
+            {
+                return;
+            }
+
+            _shellLauncher = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>缓存目录路径。</summary>
+    [ObservableProperty]
+    private string? _cacheDirectory;
 
     /// <summary>当前条目列表。</summary>
     [ObservableProperty]
@@ -84,6 +111,8 @@ public sealed partial class CachePageViewModel : PageViewModel
     [NotifyCanExecuteChangedFor(nameof(PurgeAllCommand))]
     [NotifyCanExecuteChangedFor(nameof(ImportZipCommand))]
     [NotifyCanExecuteChangedFor(nameof(DeleteSelectedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenCacheFolderCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetLimitCommand))]
     private bool _isBusy;
 
     /// <summary>忙碌遮罩文案。</summary>
@@ -110,6 +139,12 @@ public sealed partial class CachePageViewModel : PageViewModel
 
     /// <summary>「删除选中」可用性（没勾选时禁用）。</summary>
     public bool CanDeleteSelected => !IsBusy && SelectedCount > 0;
+
+    /// <summary>打开缓存目录可用性。</summary>
+    public bool CanOpenCacheFolder => !IsBusy;
+
+    /// <summary>重置上限可用性。</summary>
+    public bool CanResetLimit => !IsBusy;
 
     /// <summary>是否显示空状态。</summary>
     public bool ShowEmptyState => !IsBusy && EntryCount == 0;
@@ -260,6 +295,79 @@ public sealed partial class CachePageViewModel : PageViewModel
         if (!HasError) SetStatus("已删除 " + selected.Count + " 个条目。");
     }, "删除选中的缓存条目", "正在删除缓存条目…");
 
+    /// <summary>在文件管理器中打开下载缓存目录。</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenCacheFolderCore))]
+    private Task OpenCacheFolderAsync() => RunAsync(async () =>
+    {
+        if (_shellLauncher is null)
+        {
+            SetStatus("当前宿主没有提供打开目录的外壳能力。");
+            return;
+        }
+
+        var directory = CacheDirectory;
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            var dirResult = await _service.GetCacheDirectoryAsync();
+            directory = dirResult.IsSuccess ? dirResult.Value : null;
+        }
+
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            SetError("下载缓存目录为空，无法打开。", "未配置下载缓存目录且无法获取默认目录。");
+            return;
+        }
+
+        var result = await _shellLauncher.OpenFolderAsync(directory.Trim());
+        if (result.IsSuccess)
+        {
+            SetStatus("已打开下载缓存目录。");
+        }
+        else
+        {
+            SetError(CacheErrorText.Compose(result.Message, "打开下载缓存目录失败。", result.Retryable), result.Detail);
+        }
+    }, "打开下载缓存目录", "正在打开缓存目录…");
+
+    /// <summary>重置缓存容量上限（弹出选项：重置为默认推荐 2048 MiB、设为无限制、取消）。</summary>
+    [RelayCommand(CanExecute = nameof(CanResetLimitCore))]
+    private Task ResetLimitAsync() => RunAsync(async () =>
+    {
+        var options = new[]
+        {
+            "重置为默认推荐上限（2048 MiB）",
+            "设为无限制"
+        };
+
+        var selectedIndex = await _dialogs.SelectAsync(
+            "重置容量上限",
+            "请选择如何重置下载缓存容量上限：",
+            options,
+            defaultIndex: 0);
+
+        if (selectedIndex < 0 || selectedIndex >= options.Length)
+        {
+            SetStatus("已取消。");
+            return;
+        }
+
+        long? targetLimit = selectedIndex == 0 ? DefaultRecommendedLimitBytes : null;
+        var result = await _service.SetSizeLimitBytesAsync(targetLimit);
+        if (!result.IsSuccess)
+        {
+            SetError(CacheErrorText.Compose(result.Message, "重置缓存容量上限失败。", result.Retryable), result.Detail);
+            return;
+        }
+
+        await LoadCoreAsync();
+        if (!HasError)
+        {
+            SetStatus(targetLimit.HasValue
+                ? "已将缓存容量上限重置为 " + CacheFormat.FormatSize(targetLimit.Value) + "。"
+                : "已将缓存容量上限设为无限制。");
+        }
+    }, "重置缓存容量上限", "正在重置容量上限…");
+
     private bool CanRefreshCore() => CanRefresh;
 
     private bool CanPurgeCore() => CanPurge;
@@ -267,6 +375,10 @@ public sealed partial class CachePageViewModel : PageViewModel
     private bool CanImportZipCore() => CanImportZip;
 
     private bool CanDeleteSelectedCore() => CanDeleteSelected;
+
+    private bool CanOpenCacheFolderCore() => CanOpenCacheFolder;
+
+    private bool CanResetLimitCore() => CanResetLimit;
 
     private async Task LoadCoreAsync()
     {
@@ -297,6 +409,7 @@ public sealed partial class CachePageViewModel : PageViewModel
         SizeLimitBytes = snapshot.SizeLimitBytes;
         UsagePercent = snapshot.UsagePercent;
         EntryCount = snapshot.EntryCount;
+        CacheDirectory = snapshot.CacheDirectory;
         OnPropertyChanged(nameof(HasLimit));
         OnPropertyChanged(nameof(LimitText));
         OnPropertyChanged(nameof(TotalText));
@@ -376,6 +489,8 @@ public sealed partial class CachePageViewModel : PageViewModel
         OnPropertyChanged(nameof(CanPurge));
         OnPropertyChanged(nameof(CanImportZip));
         OnPropertyChanged(nameof(CanDeleteSelected));
+        OnPropertyChanged(nameof(CanOpenCacheFolder));
+        OnPropertyChanged(nameof(CanResetLimit));
     }
 
     partial void OnEntryCountChanged(int value)
@@ -410,7 +525,7 @@ public sealed partial class CachePageViewModel : PageViewModel
     private sealed class EmptyCacheService : ICacheService
     {
         public Task<OperationResult<CacheSnapshot>> GetSnapshotAsync(CancellationToken ct = default)
-            => Task.FromResult(OperationResult<CacheSnapshot>.Ok(new CacheSnapshot(0, 0, null)));
+            => Task.FromResult(OperationResult<CacheSnapshot>.Ok(new CacheSnapshot(0, 0, null, null)));
 
         public Task<OperationResult<IReadOnlyList<CacheEntryInfo>>> ListEntriesAsync(CancellationToken ct = default)
             => Task.FromResult(OperationResult<IReadOnlyList<CacheEntryInfo>>.Ok(Array.Empty<CacheEntryInfo>()));
@@ -426,6 +541,12 @@ public sealed partial class CachePageViewModel : PageViewModel
 
         public Task<OperationResult> DeleteEntryAsync(string fileName, CancellationToken ct = default)
             => Task.FromResult(OperationResult.Fail("设计时未提供实现。", null, false));
+
+        public Task<OperationResult<string?>> GetCacheDirectoryAsync(CancellationToken ct = default)
+            => Task.FromResult(OperationResult<string?>.Ok(null));
+
+        public Task<OperationResult> SetSizeLimitBytesAsync(long? limitBytes, CancellationToken ct = default)
+            => Task.FromResult(OperationResult.Ok());
     }
 
     private sealed class EmptyErrorReporter : IErrorReporter

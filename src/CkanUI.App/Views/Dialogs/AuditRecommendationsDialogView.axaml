@@ -1,0 +1,159 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       xmlns:mods="clr-namespace:CkanUI.ViewModels.Dialogs.Mods;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.AuditRecommendationsDialogView"
+                       x:DataType="vm:AuditRecommendationsDialogViewModel"
+                       Title="{Binding Title}"
+                       Width="720"
+                       Height="600">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="12">
+    <!-- 顶部说明 -->
+    <TextBlock Grid.Row="0"
+               Text="以下是已安装模组声明推荐（recommends）或建议（suggests）、但当前尚未安装的模组（已按原发起模组分组呈现）："
+               TextWrapping="Wrap"
+               FontSize="{DynamicResource CkanFontSizeBody}" />
+
+    <!-- 摘要文案与全选/全不选工具条 -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+      <TextBlock Grid.Column="0"
+                 VerticalAlignment="Center"
+                 Text="{Binding SummaryText}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Content="全选"
+                Command="{Binding CheckAllCommand}"
+                MinWidth="72"
+                HorizontalContentAlignment="Center" />
+        <Button Content="全不选"
+                Command="{Binding UncheckAllCommand}"
+                MinWidth="72"
+                HorizontalContentAlignment="Center" />
+      </StackPanel>
+    </Grid>
+
+    <!-- 按原发起模组分组展示的推荐候选列表 -->
+    <Border Grid.Row="2"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+      <ScrollViewer>
+        <ItemsControl ItemsSource="{Binding Groups}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="mods:AuditRecommendationGroupViewModel">
+              <StackPanel IsVisible="{Binding HasItems}" Spacing="6" Margin="12,10">
+                <!-- 组头：发起模组名称与组级全选/全不选 -->
+                <Border BorderBrush="{DynamicResource CkanBorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="0,0,0,6"
+                        Margin="0,0,0,4">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Header}"
+                                 FontWeight="Bold"
+                                 FontSize="{DynamicResource CkanFontSizeBody}"
+                                 Foreground="{DynamicResource CkanAccentBrush}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                      <TextBlock Text="{Binding CountText}"
+                                 VerticalAlignment="Center"
+                                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+                      <Button Content="本组全选"
+                              Command="{Binding SelectAllCommand}"
+                              MinWidth="64"
+                              HorizontalContentAlignment="Center" />
+                      <Button Content="本组清空"
+                              Command="{Binding ClearSelectionCommand}"
+                              MinWidth="64"
+                              HorizontalContentAlignment="Center" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+
+                <!-- 组内项列表 -->
+                <ItemsControl ItemsSource="{Binding Items}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="mods:AuditRecommendationItemViewModel">
+                      <Border BorderBrush="{DynamicResource CkanBorderBrush}"
+                              BorderThickness="0,0,0,1"
+                              Padding="4,6">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                          <CheckBox Grid.Column="0"
+                                    IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                    IsEnabled="{Binding CanSelect}"
+                                    VerticalAlignment="Top" />
+                          <StackPanel Grid.Column="1" Spacing="3">
+                            <!-- 模组名称、版本、标识与类别徽章 -->
+                            <WrapPanel Orientation="Horizontal">
+                              <TextBlock Text="{Binding Name}"
+                                         FontWeight="SemiBold"
+                                         FontSize="{DynamicResource CkanFontSizeBody}"
+                                         Margin="0,0,8,0" />
+                              <TextBlock Text="{Binding Version}"
+                                         Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                                         VerticalAlignment="Center"
+                                         Margin="0,0,8,0" />
+                              <TextBlock Text="{Binding Identifier}"
+                                         Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                                         VerticalAlignment="Center"
+                                         Margin="0,0,8,0" />
+                            </WrapPanel>
+
+                            <!-- 模组简介 -->
+                            <TextBlock Text="{Binding Description}"
+                                       IsVisible="{Binding HasDescription}"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                       FontSize="{DynamicResource CkanFontSizeCaption}" />
+
+                            <!-- 不可选原因提示 -->
+                            <TextBlock Text="{Binding BlockReason}"
+                                       IsVisible="{Binding HasBlockReason}"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource CkanWarningBrush}"
+                                       FontSize="{DynamicResource CkanFontSizeCaption}" />
+                          </StackPanel>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+
+    <!-- 校验提示 -->
+    <TextBlock Grid.Row="3"
+               Text="{Binding ValidationError}"
+               IsVisible="{Binding HasValidationError}"
+               TextWrapping="Wrap"
+               Foreground="{DynamicResource CkanDangerBrush}"
+               FontSize="{DynamicResource CkanFontSizeCaption}" />
+
+    <!-- 底部按钮栏 -->
+    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="{Binding SecondaryButtonText}"
+              Command="{Binding SecondaryCommand}"
+              IsCancel="True"
+              IsVisible="{Binding HasSecondaryButton}"
+              MinWidth="96"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding PrimaryCommand}"
+              IsDefault="True"
+              IsEnabled="{Binding CanApply}"
+              MinWidth="110"
+              HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </Grid>
+</dialogs:DialogWindow>

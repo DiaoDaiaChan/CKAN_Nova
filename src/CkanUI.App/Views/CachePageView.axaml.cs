@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using CkanUI.Services.Abstractions;
 using CkanUI.ViewModels.Pages;
 using CkanUI.ViewModels.Pages.Cache;
 
@@ -12,9 +15,9 @@ namespace CkanUI.App.Views;
 /// <summary>
 /// 下载缓存管理页视图（规格 F-50 / F-40 / 06 篇 UI-19）：只做宿主能力接线。
 /// </summary>
-/// <remarks>业务全在 <see cref="CachePageViewModel"/>；这里注入依赖平台 API 的 ZIP 选择器
-/// （04 篇 §1 架构铁律：<c>Avalonia.*</c> 只允许出现在 App 层）。</remarks>
-public partial class CachePageView : UserControl
+/// <remarks>业务全在 <see cref="CachePageViewModel"/>；这里注入依赖平台 API 的 ZIP 选择器与外壳目录打开能力
+/// （04 篇 §1 架构铁律：<c>Avalonia.*</c> 与 <c>Process</c> 只允许出现在 App 层）。</remarks>
+public partial class CachePageView : UserControl, ICacheShellLauncher
 {
     private CachePageViewModel? _viewModel;
 
@@ -23,6 +26,30 @@ public partial class CachePageView : UserControl
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+    }
+
+    /// <inheritdoc />
+    public Task<OperationResult> OpenFolderAsync(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return Task.FromResult(OperationResult.Fail("目录为空，无法打开。"));
+        }
+
+        if (!Directory.Exists(path))
+        {
+            return Task.FromResult(OperationResult.Fail($"目录不存在：{path}（不可重试）", retryable: false));
+        }
+
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            return Task.FromResult(OperationResult.Ok());
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(OperationResult.Fail("打开目录失败", ex.Message, retryable: true));
+        }
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
@@ -35,6 +62,7 @@ public partial class CachePageView : UserControl
 
         // 用 ??= 让宿主（测试夹具 / 未来 DI 注册）已经塞好的实现优先。
         _viewModel.ZipPicker ??= new AvaloniaCacheZipPicker(this);
+        _viewModel.ShellLauncher ??= this;
     }
 }
 

@@ -14,6 +14,43 @@ public sealed class CacheServiceTests
 {
     private static readonly DateTime T0 = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
+
+    [Test]
+    public async Task GetCacheDirectoryAsync_ReturnsDirectoryFromStore()
+    {
+        var store = new FakeCacheStore { CacheDirectory = "C:/custom/cache" };
+        var service = new CacheService(store);
+
+        var result = await service.GetCacheDirectoryAsync();
+
+        Assert.That(result.IsSuccess, Is.True, result.Message);
+        Assert.That(result.Value, Is.EqualTo("C:/custom/cache"));
+    }
+
+    [Test]
+    public async Task SetSizeLimitBytesAsync_SetsLimitInStore()
+    {
+        var store = new FakeCacheStore { SizeLimitBytes = null };
+        var service = new CacheService(store);
+
+        var result = await service.SetSizeLimitBytesAsync(2048L * 1024L * 1024L);
+
+        Assert.That(result.IsSuccess, Is.True, result.Message);
+        Assert.That(store.SizeLimitBytes, Is.EqualTo(2048L * 1024L * 1024L));
+    }
+
+    [Test]
+    public async Task SetSizeLimitBytesAsync_ZeroOrNegative_SetsToNull()
+    {
+        var store = new FakeCacheStore { SizeLimitBytes = 1000L };
+        var service = new CacheService(store);
+
+        var result = await service.SetSizeLimitBytesAsync(0);
+
+        Assert.That(result.IsSuccess, Is.True, result.Message);
+        Assert.That(store.SizeLimitBytes, Is.Null);
+    }
+
     [Test]
     public async Task GetSnapshotAsync_ComputesTotalsAndUsage()
     {
@@ -244,4 +281,10 @@ internal sealed class FakeCacheStore : ICacheStore
     public OperationResult<CacheFileFact> Import(string sourceZipPath, CancellationToken ct)
         => ImportHandler?.Invoke(sourceZipPath)
            ?? OperationResult<CacheFileFact>.Fail("测试未配置灌入行为。", null, retryable: false);
+
+    public bool SetSizeLimitBytes(long? limitBytes)
+    {
+        SizeLimitBytes = limitBytes is { } limit && limit > 0 ? limit : null;
+        return true;
+    }
 }

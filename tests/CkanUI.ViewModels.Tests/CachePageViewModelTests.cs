@@ -7,7 +7,7 @@ using NUnit.Framework;
 namespace CkanUI.ViewModels.Tests;
 
 /// <summary>
-/// 下载缓存页 VM（06 篇 UI-19）：快照加载、按钮可用性、清理后刷新、危险操作需确认、失败文案中文。
+/// 下载缓存页 VM（06 篇 UI-19）：快照加载、按钮可用性、清理后刷新、危险操作需确认、失败文案中文、打开目录与重置上限。
 /// </summary>
 [TestFixture]
 public sealed class CachePageViewModelTests
@@ -17,7 +17,7 @@ public sealed class CachePageViewModelTests
     [Test]
     public async Task Activate_LoadsSnapshotAndEntries()
     {
-        var service = new FakeCacheService { SizeLimitBytes = 1000 }
+        var service = new FakeCacheService { SizeLimitBytes = 1000, CacheDirectory = "C:/fake/cache" }
             .Add("AAAA1111-a.zip", 100, T0, "ModA", "1.0")
             .Add("BBBB2222-b.zip", 250, T0.AddDays(1), null, null);
         var vm = Create(service);
@@ -29,6 +29,7 @@ public sealed class CachePageViewModelTests
         Assert.That(vm.TotalText, Is.EqualTo("350 B"));
         Assert.That(vm.LimitText, Is.EqualTo("1000 B"));
         Assert.That(vm.UsageText, Is.EqualTo("35%"));
+        Assert.That(vm.CacheDirectory, Is.EqualTo("C:/fake/cache"));
         Assert.That(vm.Entries.Select(row => row.ModuleLabel), Is.EqualTo(new[] { "ModA 1.0", "未知模块" }));
         Assert.That(vm.HasError, Is.False);
         Assert.That(vm.ShowEmptyState, Is.False);
@@ -208,6 +209,122 @@ public sealed class CachePageViewModelTests
         Assert.That(vm.StatusText, Is.EqualTo("已取消。"));
     }
 
+    [Test]
+    public async Task OpenCacheFolder_WithLauncher_OpensDirectory()
+    {
+        var service = new FakeCacheService { CacheDirectory = "C:/fake/cache" };
+        var launcher = new FakeCacheShellLauncher();
+        var vm = Create(service);
+        vm.ShellLauncher = launcher;
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(vm.CanOpenCacheFolder, Is.True);
+        await vm.OpenCacheFolderCommand.ExecuteAsync(null);
+
+        Assert.That(launcher.OpenedPaths, Is.EqualTo(new[] { "C:/fake/cache" }));
+        Assert.That(vm.StatusText, Does.Contain("已打开"));
+        Assert.That(vm.HasError, Is.False);
+    }
+
+    [Test]
+    public async Task OpenCacheFolder_WithoutLauncher_ShowsFallbackStatus()
+    {
+        var service = new FakeCacheService { CacheDirectory = "C:/fake/cache" };
+        var vm = Create(service);
+        vm.ShellLauncher = null;
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        await vm.OpenCacheFolderCommand.ExecuteAsync(null);
+
+        Assert.That(vm.StatusText, Does.Contain("没有提供打开目录的外壳能力"));
+        Assert.That(vm.HasError, Is.False);
+    }
+
+    [Test]
+    public async Task OpenCacheFolder_EmptyDirectory_ShowsChineseError()
+    {
+        var service = new FakeCacheService { CacheDirectory = "" };
+        var launcher = new FakeCacheShellLauncher();
+        var vm = Create(service);
+        vm.ShellLauncher = launcher;
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        await vm.OpenCacheFolderCommand.ExecuteAsync(null);
+
+        Assert.That(vm.HasError, Is.True);
+        Assert.That(vm.ErrorText, Does.Contain("为空"));
+        Assert.That(launcher.OpenedPaths, Is.Empty);
+    }
+
+    [Test]
+    public async Task OpenCacheFolder_LauncherFails_ShowsRetryableError()
+    {
+        var service = new FakeCacheService { CacheDirectory = "C:/fake/cache" };
+        var launcher = new FakeCacheShellLauncher
+        {
+            Result = OperationResult.Fail("系统进程启动受阻。", "Win32Exception", retryable: true)
+        };
+        var vm = Create(service);
+        vm.ShellLauncher = launcher;
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        await vm.OpenCacheFolderCommand.ExecuteAsync(null);
+
+        Assert.That(vm.HasError, Is.True);
+        Assert.That(vm.ErrorText, Does.Contain("受阻"));
+        Assert.That(vm.ErrorText, Does.Contain("可重试"));
+    }
+
+    [Test]
+    public async Task ResetLimit_SelectRecommended_ResetsTo2048MiBAndRefreshes()
+    {
+        var service = new FakeCacheService { SizeLimitBytes = null };
+        var dialogs = new FakeDialogService(); // default select index 0 = 2048 MiB
+        var vm = Create(service, dialogs: dialogs);
+        await vm.RefreshCommand.ExecuteAsync(null);
+        var loadsBefore = service.SnapshotCalls;
+
+        Assert.That(vm.CanResetLimit, Is.True);
+        await vm.ResetLimitCommand.ExecuteAsync(null);
+
+        Assert.That(dialogs.SelectTitles, Is.EqualTo(new[] { "重置容量上限" }));
+        Assert.That(service.SetSizeLimitCalls, Is.EqualTo(1));
+        Assert.That(service.LastSetSizeLimit, Is.EqualTo(CachePageViewModel.DefaultRecommendedLimitBytes));
+        Assert.That(service.SnapshotCalls, Is.GreaterThan(loadsBefore));
+        Assert.That(vm.StatusText, Does.Contain("2 GB"));
+        Assert.That(vm.HasError, Is.False);
+    }
+
+    [Test]
+    public async Task ResetLimit_SelectUnlimited_SetsToNullAndRefreshes()
+    {
+        var service = new FakeCacheService { SizeLimitBytes = 1000L };
+        var dialogs = new FakeDialogService { SelectAnswer = 1 }; // index 1 = 无限制
+        var vm = Create(service, dialogs: dialogs);
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        await vm.ResetLimitCommand.ExecuteAsync(null);
+
+        Assert.That(service.SetSizeLimitCalls, Is.EqualTo(1));
+        Assert.That(service.LastSetSizeLimit, Is.Null);
+        Assert.That(vm.StatusText, Does.Contain("无限制"));
+        Assert.That(vm.HasError, Is.False);
+    }
+
+    [Test]
+    public async Task ResetLimit_UserCancelled_DoesNotChangeLimit()
+    {
+        var service = new FakeCacheService { SizeLimitBytes = 1000L };
+        var dialogs = new FakeDialogService { SelectAnswer = -1 }; // cancelled
+        var vm = Create(service, dialogs: dialogs);
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        await vm.ResetLimitCommand.ExecuteAsync(null);
+
+        Assert.That(service.SetSizeLimitCalls, Is.EqualTo(0));
+        Assert.That(vm.StatusText, Is.EqualTo("已取消。"));
+    }
+
     private static CachePageViewModel Create(
         FakeCacheService service,
         FakeErrorReporter? errors = null,
@@ -236,8 +353,20 @@ internal sealed class FakeCacheService : ICacheService
     /// <summary>当前条目。</summary>
     public List<CacheEntryInfo> Entries { get; } = new();
 
+    /// <summary>缓存目录路径。</summary>
+    public string? CacheDirectory { get; set; } = "C:/fake/cache";
+
     /// <summary>容量上限。</summary>
     public long? SizeLimitBytes { get; set; }
+
+    /// <summary>GetCacheDirectoryAsync 调用次数。</summary>
+    public int GetCacheDirectoryCalls { get; private set; }
+
+    /// <summary>SetSizeLimitBytesAsync 调用次数。</summary>
+    public int SetSizeLimitCalls { get; private set; }
+
+    /// <summary>最后一次设置的容量上限。</summary>
+    public long? LastSetSizeLimit { get; private set; }
 
     /// <summary>覆盖快照结果（验证失败路径）。</summary>
     public OperationResult<CacheSnapshot>? SnapshotResult { get; set; }
@@ -285,7 +414,7 @@ internal sealed class FakeCacheService : ICacheService
     {
         SnapshotCalls++;
         return Task.FromResult(SnapshotResult ?? OperationResult<CacheSnapshot>.Ok(
-            new CacheSnapshot(Entries.Count, Entries.Sum(entry => entry.SizeBytes), SizeLimitBytes)));
+            new CacheSnapshot(Entries.Count, Entries.Sum(entry => entry.SizeBytes), SizeLimitBytes, CacheDirectory)));
     }
 
     public Task<OperationResult<IReadOnlyList<CacheEntryInfo>>> ListEntriesAsync(CancellationToken ct = default)
@@ -327,6 +456,20 @@ internal sealed class FakeCacheService : ICacheService
             "测试未配置灌入结果。", null, retryable: false));
     }
 
+    public Task<OperationResult<string?>> GetCacheDirectoryAsync(CancellationToken ct = default)
+    {
+        GetCacheDirectoryCalls++;
+        return Task.FromResult(OperationResult<string?>.Ok(CacheDirectory));
+    }
+
+    public Task<OperationResult> SetSizeLimitBytesAsync(long? limitBytes, CancellationToken ct = default)
+    {
+        SetSizeLimitCalls++;
+        LastSetSizeLimit = limitBytes;
+        SizeLimitBytes = limitBytes;
+        return Task.FromResult(OperationResult.Ok());
+    }
+
     public Task<OperationResult> DeleteEntryAsync(string fileName, CancellationToken ct = default)
     {
         DeletedNames.Add(fileName);
@@ -349,6 +492,12 @@ internal sealed class FakeDialogService : IDialogService
     /// <summary>确认过的标题（按调用顺序）。</summary>
     public List<string> ConfirmTitles { get; } = new();
 
+    /// <summary>SelectAsync 的选择项索引；默认 0，-1 表示取消。</summary>
+    public int SelectAnswer { get; set; } = 0;
+
+    /// <summary>选择过的标题（按调用顺序）。</summary>
+    public List<string> SelectTitles { get; } = new();
+
     public Task<bool> ConfirmAsync(string title, string message, string? detail = null)
     {
         ConfirmTitles.Add(title);
@@ -356,7 +505,10 @@ internal sealed class FakeDialogService : IDialogService
     }
 
     public Task<int> SelectAsync(string title, string message, IReadOnlyList<string> options, int defaultIndex = 0)
-        => Task.FromResult(defaultIndex);
+    {
+        SelectTitles.Add(title);
+        return Task.FromResult(SelectAnswer);
+    }
 
     public Task ShowMessageAsync(string title, string message) => Task.CompletedTask;
 
@@ -393,4 +545,17 @@ internal sealed class FakeZipPicker : ICacheZipPicker
     public FakeZipPicker(string? path) => _path = path;
 
     public Task<string?> PickZipFileAsync(CancellationToken ct = default) => Task.FromResult(_path);
+}
+
+/// <summary>测试用的外壳启动替身。</summary>
+internal sealed class FakeCacheShellLauncher : ICacheShellLauncher
+{
+    public List<string> OpenedPaths { get; } = new();
+    public OperationResult Result { get; set; } = OperationResult.Ok();
+
+    public Task<OperationResult> OpenFolderAsync(string path)
+    {
+        OpenedPaths.Add(path);
+        return Task.FromResult(Result);
+    }
 }

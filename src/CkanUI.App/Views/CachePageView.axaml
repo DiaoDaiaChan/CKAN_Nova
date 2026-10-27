@@ -28,6 +28,12 @@
         <Button Content="刷新" Command="{Binding RefreshCommand}"
                 IsEnabled="{Binding CanRefresh}" Margin="0,0,8,0"
                 ToolTip.Tip="重新读取缓存统计与条目" />
+        <Button Content="打开目录" Command="{Binding OpenCacheFolderCommand}"
+                IsEnabled="{Binding CanOpenCacheFolder}" Margin="0,0,8,0"
+                ToolTip.Tip="在系统文件管理器中打开下载缓存目录" />
+        <Button Content="重置上限" Command="{Binding ResetLimitCommand}"
+                IsEnabled="{Binding CanResetLimit}" Margin="0,0,8,0"
+                ToolTip.Tip="将缓存容量上限重置为推荐值（2048 MiB）或无限制" />
         <Button Content="清理到上限" Command="{Binding PurgeToLimitCommand}"
                 IsEnabled="{Binding CanPurge}" Margin="0,0,8,0"
                 ToolTip.Tip="从最久未修改的条目开始删除，直到不超过容量上限" />
