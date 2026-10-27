@@ -1,0 +1,176 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                      xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                      xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                      x:Class="CkanUI.App.Views.Dialogs.PreferredHostsDialogView"
+                      x:DataType="vm:PreferredHostsDialogViewModel"
+                      Title="{Binding Title}"
+                      Width="580"
+                      Height="560">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="12">
+    <!-- 头部说明信息 -->
+    <StackPanel Grid.Row="0" Spacing="4">
+      <TextBlock Text="首选下载主机优先级排序"
+                 FontSize="{DynamicResource CkanFontSizeHeading}"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      <TextBlock Text="当一个模组有多个下载源镜像时，将按照下表自上而下的顺序优先选择主机；「其余所有主机」代表未明确列出的常规源 fallback 位置。"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 TextWrapping="Wrap" />
+    </StackPanel>
+
+    <!-- 工具栏：从已知主机下拉添加 / 手动输入添加 -->
+    <Border Grid.Row="1"
+            Padding="12,10"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}">
+      <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
+        <!-- 方式 1：选择已知主机快速添加 -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" VerticalAlignment="Center">
+          <TextBlock Grid.Column="0"
+                     Text="已知主机:"
+                     FontWeight="SemiBold"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                     VerticalAlignment="Center" />
+          <ComboBox Grid.Column="1"
+                    ItemsSource="{Binding KnownHosts}"
+                    SelectedItem="{Binding SelectedKnownHost, Mode=TwoWay}"
+                    PlaceholderText="选择常用源或仓库中发现的主机..."
+                    HorizontalAlignment="Stretch" />
+          <Button Grid.Column="2"
+                  Content="添加已知"
+                  Command="{Binding AddSelectedKnownHostCommand}"
+                  Padding="12,6" />
+        </Grid>
+
+        <!-- 方式 2：输入自定义主机 -->
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" VerticalAlignment="Center">
+          <TextBlock Grid.Column="0"
+                     Text="自定义源:"
+                     FontWeight="SemiBold"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                     VerticalAlignment="Center" />
+          <TextBox Grid.Column="1"
+                   PlaceholderText="例如 mirror.example.org"
+                   Text="{Binding CustomHostInput, Mode=TwoWay}"
+                   VerticalContentAlignment="Center" />
+          <Button Grid.Column="2"
+                  Content="添加自定义"
+                  Command="{Binding AddCustomHostCommand}"
+                  Padding="12,6" />
+        </Grid>
+      </Grid>
+    </Border>
+
+    <!-- 主体：首选主机列表与上下移/删除侧边工具条 -->
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+      <!-- 主机列表 -->
+      <Border Grid.Column="0"
+              BorderBrush="{DynamicResource CkanBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+        <ListBox ItemsSource="{Binding PreferredHosts}"
+                 SelectedItem="{Binding SelectedHost, Mode=TwoWay}"
+                 Background="Transparent"
+                 Padding="4">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:PreferredHostItemViewModel">
+              <Grid ColumnDefinitions="32,*,Auto" ColumnSpacing="8" VerticalAlignment="Center" Margin="4,2">
+                <!-- 优先级序号 -->
+                <Border Grid.Column="0"
+                        Background="{DynamicResource CkanMutedBackgroundBrush}"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Padding="6,2"
+                        MinWidth="24">
+                  <TextBlock Text="{Binding Priority}"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             FontWeight="Bold"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                             HorizontalAlignment="Center" />
+                </Border>
+
+                <!-- 主机名称 -->
+                <TextBlock Grid.Column="1"
+                           Text="{Binding DisplayText}"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                           FontSize="{DynamicResource CkanFontSizeBody}"
+                           VerticalAlignment="Center" />
+
+                <!-- 标签标记 -->
+                <Border Grid.Column="2"
+                        IsVisible="{Binding IsPlaceholder}"
+                        Background="{DynamicResource CkanInfoBackgroundBrush}"
+                        BorderBrush="{DynamicResource CkanInfoBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                        Padding="6,2">
+                  <TextBlock Text="其余主机默认位"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanInfoBrush}" />
+                </Border>
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+
+      <!-- 排序与管理操作区 -->
+      <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Top">
+        <Button Content="上移"
+                Command="{Binding MoveUpCommand}"
+                MinWidth="80"
+                HorizontalContentAlignment="Center" />
+        <Button Content="下移"
+                Command="{Binding MoveDownCommand}"
+                MinWidth="80"
+                HorizontalContentAlignment="Center" />
+        <Button Content="移除"
+                Command="{Binding RemoveCommand}"
+                Classes="danger"
+                MinWidth="80"
+                HorizontalContentAlignment="Center" />
+      </StackPanel>
+    </Grid>
+
+    <!-- 错误与提示信息 -->
+    <Border Grid.Row="3"
+            Background="{DynamicResource CkanDangerBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanDangerBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Padding="10,8"
+            IsVisible="{Binding ValidationError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+      <TextBlock Text="{Binding ValidationError}"
+                 Foreground="{DynamicResource CkanDangerBrush}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 TextWrapping="Wrap" />
+    </Border>
+
+    <!-- 底部确认取消按钮 -->
+    <StackPanel Grid.Row="4"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Spacing="10">
+      <Button Content="{Binding SecondaryButtonText}"
+              Command="{Binding SecondaryCommand}"
+              IsCancel="True"
+              MinWidth="90"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding SaveCommand}"
+              Classes="accent"
+              IsDefault="True"
+              IsEnabled="{Binding !IsSaving}"
+              MinWidth="90"
+              HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </Grid>
+</dialogs:DialogWindow>

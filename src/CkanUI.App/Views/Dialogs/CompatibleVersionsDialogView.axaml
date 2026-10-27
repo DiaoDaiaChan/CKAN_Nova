@@ -1,0 +1,191 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.CompatibleVersionsDialogView"
+                       x:DataType="vm:CompatibleVersionsDialogViewModel"
+                       Title="{Binding Title}"
+                       Width="540"
+                       Height="580">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,*,Auto,Auto" RowSpacing="12">
+    <!-- 头部说明信息 -->
+    <StackPanel Grid.Row="0" Spacing="4">
+      <TextBlock Text="配置当前实例追加的兼容游戏版本"
+                 FontSize="{DynamicResource CkanFontSizeHeading}"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      <TextBlock Text="允许安装为其他 KSP 版本构建但仍可在此版本正常运行的模组。"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+    </StackPanel>
+
+    <!-- 实例与原生版本详情卡片 -->
+    <Border Grid.Row="1"
+            Padding="12,8"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}">
+      <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="当前游戏实例:"
+                     FontWeight="SemiBold"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBlock Text="{Binding InstanceDisplayName}"
+                     FontWeight="Bold"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="原生版本:"
+                     FontWeight="SemiBold"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <Border Background="{DynamicResource CkanPrimaryBrush}"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                  Padding="6,2">
+            <TextBlock Text="{Binding RealVersion}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource CkanTextOnAccentBrush}" />
+          </Border>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- 工具栏：自定义版本添加与快捷全选 -->
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+      <TextBox Grid.Column="0"
+               PlaceholderText="手动添加版本 (例如 1.12 或 1.11.2)..."
+               Text="{Binding CustomVersionInput, Mode=TwoWay}"
+               VerticalContentAlignment="Center" />
+      <Button Grid.Column="1"
+              Content="添加"
+              Command="{Binding AddCustomVersionCommand}"
+              Padding="12,6" />
+      <Button Grid.Column="2"
+              Content="全选"
+              Command="{Binding SelectAllCommand}">
+        <Button.CommandParameter>
+          <x:Boolean>true</x:Boolean>
+        </Button.CommandParameter>
+      </Button>
+      <Button Grid.Column="3"
+              Content="重置"
+              Command="{Binding ResetToInitialCommand}" />
+    </Grid>
+
+    <!-- 版本勾选列表 -->
+    <Border Grid.Row="3"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ItemsControl ItemsSource="{Binding VersionItems}" Margin="10,6">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:CompatibleVersionItemViewModel">
+              <Border BorderBrush="{DynamicResource CkanBorderBrush}"
+                      BorderThickness="0,0,0,1"
+                      Padding="4,8">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" VerticalAlignment="Center">
+                  <CheckBox Grid.Column="0"
+                            IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                            IsEnabled="{Binding !IsReadOnly}"
+                            VerticalAlignment="Center" />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding VersionString}"
+                               FontWeight="SemiBold"
+                               FontSize="{DynamicResource CkanFontSizeBody}"
+                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                    <TextBlock Text="(原生)"
+                               IsVisible="{Binding IsRealVersion}"
+                               FontSize="{DynamicResource CkanFontSizeCaption}"
+                               Foreground="{DynamicResource CkanPrimaryBrush}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="(通配符)"
+                               IsVisible="{Binding IsWildcard}"
+                               FontSize="{DynamicResource CkanFontSizeCaption}"
+                               Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                               VerticalAlignment="Center" />
+                  </StackPanel>
+                  <Border Grid.Column="2"
+                          Background="{DynamicResource CkanMutedBackgroundBrush}"
+                          CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                          Padding="6,2">
+                    <TextBlock Text="{Binding TagText}"
+                               FontSize="{DynamicResource CkanFontSizeCaption}"
+                               Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  </Border>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+
+    <!-- 风险警示与错误信息区域 -->
+    <StackPanel Grid.Row="4" Spacing="6">
+      <!-- 校验/系统错误提示 -->
+      <Border Background="{DynamicResource CkanDangerBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanDangerBrush}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              Padding="10,8"
+              IsVisible="{Binding HasValidationError}">
+        <TextBlock Text="{Binding ValidationError}"
+                   Foreground="{DynamicResource CkanDangerBrush}"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   TextWrapping="Wrap" />
+      </Border>
+
+      <!-- 修改兼容版本后的风险警告确认横幅 -->
+      <Border Background="{DynamicResource CkanWarningBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanWarningBrush}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              Padding="12,10"
+              IsVisible="{Binding IsWarningPromptVisible}">
+        <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
+          <TextBlock Grid.Row="0"
+                     Text="{Binding WarningMessage}"
+                     Foreground="{DynamicResource CkanWarningBrush}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     TextWrapping="Wrap" />
+          <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="放弃修改"
+                    Command="{Binding DismissWarningCommand}"
+                    FontSize="{DynamicResource CkanFontSizeCaption}"
+                    Padding="10,4" />
+            <Button Content="已知悉风险，继续保存"
+                    Command="{Binding SaveCommand}"
+                    Classes="warning"
+                    FontSize="{DynamicResource CkanFontSizeCaption}"
+                    Padding="10,4" />
+          </StackPanel>
+        </Grid>
+      </Border>
+    </StackPanel>
+
+    <!-- 底部操作按钮 -->
+    <StackPanel Grid.Row="5"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Spacing="10">
+      <Button Content="{Binding SecondaryButtonText}"
+              Command="{Binding SecondaryCommand}"
+              IsCancel="True"
+              MinWidth="90"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding PrimaryCommand}"
+              Classes="accent"
+              IsDefault="True"
+              IsEnabled="{Binding !IsSaving}"
+              MinWidth="90"
+              HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </Grid>
+</dialogs:DialogWindow>
