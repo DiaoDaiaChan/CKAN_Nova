@@ -20,6 +20,9 @@ public static class LocalizationKeys
     /// <summary>导航栏：实例。</summary>
     public const string NavRailRepos = "Ui_NavRail_Repos";
 
+    /// <summary>导航栏：导入导出页。</summary>
+    public const string NavRailModPacks = "Ui_NavRail_ModPacks";
+
     public const string NavRailInstances = "Ui_NavRail_Instances";
 
     /// <summary>导航栏：设置。</summary>

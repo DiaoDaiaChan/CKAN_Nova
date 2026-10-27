@@ -113,11 +113,25 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
 7. **页面之间的交接只走一个窄接口**：模组页把勾选翻译成 `ChangeRequest` 后灌进 `IChangeRequestSink`（`src/CkanUI.ViewModels/Pages/IChangeRequestSink.cs`），
    再经 `INavigationService.NavigateAsync("changes")` 跳转；`ChangesPageViewModel` 是唯一实现。
    理由：两页互相持有具体类型会让"哪个页面持有谁的引用"变成隐式耦合，也让 DI 循环；窄接口让两个页面各自可独立测。
-8. **导航项顺序固定为 mods → changes → repos → instances → settings**（`ShellViewModel.NavItems`），key 即 `PageTypes` 的键；
+8. **导航项顺序固定为 mods → changes → repos → modpacks → instances → settings**（`ShellViewModel.NavItems`），key 即 `PageTypes` 的键；
    新增页面必须同时补 `LocalizationKeys` 与两份语言包（`i18n/packs/{zh-CN,en-US}.json`），否则 `ShellViewModelTests` 与 `verify-layout` 会红。
 9. **仓库管理的写事务封在 `IRepositoryStore` 后面**：`RegistryRepositoryStore` 是唯一碰 `Registry.RepositoriesSet` + `RegistryManager.Save()` 与网络的实现，
    校验/排序/重编号全在纯函数 `RepositoryCatalog`（可离线测）。`IRepositoryService` 的 8 个增量成员用 DIM（默认实现）追加，
    既有实现与测试替身零改动——这是扩冻结契约的唯一允许方式（否则会连锁改十几个 fake）。
+
+10. **页面 VM 必须放在 `src/CkanUI.ViewModels/Pages/` 根目录**（辅助类才进子目录）：`ViewLocator.ResolveViewType` 是按名字把 `CkanUI.ViewModels.Pages.XPageViewModel` 换成 `CkanUI.App.Views.XPageView`，
+    放子目录会连 namespace 一起变，反射找错视图、静默落到占位视图。新增页面必须同时在 `tests/CkanUI.App.Tests/ViewLocatorTests.cs` 加一行断言。
+11. **modpack 导出不自己拼 JSON**：一律走 Core 的 `RegistryManager.GenerateModpack(recommends, with_versions).ToJson()`（与 `CkanExporter` 同语义），
+    `depends`/`recommends`/`metapackage`/`spec_version` 由 Core 决定，这样导出物才可能被 `ckan import` 接受。
+    可选「打包缓存 zip」是**本仓自定**的朴素归档（根放 `.ckan`，`Downloads/<id>-<ver>.zip` 放下载包）——上游没有这种归档格式，改动格式要同时改 `docs/design/pages.md` §2.7。
+12. **导入执行只做编排**：勾选行 → `ChangeRequest` → `IChangeSetService.BuildAsync`（`HasConflicts` 即中止且**不**调 `ApplyAsync`）→ `IInstallerService.ApplyAsync`。
+    模块内不得出现自有下载/解包逻辑，否则依赖求解与安装口径会分叉。
+13. **下载分两层**：字节搬运在 `IDownloadTransport`（生产实现 `NetAsyncDownloaderTransport`，测试用假传输层，**测试绝不触网**），
+    落盘语义（`.tmp-{guid}` → 大小校验 → SHA256 校验 → `File.Move(overwrite:true)` 重试 → finally 删临时文件）在 `DownloadService`。
+    踩坑固定结论：`NetAsyncDownloader.DownloadAndWait` 是同步阻塞（必须 `Task.Run` 包，取消靠构造器 token）、`TargetProgress` 第二参是**剩余字节**、
+    `DownloadTargetFile.size` 是断点续传起点（新下载必须传 0）。失败分类只产出 `retryable` 标志，重试策略交给上层（F-38 / UI-35）。
+14. **启动命令持久化在 `<GameDir>/CKAN/GUIConfig.json` 的 `CommandLines` 键**（与老 GUI 共用同一文件）：只改该键、其余字段原样保留，写 `.tmp` 再 `File.Move(overwrite:true)`；
+    默认命令按 `KerbalSpaceProgram.DefaultCommandLines` 语义生成，命令解析口径与 Core `PlayGame` 一致（首个 token 为 binary）。
 
 ## 修订记录
 
@@ -128,3 +142,4 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
 | 2026-10-27 | v1.2 | 补 §11 M1 契约决策（IDialogPresenter 接缝、剪贴板通道、详情面板字段归属、单选取消值） |
 | 2026-10-27 | v1.4 | 补 §12.7–9（页面交接窄接口、导航项顺序与语言包义务、仓库写事务封在 IRepositoryStore 后、DIM 扩契约的方式） |
 | 2026-10-27 | v1.3 | 补 §12 M1 契约决策（语言真源、`UiSettings.Density`、ThemeHost 与高对比度变体、Changed 锁外触发、OperationProgress 不扩字段） |
+| 2026-10-27 | v1.5 | 导航项改为六项（新增 modpacks）；补 §12.10–14（页面 VM 放 Pages 根、modpack 导出走 Core ToJson、导入只做编排、下载两层与 NetAsyncDownloader 踩坑、启动命令持久化） |

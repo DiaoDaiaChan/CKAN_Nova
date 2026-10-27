@@ -21,6 +21,8 @@
       <SolidColorBrush x:Key="CkanSuccessBrush" Color="#1B7F3B" />
       <SolidColorBrush x:Key="CkanWarningBrush" Color="#B26A00" />
       <SolidColorBrush x:Key="CkanDangerBrush" Color="#B3261E" />
+      <SolidColorBrush x:Key="CkanScrimBrush" Color="#99000000" />
+      <SolidColorBrush x:Key="CkanBlockingScrimBrush" Color="#B3000000" />
     </ResourceDictionary>
 
     <ResourceDictionary x:Key="Dark">
@@ -36,6 +38,8 @@
       <SolidColorBrush x:Key="CkanSuccessBrush" Color="#4FD07A" />
       <SolidColorBrush x:Key="CkanWarningBrush" Color="#E8A33D" />
       <SolidColorBrush x:Key="CkanDangerBrush" Color="#FF6B5E" />
+      <SolidColorBrush x:Key="CkanScrimBrush" Color="#99000000" />
+      <SolidColorBrush x:Key="CkanBlockingScrimBrush" Color="#B3000000" />
     </ResourceDictionary>
 
     <!-- 高对比度：THM-10 要求高对比度强制压过一切，只保留纯黑/纯白 + 高对比黄。
@@ -53,6 +57,8 @@
       <SolidColorBrush x:Key="CkanSuccessBrush" Color="#00FF66" />
       <SolidColorBrush x:Key="CkanWarningBrush" Color="#FFFF00" />
       <SolidColorBrush x:Key="CkanDangerBrush" Color="#FF5050" />
+      <SolidColorBrush x:Key="CkanScrimBrush" Color="#99000000" />
+      <SolidColorBrush x:Key="CkanBlockingScrimBrush" Color="#B3000000" />
     </ResourceDictionary>
   </ResourceDictionary.ThemeDictionaries>
 

@@ -1,0 +1,73 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                x:Class="CkanUI.App.Views.Dialogs.InstanceDialogs.LaunchCommandsPanel"
+                x:CompileBindings="False">
+  <!-- 启动命令编辑（F-06，对齐上游 GameCommandLineOptionsDialog）：列表 + 增 / 改 / 删 / 排序 + 重置为默认 + 接受 / 取消。 -->
+  <Border Padding="16" CornerRadius="8" MinWidth="520"
+          Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+          BorderBrush="{DynamicResource CkanBorderBrush}"
+          BorderThickness="1">
+    <StackPanel Spacing="12">
+      <TextBlock Text="{Binding Title}"
+                 FontSize="{DynamicResource CkanFontSizeTitle}"
+                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+
+      <TextBlock Text="{Binding HintText}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 TextWrapping="Wrap"
+                 MaxWidth="520"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+
+      <!-- 命令列表：每行一条完整命令行 -->
+      <ListBox ItemsSource="{Binding Commands}"
+               SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+               MinHeight="120"
+               MaxHeight="240">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid ColumnDefinitions="*,Auto" Height="{DynamicResource CkanRowHeight}">
+              <TextBlock Grid.Column="0" Text="{Binding DisplayText}" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis"
+                         ToolTip.Tip="{Binding HelpText}" />
+              <TextBlock Grid.Column="1" Text="{Binding KindText}"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         VerticalAlignment="Center"
+                         Margin="12,0,0,0" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <!-- 列表操作 -->
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Content="添加" Command="{Binding AddCommand}" ToolTip.Tip="添加一条启动命令" />
+        <Button Content="修改" Command="{Binding EditCommand}" IsEnabled="{Binding CanEdit}" />
+        <Button Content="删除" Command="{Binding RemoveCommand}" IsEnabled="{Binding CanRemove}"
+                ToolTip.Tip="至少保留一条启动命令" />
+        <Button Content="上移" Command="{Binding MoveUpCommand}" IsEnabled="{Binding CanMoveUp}" />
+        <Button Content="下移" Command="{Binding MoveDownCommand}" IsEnabled="{Binding CanMoveDown}" />
+        <Button Content="重置为默认" Command="{Binding ResetToDefaultsCommand}"
+                IsEnabled="{Binding CanResetToDefaults}"
+                ToolTip.Tip="恢复为该实例的默认启动命令" />
+      </StackPanel>
+
+      <!-- 校验 / 操作错误 -->
+      <TextBlock Text="{Binding ValidationError}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanDangerBrush}"
+                 IsVisible="{Binding HasValidationError}" />
+
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" Text="{Binding CountText}"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   VerticalAlignment="Center"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <Button Content="取消" Command="{Binding CancelCommand}" />
+          <Button Content="接受" Command="{Binding AcceptCommand}" IsEnabled="{Binding CanAccept}" />
+        </StackPanel>
+      </Grid>
+    </StackPanel>
+  </Border>
+</UserControl>

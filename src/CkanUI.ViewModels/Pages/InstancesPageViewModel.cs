@@ -59,6 +59,15 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     /// <summary>Steam 库探测来源。</summary>
     public ISteamLibrarySource? SteamLibraries { get; set; }
 
+    /// <summary>
+    /// 启动命令的持久化（实例级 <c>CKAN/GUIConfig.json</c>，与老 GUI 共用，见 <see cref="LaunchCommandFile"/>）；
+    /// 未注入时按默认命令启动、不提供保存。
+    /// </summary>
+    public IInstanceCommandStore? CommandStore { get; set; }
+
+    /// <summary>单行文本输入通道（F-06 增 / 改一条命令）；未注入时给出可读提示而不是崩溃。</summary>
+    public IInstanceTextPrompt? TextPrompt { get; set; }
+
     // ---- 可观察状态 -------------------------------------------------------
 
     /// <summary>当前可见行（整体替换，不做增量更新；04 篇 §2.1）。</summary>
@@ -92,6 +101,10 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     /// <summary>当前打开的内联表单（新增 / 克隆 / 重命名）；null 表示无表单。</summary>
     [ObservableProperty]
     private InstanceFormViewModel? _form;
+
+    /// <summary>当前打开的启动命令编辑面板（F-06）；null 表示无面板。</summary>
+    [ObservableProperty]
+    private LaunchCommandsPanelViewModel? _commandsPanel;
 
     // ---- 派生状态 ---------------------------------------------------------
 
@@ -200,6 +213,16 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
     /// <summary>是否有可操作的选中行（打开目录 / 启动游戏 / 克隆 / 重命名）。</summary>
     public bool CanOpenSelected => SelectedRow is not null;
+
+    /// <summary>是否打开了启动命令编辑面板。</summary>
+    public bool HasCommandsPanel => CommandsPanel is not null;
+
+    /// <summary>「编辑启动命令」是否可用（需要选中行且没有别的面板在开）。</summary>
+    public bool CanEditCommands => SelectedRow is not null && !HasCommandsPanel;
+
+    /// <summary>「启动游戏」按钮的悬浮提示。</summary>
+    public string LaunchToolTip =>
+        "按该实例的启动命令启动游戏；有多条命令时会先让你选一条。";
 
     // ---- 生命周期与刷新 ---------------------------------------------------
 
@@ -715,14 +738,18 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         }
     }
 
-    /// <summary>命令：启动选中实例的游戏（TODO：接入 18 篇启动流程与 E6 资源释放）。</summary>
+    /// <summary>命令：启动选中实例的游戏。</summary>
     [RelayCommand]
     private Task LaunchAsync() => LaunchSelectedAsync(SelectedRow);
 
     /// <summary>
-    /// 启动游戏。M1 只保证「命令存在 + 提示到位 + 失败可读」：
-    /// 真正的启动流程（DisposeAll → 启动进程 → 精简模式）属于 E6/18 篇，尚未接入。
+    /// 启动游戏（F-05）：取当前实例的启动命令列表 —— 只有一条就直接用；多条则让用户选一条（取消不启动），
+    /// 然后把「完整命令行 + 游戏目录」交给 <see cref="IInstanceShellLauncher"/>。
     /// </summary>
+    /// <remarks>
+    /// 进程创建在 App 层（外壳启动器）里做，VM 不碰 <c>Process.Start</c>；真正的启动状态机
+    /// （DisposeAll → 启动 → 精简模式）属于 18 篇/E6，接入时替换 <see cref="IInstanceShellLauncher"/> 实现即可。
+    /// </remarks>
     public async Task LaunchSelectedAsync(InstanceRowViewModel? row)
     {
         row ??= SelectedRow;
@@ -739,6 +766,35 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             return;
         }
 
+        var commands = await ResolveCommandsAsync(row).ConfigureAwait(true);
+        if (!commands.IsSuccess)
+        {
+            SetError(InstancesErrorText.Compose(commands.Message, "读取启动命令失败", commands.Retryable), commands.Detail);
+            return;
+        }
+
+        var available = commands.Value ?? Array.Empty<string>();
+        if (available.Count == 0)
+        {
+            SetError($"实例「{row.Name}」没有可用的启动命令，请先编辑启动命令。", row.GameDir);
+            return;
+        }
+
+        var command = available[0];
+        if (available.Count > 1)
+        {
+            var index = await _dialogs
+                .SelectAsync($"启动「{row.Name}」", "该实例有多条启动命令，请选择要使用的一条：", available, 0)
+                .ConfigureAwait(true);
+            if (index < 0 || index >= available.Count)
+            {
+                StatusText = "已取消启动。";
+                return;
+            }
+
+            command = available[index];
+        }
+
         if (ShellLauncher is not { } launcher)
         {
             // TODO(18 篇 / E6)：启动流程需要先释放注册表锁并进入精简模式，等 E6 就绪后在此接入。
@@ -748,18 +804,142 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
         try
         {
-            var result = await launcher.LaunchGameAsync(row.GameDir);
+            var result = await launcher.LaunchGameAsync(row.GameDir, command).ConfigureAwait(true);
             if (!result.IsSuccess)
             {
                 SetError(InstancesErrorText.Compose(result.Message, "启动游戏失败", result.Retryable), result.Detail);
                 return;
             }
 
-            StatusText = $"已启动「{row.Name}」。";
+            StatusText = $"已启动「{row.Name}」：{command}";
         }
         catch (Exception ex)
         {
             OnException(ex, "启动游戏");
+        }
+    }
+
+    /// <summary>命令：编辑选中实例的启动命令（F-06）。</summary>
+    [RelayCommand]
+    private Task EditCommandsAsync() => EditSelectedCommandsAsync(SelectedRow);
+
+    /// <summary>
+    /// 打开启动命令编辑面板（F-06）。已保存过就用保存的，否则用默认命令（<see cref="LaunchCommandDefaults"/>）。
+    /// </summary>
+    public async Task EditSelectedCommandsAsync(InstanceRowViewModel? row)
+    {
+        row ??= SelectedRow;
+        if (row is null)
+        {
+            SetError("请先选择要编辑启动命令的实例。", null);
+            return;
+        }
+
+        if (HasCommandsPanel)
+        {
+            return;
+        }
+
+        ClearError();
+        var resolved = await ResolveCommandsAsync(row).ConfigureAwait(true);
+        if (!resolved.IsSuccess)
+        {
+            SetError(InstancesErrorText.Compose(resolved.Message, "读取启动命令失败", resolved.Retryable), resolved.Detail);
+            return;
+        }
+
+        var defaults = CommandStore?.DefaultsFor(row.GameDir) ?? LaunchCommandDefaults.ForThisMachine(row.GameDir);
+        OpenCommandsPanel(row, new LaunchCommandsPanelViewModel(
+            row.Name,
+            resolved.Value ?? defaults,
+            defaults));
+    }
+
+    /// <summary>打开启动命令面板并接线（保存交回本页，取消即关闭）；同时关掉内联表单避免两层遮罩叠加。</summary>
+    public void OpenCommandsPanel(InstanceRowViewModel row, LaunchCommandsPanelViewModel panel)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        ArgumentNullException.ThrowIfNull(panel);
+
+        panel.TextPrompt ??= TextPrompt;
+        panel.CancelRequested = CloseCommandsPanel;
+        panel.SubmitRequested = commands => SaveCommandsAsync(row, panel, commands);
+        Form = null;
+        CommandsPanel = panel;
+    }
+
+    /// <summary>关闭启动命令面板（取消，不落盘）。</summary>
+    public void CloseCommandsPanel()
+    {
+        CommandsPanel = null;
+        StatusText = "已取消编辑启动命令。";
+    }
+
+    /// <summary>保存启动命令面板的编辑结果（落盘到实例的 <c>CKAN/GUIConfig.json</c>）。</summary>
+    public async Task SaveCommandsAsync(
+        InstanceRowViewModel row,
+        LaunchCommandsPanelViewModel panel,
+        IReadOnlyList<string> commands)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        ArgumentNullException.ThrowIfNull(panel);
+        ArgumentNullException.ThrowIfNull(commands);
+
+        if (CommandStore is not { } store)
+        {
+            panel.ValidationError = "启动命令存储尚未接入，无法保存。";
+            return;
+        }
+
+        try
+        {
+            var result = await store.WriteAsync(row.GameDir, commands).ConfigureAwait(true);
+            if (!result.IsSuccess)
+            {
+                panel.ValidationError = InstancesErrorText.Compose(result.Message, "保存启动命令失败", result.Retryable);
+                return;
+            }
+
+            CommandsPanel = null;
+            StatusText = $"已保存「{row.Name}」的启动命令（{commands.Count} 条）。";
+        }
+        catch (Exception ex)
+        {
+            OnException(ex, "保存启动命令");
+            panel.ValidationError = "保存启动命令时出错，详见错误栏。";
+        }
+    }
+
+    /// <summary>取实例的生效启动命令：已保存 → 用它；未保存 / 空 → 用默认命令。</summary>
+    public async Task<OperationResult<IReadOnlyList<string>>> ResolveCommandsAsync(InstanceRowViewModel row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+
+        if (CommandStore is not { } store)
+        {
+            return OperationResult<IReadOnlyList<string>>.Ok(
+                LaunchCommandDefaults.ForThisMachine(row.GameDir));
+        }
+
+        try
+        {
+            var read = await store.ReadAsync(row.GameDir).ConfigureAwait(true);
+            if (!read.IsSuccess)
+            {
+                return OperationResult<IReadOnlyList<string>>.Fail(read.Message ?? "读取启动命令失败。", read.Detail, read.Retryable);
+            }
+
+            if (read.Value is { Count: > 0 } saved)
+            {
+                return OperationResult<IReadOnlyList<string>>.Ok(saved);
+            }
+
+            return OperationResult<IReadOnlyList<string>>.Ok(store.DefaultsFor(row.GameDir));
+        }
+        catch (Exception ex)
+        {
+            OnException(ex, "读取启动命令");
+            return OperationResult<IReadOnlyList<string>>.Fail("读取启动命令时出错", ex.Message);
         }
     }
 
@@ -936,6 +1116,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         OnPropertyChanged(nameof(CanSwitchSelected));
         OnPropertyChanged(nameof(CanForgetSelected));
         OnPropertyChanged(nameof(CanOpenSelected));
+        OnPropertyChanged(nameof(CanEditCommands));
     }
 
     partial void OnErrorTextChanged(string? value) => OnPropertyChanged(nameof(HasError));
@@ -945,6 +1126,12 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     partial void OnIsBusyChanged(bool value) => OnPropertyChanged(nameof(IsIdle));
 
     partial void OnFormChanged(InstanceFormViewModel? value) => OnPropertyChanged(nameof(HasForm));
+
+    partial void OnCommandsPanelChanged(LaunchCommandsPanelViewModel? value)
+    {
+        OnPropertyChanged(nameof(HasCommandsPanel));
+        OnPropertyChanged(nameof(CanEditCommands));
+    }
 
     // ---- 无容器场景的空实现（设计器 / 单测 new 出页面时不连服务） --------
 
@@ -980,6 +1167,8 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
         public Task<OperationResult<bool>> RemoveAsync(string instanceName, CancellationToken ct = default) =>
             Task.FromResult(OperationResult<bool>.Fail("尚未连接实例服务。"));
+        public Task<OperationResult<InstanceInfo>> RenameAsync(string instanceName, string newName, CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<InstanceInfo>.Fail("尚未连接实例服务。"));
     }
 
     private sealed class EmptyDialogService : IDialogService

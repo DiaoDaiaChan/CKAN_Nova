@@ -222,6 +222,54 @@
 
 **为什么没有「启用/禁用」开关**：CKAN 的 `Repository` 只有 `name`/`uri`/`priority`，没有 enabled 字段；启用状态由「是否在列表里 + 优先级」表达，不另造字段。
 
+### 2.7 导入导出页 (ModPacksPageViewModel)
+
+**对应规格**：03 篇 §6 / 06 篇 UI-20·UI-24 / 12 篇 F-39·F-40·F-45。
+
+**职责**：导出当前实例的 modpack、预览并执行 `.ckan` 导入、比对两个实例的模组差集。三种操作都只经 `IModPackService`；Core 的 `RegistryManager`/`CkanModule`/`NetModuleCache` 全部收在 `IModPackStore` 后面（`CkanModPackStore` 是唯一实现），纯函数逻辑在 `ModPackCatalog`（可离线测）。
+
+**关键成员**：
+
+| 成员 | 类型 | 说明 |
+|---|---|---|
+| `ExportForm` | `ExportFormViewModel` | 目标路径、是否带版本、是否打包缓存 zip |
+| `ExportCommand` | `IAsyncRelayCommand` | 调 `ExportAsync(ModPackExportRequest)`；成功后显示写出路径与模组数 |
+| `PreviewImportCommand` / `ImportCommand` | `IAsyncRelayCommand` | 先 `PreviewImportAsync` 出可勾选行，再 `ImportAsync(preview, selectedIdentifiers)` |
+| `ImportRows` | `IReadOnlyList<ImportEntryRowViewModel>` | 将安装 / 将升级 / 将降级 / 已安装 / 找不到 / 有冲突（带原因） |
+| `CompareCommand` / `DiffRows` | `IAsyncRelayCommand` / `IReadOnlyList<DiffRowViewModel>` | 左右实例三分支差集：仅左侧有 / 仅右侧有 / 版本不同 |
+| `StatusText` / `ErrorText` | `string` | 全中文文案；异常一律经 `IErrorReporter` 并落 `ModPacksErrorText` |
+
+**语义约定**：
+- 导出格式 = `RegistryManager.GenerateModpack(recommends, with_versions).ToJson()` 直出，`depends`/`recommends`/`metapackage`/`spec_version` 全由 Core 决定，不自己拼 JSON；文件名 `{前缀}-{instance.SanitizedName}.ckan`。
+- 可选打包：`<名字>.ckan` 放归档根，`Downloads/<identifier>-<version>.zip` 放缓存里的下载包（**上游没有对应格式**，这是自定朴素归档；解压后 `ckan import <目录>` 可消费）。
+- 导入执行：勾选行 → `ChangeRequest` → `IChangeSetService.BuildAsync`；`HasConflicts` 时中止且**不调用** `ApplyAsync`；无自有下载/解包逻辑。
+- 同一模组被两个来源要求不同版本 → 标 Conflict 并丢弃，绝不静默安装。
+- 比对要求两个不同实例；只有一个实例时按钮禁用且命令内二次拦截。
+- 导出目标已存在同名目录 → `UnauthorizedAccessException` → 转可重试文案。
+
+**已知缺口**：F-40（本地 ZIP 直接灌下载缓存）、F-41（跨实例去重）、F-42（未管理文件树）未实现。
+
+### 2.8 启动命令编辑 (LaunchCommandsPanelViewModel)
+
+**对应规格**：03 篇 §5.4 / 06 篇 UI-28 / 12 篇 F-05·F-06。
+
+**职责**：编辑某个实例的启动命令列表（多条命令并存，启动时择一）。状态与持久化都在 `LaunchCommandFile`：读 `<GameDir>/CKAN/GUIConfig.json` 的 `CommandLines` 键（PascalCase 字符串数组，与老 GUI `GUIConfiguration.CommandLines` 共用同一文件），只改该键、其余字段原样保留，写 `path + ".tmp"` 再 `File.Move(overwrite:true)`。缺文件或空数组回落 `LaunchCommandDefaults.DefaultsFor`。
+
+**关键成员**：
+
+| 成员 | 说明 |
+|---|---|
+| `Rows` / `SelectedRow` | 命令列表与其编辑区（`LaunchCommandRowViewModel`：文本 + 名称） |
+| `AddCommand` / `RemoveCommand` / `MoveUpCommand` / `MoveDownCommand` | 增删与排序；`CanRemove` 不允许删到 0 条（与老 GUI `e.Cancel = true` 一致） |
+| `ResetToDefaultsCommand` | 用 `LaunchCommandDefaults` 重新生成（Windows/Unix 每个存在的锚点 → `"{anchor} -single-instance"`，Mac → `./KSP.app/Contents/MacOS/KSP`，末尾追加 `steam://rungameid/<id>`，向上 ≤8 层找 `steamapps/appmanifest_220200.acf` / `_1740390.acf`） |
+| `AcceptCommand` / `CancelCommand` | 接受写盘、取消丢弃；`HasChanges` 控制接受按钮可用性 |
+
+**命令解析**：`LaunchCommandLine.Split` 以首个 token 为 binary、其余 `Join` 为 args（与 Core `PlayGame` 同口径）；`Tokenize` 按 `CommandLineToArgvW` 规则切分，`Quote` 负责回写转义；`IsSteamCommand` 识别 `steam://` 走系统外壳。
+
+**宿主能力**：文本输入走页面级 `IInstanceTextPrompt`（`IDialogService` 尚无通用文本输入）；启动走 `IInstanceShellLauncher.LaunchGameAsync(gameDir, command)`。
+
+**已知缺口**：老 GUI 的「不兼容 mod 启动确认」（`Main.cs:985`）未复刻；E6 `DisposeAll` 与精简模式状态机仍未接。
+
 ---
 
 ## 3. 对话框实现说明
@@ -275,7 +323,8 @@
 | 模组管理页 | `ModsPageViewModel` | ✅ 已实现 | 03 篇 §3 / UI-02, UI-03 | `IRepositoryService`, `IRegistryService`, `IInstanceService` | `ModRowData`, `RegistrySnapshot`, `RepositorySnapshot` |
 | 变更集确认页 | `ChangesPageViewModel` | ✅ 已实现 | 03 篇 §4 / UI-04 | `IChangeSetService`, `IInstallerService`, `IOperationQueue` | `ChangeSetPreview`, `ChangeItemDto`, `OperationProgress` |
 | 仓库管理页 | `ReposPageViewModel` | ✅ 已实现 | 03 篇 §6 / UI-06 | `IRepositoryService`, `IDialogService` | `RepositoryEntryInfo`, `RepositoryEditRequest` |
-| 实例管理页 | `InstancesPageViewModel` | ✅ 已实现（重命名/启动命令选择待契约扩展） | 03 篇 §5 / UI-05 | `IInstanceService`, `IDialogService` | `InstanceInfo` |
+| 导入导出页 | `ModPacksPageViewModel` | ✅ 已实现（F-40/F-41/F-42 除外） | 03 篇 §6 / UI-20, UI-24 | `IModPackService`, `IInstanceService` | `ModPackPreview`, `ModPackImportReport`, `InstanceComparison` |
+| 实例管理页 | `InstancesPageViewModel` | ✅ 已实现（重命名已接 `RenameAsync`；启动命令编辑见 §2.8） | 03 篇 §5 / UI-05 | `IInstanceService`, `IDialogService` | `InstanceInfo` |
 | 设置页 | `SettingsPageViewModel` | ✅ 已实现 | 03 篇 §7 / UI-07 | `ISettingsService`, `IUiSettingsStore` | `UiSettings`, `SettingItemViewModel` |
 | 操作队列浮层 | `OperationQueueViewModel` | ✅ 已实现 | 03 篇 §1, §8 / UI-08 | `IOperationQueue` | `OperationProgress` |
 | 确认对话框 | `ConfirmDialogViewModel` | ✅ 已实现 | 03 篇 §8 (D-01) / UI-09 | `IDialogService` (通过 `IUser.RaiseYesNoDialog`) | 字符串标量 |

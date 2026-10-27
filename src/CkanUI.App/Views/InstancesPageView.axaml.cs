@@ -8,7 +8,9 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
+using CkanUI.App.Views.Dialogs;
 using CkanUI.Services.Abstractions;
+using CkanUI.ViewModels.Dialogs;
 using CkanUI.ViewModels.Pages;
 using CkanUI.ViewModels.Pages.Instances;
 
@@ -56,6 +58,8 @@ public partial class InstancesPageView : UserControl
         _viewModel.PathProbe ??= new FileSystemPathProbe();
         _viewModel.ShellLauncher ??= new ShellInstanceLauncher();
         _viewModel.SteamLibraries ??= new SteamLibrarySource(new FileSystemPathProbe());
+        _viewModel.CommandStore ??= new LaunchCommandFile();
+        _viewModel.TextPrompt ??= new AvaloniaInstanceTextPrompt(this);
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         SyncSelection();
@@ -113,7 +117,11 @@ public partial class InstancesPageView : UserControl
                 break;
 
             case Key.Escape:
-                if (vm.HasForm)
+                if (vm.HasCommandsPanel)
+                {
+                    vm.CloseCommandsPanel();
+                }
+                else if (vm.HasForm)
                 {
                     vm.CloseForm();
                 }
@@ -199,10 +207,6 @@ internal sealed class FileSystemPathProbe : IInstancePathProbe
 /// </remarks>
 internal sealed class ShellInstanceLauncher : IInstanceShellLauncher
 {
-    private const string PrimaryExecutable = "KSP_x64.exe";
-
-    private const string FallbackExecutable = "KSP.exe";
-
     /// <inheritdoc />
     public Task<OperationResult> OpenFolderAsync(string path)
     {
@@ -220,36 +224,44 @@ internal sealed class ShellInstanceLauncher : IInstanceShellLauncher
     }
 
     /// <inheritdoc />
-    public Task<OperationResult> LaunchGameAsync(string gameDir)
+    public Task<OperationResult> LaunchGameAsync(string gameDir, string command)
     {
         if (string.IsNullOrWhiteSpace(gameDir) || !Directory.Exists(gameDir))
         {
             return Task.FromResult(OperationResult.Fail($"目录不存在：{gameDir}（不可重试）"));
         }
 
+        var normalized = LaunchCommandLine.Normalize(command);
+        if (normalized.Length == 0)
+        {
+            return Task.FromResult(OperationResult.Fail("启动命令为空，请先在「编辑启动命令」里填写一条命令。"));
+        }
+
         // TODO(18 篇 / E6)：此处应改为「释放注册表锁 → 启动进程 → 进入精简模式」，由 GameLaunchViewModel 接管。
-        var executable = FindExecutable(gameDir);
-        if (executable is null)
+        var (binary, arguments) = LaunchCommandLine.Split(normalized);
+
+        // Steam 链接（steam://rungameid/…）整条交给外壳，不拼目录、不检查文件。
+        if (LaunchCommandLine.IsSteamCommand(binary))
         {
-            return Task.FromResult(
-                OperationResult.Fail($"未在该目录找到 {PrimaryExecutable} 或 {FallbackExecutable}，请确认这是 KSP 安装目录。"));
+            return Start(
+                new ProcessStartInfo(normalized) { UseShellExecute = true, WorkingDirectory = gameDir },
+                "启动游戏失败");
         }
 
-        return Start(
-            new ProcessStartInfo(executable) { UseShellExecute = true, WorkingDirectory = gameDir },
-            "启动游戏失败");
-    }
-
-    private static string? FindExecutable(string gameDir)
-    {
-        var primary = Path.Combine(gameDir, PrimaryExecutable);
-        if (File.Exists(primary))
+        var executable = Path.IsPathRooted(binary) ? binary : Path.Combine(gameDir, binary);
+        if (!File.Exists(executable))
         {
-            return primary;
+            return Task.FromResult(OperationResult.Fail(
+                $"未在该目录找到启动文件：{binary}（可在「编辑启动命令」里改成正确的可执行文件名）"));
         }
 
-        var fallback = Path.Combine(gameDir, FallbackExecutable);
-        return File.Exists(fallback) ? fallback : null;
+        var startInfo = new ProcessStartInfo(executable) { UseShellExecute = true, WorkingDirectory = gameDir };
+        if (arguments.Length > 0)
+        {
+            startInfo.Arguments = arguments;
+        }
+
+        return Start(startInfo, "启动游戏失败");
     }
 
     private static Task<OperationResult> Start(ProcessStartInfo startInfo, string failureMessage)
@@ -350,5 +362,55 @@ internal sealed class SteamLibrarySource : ISteamLibrarySource
         {
             yield return Path.Combine(root, "steamapps", "libraryfolders.vdf");
         }
+    }
+}
+
+/// <summary>
+/// 单行文本输入实现（F-06 增 / 改一条启动命令）：用 <see cref="TextInputDialogView"/> 弹模态窗。
+/// </summary>
+/// <remarks>
+/// <c>IDialogService</c> 没有文本输入，而它所在的 Abstractions 层不在本次可改范围内，
+/// 因此这项能力放在页面层以纯接口 <see cref="IInstanceTextPrompt"/> 注入（与目录选择同一套路）。
+/// owner 取当前 <c>TopLevel</c> 的窗口，未挂载到窗口时退回非模态 <c>Show()</c>。
+/// </remarks>
+internal sealed class AvaloniaInstanceTextPrompt : IInstanceTextPrompt
+{
+    private readonly Control _owner;
+
+    public AvaloniaInstanceTextPrompt(Control owner)
+    {
+        _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+    }
+
+    /// <inheritdoc />
+    public async Task<string?> PromptAsync(
+        string title,
+        string message,
+        string? initialValue = null,
+        string? placeholder = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+
+        var viewModel = new TextInputDialogViewModel(title, message, initialValue, placeholder);
+        var window = new TextInputDialogView { DataContext = viewModel };
+
+        var owner = TopLevel.GetTopLevel(_owner) as Window;
+        if (owner is not null && owner.IsVisible)
+        {
+            await window.ShowDialog(owner).ConfigureAwait(true);
+        }
+        else
+        {
+            var closed = new TaskCompletionSource();
+            window.Closed += (_, _) => closed.TrySetResult();
+            window.Show();
+            await closed.Task.ConfigureAwait(true);
+        }
+
+        return viewModel.Result;
     }
 }

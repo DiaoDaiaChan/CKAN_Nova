@@ -78,6 +78,7 @@ public static class ServiceRegistration
             sp.GetService<IChangeRequestSink>(),
             sp.GetService<INavigationService>()));
         services.AddSingleton<ReposPageViewModel>();
+        services.AddSingleton<ModPacksPageViewModel>();
         services.AddSingleton<InstancesPageViewModel>();
         services.AddSingleton<SettingsPageViewModel>();
 
@@ -130,6 +131,7 @@ public static class ServiceRegistration
         ["mods"] = typeof(ModsPageViewModel),
         ["changes"] = typeof(ChangesPageViewModel),
         ["repos"] = typeof(ReposPageViewModel),
+        ["modpacks"] = typeof(ModPacksPageViewModel),
         ["instances"] = typeof(InstancesPageViewModel),
         ["settings"] = typeof(SettingsPageViewModel),
     };

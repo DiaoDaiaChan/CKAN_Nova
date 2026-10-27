@@ -28,20 +28,24 @@
         <Border Width="1" Margin="4,2" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
         <Button Content="打开目录" Command="{Binding OpenFolderCommand}" IsEnabled="{Binding CanOpenSelected}"
                 ToolTip.Tip="在文件管理器中打开游戏目录" />
+        <Button Content="编辑启动命令" Command="{Binding EditCommandsCommand}" IsEnabled="{Binding CanEditCommands}"
+                ToolTip.Tip="编辑该实例的启动命令列表（F-06）" />
         <Button Content="启动游戏" Command="{Binding LaunchCommand}" IsEnabled="{Binding CanOpenSelected}"
-                ToolTip.Tip="启动该实例的 KSP（启动流程待 E6 接入）" />
+                ToolTip.Tip="{Binding LaunchToolTip}" />
       </StackPanel>
     </Border>
 
     <!-- 错误条（03 篇 §8 D-03）：异常与失败统一收口到页面文本 -->
-    <Border Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Padding="10,6" CornerRadius="6"
-            Background="#3B1F1F" BorderBrush="#D13438" BorderThickness="1"
+    <Border Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Padding="12,8" CornerRadius="4"
+            Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
             IsVisible="{Binding HasError}">
       <Grid ColumnDefinitions="*,Auto">
-        <StackPanel Grid.Column="0" Spacing="2">
-          <TextBlock Text="{Binding ErrorText}" Foreground="#FFB4AB" FontSize="12" TextWrapping="Wrap" />
-          <TextBlock Text="{Binding ErrorDetail}" Foreground="#FFB4AB" Opacity="0.7" FontSize="11"
-                     TextWrapping="Wrap" IsVisible="{Binding HasErrorDetail}" MaxHeight="48" />
+        <StackPanel Grid.Column="0" Spacing="4">
+          <TextBlock Text="{Binding ErrorText}" Foreground="{DynamicResource CkanDangerBrush}" FontSize="12"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="{Binding ErrorDetail}" Foreground="{DynamicResource CkanDangerBrush}" Opacity="0.7"
+                     FontSize="11" TextWrapping="Wrap" IsVisible="{Binding HasErrorDetail}" MaxHeight="48" />
         </StackPanel>
         <Button Grid.Column="1" Content="关闭" Command="{Binding ClearErrorCommand}" FontSize="12"
                 VerticalAlignment="Top" />
@@ -77,15 +81,16 @@
             <DataTemplate>
               <Grid ColumnDefinitions="3,*,110,90,140,90" Height="28">
                 <!-- 当前实例绿色竖条 -->
-                <Border Grid.Column="0" Width="3" Margin="0,2" CornerRadius="1"
-                        Background="#2E7D32" IsVisible="{Binding IsCurrent}" />
+                <Border Grid.Column="0" Width="3" Margin="0,2" CornerRadius="2"
+                        Background="{DynamicResource CkanSuccessBrush}" IsVisible="{Binding IsCurrent}" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                   <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                  <Border Background="#8250DF" CornerRadius="3" Padding="4,0" IsVisible="{Binding IsDefault}">
-                    <TextBlock Text="默认" FontSize="11" Foreground="White" />
+                  <Border Background="{DynamicResource CkanAccentBrush}" CornerRadius="2" Padding="4,0"
+                          IsVisible="{Binding IsDefault}">
+                    <TextBlock Text="默认" FontSize="11" Foreground="{DynamicResource CkanAccentTextBrush}" />
                   </Border>
                   <!-- 03 篇 §5 异常态：路径不存在时行内提示，详情面板给完整文案 -->
-                  <TextBlock Text="⚠ 目录不存在" FontSize="11" Foreground="#FFB4AB"
+                  <TextBlock Text="⚠ 目录不存在" FontSize="11" Foreground="{DynamicResource CkanDangerBrush}"
                              VerticalAlignment="Center" IsVisible="{Binding IsPathMissing}" />
                 </StackPanel>
                 <TextBlock Grid.Column="2" Text="{Binding VersionText}" VerticalAlignment="Center" Opacity="0.85" />
@@ -125,7 +130,8 @@
             <TextBlock Text="{Binding SelectionModuleText, StringFormat='已装模组：{0}'}" />
             <TextBlock Text="{Binding SelectionLockText, StringFormat='锁状态：{0}'}" TextWrapping="Wrap" />
             <TextBlock Text="{Binding SelectionPath, StringFormat='游戏目录：{0}'}" TextWrapping="Wrap" />
-            <TextBlock Text="{Binding SelectionPathStatus}" FontSize="12" Foreground="#FFB4AB" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding SelectionPathStatus}" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{DynamicResource CkanDangerBrush}" />
             <Separator Margin="0,6" />
             <StackPanel Spacing="6">
               <Button Content="设为当前实例" Command="{Binding SwitchCommand}"
@@ -136,8 +142,11 @@
                       IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch" />
               <Button Content="打开游戏目录" Command="{Binding OpenFolderCommand}"
                       IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch" />
+              <Button Content="编辑启动命令" Command="{Binding EditCommandsCommand}"
+                      IsEnabled="{Binding CanEditCommands}" HorizontalAlignment="Stretch" />
               <Button Content="启动游戏" Command="{Binding LaunchCommand}"
-                      IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch" />
+                      IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch"
+                      ToolTip.Tip="{Binding LaunchToolTip}" />
               <Button Content="遗忘此实例" Command="{Binding ForgetCommand}"
                       IsEnabled="{Binding CanForgetSelected}" HorizontalAlignment="Stretch" />
             </StackPanel>
@@ -158,7 +167,7 @@
     </Grid>
 
     <!-- 内联表单覆盖层（新增 / 克隆 / 重命名） -->
-    <Border Grid.RowSpan="3" IsVisible="{Binding HasForm}" Background="#99000000">
+    <Border Grid.RowSpan="3" IsVisible="{Binding HasForm}" Background="{DynamicResource CkanScrimBrush}">
       <ContentControl Content="{Binding Form}" HorizontalAlignment="Center" VerticalAlignment="Center">
         <ContentControl.ContentTemplate>
           <DataTemplate>
@@ -168,12 +177,24 @@
       </ContentControl>
     </Border>
 
+    <!-- 启动命令编辑覆盖层（F-06）：列表 + 增 / 改 / 删 / 排序 + 重置为默认 + 接受 / 取消 -->
+    <Border Grid.RowSpan="3" IsVisible="{Binding HasCommandsPanel}" Background="{DynamicResource CkanScrimBrush}">
+      <ContentControl Content="{Binding CommandsPanel}" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <ContentControl.ContentTemplate>
+          <DataTemplate>
+            <dialogs:LaunchCommandsPanel />
+          </DataTemplate>
+        </ContentControl.ContentTemplate>
+      </ContentControl>
+    </Border>
+
     <!-- 切换遮罩（03 篇 §5：全屏「正在切换实例…」，禁止并发操作） -->
-    <Border Grid.RowSpan="3" IsVisible="{Binding IsBusy}" Background="#B3000000">
+    <Border Grid.RowSpan="3" IsVisible="{Binding IsBusy}" Background="{DynamicResource CkanBlockingScrimBrush}">
       <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="360">
         <ProgressBar IsIndeterminate="True" Width="240" />
         <TextBlock Text="{Binding BusyText}" FontSize="14" HorizontalAlignment="Center"
-                   Foreground="White" TextWrapping="Wrap" TextAlignment="Center" />
+                   Foreground="{DynamicResource CkanTextInverseBrush}" TextWrapping="Wrap"
+                   TextAlignment="Center" />
       </StackPanel>
     </Border>
   </Grid>

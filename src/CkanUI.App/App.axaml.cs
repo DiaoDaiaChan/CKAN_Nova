@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using CkanUI.App.Localization;
+using CkanUI.App.Theming;
 using CkanUI.Localization;
 using CkanUI.Platform.SingleInstance;
 using CkanUI.Services.Abstractions;
@@ -20,6 +21,7 @@ public sealed partial class App : Application
     private ServiceProvider? _services;
     private LocalizationHost? _localization;
     private ThemeHost? _theme;
+    private DensityHost? _density;
     private bool _shutdownDone;
 
     /// <summary>当前应用实例（供单实例转发把外部参数送进窗口）。</summary>
@@ -50,6 +52,13 @@ public sealed partial class App : Application
                 _services.GetRequiredService<IDispatcher>(),
                 this);
             _theme.Install();
+
+            // 密度与主题同理：首帧前落地，否则会看到默认行高跳一下（20 篇 P-08、THM-06）。
+            _density = new DensityHost(
+                _services.GetRequiredService<IUiSettingsStore>(),
+                _services.GetRequiredService<IDispatcher>(),
+                this);
+            _density.Install();
 
             var shell = _services.GetRequiredService<ShellViewModel>();
             var window = new MainWindow { DataContext = shell };
@@ -107,6 +116,7 @@ public sealed partial class App : Application
         }
         finally
         {
+            _density?.Dispose();
             _theme?.Dispose();
             _localization?.Dispose();
             _services.Dispose();

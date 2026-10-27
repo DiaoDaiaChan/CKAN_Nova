@@ -194,6 +194,9 @@ internal sealed class FakeInstanceService : IInstanceService
 
     public Task<OperationResult<bool>> RemoveAsync(string instanceName, CancellationToken ct = default) =>
         Task.FromResult(OperationResult<bool>.Ok(true));
+
+    public Task<OperationResult<InstanceInfo>> RenameAsync(string instanceName, string newName, CancellationToken ct = default) =>
+        Task.FromResult(OperationResult<InstanceInfo>.Fail("测试不重命名实例"));
 }
 
 /// <summary>记录型错误上报器。</summary>

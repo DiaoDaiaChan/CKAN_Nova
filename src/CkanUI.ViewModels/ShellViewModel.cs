@@ -51,6 +51,7 @@ public sealed partial class ShellViewModel : ObservableObject
             new("mods", _translate("Ui_NavRail_ManageMods"), "Apps"),
             new("changes", _translate("Ui_NavRail_Changes"), "Sync"),
             new("repos", _translate("Ui_NavRail_Repos"), "Globe"),
+            new("modpacks", _translate("Ui_NavRail_ModPacks"), "Exchange"),
             new("instances", _translate("Ui_NavRail_Instances"), "Folder"),
             new("settings", _translate("Ui_NavRail_Settings"), "Settings")
         };
@@ -92,6 +93,7 @@ public sealed partial class ShellViewModel : ObservableObject
         ["Ui_NavRail_ManageMods"] = "管理模组",
         ["Ui_NavRail_Changes"] = "变更集",
         ["Ui_NavRail_Repos"] = "仓库",
+        ["Ui_NavRail_ModPacks"] = "导入导出",
         ["Ui_NavRail_Instances"] = "游戏实例",
         ["Ui_NavRail_Settings"] = "设置",
         ["Ui_Common_Status_Ready"] = "就绪",

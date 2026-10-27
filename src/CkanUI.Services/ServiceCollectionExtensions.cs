@@ -1,12 +1,15 @@
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Bootstrap;
 using CkanUI.Services.ChangeSets;
+using CkanUI.Services.Downloads;
 using CkanUI.Services.Errors;
 using CkanUI.Services.Installers;
 using CkanUI.Services.Instances;
+using CkanUI.Services.ModPacks;
 using CkanUI.Services.Operations;
 using CkanUI.Services.Registry;
 using CkanUI.Services.Repositories;
+using CKAN;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -38,6 +41,18 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IInstallerService, InstallerService>();
         services.TryAddSingleton<IUiSettingsStore, Settings.UiSettingsStore>();
         services.TryAddSingleton<ISettingsService, Settings.SettingsService>();
+
+        // 导入导出（F-39..F-42）：Core 能力收在 IModPackStore 后面，逻辑全在 ModPackCatalog。
+        services.TryAddSingleton<IModPackStore>(provider => new CkanModPackStore(
+            provider.GetRequiredService<GameInstanceManager>(),
+            provider.GetRequiredService<RepositoryDataManager>()));
+        services.TryAddSingleton<ModPackCatalog>();
+        services.TryAddSingleton<IModPackService, ModPackService>();
+
+        // 下载（M2）：字节搬运在 IDownloadTransport 后面，落盘/校验/取消语义在 DownloadService。
+        services.TryAddSingleton<IDownloadTransport>(provider =>
+            new NetAsyncDownloaderTransport(provider.GetRequiredService<IUser>()));
+        services.TryAddSingleton<IDownloadService, DownloadService>();
 
         // 启动编排放在最后：它依赖上面三个领域服务。
         services.TryAddSingleton<IAppBootstrapper, AppBootstrapper>();

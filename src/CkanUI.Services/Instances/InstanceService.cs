@@ -77,6 +77,34 @@ public sealed class InstanceService : IInstanceService
             return OperationResult<InstanceInfo>.Ok(Project(clone));
         });
 
+    public Task<OperationResult<InstanceInfo>> RenameAsync(string instanceName, string newName, CancellationToken ct = default) =>
+        GuardAsync(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            var trimmed = newName?.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) return OperationResult<InstanceInfo>.Fail("必须提供有效的实例名称。");
+            if (!_manager.Instances.TryGetValue(instanceName, out var instance)) return OperationResult<InstanceInfo>.Fail($"找不到游戏实例“{instanceName}”。");
+            if (string.Equals(instanceName, trimmed, StringComparison.Ordinal))
+            {
+                RefreshProjection();
+                return OperationResult<InstanceInfo>.Ok(Project(instance));
+            }
+            if (_manager.HasInstance(trimmed)) return OperationResult<InstanceInfo>.Fail($"实例名称“{trimmed}”已被占用，请换一个名字。", null, true);
+            try
+            {
+                _manager.RenameInstance(instanceName, trimmed);
+            }
+            catch (InstanceNameTakenKraken)
+            {
+                return OperationResult<InstanceInfo>.Fail($"实例名称“{trimmed}”已被占用，请换一个名字。", null, true);
+            }
+            // 重命名只动配置里的名字；自启动指向若仍写旧名，会变成指向不存在实例的死链。
+            if (string.Equals(_manager.Configuration.AutoStartInstance, instanceName, StringComparison.Ordinal))
+                _manager.SetAutoStart(trimmed);
+            RefreshProjection();
+            return OperationResult<InstanceInfo>.Ok(Project(instance));
+        });
+
     public Task<OperationResult<bool>> RemoveAsync(string instanceName, CancellationToken ct = default) =>
         GuardAsync(() =>
         {

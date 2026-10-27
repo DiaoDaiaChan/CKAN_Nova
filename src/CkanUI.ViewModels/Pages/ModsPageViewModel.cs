@@ -1176,6 +1176,8 @@ public sealed partial class ModsPageViewModel : PageViewModel
 
         public Task<OperationResult<bool>> RemoveAsync(string instanceName, CancellationToken ct = default) =>
             Task.FromResult(OperationResult<bool>.Fail("尚未连接实例服务。"));
+        public Task<OperationResult<InstanceInfo>> RenameAsync(string instanceName, string newName, CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<InstanceInfo>.Fail("尚未连接实例服务。"));
     }
 
     private sealed class EmptyErrorReporter : IErrorReporter

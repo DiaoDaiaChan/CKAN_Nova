@@ -1,0 +1,37 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.TextInputDialogView"
+                       x:DataType="vm:TextInputDialogViewModel"
+                       Title="{Binding Title}"
+                       Width="460"
+                       SizeToContent="Height">
+  <!-- 单行文本输入（F-06「增 / 改一条启动命令」）：确定 → Result = 去空白文本；取消 → Result = null。 -->
+  <StackPanel Margin="20" Spacing="12">
+    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+    <TextBox x:Name="InputBox"
+             Text="{Binding Text, Mode=TwoWay}"
+             PlaceholderText="{Binding Placeholder}"
+             AcceptsReturn="False"
+             MinWidth="380" />
+    <TextBlock Text="{Binding ValidationError}"
+               IsVisible="{Binding HasValidationError}"
+               Foreground="{DynamicResource CkanDangerBrush}"
+               TextWrapping="Wrap"
+               FontSize="{DynamicResource CkanFontSizeCaption}" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding PrimaryCommand}"
+              IsDefault="True"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding SecondaryButtonText}"
+              Command="{Binding SecondaryCommand}"
+              IsCancel="True"
+              IsVisible="{Binding HasSecondaryButton}"
+              MinWidth="92"
+              HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </StackPanel>
+</dialogs:DialogWindow>

@@ -28,4 +28,10 @@ public interface IInstanceService
     Task<OperationResult<InstanceInfo>> CloneAsync(string sourceName, string newName, CancellationToken ct = default);
 
     Task<OperationResult<bool>> RemoveAsync(string instanceName, CancellationToken ct = default);
+
+    /// <summary>
+    /// 重命名实例：只改配置里的实例名与自启动指向，不移动、不改写游戏目录（与 Core 的
+    /// GameInstanceManager.RenameInstance 一致）。名称被占用时返回可重试失败。
+    /// </summary>
+    Task<OperationResult<InstanceInfo>> RenameAsync(string instanceName, string newName, CancellationToken ct = default);
 }

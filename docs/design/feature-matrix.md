@@ -14,8 +14,8 @@
 | F-02 | 克隆实例（源/目标路径、新名、设为默认、切换、共享 stock、可选路径复制） | UI-32, INT-04 | `src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:420`, `src/CkanUI.Services/Instances/InstanceService.cs:68` | 已实现 | 单测 `InstanceServiceTests.CloneAsync` 验证克隆同级路径推导、新实例注册表加载与选中切换 |
 | F-03 | Steam 库导入（扫描 Steam 库并识别 KSP 路径） | UI-32 | `src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:765`, `src/CkanUI.ViewModels/Pages/Instances/SteamLibraryParser.cs:10` | 已实现 | 单测 `SteamLibraryParserTests` 验证 `libraryfolders.vdf` 两种语法解析与 KSP 目录自动探测 |
 | F-04 | 实例右键：打开目录 / 加入 CKAN / 克隆 | UI-32 | `src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:420,609,679`, `src/CkanUI.Services/Instances/InstanceService.cs:80` | 已实现 | 视图模型单测验证 `OpenFolderCommand`、`BeginCloneCommand`、`ForgetCommand` 动作分发 |
-| F-05 | 启动游戏（多命令选择） | UI-28, INT-04 | `src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:717`, `src/CkanUI.ViewModels/Pages/Instances/IInstanceShellLauncher.cs:15` | 部分 | 基础启动命令及错误提示已实现；多启动命令选择下拉与 E6 资源释放状态机待 UI-28 / E6 接入 |
-| F-06 | 游戏命令行编辑（列表、重置、增、接受、取消） | UI-28 | — | 未开始 | 待 UI-28 实现命令行编辑器对话框，验证启动参数列表的增删改与持久化 |
+| F-05 | 启动游戏（多命令选择） | UI-28, INT-04 | `src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:717`, `src/CkanUI.ViewModels/Pages/Instances/IInstanceShellLauncher.cs:15` | 已实现 | `LaunchSelectedAsync` 多命令走 `IDialogService.SelectAsync` 选择、取消即不启动；`ShellInstanceLauncher.LaunchGameAsync(gameDir, command)` 按命令解析 binary/args，Steam URI 直走系统外壳，缺文件给「未在该目录找到启动文件」。单测 `InstancesLaunchCommandTests` 覆盖 |
+| F-06 | 游戏命令行编辑（列表、重置、增、接受、取消） | UI-28 | `src/CkanUI.ViewModels/Pages/Instances/LaunchCommandsPanelViewModel.cs:1`, `src/CkanUI.ViewModels/Pages/Instances/LaunchCommandFile.cs:1` | 已实现 | 面板支持增/删/改/上移/下移/重置默认/接受/取消，`HasChanges`/`CanResetToDefaults`/`CanRemove`（不允许删到 0 条）；持久化到 `<GameDir>/CKAN/GUIConfig.json` 的 `CommandLines`，只改该键、临时文件 + `File.Move(overwrite:true)` 原子写；默认命令按 `KerbalSpaceProgram.DefaultCommandLines` 语义生成 |
 | F-07 | 打开游戏目录（菜单 + 托盘） | UI-01 | `src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:680`, `src/CkanUI.ViewModels/Pages/Instances/IInstanceShellLauncher.cs:14` | 已实现 | 验证通过系统外壳接口启动文件管理器定位游戏根目录 |
 | F-08 | 实例锁定/注册表损坏的处置（删锁、回滚、提示升级 CKAN） | INT-04, UI-09 | `src/CkanUI.Services/Instances/InstanceService.cs:45`, `src/CkanUI.Services/Registry/RegistryService.cs:37`, `src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:305` | 已实现 | 单测验证锁定实例拒绝切换并提示不可重试错误，损坏注册表隔离不阻断其它实例枚举 |
 | F-09 | 切换实例后按需刷新（InstanceChanged → 重载列表） | INT-04, VM-04 | `src/CkanUI.Services/Instances/InstanceService.cs:25,91`, `src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:176` | 已实现 | 单测验证订阅 Core `InstanceChanged` 事件后异步派发并整体刷新实例行投影 |
@@ -47,14 +47,14 @@
 | F-35 | 推荐/建议/被支持选择（三组、Check All / Uncheck All / Always uncheck all 等） | UI-15, INT-07 | — | 未开始 | 待 UI-15 实现关联选择对话框，验证三组勾选逻辑与“总是取消全选”持久化 |
 | F-36 | 推荐审计（遍历已装 mod 的推荐与建议） | UI-17 | — | 未开始 | 待 UI-17 实现推荐审计工具，验证批量扫描已安装模组推荐与一键采纳 |
 | F-37 | 安装/卸载/升级执行（进度、取消、重试、状态日志） | UI-08, INT-08 | `src/CkanUI.Services/Installers/CkanInstallerBackend.cs:21`, `src/CkanUI.Services/Operations/OperationQueue.cs:10` | 部分 | 底层具备安装/卸载执行后端与异步操作队列；全屏任务等待日志页（WaitTabPage）待 UI-08 落地 |
-| F-38 | 下载失败处置（逐项 Retry?/Skip?、错误文本、复制到剪贴板） | UI-35 | — | 未开始 | 待 UI-35 实现下载失败对话框，验证逐项重试、跳过与错误复制剪贴板 |
-| F-39 | 从 .ckan 安装（多选文件） | UI-20 | — | 未开始 | 待 UI-20 实现多选 .ckan 元数据文件解析与批量安装管道 |
-| F-40 | 导入已下载 mods（ZIP → 缓存） | UI-20 | — | 未开始 | 待 UI-20 实现本地模组 ZIP 导入下载缓存并建立索引 |
+| F-38 | 下载失败处置（逐项 Retry?/Skip?、错误文本、复制到剪贴板） | UI-35 | `src/CkanUI.Services/Downloads/DownloadFailureClassifier.cs:1` | 部分 | 失败分类已落地（网络类可重试、证书/限流可重试、`DownloadErrorsKraken` 展开镜像列表、永久错误不可重试、取消单列）；逐项 Retry?/Skip? 对话框与复制到剪贴板待 UI-35 |
+| F-39 | 从 .ckan 安装（多选文件） | UI-20 | `src/CkanUI.Services/ModPacks/ModPackCatalog.cs:1`, `src/CkanUI.ViewModels/Pages/ModPacksPageViewModel.cs:1` | 已实现 | 多选 `.ckan`（多行/分号分隔）先预览（将安装/升级/降级/已安装/找不到/有冲突+原因），跨来源版本冲突只报不合并；执行映射成 `ChangeRequest` → `IChangeSetService.BuildAsync`（有冲突即中止）→ `IInstallerService.ApplyAsync`，无自有下载逻辑 |
+| F-40 | 导入已下载 mods（ZIP → 缓存） | UI-20 | — | 未开始 | 本地 ZIP 直接灌下载缓存（`NetModuleCache`）并建索引仍未做；当前导入一律走变更集 + 安装器下载 |
 | F-41 | 去重（跨实例扫描并共享可共享文件） | UI-21 | — | 未开始 | 待 UI-21 / INT-09 实现跨实例文件哈希扫描与硬链接共享去重 |
 | F-42 | 未管理文件（树、刷新、全展开/全折叠/重置、在文件夹中显示、删除） | UI-10 | `src/CkanUI.Services.Abstractions/IUnmanagedService.cs:8` | 未开始 | 仅有抽象服务契约定义；未管理文件树扫描、定位与删除页面待 UI-10 / INT-09 实现 |
 | F-43 | 残留目录清理（目录树 + 内容预览、打开目录、删除勾选、全部保留） | UI-22 | `src/CkanUI.Services/Installers/CkanInstallerBackend.cs:179` | 部分 | 卸载逻辑中已记录配置残留目录（`possibleConfigOnlyDirs`）；清理对话框与文件树待 UI-22 接入 |
 | F-44 | 安装历史（时间戳列表、已装/未装分组、从历史重装） | UI-23 | — | 未开始 | 待 UI-23 / INT-08 实现时间戳历史记录展示与旧状态一键回滚重装 |
-| F-45 | 导出：已装列表（不可回导）／modpack（可回导） | UI-24 | — | 未开始 | 待 UI-24 / INT-10 实现已装列表与 modpack 双格式导出 |
+| F-45 | 导出：已装列表（不可回导）／modpack（可回导） | UI-24 | `src/CkanUI.Services/ModPacks/CkanModPackStore.cs:1`, `src/CkanUI.ViewModels/Pages/ModPacks/ExportFormViewModel.cs:1` | 部分 | modpack 导出已实现（`RegistryManager.GenerateModpack` 的 `ToJson()` 直出，可选带版本、可选把缓存 zip 打成同名 `.zip`）；「不可回导的已装列表」格式未做 |
 | F-46 | modpack 编辑器（标识/名称/摘要/作者/版本/关系单选等） | UI-24 | — | 未开始 | 待 UI-24 实现 modpack 完整元数据编辑界面与关系分组单选 |
 | F-47 | 下载统计（饼图 + 表格） | UI-25 | — | 未开始 | 待 SP-14 图表库验证并在 UI-25 实现下载量饼图与排序表格 |
 | F-48 | 游戏时长（实例名 / 小时数，F2 就地编辑） | UI-10 | — | 未开始 | 待 UI-10 实现时长统计表格与 F2 就地编辑保存功能 |
@@ -74,9 +74,9 @@
 
 | 状态 | 数量 | 占比 | 包含特性的主要范围 |
 |---|---|---|---|
-| **已实现** | **14** | 25.5% | 实例基础管理（F-01..F-04, F-07..F-09）、元数据仓库管理（F-10）、认证令牌（F-11）、模组列表 15 列与 11 种过滤器（F-18, F-19）、元数据详情（F-27）、设置主页（F-49）、多语本地化（F-53） |
-| **部分** | **21** | 38.2% | 游戏启动与刷新（F-05, F-12）、版本与容忍度（F-13..F-16）、组合搜索与关系（F-20..F-23, F-26, F-28, F-30）、变更集与安装底层（F-31..F-33, F-37, F-43）、缓存设置与平台（F-50, F-52, F-55） |
-| **未开始** | **20** | 36.4% | 命令行编辑器（F-06）、插件系统（F-17）、Label 属性（F-24）、导航历史（F-25）、内容预览（F-29）、推荐与虚拟模组对话框（F-34..F-36）、下载失败（F-38）、导入导出与工具族（F-39..F-42, F-44..F-48）、托盘与格式（F-51, F-54） |
+| **已实现** | **17** | 30.9% | 实例基础管理（F-01..F-04, F-07..F-09）、元数据仓库管理（F-10）、认证令牌（F-11）、模组列表 15 列与 11 种过滤器（F-18, F-19）、元数据详情（F-27）、设置主页（F-49）、多语本地化（F-53）、游戏启动与命令行编辑（F-05, F-06）、.ckan 导入（F-39） |
+| **部分** | **22** | 40.0% | 仓库刷新（F-12）、版本与容忍度（F-13..F-16）、组合搜索与关系（F-20..F-23, F-26, F-28, F-30）、变更集与安装底层（F-31..F-33, F-37, F-43）、缓存设置与平台（F-50, F-52, F-55）、下载失败处置（F-38）、modpack 导出（F-45） |
+| **未开始** | **16** | 29.1% | 插件系统（F-17）、Label 属性（F-24）、导航历史（F-25）、内容预览（F-29）、推荐与虚拟模组对话框（F-34..F-36）、ZIP 灌缓存与去重/未管理文件（F-40..F-42）、其余工具族（F-44, F-46..F-48）、托盘与格式（F-51, F-54） |
 | **总计** | **55** | 100.0% | 覆盖全特性清单（A 9 + B 8 + C 17 + D 14 + E 7）全部条目 |
 
 ---
