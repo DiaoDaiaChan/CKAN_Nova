@@ -5,6 +5,9 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using CKAN;
+using CKAN.Configuration;
+using CKAN.Games;
+using CkanUI.Services.Abstractions;
 
 namespace CkanUI.Services.Settings;
 
@@ -16,7 +19,7 @@ public sealed class InstallFiltersService : IInstallFiltersService
 {
     private readonly IConfiguration? _configuration;
     private readonly ISettingsService? _settingsService;
-    private readonly IGameInstanceService? _instanceService;
+    private readonly GameInstanceManager? _gameInstanceManager;
 
     public const string SettingsKey = "GlobalInstallFilters";
 
@@ -35,11 +38,11 @@ public sealed class InstallFiltersService : IInstallFiltersService
     public InstallFiltersService(
         IConfiguration? configuration = null,
         ISettingsService? settingsService = null,
-        IGameInstanceService? instanceService = null)
+        GameInstanceManager? gameInstanceManager = null)
     {
         _configuration = configuration;
         _settingsService = settingsService;
-        _instanceService = instanceService;
+        _gameInstanceManager = gameInstanceManager;
     }
 
     /// <inheritdoc />
@@ -48,7 +51,7 @@ public sealed class InstallFiltersService : IInstallFiltersService
     /// <inheritdoc />
     public async Task<IReadOnlyList<string>> LoadAsync(CancellationToken cancellationToken = default)
     {
-        var game = _instanceService?.Current?.Game;
+        var game = _gameInstanceManager?.CurrentInstance?.Game;
 
         // 1. 尝试从 Core IConfiguration 读取
         if (_configuration is not null && game is not null)
@@ -70,7 +73,8 @@ public sealed class InstallFiltersService : IInstallFiltersService
         // 2. 尝试从 ISettingsService 读取
         if (_settingsService is not null)
         {
-            var raw = await _settingsService.GetAsync<string>(SettingsKey, cancellationToken).ConfigureAwait(false);
+            var opResult = await _settingsService.GetAsync(SettingsKey, cancellationToken).ConfigureAwait(false);
+            var raw = opResult.Value;
             if (!string.IsNullOrWhiteSpace(raw))
             {
                 try
@@ -84,7 +88,7 @@ public sealed class InstallFiltersService : IInstallFiltersService
                 catch
                 {
                     // JSON 解析失败则视为逗号/分号/换行分隔
-                    var split = raw.Split([';', ',', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+                    var split = raw.Split(new[] { ';', ',', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                     if (split.Length > 0)
                     {
                         return SanitizeFilters(split);
@@ -103,7 +107,7 @@ public sealed class InstallFiltersService : IInstallFiltersService
         ArgumentNullException.ThrowIfNull(filters);
 
         var sanitized = SanitizeFilters(filters);
-        var game = _instanceService?.Current?.Game;
+        var game = _gameInstanceManager?.CurrentInstance?.Game;
 
         // 1. 写回 Core Configuration
         if (_configuration is not null && game is not null)

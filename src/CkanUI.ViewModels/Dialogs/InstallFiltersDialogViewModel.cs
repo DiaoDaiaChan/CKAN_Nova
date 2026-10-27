@@ -2,7 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
-using CkanUI.Services;
+using CkanUI.Services.Abstractions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -21,16 +21,21 @@ public sealed partial class InstallFiltersDialogViewModel : DialogViewModelBase
     [ObservableProperty]
     private FilterItemViewModel? _selectedFilter;
 
+    [ObservableProperty]
+    private bool _isLoading;
+
+    [ObservableProperty]
+    private bool _isSaving;
+
     public ObservableCollection<FilterItemViewModel> Filters { get; } = new();
 
     public InstallFiltersDialogViewModel(IInstallFiltersService filtersService)
+        : base("安装文件过滤器")
     {
         _filtersService = filtersService ?? throw new ArgumentNullException(nameof(filtersService));
 
-        Title = "安装文件过滤器";
         PrimaryButtonText = "保存";
         SecondaryButtonText = "取消";
-        CloseAfterPrimary = false; // 由 SaveAsync 验证通过后手动 Close(true)
     }
 
     /// <summary>
@@ -38,7 +43,7 @@ public sealed partial class InstallFiltersDialogViewModel : DialogViewModelBase
     /// </summary>
     public async Task InitializeAsync()
     {
-        IsBusy = true;
+        IsLoading = true;
         ValidationError = null;
         try
         {
@@ -55,7 +60,7 @@ public sealed partial class InstallFiltersDialogViewModel : DialogViewModelBase
         }
         finally
         {
-            IsBusy = false;
+            IsLoading = false;
         }
     }
 
@@ -111,17 +116,18 @@ public sealed partial class InstallFiltersDialogViewModel : DialogViewModelBase
     }
 
     /// <summary>
-    /// 保存并持久化规则（Primary 按钮调用）。
+    /// 保存并持久化规则。
     /// </summary>
-    protected override async Task OnPrimaryAsync()
+    public async Task SaveAsync()
     {
         ValidationError = null;
-        IsBusy = true;
+        IsSaving = true;
         try
         {
             var list = Filters.Select(f => f.Pattern.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToList();
             await _filtersService.SaveAsync(list).ConfigureAwait(true);
-            Close(true);
+            IsConfirmed = true;
+            Close();
         }
         catch (Exception ex)
         {
@@ -129,9 +135,18 @@ public sealed partial class InstallFiltersDialogViewModel : DialogViewModelBase
         }
         finally
         {
-            IsBusy = false;
+            IsSaving = false;
         }
     }
+
+    /// <inheritdoc />
+    protected override void OnPrimary()
+    {
+        _ = SaveAsync();
+    }
+
+    /// <inheritdoc />
+    protected override bool CloseAfterPrimary => false;
 }
 
 /// <summary>

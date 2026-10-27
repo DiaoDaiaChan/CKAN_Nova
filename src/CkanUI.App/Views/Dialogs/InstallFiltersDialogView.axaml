@@ -29,7 +29,7 @@
             <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
                 <TextBox Grid.Column="0"
                          Text="{Binding NewFilterText, Mode=TwoWay}"
-                         Watermark="输入过滤模式（例如 *.pdb、.git、Thumbs.db）"
+                         PlaceholderText="输入过滤模式（例如 *.pdb、.git、Thumbs.db）"
                          VerticalContentAlignment="Center"
                          Margin="0,0,8,0">
                     <TextBox.KeyBindings>

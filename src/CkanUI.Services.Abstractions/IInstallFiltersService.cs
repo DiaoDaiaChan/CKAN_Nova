@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace CkanUI.Services;
+namespace CkanUI.Services.Abstractions;
 
 /// <summary>
 /// 安装文件过滤器服务契约（F-16 / UI-31）。

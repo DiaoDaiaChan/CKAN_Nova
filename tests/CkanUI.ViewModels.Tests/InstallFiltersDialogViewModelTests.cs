@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using CkanUI.Services;
+using CkanUI.Services.Abstractions;
 using CkanUI.ViewModels.Dialogs;
-using NSubstitute;
 using NUnit.Framework;
 
 namespace CkanUI.ViewModels.Tests;
@@ -13,16 +12,17 @@ namespace CkanUI.ViewModels.Tests;
 [TestFixture]
 public class InstallFiltersDialogViewModelTests
 {
-    private IInstallFiltersService _filtersService = null!;
+    private FakeInstallFiltersService _filtersService = null!;
     private readonly string[] _defaultRules = [".pdb", ".git", "Thumbs.db"];
 
     [SetUp]
     public void Setup()
     {
-        _filtersService = Substitute.For<IInstallFiltersService>();
-        _filtersService.GetDefaultFilters().Returns(_defaultRules);
-        _filtersService.LoadAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<string>>(new List<string> { ".pdb", ".git" }));
+        _filtersService = new FakeInstallFiltersService
+        {
+            DefaultFilters = _defaultRules,
+            LoadedFilters = new List<string> { ".pdb", ".git" }
+        };
     }
 
     [Test]
@@ -55,14 +55,13 @@ public class InstallFiltersDialogViewModelTests
     [Test]
     public async Task InitializeAsync_WhenServiceThrows_SetsValidationError()
     {
-        _filtersService.LoadAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromException<IReadOnlyList<string>>(new InvalidOperationException("网络或磁盘错误")));
+        _filtersService.ThrowOnLoad = true;
 
         var vm = new InstallFiltersDialogViewModel(_filtersService);
         await vm.InitializeAsync();
 
         Assert.That(vm.Filters, Is.Empty);
-        Assert.That(vm.ValidationError, Does.Contain("网络或磁盘错误"));
+        Assert.That(vm.ValidationError, Does.Contain("加载失败测试"));
     }
 
     [Test]
@@ -136,7 +135,7 @@ public class InstallFiltersDialogViewModelTests
     }
 
     [Test]
-    public async Task PrimaryCommand_SavesFiltersAndCloses()
+    public async Task SaveAsync_SavesFiltersAndCloses()
     {
         var vm = new InstallFiltersDialogViewModel(_filtersService);
         vm.NewFilterText = "*.pdb";
@@ -144,35 +143,77 @@ public class InstallFiltersDialogViewModelTests
         vm.NewFilterText = "*.txt";
         vm.AddFilterCommand.Execute(null);
 
-        bool? closeResult = null;
-        vm.CloseRequested += (_, r) => closeResult = r;
+        await vm.SaveAsync();
 
-        await vm.PrimaryCommand.ExecuteAsync(null);
+        Assert.That(_filtersService.SavedFilters, Has.Count.EqualTo(2));
+        Assert.That(_filtersService.SavedFilters, Contains.Item("*.pdb"));
+        Assert.That(_filtersService.SavedFilters, Contains.Item("*.txt"));
 
-        await _filtersService.Received(1).SaveAsync(
-            Arg.Is<IReadOnlyCollection<string>>(c => c.Count == 2 && c.Contains("*.pdb") && c.Contains("*.txt")),
-            Arg.Any<CancellationToken>());
-
-        Assert.That(closeResult, Is.True);
+        Assert.That(vm.IsClosed, Is.True);
+        Assert.That(vm.IsConfirmed, Is.True);
         Assert.That(vm.ValidationError, Is.Null);
     }
 
     [Test]
-    public async Task PrimaryCommand_WhenSaveThrows_SetsValidationError()
+    public async Task SaveAsync_WhenSaveThrows_SetsValidationError()
     {
-        _filtersService.SaveAsync(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new Exception("IO 写入失败")));
+        _filtersService.ThrowOnSave = true;
 
         var vm = new InstallFiltersDialogViewModel(_filtersService);
         vm.NewFilterText = "*.pdb";
         vm.AddFilterCommand.Execute(null);
 
-        bool? closeResult = null;
-        vm.CloseRequested += (_, r) => closeResult = r;
+        await vm.SaveAsync();
 
-        await vm.PrimaryCommand.ExecuteAsync(null);
+        Assert.That(vm.IsClosed, Is.False);
+        Assert.That(vm.IsConfirmed, Is.False);
+        Assert.That(vm.ValidationError, Does.Contain("保存失败测试"));
+    }
 
-        Assert.That(closeResult, Is.Null);
-        Assert.That(vm.ValidationError, Does.Contain("IO 写入失败"));
+    [Test]
+    public async Task PrimaryCommand_TriggersSaveAsync()
+    {
+        var vm = new InstallFiltersDialogViewModel(_filtersService);
+        vm.NewFilterText = "*.pdb";
+        vm.AddFilterCommand.Execute(null);
+
+        vm.PrimaryCommand.Execute(null);
+        await Task.Delay(50);
+
+        Assert.That(_filtersService.SavedFilters, Has.Count.EqualTo(1));
+        Assert.That(_filtersService.SavedFilters[0], Is.EqualTo("*.pdb"));
+        Assert.That(vm.IsClosed, Is.True);
+        Assert.That(vm.IsConfirmed, Is.True);
+    }
+
+    private sealed class FakeInstallFiltersService : IInstallFiltersService
+    {
+        public IReadOnlyList<string> DefaultFilters { get; set; } = Array.Empty<string>();
+        public List<string> LoadedFilters { get; set; } = new();
+        public List<string> SavedFilters { get; } = new();
+        public bool ThrowOnLoad { get; set; }
+        public bool ThrowOnSave { get; set; }
+
+        public IReadOnlyList<string> GetDefaultFilters() => DefaultFilters;
+
+        public Task<IReadOnlyList<string>> LoadAsync(CancellationToken cancellationToken = default)
+        {
+            if (ThrowOnLoad)
+            {
+                throw new InvalidOperationException("加载失败测试");
+            }
+            return Task.FromResult<IReadOnlyList<string>>(LoadedFilters);
+        }
+
+        public Task SaveAsync(IReadOnlyCollection<string> filters, CancellationToken cancellationToken = default)
+        {
+            if (ThrowOnSave)
+            {
+                throw new InvalidOperationException("保存失败测试");
+            }
+            SavedFilters.Clear();
+            SavedFilters.AddRange(filters);
+            return Task.CompletedTask;
+        }
     }
 }
