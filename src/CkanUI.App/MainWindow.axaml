@@ -1,7 +1,47 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:CkanUI.ViewModels"
+        xmlns:local="using:CkanUI.App"
         x:Class="CkanUI.App.MainWindow"
-        Title="CKAN UI"
-        Width="1280" Height="800">
-  <TextBlock Text="CKAN UI" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        x:DataType="vm:ShellViewModel"
+        Title="{Binding Title}"
+        Width="1280" Height="800"
+        MinWidth="960" MinHeight="600">
+  <Window.DataTemplates>
+    <local:ViewLocator />
+  </Window.DataTemplates>
+
+  <Grid ColumnDefinitions="220,*">
+    <Border Grid.Column="0" Background="#1F2430">
+      <DockPanel LastChildFill="True">
+        <TextBlock DockPanel.Dock="Top"
+                   Text="CKAN"
+                   Foreground="White"
+                   FontSize="20"
+                   FontWeight="SemiBold"
+                   Margin="16,20,16,12" />
+        <ListBox x:Name="NavList"
+                 ItemsSource="{Binding NavItems}"
+                 SelectionChanged="OnNavSelectionChanged"
+                 Background="Transparent"
+                 BorderThickness="0"
+                 Margin="8,0">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:NavItem">
+              <TextBlock Text="{Binding Title}" Padding="4,6" />
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </Border>
+
+    <DockPanel Grid.Column="1" LastChildFill="True">
+      <Border DockPanel.Dock="Bottom"
+              Background="#F2F3F5"
+              Padding="12,6">
+        <TextBlock Text="{Binding StatusText}" FontSize="12" Opacity="0.8" />
+      </Border>
+      <ContentControl Content="{Binding CurrentPage}" />
+    </DockPanel>
+  </Grid>
 </Window>

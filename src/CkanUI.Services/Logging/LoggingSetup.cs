@@ -18,6 +18,15 @@ public static class LoggingSetup
     /// <summary>随包分发的配置文件名，与 Core 的 Logging.Initialize 查找的文件同名。</summary>
     public const string ConfigFileName = "log4net.xml";
 
+    /// <summary>
+    /// 随包 log4net.xml 里的目录占位符，配置前替换为 <c>CKANPathUtils.AppDataPath</c>。
+    /// 为什么不用 log4net 自带的 `${ENVVAR}` 展开：它在 Windows 上依赖 LOCALAPPDATA 环境变量，
+    /// 非 Windows 环境变量名不同、且解析失败时 XmlConfigurator 只写内部日志而不抛异常，
+    /// 结果是仓库保持"未配置"、日志静默丢失（实测 WinExe 下磁盘上什么都没有）。
+    /// 由代码注入路径可以跨平台且可测试。
+    /// </summary>
+    public const string LogDirectoryToken = "__CKAN_LOG_DIR__";
+
     // 配置动作必须串行：两个线程同时看到 Configured=false 会各配一次，appender 翻倍。
     private static readonly Lock Gate = new();
 
@@ -42,7 +51,7 @@ public static class LoggingSetup
         lock (Gate)
         {
             Directory.SetCurrentDirectory(AppContext.BaseDirectory);
-            ConfigureOnce(Path.Combine(AppContext.BaseDirectory, ConfigFileName));
+            ConfigureOnce(Path.Combine(AppContext.BaseDirectory, ConfigFileName), LogDirectory);
         }
     }
 
@@ -52,11 +61,28 @@ public static class LoggingSetup
         ArgumentException.ThrowIfNullOrEmpty(configPath);
         lock (Gate)
         {
-            ConfigureOnce(configPath);
+            ConfigureOnce(configPath, LogDirectory);
         }
     }
 
-    private static void ConfigureOnce(string configPath)
+    /// <summary>
+    /// 按指定配置文件初始化，并显式指定日志目录（覆盖 <see cref="LogDirectoryToken"/>）。
+    /// 测试用它把日志写进临时目录，避免污染真实 AppData。幂等。
+    /// </summary>
+    public static void Initialize(string configPath, string logDirectory)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(configPath);
+        ArgumentException.ThrowIfNullOrEmpty(logDirectory);
+        lock (Gate)
+        {
+            ConfigureOnce(configPath, logDirectory);
+        }
+    }
+
+    // 默认日志目录：与 Core 完全一致，落在 <LocalApplicationData>/CKAN 下。
+    private static string LogDirectory => CKAN.IO.CKANPathUtils.AppDataPath;
+
+    private static void ConfigureOnce(string configPath, string logDirectory)
     {
         var repo = Repository;
         if (repo.Configured)
@@ -73,7 +99,7 @@ public static class LoggingSetup
 
         try
         {
-            XmlConfigurator.Configure(repo, file);
+            ConfigureFromFile(repo, file, logDirectory);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException or TargetInvocationException)
         {
@@ -89,9 +115,64 @@ public static class LoggingSetup
         }
     }
 
+    /// <summary>
+    /// 读取配置文件文本，把 <see cref="LogDirectoryToken"/> 换成真实日志目录后再交给 log4net。
+    /// 含占位符时走内存解析，否则保持原有的按文件配置行为。
+    /// </summary>
+    private static void ConfigureFromFile(ILoggerRepository repo, FileInfo file, string directory)
+    {
+        var text = File.ReadAllText(file.FullName);
+        if (!text.Contains(LogDirectoryToken, StringComparison.Ordinal))
+        {
+            XmlConfigurator.Configure(repo, file);
+            return;
+        }
+
+        Directory.CreateDirectory(directory);
+        var expanded = text.Replace(LogDirectoryToken, directory.Replace(@"\", "/"), StringComparison.Ordinal);
+
+        var document = new System.Xml.XmlDocument();
+        document.LoadXml(expanded);
+        if (document.DocumentElement is not { } root)
+        {
+            throw new System.Xml.XmlException("log4net 配置缺少根元素");
+        }
+
+        XmlConfigurator.Configure(repo, root);
+    }
+
+    /// <summary>
+    /// 配置文件不可用时的兜底：优先用代码挂一个与 log4net.xml 等价的滚动文件 appender
+    /// （路径取自 Core 的 CKANPathUtils.AppDataPath，因此非 Windows 也能落盘）；
+    /// 连文件都建不出来才退回控制台 + WARN。
+    /// </summary>
     private static void ConfigureFallback(ILoggerRepository repo)
     {
-        BasicConfigurator.Configure(repo);
-        repo.Threshold = Level.Warn;
+        try
+        {
+            var directory = CKAN.IO.CKANPathUtils.AppDataPath;
+            Directory.CreateDirectory(directory);
+            var appender = new log4net.Appender.RollingFileAppender
+            {
+                Name = "CkanFile",
+                File = Path.Combine(directory, "CKAN.log"),
+                AppendToFile = true,
+                RollingStyle = log4net.Appender.RollingFileAppender.RollingMode.Size,
+                MaximumFileSize = "1MB",
+                MaxSizeRollBackups = 30,
+                StaticLogFileName = true,
+                LockingModel = new log4net.Appender.FileAppender.MinimalLock(),
+                Layout = new log4net.Layout.PatternLayout(
+                    "%date{yyyy-MM-dd HH:mm:ss} [%thread] %level %logger - %message%newline%exception"),
+            };
+            appender.ActivateOptions();
+            BasicConfigurator.Configure(repo, appender);
+            repo.Threshold = Level.Info;
+        }
+        catch (Exception)
+        {
+            BasicConfigurator.Configure(repo);
+            repo.Threshold = Level.Warn;
+        }
     }
 }

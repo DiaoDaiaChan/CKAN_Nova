@@ -5,7 +5,10 @@
      因为后者在 Linux/macOS 上不存在。 -->
 <log4net>
   <appender name="CkanFile" type="log4net.Appender.RollingFileAppender">
-    <file type="log4net.Util.PatternString" value="%envFolderPath{LocalApplicationData}/CKAN/CKAN.log" />
+    <!-- __CKAN_LOG_DIR__ 由 CkanUI.Services.Logging.LoggingSetup 在配置前替换为 CKANPathUtils.AppDataPath。
+         不要写成 log4net 的 ${ENVVAR}：跨平台环境变量名不同，且解析失败时 log4net 只记内部日志、
+         不抛异常，结果是整份配置静默失效、日志全部丢失。 -->
+    <file value="__CKAN_LOG_DIR__/CKAN.log" />
     <appendToFile value="true" />
     <rollingStyle value="Size" />
     <maximumFileSize value="1MB" />

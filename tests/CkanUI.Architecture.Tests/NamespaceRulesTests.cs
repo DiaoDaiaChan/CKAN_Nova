@@ -9,6 +9,9 @@ namespace CkanUI.Architecture.Tests;
 [TestFixture]
 public class NamespaceRulesTests
 {
+    private static readonly System.Text.RegularExpressions.Regex AvaloniaNamespace =
+        new(@"\bAvalonia\.[A-Za-z]", System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private static readonly string[] NonUiProjects =
     {
         "CkanUI.Core", "CkanUI.Services", "CkanUI.Services.Abstractions",
@@ -25,7 +28,10 @@ public class NamespaceRulesTests
                 File = Path.GetRelativePath(RepoRoot.Path, file),
                 Text = File.ReadAllText(file),
             }))
-            .Where(f => f.Text.Contains("Avalonia", StringComparison.Ordinal))
+            // 只认命名空间引用（Avalonia.Controls / Avalonia.Threading …）。
+            // 类名里出现 "Avalonia" 不算违规：CkanUI.Services 里的 AvaloniaUser 是 UI 侧 IUser 实现，
+            // 它只依赖 IDispatcher 抽象，并没有引用任何 Avalonia 类型。
+            .Where(f => AvaloniaNamespace.IsMatch(f.Text))
             .Select(f => f.File)
             .ToArray();
 

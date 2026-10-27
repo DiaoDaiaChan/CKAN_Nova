@@ -22,6 +22,9 @@ public sealed class TempWorkspace : IDisposable
         Directory.CreateDirectory(Path);
     }
 
+    /// <summary>仓库根（含 ckan-ui.sln 的目录）。</summary>
+    public static string RepositoryRootPath => RepositoryRoot.Value;
+
     /// <summary>本次测试独占的目录（已创建）。</summary>
     public string Path { get; }
 

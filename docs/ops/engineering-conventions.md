@@ -27,10 +27,11 @@ dotnet build src/CkanUI.Sfs/CkanUI.Sfs.csproj   # 只建自己那块（并行时
 
 ```bash
 dotnet run --project tests/CkanUI.TestRunner                       # 全部
-dotnet run --project tests/CkanUI.TestRunner -- Sfs Localization   # 只跑匹配的程序集
+dotnet run --project tests/CkanUI.TestRunner -- Services   # 过滤词匹配的是**测试项目名**，不是测试用例名
 ```
 
-新增测试程序集时，要在 `tests/CkanUI.TestRunner/Program.cs` 的 `assemblies` 数组里登记（该文件由 Lead 维护，改前说一声）。
+- Runner 从 `tests/<proj>/bin/<config>/net10.0/<proj>.dll` 发现程序集，因此新增测试项目**不用登记**，构建后自动可见。
+- **它不会替你重建测试项目**：改了测试源码必须先 `dotnet build ckan-ui.sln`，否则跑的还是旧 dll（实测踩过：改了断言却一直看到旧结果）。
 
 测试项目本身是标准 NUnit 类库，CI 上照常用 `dotnet test`。
 
@@ -62,10 +63,31 @@ dotnet run --project tests/CkanUI.TestRunner -- Sfs Localization   # 只跑匹�
 ## §8 里程碑口径
 
 M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 警告 ②启动到主窗口 ③日志落盘 ④`IUser` 弹框不死锁 ⑤CI 三平台绿 ⑥`tools/verify-layout` 全绿。
-当前进度：ENV-01 完成、ENV-02 完成、ENV-05 部分完成（9 个架构测试绿）。
+
+当前进度：ENV-01..02、ENV-04（CI 三平台 + verify-layout 全绿）、ENV-05（架构测试 9 条）、ARC-01（DI 组装根 + `IDispatcher`）、ARC-02/03（ViewLocator + Shell 导航）、ARC-04（三条崩溃兜底）、ARC-05（单实例 + `ckan://`）、INT-01..03（Core 接线 + 启动序列 + 服务注册）完成；全量测试 83 通过 0 失败。
+
+## §9 本沙箱的两个环境限制（不是代码缺陷，别去"修"）
+
+1. **`dotnet test` 不可用** → 见 §3，用 TestRunner。
+2. **由本沙箱拉起的 GUI 子进程无法写 `%LocalAppData%\CKAN`**：实测 `CkanUI.App.exe` 里任何路径（`CKAN.log`、`probe2.log`、`ckan-ui/probe3.log`）在该目录下都抛
+   `UnauthorizedAccessException: Access to the path 'C:\Users\<user>\AppData\Local\CKAN\CKAN.log' is denied`，
+   而同一 shell 里 bash 写同名目录成功；log4net 内部日志报
+   `ERROR [RollingFileAppender] ErrorCode: GenericFailure. Unable to acquire lock on file ... is denied`。
+   因此"启动后日志落盘"这条门禁**不能**靠手工起 GUI 验证，改由测试保证：
+   `tests/CkanUI.Services.Tests/ShippedLogConfigTests.cs` 用随包 `src/CkanUI.App/log4net.xml` + 临时目录跑通配置与落盘，
+   `LoggingSetupTests` 覆盖 fallback。真实 Windows 桌面环境下该路径可写（同一路径下 `config.json`/`repos/` 都由 Core 正常写入）。
+
+## §10 日志配置的两条硬约束
+
+1. 随包 `src/CkanUI.App/log4net.xml` 的 `file` 值必须是 `__CKAN_LOG_DIR__/CKAN.log`；
+   `LoggingSetup` 在配置前把占位符替换成 `CKAN.IO.CKANPathUtils.AppDataPath`。
+2. **不要**用 log4net 的 `${ENVVAR}`、更不要用 NLog 的 `%envFolderPath{...}`（log4net 根本没有这个语法）：
+   XML 解析失败时 `XmlConfigurator` 只写内部日志、不抛异常，结果是仓库保持"未配置"、日志静默丢失。
+   `LoggingSetupTests` + `ShippedLogConfigTests` 会拦住这类回归。
 
 ## 修订记录
 
 | 日期 | 版本 | 变更 |
 | --- | --- | --- |
 | 2026-10-27 | v1.0 | 新建：M0 开工时的工程约定，供并行 agent 共同遵守 |
+| 2026-10-27 | v1.1 | 补 §3 runner 不重建测试项目、§8 M0 进度、§9 沙箱环境限制、§10 日志配置硬约束 |
