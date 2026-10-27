@@ -292,4 +292,81 @@ public sealed class DialogsModDetailsTests
         Assert.That(vm.DescriptionText, Is.EqualTo("详细描述正文"));
         Assert.That(vm.MissingDependencyCount, Is.EqualTo(1));
     }
+
+    [Test]
+    public void ModDetails_StabilityToleranceOptions_ContainsFourChoices()
+    {
+        var vm = new ModDetailsViewModel(new DialogsFakeRepositoryService(), new DialogsFakeRegistryService());
+
+        Assert.That(vm.StabilityToleranceOptions, Has.Count.EqualTo(4));
+        Assert.That(vm.StabilityToleranceOptions[0].Tolerance, Is.Null);
+        Assert.That(vm.StabilityToleranceOptions[0].Label, Does.Contain("继承全局默认"));
+        Assert.That(vm.StabilityToleranceOptions[1].Tolerance, Is.EqualTo("stable"));
+        Assert.That(vm.StabilityToleranceOptions[2].Tolerance, Is.EqualTo("testing"));
+        Assert.That(vm.StabilityToleranceOptions[3].Tolerance, Is.EqualTo("development"));
+    }
+
+    [Test]
+    public void ModDetails_Select_LoadsModToleranceOverride()
+    {
+        var repository = new DialogsFakeRepositoryService { Current = Repository(Row()) };
+        string? queriedMod = null;
+        var vm = new ModDetailsViewModel(repository, new DialogsFakeRegistryService())
+        {
+            ToleranceOverrideProvider = id =>
+            {
+                queriedMod = id;
+                return "testing";
+            },
+        };
+
+        vm.Select("ExampleMod");
+
+        Assert.That(queriedMod, Is.EqualTo("ExampleMod"));
+        Assert.That(vm.SelectedStabilityToleranceOverride?.Tolerance, Is.EqualTo("testing"));
+    }
+
+    [Test]
+    public async Task ModDetails_ChangeSelectedTolerance_InvokesSetterAndNotifier()
+    {
+        var repository = new DialogsFakeRepositoryService { Current = Repository(Row()) };
+        string? savedMod = null;
+        string? savedTolerance = null;
+        string? notifiedMod = null;
+
+        var vm = new ModDetailsViewModel(repository, new DialogsFakeRegistryService())
+        {
+            ToleranceOverrideProvider = _ => null,
+            ToleranceOverrideSetter = (id, tol) =>
+            {
+                savedMod = id;
+                savedTolerance = tol;
+                return Task.FromResult(CkanUI.Services.Abstractions.OperationResult.Ok());
+            },
+            NotifyModRefreshed = id => notifiedMod = id,
+        };
+
+        vm.Select("ExampleMod");
+        Assert.That(vm.SelectedStabilityToleranceOverride?.Tolerance, Is.Null);
+
+        // 切换为 testing
+        var testingOption = vm.StabilityToleranceOptions.First(o => o.Tolerance == "testing");
+        vm.SelectedStabilityToleranceOverride = testingOption;
+
+        // 等待异步 setter
+        await Task.Delay(50);
+
+        Assert.That(savedMod, Is.EqualTo("ExampleMod"));
+        Assert.That(savedTolerance, Is.EqualTo("testing"));
+        Assert.That(notifiedMod, Is.EqualTo("ExampleMod"));
+
+        // 切换回 继承全局默认 (null)
+        var defaultOption = vm.StabilityToleranceOptions.First(o => o.Tolerance == null);
+        vm.SelectedStabilityToleranceOverride = defaultOption;
+
+        await Task.Delay(50);
+
+        Assert.That(savedMod, Is.EqualTo("ExampleMod"));
+        Assert.That(savedTolerance, Is.Null);
+    }
 }

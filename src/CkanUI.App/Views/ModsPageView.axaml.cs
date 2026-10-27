@@ -55,6 +55,27 @@ public partial class ModsPageView : UserControl
     private void WireContextMenuLaunchers()
     {
         if (ViewModel is not { } vm) return;
+        if (vm.LabelEditDialogLauncher is null)
+        {
+            vm.LabelEditDialogLauncher = async labelService =>
+            {
+                var labelVm = new CkanUI.ViewModels.Dialogs.LabelEditDialogViewModel(labelService);
+                await labelVm.InitializeAsync().ConfigureAwait(true);
+                var dialog = new CkanUI.App.Views.Dialogs.LabelEditDialogView { DataContext = labelVm };
+                var owner = TopLevel.GetTopLevel(this) as Window;
+                if (owner is not null && owner.IsVisible)
+                {
+                    await dialog.ShowDialog(owner).ConfigureAwait(true);
+                }
+                else
+                {
+                    var closed = new TaskCompletionSource();
+                    dialog.Closed += (_, _) => closed.TrySetResult();
+                    dialog.Show();
+                    await closed.Task.ConfigureAwait(true);
+                }
+            };
+        }
         if (vm.ClipboardWriter is null)
         {
             vm.ClipboardWriter = new Func<string, Task>(async text =>

@@ -291,6 +291,77 @@ public sealed class StabilityToleranceFile
         }
     }
 
+    /// <summary>
+    /// 同步读取单模组稳定性容差覆盖（供同步属性或查询场景快速读取，文件不存在或未配置返回 null）。
+    /// </summary>
+    public string? GetModToleranceSync(string gameDir, string identifier)
+    {
+        if (string.IsNullOrEmpty(gameDir) || string.IsNullOrEmpty(identifier))
+        {
+            return null;
+        }
+
+        var path = PathFor(gameDir);
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            var text = File.ReadAllText(path);
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return null;
+            }
+
+            using var document = JsonDocument.Parse(text);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            if (document.RootElement.TryGetProperty(ModKey, out var modDict) &&
+                modDict.ValueKind == JsonValueKind.Object &&
+                modDict.TryGetProperty(identifier, out var modTolerance) &&
+                modTolerance.ValueKind == JsonValueKind.String)
+            {
+                var val = modTolerance.GetString();
+                if (IsValidTolerance(val))
+                {
+                    return NormalizeTolerance(val);
+                }
+            }
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>便捷静态方法：读取某模组的单模组容差覆盖（null 表示未覆盖或继承全局）。</summary>
+    public static async Task<string?> GetModToleranceAsync(string gameDir, string identifier, CancellationToken cancellationToken = default)
+    {
+        var result = await new StabilityToleranceFile().GetModTolerance(gameDir, identifier, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess ? result.Value : null;
+    }
+
+    /// <summary>便捷静态方法：设置或移除某模组的单模组容差覆盖（tolerance 为 null 时移除）。</summary>
+    public static async Task<bool> SetModToleranceAsync(string gameDir, string identifier, string? tolerance, CancellationToken cancellationToken = default)
+    {
+        var result = await new StabilityToleranceFile().SetModTolerance(gameDir, identifier, tolerance, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess;
+    }
+
+    /// <summary>便捷静态方法：保存实例级总体稳定性容差。</summary>
+    public static async Task<bool> SaveOverallToleranceAsync(string gameDir, string overall, CancellationToken cancellationToken = default)
+    {
+        var result = await new StabilityToleranceFile().SaveOverallAsync(gameDir, overall, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess;
+    }
+
     private static async Task AtomicallyWriteAsync(string path, JsonObject root, CancellationToken cancellationToken)
     {
         var directory = Path.GetDirectoryName(path);

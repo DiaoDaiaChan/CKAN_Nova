@@ -361,6 +361,24 @@ public sealed partial class ModsPageViewModel : PageViewModel
     }
 
     /// <summary>清空标签组筛选（视图按钮；无筛选时禁用）。</summary>
+    /// <summary>
+    /// 打开标签管理对话框的启动器委托（由视图层注入，传入标签服务）。
+    /// </summary>
+    public Func<ILabelService, Task>? LabelEditDialogLauncher { get; set; }
+
+    /// <summary>
+    /// 打开标签管理对话框并刷新标签组筛选列表（F-23 / F-24 / UI-24b）。
+    /// </summary>
+    [RelayCommand]
+    private async Task ManageLabelsAsync()
+    {
+        if (LabelEditDialogLauncher is not null && _labels is not null)
+        {
+            await LabelEditDialogLauncher(_labels).ConfigureAwait(true);
+            RebuildLabelFilters();
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(HasLabelFilter))]
     private void ResetLabelFilters() => ClearLabelFilter();
 

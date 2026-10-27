@@ -682,7 +682,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel
         }
 
         var path = StabilityToleranceFile.PathFor(instance.GameDir);
-        var write = await _stability.WriteAsync(path, item.WireValue, ct).ConfigureAwait(true);
+        var write = await _stability.SaveOverallAsync(instance.GameDir, item.WireValue, ct).ConfigureAwait(true);
         if (!write.IsSuccess)
         {
             item.MarkFailed(write.Message ?? "保存稳定版容差失败", write.Detail, write.Retryable);

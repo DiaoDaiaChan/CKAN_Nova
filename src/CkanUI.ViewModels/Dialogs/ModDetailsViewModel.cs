@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.ViewModels.Pages.Settings;
 
 namespace CkanUI.ViewModels.Dialogs;
 
@@ -30,11 +31,85 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
         _registry = registry;
     }
 
+    private bool _isUpdatingTolerance;
+    private StabilityToleranceOption? _selectedStabilityToleranceOverride;
+
     /// <summary>
     /// 富字段提供者（按 Identifier 返回详情投影）。App 侧用 Core 的 <c>CkanModule</c> 适配；
     /// 为 null 时详情面板只显示快照里已有的字段。用属性而不是构造参数，避免要求容器注册新契约。
     /// </summary>
     public Func<string, ModDetailsSnapshot?>? DetailsProvider { get; set; }
+
+    /// <summary>
+    /// 单模组稳定性容忍度覆盖选项列表（继承全局默认 / stable / testing / development）。
+    /// </summary>
+    public IReadOnlyList<StabilityToleranceOption> StabilityToleranceOptions { get; } =
+    [
+        new(null, "继承全局默认"),
+        new("stable", "稳定版 (stable)"),
+        new("testing", "测试版 (testing)"),
+        new("development", "开发版 (development)"),
+    ];
+
+    /// <summary>
+    /// 稳定性容忍度覆盖区块标题。
+    /// </summary>
+    public string StabilityToleranceHeaderText => "稳定性容忍度覆盖";
+
+    /// <summary>
+    /// 当前选中的单模组稳定性容忍度覆盖选项。
+    /// </summary>
+    public StabilityToleranceOption? SelectedStabilityToleranceOverride
+    {
+        get => _selectedStabilityToleranceOverride;
+        set
+        {
+            if (Equals(_selectedStabilityToleranceOverride, value))
+            {
+                return;
+            }
+
+            _selectedStabilityToleranceOverride = value;
+            OnPropertyChanged();
+
+            if (_isUpdatingTolerance || _identifier is null)
+            {
+                return;
+            }
+
+            var tolerance = value?.Value;
+            if (ToleranceOverrideSetter is not null)
+            {
+                ToleranceOverrideSetter(_identifier, tolerance);
+            }
+            else if (!string.IsNullOrEmpty(GameDirectory))
+            {
+                _ = new StabilityToleranceFile().SetModTolerance(GameDirectory, _identifier, tolerance);
+            }
+
+            NotifyModRefreshed?.Invoke(_identifier);
+        }
+    }
+
+    /// <summary>
+    /// 单模组容差覆盖读取提供者（按 Identifier 回查当前模组的容差覆盖；返回 null 表示继承全局）。
+    /// </summary>
+    public Func<string, string?>? ToleranceOverrideProvider { get; set; }
+
+    /// <summary>
+    /// 单模组容差覆盖设置委托（Identifier, tolerance? -> void）。
+    /// </summary>
+    public Action<string, string?>? ToleranceOverrideSetter { get; set; }
+
+    /// <summary>
+    /// 模组状态刷新通知委托（当单模组容差切换后触发，通知外部模组列表重新投影或刷新兼容性状态）。
+    /// </summary>
+    public Action<string>? NotifyModRefreshed { get; set; }
+
+    /// <summary>
+    /// 当前游戏实例根目录（若未配置 ToleranceOverrideProvider/Setter，则直接用 StabilityToleranceFile 读写该目录）。
+    /// </summary>
+    public string? GameDirectory { get; set; }
 
     /// <summary>是否已 <see cref="Activate"/>（幂等）。</summary>
     public bool IsActive { get; private set; }
@@ -218,6 +293,7 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
         _row = null;
         _installed = null;
         _details = null;
+        _selectedStabilityToleranceOverride = null;
         Refresh();
     }
 
@@ -284,6 +360,29 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
         {
             // 换选中项且没有提供者时，旧的富字段必须作废，否则会串台。
             _details = null;
+        }
+
+        _isUpdatingTolerance = true;
+        try
+        {
+            string? currentOverride = null;
+            if (ToleranceOverrideProvider is not null)
+            {
+                currentOverride = ToleranceOverrideProvider(_identifier);
+            }
+            else if (!string.IsNullOrEmpty(GameDirectory))
+            {
+                currentOverride = new StabilityToleranceFile().GetModToleranceSync(GameDirectory, _identifier);
+            }
+
+            _selectedStabilityToleranceOverride = StabilityToleranceOptions.FirstOrDefault(opt =>
+                string.Equals(opt.Value, currentOverride, StringComparison.OrdinalIgnoreCase))
+                ?? StabilityToleranceOptions[0];
+            OnPropertyChanged(nameof(SelectedStabilityToleranceOverride));
+        }
+        finally
+        {
+            _isUpdatingTolerance = false;
         }
 
         Refresh();

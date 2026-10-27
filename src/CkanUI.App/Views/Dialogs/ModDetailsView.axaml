@@ -41,6 +41,18 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
 
+        <!-- 单模组稳定性容忍度覆盖（F-13 / UI-07 / UI-29） -->
+        <TextBlock Text="{Binding StabilityToleranceHeaderText}" FontWeight="SemiBold" Margin="0,6,0,0" />
+        <ComboBox ItemsSource="{Binding StabilityToleranceOptions}"
+                  SelectedItem="{Binding SelectedStabilityToleranceOverride, Mode=TwoWay}"
+                  HorizontalAlignment="Stretch">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:StabilityToleranceOption">
+              <TextBlock Text="{Binding Label}" FontSize="12" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+
         <!-- 描述（Markdown 原文；渲染由后续 Markdown 控件接入，UI-03 遗留项） -->
         <TextBlock Text="{Binding DescriptionHeaderText}" FontWeight="SemiBold" Margin="0,6,0,0" />
         <SelectableTextBlock Text="{Binding DescriptionText}" TextWrapping="Wrap" FontSize="12" />
