@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Controls</RootNamespace>
+    <AssemblyName>CkanUI.Controls</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CkanUI.Core/CkanUI.Core.csproj" />
+  </ItemGroup>
+</Project>

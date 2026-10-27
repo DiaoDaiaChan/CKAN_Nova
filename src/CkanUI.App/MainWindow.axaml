@@ -1,0 +1,7 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CkanUI.App.MainWindow"
+        Title="CKAN UI"
+        Width="1280" Height="800">
+  <TextBlock Text="CKAN UI" HorizontalAlignment="Center" VerticalAlignment="Center" />
+</Window>

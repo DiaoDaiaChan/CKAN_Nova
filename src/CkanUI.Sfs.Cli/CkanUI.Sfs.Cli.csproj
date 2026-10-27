@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Sfs.Cli</RootNamespace>
+    <AssemblyName>CkanUI.Sfs.Cli</AssemblyName>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CkanUI.Sfs/CkanUI.Sfs.csproj" />
+  </ItemGroup>
+</Project>

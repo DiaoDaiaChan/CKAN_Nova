@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CkanUI.ViewModels</RootNamespace>
+    <AssemblyName>CkanUI.ViewModels</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
+    <ProjectReference Include="../CkanUI.Core/CkanUI.Core.csproj" />
+    <ProjectReference Include="../CkanUI.Localization/CkanUI.Localization.csproj" />
+    <ProjectReference Include="../CkanUI.ModText/CkanUI.ModText.csproj" />
+  </ItemGroup>
+</Project>

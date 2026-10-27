@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>CkanUI.App</RootNamespace>
+    <AssemblyName>CkanUI.App</AssemblyName>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CkanUI.ViewModels/CkanUI.ViewModels.csproj" />
+    <ProjectReference Include="../CkanUI.Services/CkanUI.Services.csproj" />
+    <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
+    <ProjectReference Include="../CkanUI.Controls/CkanUI.Controls.csproj" />
+    <ProjectReference Include="../CkanUI.Platform/CkanUI.Platform.csproj" />
+    <ProjectReference Include="../CkanUI.Core/CkanUI.Core.csproj" />
+    <ProjectReference Include="../CkanUI.Localization/CkanUI.Localization.csproj" />
+    <ProjectReference Include="../CkanUI.ModText/CkanUI.ModText.csproj" />
+  </ItemGroup>
+
+</Project>

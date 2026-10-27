@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Localization</RootNamespace>
+    <AssemblyName>CkanUI.Localization</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(CkanCoreProject)" />
+  </ItemGroup>
+
+</Project>

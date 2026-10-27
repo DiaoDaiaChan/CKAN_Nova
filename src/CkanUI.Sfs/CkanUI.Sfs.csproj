@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Sfs</RootNamespace>
+    <AssemblyName>CkanUI.Sfs</AssemblyName>
+  </PropertyGroup>
+
+</Project>

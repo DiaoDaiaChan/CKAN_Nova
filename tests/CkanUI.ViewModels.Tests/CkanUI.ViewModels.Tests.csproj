@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CkanUI.ViewModels.Tests</RootNamespace>
+    <AssemblyName>CkanUI.ViewModels.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/CkanUI.ViewModels/CkanUI.ViewModels.csproj" />
+    <ProjectReference Include="../CkanUI.TestSupport/CkanUI.TestSupport.csproj" />
+  </ItemGroup>
+
+</Project>
