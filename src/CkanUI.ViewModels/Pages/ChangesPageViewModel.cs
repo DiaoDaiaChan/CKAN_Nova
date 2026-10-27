@@ -31,16 +31,19 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     private readonly IResidualCleanupDialogService? _residualCleanup;
     private readonly IInstanceService? _instances;
     private readonly IModDialogService? _modDialogs;
+    private readonly IUiSettingsStore? _settingsStore;
+    private readonly IRepositoryService? _repository;
 
     private CancellationTokenSource? _applyCts;
     private int _buildVersion;
     private bool _subscribed;
     private bool _gameRunning;
     private bool _ignoreGameRunning;
+    private bool _recommendationsHandled;
 
     /// <summary>设计器 / 无参构造：不连任何服务，只展示空状态。</summary>
     public ChangesPageViewModel()
-        : this(null, null, null, null, null, null, null, null)
+        : this(null, null, null, null, null, null, null, null, null, null)
     {
     }
 
@@ -53,7 +56,9 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         IDispatcher? dispatcher = null,
         IResidualCleanupDialogService? residualCleanup = null,
         IInstanceService? instances = null,
-        IModDialogService? modDialogs = null)
+        IModDialogService? modDialogs = null,
+        IUiSettingsStore? settingsStore = null,
+        IRepositoryService? repository = null)
     {
         _changeSets = changeSets;
         _installer = installer;
@@ -63,6 +68,8 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         _residualCleanup = residualCleanup;
         _instances = instances;
         _modDialogs = modDialogs;
+        _settingsStore = settingsStore;
+        _repository = repository;
     }
 
     /// <inheritdoc />
@@ -346,6 +353,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     /// <summary>灌入待计算的请求集合（去重，保留顺序），并立即重算。</summary>
     public void SetRequests(IReadOnlyCollection<ChangeRequest>? requests)
     {
+        _recommendationsHandled = false;
         var list = new List<ChangeRequest>(requests?.Count ?? 0);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (requests is not null)
@@ -371,6 +379,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     /// <summary>直接装载一份已算好的预览（供调用方复用 <c>BuildLocal</c> 结果或测试注入）。</summary>
     public void LoadPreview(ChangeSetPreview? preview)
     {
+        _recommendationsHandled = false;
         Preview = preview ?? ChangesFormatter.EmptyPreview;
         ExecutionPercent = 0;
         ResultText = string.Empty;
@@ -390,6 +399,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     /// <summary>清空请求集合并回到空状态。</summary>
     public void ClearRequests()
     {
+        _recommendationsHandled = false;
         Requests = Array.Empty<ChangeRequest>();
         Preview = ChangesFormatter.EmptyPreview;
         ExecutionPercent = 0;
@@ -670,7 +680,11 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
 
     /// <summary>重新计算变更集（含依赖解析与冲突检测）。</summary>
     [RelayCommand]
-    private Task RecomputeAsync() => RebuildCoreAsync();
+    private Task RecomputeAsync()
+    {
+        _recommendationsHandled = false;
+        return RebuildCoreAsync();
+    }
 
     /// <summary>游戏正在运行时仍然强制继续（用户已明确选择）。</summary>
     [RelayCommand(CanExecute = nameof(HasGameRunningWarning))]
@@ -719,6 +733,38 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
             return;
         }
 
+        // F-35: 推荐/建议/支持项交互式选择介入（变更集确认/提交前）
+        if (!_recommendationsHandled)
+        {
+            var suppress = _settingsStore?.Current.SuppressRecommendations ?? false;
+            if (!suppress && _modDialogs is not null)
+            {
+                var candidates = CollectRecommendationCandidates();
+                if (candidates.Count > 0)
+                {
+                    var selection = await PromptRecommendationsAsync(candidates, suppress).ConfigureAwait(true);
+                    if (selection is null)
+                    {
+                        // 若用户取消，则中止当前安装变更并给出明确状态提示
+                        State = ChangeExecutionState.Ready;
+                        StatusText = "已取消推荐模组选择，未执行任何操作。";
+                        ResultText = string.Empty;
+                        RefreshDerived();
+                        return;
+                    }
+
+                    _recommendationsHandled = true;
+                    await ApplyRecommendationSelectionAsync(selection).ConfigureAwait(true);
+
+                    // 若合并推荐项后产生了冲突，停止应用并提示用户
+                    if (HasConflicts || !CanApply)
+                    {
+                        return;
+                    }
+                }
+            }
+        }
+
         _applyCts = new CancellationTokenSource();
         var token = _applyCts.Token;
 
@@ -761,6 +807,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     {
         if (CanRetry)
         {
+            _recommendationsHandled = false;
             await ApplyAsync().ConfigureAwait(true);
         }
     }
@@ -853,8 +900,170 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     }
 
     /// <summary>
+    /// 收集待推荐模组候选列表（来自 Preview.Items 中的 Recommendation 项，以及正在安装模组的 Recommends/Suggests/Supports）。
+    /// </summary>
+    private IReadOnlyList<RecommendationCandidate> CollectRecommendationCandidates()
+    {
+        var result = new Dictionary<string, RecommendationCandidate>(StringComparer.OrdinalIgnoreCase);
+
+        // 1. 从当前变更预览中提取 Origin 为 Recommendation 的项
+        foreach (var item in Preview.Items.Where(i => i.Origin == ChangeOrigin.Recommendation))
+        {
+            result[item.Identifier] = new RecommendationCandidate(
+                Identifier: item.Identifier,
+                Name: item.Name,
+                Kind: RecommendationKind.Recommended,
+                Description: null,
+                IsSelectedByDefault: true);
+        }
+
+        // 2. 若注入了仓库服务，从待安装/变更的主模组扫描其 Recommends / Suggests / Supports
+        if (_repository is not null)
+        {
+            var available = _repository.Current.Available;
+            if (available.Count > 0)
+            {
+                var availableMap = available.ToDictionary(m => m.Identifier, StringComparer.OrdinalIgnoreCase);
+
+                var targetInstallIds = Preview.Items
+                    .Where(i => i.Action == ChangeAction.Install && i.Origin != ChangeOrigin.Recommendation)
+                    .Select(i => i.Identifier)
+                    .Concat(Requests.Where(r => r.Action == ChangeAction.Install).Select(r => r.Identifier))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var alreadyInPreview = Preview.Items
+                    .Select(i => i.Identifier)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var installId in targetInstallIds)
+                {
+                    if (!availableMap.TryGetValue(installId, out var modRow))
+                    {
+                        continue;
+                    }
+
+                    // Recommends
+                    if (modRow.Facts.Recommends is { Count: > 0 } recs)
+                    {
+                        foreach (var recId in recs)
+                        {
+                            if (!alreadyInPreview.Contains(recId) && !result.ContainsKey(recId))
+                            {
+                                var name = availableMap.TryGetValue(recId, out var recMod) ? recMod.Name : recId;
+                                var desc = availableMap.TryGetValue(recId, out var rMod) ? (rMod.Facts.Abstract ?? rMod.Facts.Description) : null;
+                                result[recId] = new RecommendationCandidate(
+                                    Identifier: recId,
+                                    Name: name,
+                                    Kind: RecommendationKind.Recommended,
+                                    Description: desc,
+                                    RelatedIdentifiers: [installId],
+                                    IsSelectedByDefault: true);
+                            }
+                        }
+                    }
+
+                    // Suggests
+                    if (modRow.Facts.Suggests is { Count: > 0 } sugs)
+                    {
+                        foreach (var sugId in sugs)
+                        {
+                            if (!alreadyInPreview.Contains(sugId) && !result.ContainsKey(sugId))
+                            {
+                                var name = availableMap.TryGetValue(sugId, out var sugMod) ? sugMod.Name : sugId;
+                                var desc = availableMap.TryGetValue(sugId, out var sMod) ? (sMod.Facts.Abstract ?? sMod.Facts.Description) : null;
+                                result[sugId] = new RecommendationCandidate(
+                                    Identifier: sugId,
+                                    Name: name,
+                                    Kind: RecommendationKind.Suggested,
+                                    Description: desc,
+                                    RelatedIdentifiers: [installId],
+                                    IsSelectedByDefault: false);
+                            }
+                        }
+                    }
+
+                    // Supports
+                    if (modRow.Facts.Supports is { Count: > 0 } sups)
+                    {
+                        foreach (var supId in sups)
+                        {
+                            if (!alreadyInPreview.Contains(supId) && !result.ContainsKey(supId))
+                            {
+                                var name = availableMap.TryGetValue(supId, out var supMod) ? supMod.Name : supId;
+                                var desc = availableMap.TryGetValue(supId, out var pMod) ? (pMod.Facts.Abstract ?? pMod.Facts.Description) : null;
+                                result[supId] = new RecommendationCandidate(
+                                    Identifier: supId,
+                                    Name: name,
+                                    Kind: RecommendationKind.SupportedBy,
+                                    Description: desc,
+                                    RelatedIdentifiers: [installId],
+                                    IsSelectedByDefault: false);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return result.Values.ToList();
+    }
+
+    private async Task ApplyRecommendationSelectionAsync(RecommendationSelection selection)
+    {
+        var selectedSet = selection.Identifiers.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // 如果用户在弹窗中取消勾选了原本在 Preview 中的 Recommendation 项，则将其剔除
+        var existingRecsToRemove = Preview.Items
+            .Where(i => i.Origin == ChangeOrigin.Recommendation && !selectedSet.Contains(i.Identifier))
+            .Select(i => i.Identifier)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var currentRequests = Requests
+            .Where(r => !existingRecsToRemove.Contains(r.Identifier))
+            .ToList();
+
+        bool changed = existingRecsToRemove.Count > 0;
+
+        foreach (var id in selection.Identifiers)
+        {
+            if (!currentRequests.Any(r => string.Equals(r.Identifier, id, StringComparison.OrdinalIgnoreCase)))
+            {
+                currentRequests.Add(new ChangeRequest(id, ChangeAction.Install));
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            Requests = currentRequests;
+            if (_changeSets is not null && Requests.Count > 0)
+            {
+                await RebuildCoreAsync().ConfigureAwait(true);
+            }
+            else
+            {
+                var items = Preview.Items
+                    .Where(i => !existingRecsToRemove.Contains(i.Identifier))
+                    .ToList();
+
+                foreach (var id in selection.Identifiers)
+                {
+                    if (!items.Any(i => string.Equals(i.Identifier, id, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        items.Add(new ChangeItemDto(id, id, ChangeAction.Install, null, null, ChangeOrigin.Recommendation, 0));
+                    }
+                }
+
+                Preview = new ChangeSetPreview(items, Preview.Conflicts, Preview.EstimatedDownloadBytes, Preview.Warnings);
+                State = Preview.Items.Count == 0 ? ChangeExecutionState.Idle : ChangeExecutionState.Ready;
+                RefreshDerived();
+            }
+        }
+    }
+
+    /// <summary>
     /// 若处于变更预览状态且有来自推荐的候选（ChangeOrigin.Recommendation），
-    /// 或调用方主动请求，向用户弹窗挑选推荐项（F-34 / UI-15）。
+    /// 或调用方主动请求，向用户弹窗挑选推荐项（F-35 / UI-15）。
     /// </summary>
     public async Task<RecommendationSelection?> PromptRecommendationsAsync(
         IReadOnlyList<RecommendationCandidate>? candidates = null,
@@ -872,32 +1081,28 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         }
         else
         {
-            // 从当前变更集预览中提取 Origin 为 Recommendation 的条目作为候选
-            var recItems = Preview.Items
-                .Where(i => i.Origin == ChangeOrigin.Recommendation)
-                .Select(i => new RecommendationCandidate(
-                    Identifier: i.Identifier,
-                    Name: i.Name,
-                    Kind: RecommendationKind.Recommended,
-                    IsSelectedByDefault: true))
-                .ToList();
-
-            if (recItems.Count == 0)
+            actualCandidates = CollectRecommendationCandidates();
+            if (actualCandidates.Count == 0)
             {
                 return null;
             }
-
-            actualCandidates = recItems;
         }
 
         var request = new RecommendationDialogRequest(
-            Message: "检测到推荐模组",
+            Message: "检测到推荐、建议或支持项，请选择是否追加安装：",
             Candidates: actualCandidates,
             SuppressRecommendations: suppressRecommendations);
 
         try
         {
-            return await _modDialogs.SelectRecommendationsAsync(request).ConfigureAwait(true);
+            var selection = await _modDialogs.SelectRecommendationsAsync(request).ConfigureAwait(true);
+            if (selection is not null && _settingsStore is not null && selection.SuppressRecommendations != _settingsStore.Current.SuppressRecommendations)
+            {
+                var updated = _settingsStore.Current with { SuppressRecommendations = selection.SuppressRecommendations };
+                _settingsStore.Save(updated);
+            }
+
+            return selection;
         }
         catch (Exception ex)
         {
@@ -907,7 +1112,8 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     }
 
     /// <summary>
-    /// 当安装或依赖解析遇到虚拟依赖时，通过弹窗请求用户选择具体实现模组（F-35 / UI-16）。
+    /// 当安装或依赖解析遇到虚拟依赖时，通过弹窗请求用户选择具体实现模组（F-34 / UI-16）。
+    /// 用户选择特定模组后，将其指定为目标安装项；若用户取消，则中止当前安装变更并给出明确状态提示。
     /// </summary>
     public async Task<VirtualModuleChoice?> SelectVirtualModuleAsync(VirtualModuleRequest request)
     {
@@ -924,13 +1130,71 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
 
         try
         {
-            return await _modDialogs.SelectVirtualModuleAsync(request).ConfigureAwait(true);
+            var choice = await _modDialogs.SelectVirtualModuleAsync(request).ConfigureAwait(true);
+            if (choice is not null)
+            {
+                // 用户选择特定模组后，将其指定为目标安装项并合并到当前请求集
+                var currentRequests = Requests.ToList();
+                if (!currentRequests.Any(r => string.Equals(r.Identifier, choice.Identifier, StringComparison.OrdinalIgnoreCase)))
+                {
+                    currentRequests.Add(new ChangeRequest(choice.Identifier, ChangeAction.Install));
+                    Requests = currentRequests;
+                }
+
+                if (_changeSets is not null && Requests.Count > 0)
+                {
+                    await RebuildCoreAsync().ConfigureAwait(true);
+                }
+                else
+                {
+                    var items = Preview.Items.ToList();
+                    if (!items.Any(i => string.Equals(i.Identifier, choice.Identifier, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        items.Add(new ChangeItemDto(choice.Identifier, choice.Name, ChangeAction.Install, null, null, ChangeOrigin.UserRequested, 0));
+                    }
+                    Preview = new ChangeSetPreview(items, Preview.Conflicts, Preview.EstimatedDownloadBytes, Preview.Warnings);
+                    State = Preview.Items.Count == 0 ? ChangeExecutionState.Idle : ChangeExecutionState.Ready;
+                    RefreshDerived();
+                }
+
+                StatusText = $"已选择「{choice.Name}」作为虚拟模组提供者。";
+            }
+            else
+            {
+                // 若用户取消，则中止当前安装变更并给出明确状态提示
+                State = ChangeExecutionState.Ready;
+                StatusText = "已取消选择虚拟模组提供者，未执行任何操作。";
+                ResultText = string.Empty;
+                RefreshDerived();
+            }
+
+            return choice;
         }
         catch (Exception ex)
         {
             _errors.Report(ex, "选择虚拟模组", "选择虚拟模组提供者时发生错误。");
             return null;
         }
+    }
+
+    /// <summary>
+    /// 当安装或依赖解析遇到虚拟依赖时介入处理并尝试继续应用（F-34）。
+    /// </summary>
+    public async Task<bool> ResolveVirtualModuleAndApplyAsync(VirtualModuleRequest request)
+    {
+        var choice = await SelectVirtualModuleAsync(request).ConfigureAwait(true);
+        if (choice is null)
+        {
+            return false;
+        }
+
+        if (CanApply)
+        {
+            await ApplyAsync().ConfigureAwait(true);
+            return State == ChangeExecutionState.Done;
+        }
+
+        return false;
     }
 
     // ---- 无服务时的空实现（设计器 / 无参构造）-----------------------------

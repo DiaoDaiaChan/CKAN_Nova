@@ -17,6 +17,8 @@ public sealed class ChangesPageViewModelTests
     private ChangesCountingErrorReporter _errors = null!;
     private FakeModDialogService _modDialogs = null!;
 
+    private FakeUiSettingsStore _settingsStore = null!;
+
     [SetUp]
     public void SetUp()
     {
@@ -24,12 +26,14 @@ public sealed class ChangesPageViewModelTests
         _installer = new ChangesFakeInstallerService();
         _errors = new ChangesCountingErrorReporter();
         _modDialogs = new FakeModDialogService();
+        _settingsStore = new FakeUiSettingsStore();
     }
 
     private ChangesPageViewModel Create(
         bool withInstaller = true,
         bool withChangeSets = true,
-        bool withModDialogs = false)
+        bool withModDialogs = false,
+        bool withSettingsStore = false)
     {
         var vm = new ChangesPageViewModel(
             withChangeSets ? _changeSets : null,
@@ -39,7 +43,8 @@ public sealed class ChangesPageViewModelTests
             new ChangesImmediateDispatcher(),
             null,
             null,
-            withModDialogs ? _modDialogs : null);
+            withModDialogs ? _modDialogs : null,
+            withSettingsStore ? _settingsStore : null);
         vm.Activate();
         return vm;
     }
@@ -515,4 +520,162 @@ public sealed class ChangesPageViewModelTests
         Assert.That(choice, Is.Null);
         Assert.That(vm.StatusText, Does.Contain("模组对话框服务未注入"));
     }
+    [Test]
+    public async Task ApplyAsync_WithRecommendations_PromptsUserAndMergesSelected()
+    {
+        var vm = Create(withModDialogs: true, withSettingsStore: true, withChangeSets: false);
+        vm.LoadPreview(ChangesFakes.Preview(
+            new[]
+            {
+                ChangesFakes.Item("a", "Alpha", ChangeAction.Install, origin: ChangeOrigin.UserRequested),
+                ChangesFakes.Item("rec1", "RecMod 1", ChangeAction.Install, origin: ChangeOrigin.Recommendation),
+                ChangesFakes.Item("rec2", "RecMod 2", ChangeAction.Install, origin: ChangeOrigin.Recommendation),
+            },
+            10_000));
+
+        // 用户只勾选 rec1，且未勾选抑制推荐
+        _modDialogs.NextRecommendationSelection = new RecommendationSelection(
+            new[] { "rec1" },
+            SuppressRecommendations: false);
+
+        await vm.ApplyCommand.ExecuteAsync(null);
+
+        // 验证弹出了推荐模组选择对话框
+        Assert.That(_modDialogs.SelectRecommendationsCallCount, Is.EqualTo(1));
+        // 验证安装器被调用，且安装器收到的变更集中包含选中的 rec1
+        Assert.That(_installer.ApplyCount, Is.EqualTo(1));
+        var appliedPreview = _installer.Received;
+        Assert.That(appliedPreview, Is.Not.Null);
+        Assert.That(appliedPreview!.Items.Any(i => i.Identifier == "rec1"), Is.True);
+        // 未勾选的 rec2 不应出现在最终执行的变更集中
+        Assert.That(appliedPreview.Items.Any(i => i.Identifier == "rec2"), Is.False);
+    }
+
+    [Test]
+    public async Task ApplyAsync_WhenRecommendationsCancelled_AbortsInstallation()
+    {
+        var vm = Create(withModDialogs: true, withSettingsStore: true);
+        vm.LoadPreview(ChangesFakes.Preview(
+            new[]
+            {
+                ChangesFakes.Item("a", "Alpha", ChangeAction.Install, origin: ChangeOrigin.UserRequested),
+                ChangesFakes.Item("rec1", "RecMod 1", ChangeAction.Install, origin: ChangeOrigin.Recommendation),
+            },
+            10_000));
+
+        // 用户在推荐模组对话框中点击取消（返回 null）
+        _modDialogs.NextRecommendationSelection = null;
+
+        await vm.ApplyCommand.ExecuteAsync(null);
+
+        // 验证调用了推荐选择弹窗
+        Assert.That(_modDialogs.SelectRecommendationsCallCount, Is.EqualTo(1));
+        // 验证安装器未被调用（流程中止）
+        Assert.That(_installer.ApplyCount, Is.Zero);
+        // 状态提示中止操作
+        Assert.That(vm.StatusText, Does.Contain("已取消推荐模组选择"));
+        Assert.That(vm.State, Is.EqualTo(ChangeExecutionState.Ready));
+    }
+
+    [Test]
+    public async Task ApplyAsync_WhenSuppressRecommendationsChecked_PersistsToSettingsStore()
+    {
+        var vm = Create(withModDialogs: true, withSettingsStore: true);
+        vm.LoadPreview(ChangesFakes.Preview(
+            new[]
+            {
+                ChangesFakes.Item("a", "Alpha", ChangeAction.Install, origin: ChangeOrigin.UserRequested),
+                ChangesFakes.Item("rec1", "RecMod 1", ChangeAction.Install, origin: ChangeOrigin.Recommendation),
+            },
+            10_000));
+
+        // 用户勾选了 SuppressRecommendations: true
+        _modDialogs.NextRecommendationSelection = new RecommendationSelection(
+            new[] { "rec1" },
+            SuppressRecommendations: true);
+
+        await vm.ApplyCommand.ExecuteAsync(null);
+
+        // 验证 SuppressRecommendations 同步持久化到了 IUiSettingsStore
+        Assert.That(_settingsStore.Current.SuppressRecommendations, Is.True);
+        Assert.That(_settingsStore.Saved.Count, Is.GreaterThanOrEqualTo(1));
+        Assert.That(_settingsStore.Saved.Last().SuppressRecommendations, Is.True);
+    }
+
+    [Test]
+    public async Task ApplyAsync_WhenSuppressRecommendationsAlreadyTrue_DoesNotPrompt()
+    {
+        _settingsStore.With(new UiSettings { SuppressRecommendations = true });
+        var vm = Create(withModDialogs: true, withSettingsStore: true);
+        vm.LoadPreview(ChangesFakes.Preview(
+            new[]
+            {
+                ChangesFakes.Item("a", "Alpha", ChangeAction.Install, origin: ChangeOrigin.UserRequested),
+                ChangesFakes.Item("rec1", "RecMod 1", ChangeAction.Install, origin: ChangeOrigin.Recommendation),
+            },
+            10_000));
+
+        await vm.ApplyCommand.ExecuteAsync(null);
+
+        // 已设置抑制推荐时，不应弹出推荐对话框，直接执行安装
+        Assert.That(_modDialogs.SelectRecommendationsCallCount, Is.Zero);
+        Assert.That(_installer.ApplyCount, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task SelectVirtualModule_OnUserChoice_AddsChosenProviderAndUpdatesStatus()
+    {
+        var vm = Create(withModDialogs: true, withChangeSets: false);
+        vm.LoadPreview(ChangesFakes.Preview(
+            new[] { ChangesFakes.Item("a", "Alpha", ChangeAction.Install) },
+            1_000));
+
+        var expectedChoice = new VirtualModuleChoice("ProviderMod", "Provider Mod");
+        _modDialogs.NextVirtualModuleChoice = expectedChoice;
+
+        var request = new VirtualModuleRequest(
+            Message: "多个模组提供虚拟依赖 VirtualMod",
+            Providers: new[]
+            {
+                new VirtualModuleCandidate("ProviderMod", "Provider Mod", "Description", true),
+                new VirtualModuleCandidate("AltMod", "Alt Mod", "Description", false),
+            },
+            Dependency: "VirtualMod");
+
+        var choice = await vm.SelectVirtualModuleAsync(request);
+
+        Assert.That(choice, Is.EqualTo(expectedChoice));
+        Assert.That(_modDialogs.SelectVirtualModuleCallCount, Is.EqualTo(1));
+        // 变更项中应该追加了选中的提供者模组
+        Assert.That(vm.Preview.Items.Any(i => i.Identifier == "ProviderMod"), Is.True);
+        Assert.That(vm.StatusText, Does.Contain("已选择「Provider Mod」作为虚拟模组提供者"));
+    }
+
+    [Test]
+    public async Task SelectVirtualModule_OnUserCancel_AbortsAndShowsStatus()
+    {
+        var vm = Create(withModDialogs: true);
+        vm.LoadPreview(ChangesFakes.Preview(
+            new[] { ChangesFakes.Item("a", "Alpha", ChangeAction.Install) },
+            1_000));
+
+        // 用户取消选择
+        _modDialogs.NextVirtualModuleChoice = null;
+
+        var request = new VirtualModuleRequest(
+            Message: "请选择提供者",
+            Providers: new[]
+            {
+                new VirtualModuleCandidate("ProviderMod", "Provider Mod"),
+            },
+            Dependency: "VirtualMod");
+
+        var choice = await vm.SelectVirtualModuleAsync(request);
+
+        Assert.That(choice, Is.Null);
+        Assert.That(_modDialogs.SelectVirtualModuleCallCount, Is.EqualTo(1));
+        Assert.That(vm.StatusText, Does.Contain("已取消选择虚拟模组提供者，未执行任何操作"));
+        Assert.That(vm.State, Is.EqualTo(ChangeExecutionState.Ready));
+    }
 }
+

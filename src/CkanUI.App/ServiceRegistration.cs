@@ -86,7 +86,9 @@ public static class ServiceRegistration
             sp.GetService<IDispatcher>(),
             sp.GetService<IResidualCleanupDialogService>(),
             sp.GetRequiredService<IInstanceService>(),
-            sp.GetService<IModDialogService>()));
+            sp.GetService<IModDialogService>(),
+            sp.GetService<IUiSettingsStore>(),
+            sp.GetService<IRepositoryService>()));
         services.AddSingleton<IChangeRequestSink>(sp => sp.GetRequiredService<ChangesPageViewModel>());
         services.AddSingleton(sp => new ModsPageViewModel(
             sp.GetRequiredService<IRepositoryService>(),
