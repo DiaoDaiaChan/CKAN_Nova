@@ -1,0 +1,36 @@
+// Kerbalism 的 adapter 骨架（本批只做"能加载、能显示、不写坏"的最小集合）。
+// 取证状态见 README.md：只确认了它有 GameData/KerbalismConfig/Settings.cfg 这个设置文件，
+// 语法形态（是否有根节点、缩进、注释风格）尚未核验，因此先按 custom 语法只读展示。
+// custom 布局在本项目的规则里必须 mode=readonly（见 docs/design/mod-config-adapters.md）。
+{
+  "schemaVersion": 1,
+  "id": "kerbalism",
+  "name": "Kerbalism",
+  "homepage": "https://github.com/Kerbalism/Kerbalism",
+  "docUrl": "https://github.com/Kerbalism/Kerbalism/wiki",
+
+  "match": {
+    "ckanIdentifiers": ["Kerbalism"],
+    "paths": ["GameData/KerbalismConfig/Settings.cfg"],
+    "caseInsensitive": true
+  },
+
+  "modVersionRange": [">=3.0"],
+
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/KerbalismConfig/Settings.cfg",
+      "layout": "custom",
+      "mode": "readonly",
+      "onMissing": "readonly",
+      "readonlyReason": "骨架阶段：该文件的语法形态尚未核验，为避免写坏配置，先只读展示原始内容",
+      "label": "KerbalismConfig/Settings.cfg"
+    }
+  ],
+
+  "descriptionFromComment": true,
+  "groups": { "fromCommentHeadings": true },
+  "fields": [],
+  "unlisted": "preserve"
+}

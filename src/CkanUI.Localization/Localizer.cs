@@ -6,20 +6,28 @@ namespace CkanUI.Localization;
 /// <summary>
 /// 字符串目录 + 运行时切语言 + 缺译回退（16 篇 §4.2，UI-13"切语言无需改代码"）。
 /// 实现要点：
-/// ①回退链 = 当前语言 → 父语言（zh-CN→zh）→ 回退语言（en-US，含其父语言）→ key 本身，回退到 key 时记 Warn；
+/// ①三层解析：界面语言包（含回退链，zh-CN→zh→en-US）→ <see cref="IStringSource"/> 补充层
+///   （元数据包 / Core 运行时资源）→ key 本身；回退到 key 时记 Warn、按 key 计数、按层计数；
 /// ②切语言时把"已应用回退链"的扁平字典整体建好再原子替换，<see cref="Get"/> 无锁读取，
 ///   因此切换与并发读取安全（UI 线程不会读到半成品）；
-/// ③JSON 损坏、缺文件、未随包语言一律降级不抛，最坏结果显示 key。
+/// ③JSON 损坏、缺文件、未随包语言、补充层抛异常一律降级不抛，最坏结果显示 key。
+/// 补充层结果按 (语言, 键) 缓存，命中与未命中都缓存，避免每次取文案都重探一层。
 /// </summary>
-public sealed class Localizer : ILocalizer
+public sealed class Localizer : ILocalizer, ILocalizationDiagnostics
 {
     private readonly Dictionary<string, LanguagePack> _packs;
     private readonly ILocalizationLog _log;
     private readonly string _fallbackLocale;
     private readonly bool _applyThreadCulture;
+    private readonly IReadOnlyList<IStringSource> _sources;
+    private readonly bool _pseudo;
     private readonly object _switchGate = new();
     private readonly ConcurrentDictionary<string, int> _missing = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _warned = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, int> _layerHits = new(StringComparer.Ordinal);
+
+    // 补充层结果缓存：值型 key 是 (语言, 键)，null 表示"这一层也没命中"，防止反复探测。
+    private readonly ConcurrentDictionary<(string Locale, string Key), string?> _sourceCache = new();
     private readonly IReadOnlyList<LocaleInfo> _localeInfos;
 
     // 解析快照：整体替换，读侧无锁。volatile 保证 SetCulture 之后所有线程立刻看到新字典。
@@ -51,6 +59,10 @@ public sealed class Localizer : ILocalizer
         _log = options?.ResolveLog() ?? NullLocalizationLog.Instance;
         _applyThreadCulture = options?.ApplyThreadCulture ?? true;
         _fallbackLocale = NormalizeLocale(options?.FallbackLocale ?? "en-US");
+        _pseudo = options?.PseudoLocalize ?? false;
+        _sources = options?.Sources is { Count: > 0 } configured
+            ? configured.Where(s => s is not null).ToArray()
+            : Array.Empty<IStringSource>();
 
         _packs = new Dictionary<string, LanguagePack>(StringComparer.OrdinalIgnoreCase);
         foreach (var pack in packs)
@@ -84,11 +96,30 @@ public sealed class Localizer : ILocalizer
     public IReadOnlyDictionary<string, int> MissingKeys => _missing;
 
     /// <inheritdoc />
+    public IReadOnlyDictionary<string, int> LayerHits => _layerHits;
+
+    /// <inheritdoc />
+    public bool IsPseudoLocalized => _pseudo;
+
+    /// <summary>当前语言下由回退语言（en-US）顶上的键数量，供缺译清单估算真实翻译进度。</summary>
+    public int FallbackKeyCount => _snapshot.FallbackKeyCount;
+
+    /// <summary>
+    /// 清空缺键计数、告警去重表、层命中计数与来源结果缓存，返回被释放的"未命中/告警"条目数。
+    /// </summary>
+    /// <returns>缺键条目数 + 告警去重条目数（历史语义：层命中是正常事件，不计入"被释放"）。</returns>
+    /// <remarks>
+    /// 返回值刻意只统计缺键与告警：调用方（设置页"重新统计"）关心的是"有多少问题被清掉"，
+    /// 把层命中算进去会让"一切正常"时也返回非零，失去诊断意义。层命中表仍一并清空，
+    /// 需要读数的一方在调用前自行取 <see cref="LayerHits"/> 快照。
+    /// </remarks>
     public int ClearDiagnostics()
     {
         var released = _missing.Count + _warned.Count;
         _missing.Clear();
         _warned.Clear();
+        _layerHits.Clear();
+        _sourceCache.Clear();
         return released;
     }
 
@@ -107,7 +138,14 @@ public sealed class Localizer : ILocalizer
 
         if (_snapshot.Strings.TryGetValue(key, out var value))
         {
+            BumpHits("pack");
             return value;
+        }
+
+        // 第二层：元数据包 / Core 资源。放在语言包全链之后、回退键之前（任务口径的三层顺序）。
+        if (TryResolveFromSources(key, out var extra))
+        {
+            return extra;
         }
 
         ReportMissing(key);
@@ -150,7 +188,14 @@ public sealed class Localizer : ILocalizer
 
         if (_snapshot.Strings.TryGetValue(key, out var found))
         {
+            BumpHits("pack");
             value = found;
+            return true;
+        }
+
+        if (TryResolveFromSources(key, out var extra))
+        {
+            value = extra;
             return true;
         }
 
@@ -219,7 +264,29 @@ public sealed class Localizer : ILocalizer
             }
         }
 
-        return new ResolvedSnapshot(locale, ToCulture(locale), resolved);
+        // 回退键计数：当前语言链(zh-CN→zh)覆盖到的键数从总数里扣掉，剩下的就是 en-US 顶上的部分。
+        // 用集合而不是逐键记 origin，只为省一份 per-key 字典（快照会被整表塞进资源字典）。
+        var currentChain = new List<string>();
+        AppendCultureChain(currentChain, locale);
+        var currentKeys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var name in currentChain)
+        {
+            if (_packs.TryGetValue(name, out var pack))
+            {
+                currentKeys.UnionWith(pack.Strings.Keys);
+            }
+        }
+
+        if (_pseudo)
+        {
+            // 伪本地化只改显示：快照是显示层，所以在这里一次性变形，Get 侧不必重复判断。
+            foreach (var key in resolved.Keys.ToArray())
+            {
+                resolved[key] = PseudoLocalization.Transform(resolved[key]);
+            }
+        }
+
+        return new ResolvedSnapshot(locale, ToCulture(locale), resolved, Math.Max(0, resolved.Count - currentKeys.Count));
     }
 
     /// <summary>当前语言 → 父语言链 → 回退语言 → 回退语言的父语言链（不跨语言，不做机器翻译）。</summary>
@@ -307,8 +374,62 @@ public sealed class Localizer : ILocalizer
         return infos;
     }
 
+    /// <summary>
+    /// 探测补充层（L2 元数据包 / L3 Core 资源）：命中即返回，未命中缓存 null 以免反复探测。
+    /// 任何一层抛异常都只记一次 Warn 并跳过该层——模组译文包损坏不能让界面打不开。
+    /// </summary>
+    private bool TryResolveFromSources(string key, out string value)
+    {
+        value = string.Empty;
+        if (_sources.Count == 0)
+        {
+            return false;
+        }
+
+        var cacheKey = (_snapshot.Locale, key);
+        if (_sourceCache.TryGetValue(cacheKey, out var cached))
+        {
+            if (cached is null)
+            {
+                return false;
+            }
+
+            value = cached;
+            return true;
+        }
+
+        foreach (var source in _sources)
+        {
+            string found;
+            try
+            {
+                if (!source.TryGet(cacheKey.Locale, key, out found) || string.IsNullOrEmpty(found))
+                {
+                    continue;
+                }
+            }
+            catch (Exception ex)
+            {
+                WarnOnce("source:" + source.Name + ":" + ex.GetType().Name,
+                    $"[i18n] 字符串来源「{source.Name}」探测失败：{ex.GetType().Name}: {ex.Message}；已跳过该层。");
+                continue;
+            }
+
+            _sourceCache[cacheKey] = found;
+            BumpHits("source:" + source.Name);
+            value = found;
+            return true;
+        }
+
+        _sourceCache[cacheKey] = null;
+        return false;
+    }
+
+    private void BumpHits(string layer) => _layerHits.AddOrUpdate(layer, 1, static (_, count) => count + 1);
+
     private void ReportMissing(string key)
     {
+        BumpHits("missing");
         _missing.AddOrUpdate(key, 1, static (_, count) => count + 1);
         if (_warned.TryAdd("key:" + key, 0))
         {
@@ -358,5 +479,9 @@ public sealed class Localizer : ILocalizer
     private static string CurrentUiLocale() => CultureInfo.CurrentUICulture.Name;
 
     /// <summary>解析结果快照（不可变；整体替换以实现无锁读）。</summary>
-    private sealed record ResolvedSnapshot(string Locale, CultureInfo Culture, IReadOnlyDictionary<string, string> Strings);
+    /// <param name="Locale">快照对应的语言。</param>
+    /// <param name="Culture">对应的 CultureInfo。</param>
+    /// <param name="Strings">已应用回退链的扁平字典（只含语言包层，补充层按需探测）。</param>
+    /// <param name="FallbackKeyCount">由回退语言顶上的键数量（诊断用）。</param>
+    private sealed record ResolvedSnapshot(string Locale, CultureInfo Culture, IReadOnlyDictionary<string, string> Strings, int FallbackKeyCount);
 }

@@ -9,10 +9,17 @@ public static class LocalizerFactory
     /// <summary>内嵌语言包的资源名前缀（见 CkanUI.Localization.csproj 的 LogicalName）。</summary>
     private const string EmbeddedPrefix = "CkanUI.Localization.Packs.";
 
+    /// <summary>伪本地化开关的环境变量名（CI 截图与手工验收用，见 16 篇 §7.3）。</summary>
+    public const string PseudoLocaleEnvironmentVariable = "CKAN_UI_PSEUDO_LOCALE";
+
     /// <summary>只用内嵌语言包创建实例。</summary>
     /// <param name="options">装配选项。</param>
-    public static Localizer Create(LocalizationOptions? options = null) =>
-        new(LoadEmbedded(options?.ResolveLog() ?? NullLocalizationLog.Instance), options);
+    public static Localizer Create(LocalizationOptions? options = null)
+    {
+        var effective = ApplyEnvironmentDefaults(options);
+        var log = effective?.ResolveLog() ?? NullLocalizationLog.Instance;
+        return new Localizer(LoadEmbedded(log), effective);
+    }
 
     /// <summary>磁盘目录优先、内嵌兜底创建实例（同 locale 时磁盘版本覆盖内嵌版本）。</summary>
     /// <param name="directory">语言包目录（如随包的 i18n/packs）。</param>
@@ -36,7 +43,46 @@ public static class LocalizerFactory
             merged[pack.Locale] = pack;
         }
 
-        return new Localizer(merged.Values, options);
+        return new Localizer(merged.Values, ApplyEnvironmentDefaults(options));
+    }
+
+    /// <summary>
+    /// 把环境变量里的调试开关折进选项（当前只有伪本地化）。返回同一个实例便于调用方串联。
+    /// </summary>
+    /// <remarks>
+    /// 为什么走环境变量：伪本地化是"截图验收时才开"的调试开关，若做成配置项就要经配置层、
+    /// 设置页、存盘格式三道变更；而它必须能进发布版（QA 在客户机器上也要能开）又不能被误开，
+    /// 环境变量正好满足"默认关、临时开、不进用户配置"。
+    /// </remarks>
+    /// <param name="options">装配选项；null 表示调用方没给，此时不做任何改写。</param>
+    private static LocalizationOptions? ApplyEnvironmentDefaults(LocalizationOptions? options)
+    {
+        if (options is null || options.PseudoLocalize)
+        {
+            return options;
+        }
+
+        var raw = Environment.GetEnvironmentVariable(PseudoLocaleEnvironmentVariable);
+        if (raw is null)
+        {
+            return options;
+        }
+
+        var value = raw.Trim();
+        if (value.Length == 0)
+        {
+            return options;
+        }
+
+        if (value.Equals("1", StringComparison.Ordinal) ||
+            value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("on", StringComparison.OrdinalIgnoreCase))
+        {
+            options.PseudoLocalize = true;
+        }
+
+        return options;
     }
 
     /// <summary>读取程序集内嵌的全部语言包。</summary>

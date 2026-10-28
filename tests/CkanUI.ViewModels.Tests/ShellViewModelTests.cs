@@ -19,10 +19,10 @@ public sealed class ShellViewModelTests
     }
 
     [Test]
-    public void NavItems_HasSeventeenConfiguredItems()
+    public void NavItems_HasNineteenConfiguredItems()
     {
         var vm = new ShellViewModel();
-        Assert.That(vm.NavItems.Count, Is.EqualTo(17));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(19));
         Assert.That(vm.NavItems[0].Key, Is.EqualTo("mods"));
         Assert.That(vm.NavItems[1].Key, Is.EqualTo("content"));
         Assert.That(vm.NavItems[2].Key, Is.EqualTo("changes"));
@@ -39,7 +39,10 @@ public sealed class ShellViewModelTests
         Assert.That(vm.NavItems[13].Key, Is.EqualTo("installhistory"));
         Assert.That(vm.NavItems[14].Key, Is.EqualTo("plugins"));
         Assert.That(vm.NavItems[15].Key, Is.EqualTo("modtext"));
-        Assert.That(vm.NavItems[16].Key, Is.EqualTo("settings"));
+        Assert.That(vm.NavItems[16].Key, Is.EqualTo("logs"));
+        Assert.That(vm.NavItems[17].Key, Is.EqualTo("settings"));
+        // Mod 配置页追加在末尾：插在中间会让上面全部下标位移，测试按位置断言导航顺序是刻意的。
+        Assert.That(vm.NavItems[18].Key, Is.EqualTo("modconfig"));
     }
 
     [Test]
@@ -57,7 +60,10 @@ public sealed class ShellViewModelTests
         Assert.That(vm.NavItems[13].Title, Is.EqualTo("T:Ui_NavRail_InstallHistory"));
         Assert.That(vm.NavItems[14].Title, Is.EqualTo("T:Ui_NavRail_Plugins"));
         Assert.That(vm.NavItems[15].Title, Is.EqualTo("T:Ui_NavRail_ModText"));
-        Assert.That(vm.NavItems.Count, Is.EqualTo(17));
+        Assert.That(vm.NavItems[16].Title, Is.EqualTo("T:Ui_NavRail_Logs"));
+        Assert.That(vm.NavItems[17].Title, Is.EqualTo("T:Ui_NavRail_Settings"));
+        Assert.That(vm.NavItems[18].Title, Is.EqualTo("T:Ui_NavRail_ModConfig"));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(19));
     }
 
     [Test]

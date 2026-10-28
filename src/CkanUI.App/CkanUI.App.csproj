@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- M6 / PKG-03：版本号唯一真源在同目录 Version.props，本文件不写版本号。
+       放在项目目录而不是仓库根，是因为根层条目由 verify-layout H-01 白名单管（不复用 build/ 目录）；
+       也因此只有本项目导入它，不会波及其它 11 个项目与上游 CKAN 的构建参数。 -->
+  <Import Project="$(MSBuildThisFileDirectory)Version.props" Condition="Exists('$(MSBuildThisFileDirectory)Version.props')" />
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <RootNamespace>CkanUI.App</RootNamespace>
@@ -7,6 +12,8 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+    <!-- M6 / PKG-02：exe 内嵌图标，资源管理器与任务栏显示品牌图标（16/32/48/64/128/256 六档）。 -->
+    <ApplicationIcon>Assets/ckan.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,6 +43,10 @@
     <Content Include="log4net.xml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <!-- 16 篇 §7：语言包随包分发（i18n/packs），磁盘版本优先于内嵌版本，便于用户替换译文 -->
     <Content Include="../../i18n/packs/*.json" Link="i18n/packs/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- M6 / PKG-02：便携包按 19 篇 §2 的目录布局随包带 assets\（图标源文件与未来的主题资源）。
+         CopyToPublishDirectory 与 CopyToOutputDirectory 一起显式写：只写后者时 publish 是否带上
+         取决于 SDK 的默认继承规则，显式声明才不受 SDK 行为变化影响。 -->
+    <Content Include="Assets/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

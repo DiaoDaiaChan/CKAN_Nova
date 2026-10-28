@@ -80,6 +80,50 @@ public sealed class InstallHistoryRecorder
         }
     }
 
+    /// <summary>删除时间戳为 <paramref name="timestamp"/> 的那次操作；返回删掉的行数，或失败原因。</summary>
+    public OperationResult<int> DeleteAt(DateTimeOffset timestamp)
+    {
+        var store = TryOpenStore();
+        if (store is null)
+        {
+            return OperationResult<int>.Fail("当前没有可用的游戏实例，无法删除安装历史。");
+        }
+
+        try
+        {
+            return OperationResult<int>.Ok(store.DeleteAt(timestamp));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return OperationResult<int>.Fail(
+                "删除安装历史失败，请检查实例目录的写权限后重试。",
+                ex.Message,
+                retryable: true);
+        }
+    }
+
+    /// <summary>清空当前实例的安装历史；返回清掉的行数，或失败原因。</summary>
+    public OperationResult<int> Clear()
+    {
+        var store = TryOpenStore();
+        if (store is null)
+        {
+            return OperationResult<int>.Fail("当前没有可用的游戏实例，无法清空安装历史。");
+        }
+
+        try
+        {
+            return OperationResult<int>.Ok(store.Clear());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return OperationResult<int>.Fail(
+                "清空安装历史失败，请检查实例目录的写权限后重试。",
+                ex.Message,
+                retryable: true);
+        }
+    }
+
     /// <summary>
     /// 追加一条历史（条目行 + 快照行，同一时间戳）。时间戳由本类取，保证两行严格一致。
     /// </summary>

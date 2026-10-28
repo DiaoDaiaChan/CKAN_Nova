@@ -8,6 +8,8 @@ using CkanUI.App.Tray;
 using CkanUI.Localization;
 using CkanUI.Platform.SingleInstance;
 using CkanUI.Services.Abstractions;
+using CkanUI.Services.Abstractions.Logs;
+using CkanUI.Services.Logs;
 using CkanUI.ViewModels;
 using CkanUI.ViewModels.Shell;
 using log4net;
@@ -32,6 +34,9 @@ public sealed partial class App : Application
     private Theming.BackgroundHost? _background;
     private Plugins.PluginToolItemHost? _pluginTools;
     private TrayHost? _tray;
+    private ILogStore? _logStore;
+    private LogPipeline? _logPipeline;
+    private LogExceptionRouter? _logRouter;
     private bool _shutdownDone;
 
     /// <summary>当前应用实例（供单实例转发把外部参数送进窗口）。</summary>
@@ -50,6 +55,11 @@ public sealed partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             _services = ServiceRegistration.Build(() => desktop.MainWindow);
+
+            // 日志域（M8 / 14 篇 §3.2）：Program 里已跑过 LoggingSetup.Initialize()，这里把缓冲挂到 log4net 仓库。
+            // 顺序不能反 —— Install() 会把仓库标记为 Configured，抢在 LoggingSetup 之前就会跳过 log4net.xml。
+            // 文件 appender 建不出来只是降级（缓冲照常工作），绝不能因为写不了盘就不启动。
+            InstallLogPipeline();
 
             // 语言包必须在窗口显示前灌进资源字典，否则首帧会看到裸 key（i18n-guide §6.2）。
             var localizer = _services.GetRequiredService<ILocalizer>();
@@ -104,6 +114,12 @@ public sealed partial class App : Application
             _radius.Install();
 
             var shell = _services.GetRequiredService<ShellViewModel>();
+
+            // 日志抽屉（UI-LOG-01）：外壳负责挂载位置与跳转，抽屉自己只管缓冲与徽标。
+            // 事件而不是直接依赖导航服务 —— 抽屉是被外壳实例化的，不该反过来认识外壳的导航实现。
+            shell.LogDrawer = _services.GetRequiredService<CkanUI.ViewModels.Pages.Logs.LogDrawerViewModel>();
+            shell.LogDrawer.OpenPageRequested += (_, _) => shell.NavigateCommand.Execute("logs");
+
             var window = new MainWindow { DataContext = shell };
             desktop.MainWindow = window;
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
@@ -168,6 +184,38 @@ public sealed partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
+    /// <summary>挂日志缓冲与未捕获异常路由（14 篇 §3.2）：失败只降级，不阻断启动。</summary>
+    private void InstallLogPipeline()
+    {
+        var services = _services!;
+        _logStore = services.GetRequiredService<ILogStore>();
+        _logPipeline = new LogPipeline(_logStore);
+        var install = _logPipeline.Install();
+        if (!install.IsSuccess)
+        {
+            Log.Warn($"日志缓冲未挂载：{install.Message}");
+        }
+        else if (_logPipeline.Warnings.Count > 0)
+        {
+            Log.Warn($"日志落盘降级：{string.Join("；", _logPipeline.Warnings)}");
+        }
+
+        // AppDomain / TaskScheduler 由路由器自己挂；UI 线程的那一路只能在 App 层挂（服务层不引用 Avalonia）。
+        _logRouter = new LogExceptionRouter(_logStore);
+        _logRouter.Attach();
+        // 全限定：App 层同时引用了 CkanUI.Services.Abstractions.IDispatcher（服务层自有抽象），
+        // 直接 using Avalonia.Threading 会让两个 IDispatcher 撞名（CS0104）。
+        Avalonia.Threading.Dispatcher.UIThread.UnhandledException += OnDispatcherUnhandledException;
+    }
+
+    /// <summary>UI 线程未捕获异常也进看板（14 篇 §3.2 ③）：只记录，是否优雅退出仍由 Avalonia 决定。</summary>
+    private void OnDispatcherUnhandledException(
+        object? sender,
+        Avalonia.Threading.DispatcherUnhandledExceptionEventArgs e)
+    {
+        _logRouter?.Report(e.Exception, "ui-dispatcher");
+    }
+
     private async Task StartAsync(ShellViewModel shell)
     {
         var services = _services!;
@@ -211,6 +259,13 @@ public sealed partial class App : Application
         }
         finally
         {
+            if (_logRouter is not null)
+            {
+                Avalonia.Threading.Dispatcher.UIThread.UnhandledException -= OnDispatcherUnhandledException;
+                _logRouter.Dispose();
+            }
+
+            _logPipeline?.Dispose();
             _pluginTools?.Dispose();
             _tray?.Dispose();
             _background?.Dispose();

@@ -1,6 +1,14 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+  <!--
+    全局字体回退链（16 篇 §7.1）：From Window 继承到所有子控件，中/日/韩文案不会退化成方框。
+    用 DynamicResource 而非字面量，方便主题层将来整体换字体（20 篇 P-09 只缩放字号，不改字体）。
+  -->
+  <Style Selector="Window">
+    <Setter Property="FontFamily" Value="{DynamicResource CkanUiFontFamily}" />
+  </Style>
+
   <!-- ========================================== -->
   <!-- 全局按钮现代化 Fluent 交互与平滑过渡动画      -->
   <!-- ========================================== -->

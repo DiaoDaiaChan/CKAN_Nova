@@ -98,7 +98,11 @@ public sealed partial class ShellViewModel : ObservableObject
             new("installhistory", _translate("Ui_NavRail_InstallHistory"), "History"),
             new("plugins", _translate("Ui_NavRail_Plugins"), "Puzzle"),
             new("modtext", _translate("Ui_NavRail_ModText"), "Translate"),
-            new("settings", _translate("Ui_NavRail_Settings"), "Settings")
+            new("logs", _translate("Ui_NavRail_Logs"), "Bug"),
+            new("settings", _translate("Ui_NavRail_Settings"), "Settings"),
+            // Mod 配置页（M9）：追加在末尾而不是插进中间——既有测试按数组下标断言导航项，
+            // 插中间会让后面每一项整体位移。
+            new("modconfig", _translate("Ui_NavRail_ModConfig"), "Sliders")
         };
         NavItems = new ObservableCollection<NavItem>(_baseNavItems);
         _statusText = _translate("Ui_Common_Status_Ready");
@@ -131,6 +135,16 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>浮层是否接线；供视图决定要不要挂载（空引用时避免渲染空壳）。</summary>
     public bool HasOperationQueue => OperationQueue is not null;
+
+    /// <summary>
+    /// 底部日志抽屉（14 篇 §4.1 / UI-LOG-01）。由 App 在窗口建好前回填；为空时视图不渲染抽屉。
+    /// </summary>
+    /// <remarks>
+    /// 之所以挂在外壳而不是各页面：抽屉要跨页面常驻（下载失败时长在设置页也要能看到最近错误），
+    /// 页面自己实例化就会出现「换个标签页历史就没了」。抽屉只认 ILogStore，与外壳无反向依赖。
+    /// </remarks>
+    [ObservableProperty]
+    private Pages.Logs.LogDrawerViewModel? _logDrawer;
 
     /// <summary>页面导航异步命令。</summary>
     public IAsyncRelayCommand<string> NavigateCommand { get; }
@@ -337,7 +351,9 @@ public sealed partial class ShellViewModel : ObservableObject
         ["Ui_NavRail_InstallHistory"] = "安装历史",
         ["Ui_NavRail_Plugins"] = "插件",
         ["Ui_NavRail_ModText"] = "模组翻译",
+        ["Ui_NavRail_Logs"] = "日志",
         ["Ui_NavRail_Settings"] = "设置",
+        ["Ui_NavRail_ModConfig"] = "Mod 配置",
         ["Ui_Common_Nav_Back"] = "后退",
         ["Ui_Common_Nav_Forward"] = "前进",
         ["Ui_Common_Status_Ready"] = "就绪",

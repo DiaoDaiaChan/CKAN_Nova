@@ -46,6 +46,13 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     /// <summary>弹窗呈现委托，解耦视图层。</summary>
     public Func<UpdateAvailableDialogViewModel, Task>? ShowUpdateDialogAsync { get; set; }
 
+    /// <summary>
+    /// 界面语言候选的提供器（组装根按「实际发过包」的语种注入）。
+    /// 为什么走委托：候选来自本地化层，而 VM 不引用本地化层；
+    /// 若这里硬编码一堆没发过包的语种，用户选完重启界面不会有任何变化，属于「设置了却没效果」的假 UI。
+    /// </summary>
+    public Func<IReadOnlyList<(string Code, string Display)>>? LocaleChoicesProvider { get; set; }
+
     /// <summary>创建设置页视图模型。</summary>
     /// <param name="settings">设置服务（Core 配置的唯一出口）。</param>
     /// <param name="uiSettings">UI 自有设置存储（外观类设置）。</param>
@@ -74,11 +81,52 @@ public sealed partial class SettingsPageViewModel : PageViewModel
         CheckForUpdatesCommand = new AsyncRelayCommand(CheckForUpdatesAsync);
 
         BuildGroups();
+        // 构造期提供器还没注入，先按随包发布的语种给默认候选；组装根稍后再调一次 RefreshLocaleChoices。
+        RefreshLocaleChoices();
 
         foreach (var item in _items)
         {
             item.PropertyChanged += OnItemPropertyChanged;
         }
+    }
+
+    /// <summary>
+    /// 重建「界面语言」候选。组装根拿到已发布的语言包后调用；重复调用是幂等的。
+    /// </summary>
+    public void RefreshLocaleChoices()
+    {
+        var item = _items.FirstOrDefault(candidate =>
+            string.Equals(candidate.Key, SettingsKeyNames.Locale, StringComparison.Ordinal));
+        item?.SetChoices(BuildLocaleChoices(LocaleChoicesProvider?.Invoke()));
+    }
+
+    /// <summary>随包实际发布的语种：没有语言包就不列，避免出现选了没反应的选项。</summary>
+    private static readonly (string Code, string Display)[] ShippedLocales =
+    {
+        ("zh-CN", "简体中文"),
+        ("en-US", "English"),
+    };
+
+    /// <summary>构造语言候选：第 0 项固定「跟随系统」（空 code 表示不写 Locale，交给系统区域兜底）。</summary>
+    private static IReadOnlyList<SettingChoice> BuildLocaleChoices(
+        IReadOnlyList<(string Code, string Display)>? fromProvider)
+    {
+        var choices = new List<SettingChoice> { new(string.Empty, "跟随系统") };
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { string.Empty };
+
+        // 提供器可能给出空列表或重复项：退回到随包语种，并逐个去重、跳过空 code。
+        var source = fromProvider is { Count: > 0 } ? fromProvider : ShippedLocales;
+        foreach (var (code, display) in source)
+        {
+            if (string.IsNullOrWhiteSpace(code) || !seen.Add(code))
+            {
+                continue;
+            }
+
+            choices.Add(new SettingChoice(code, string.IsNullOrWhiteSpace(display) ? code : display));
+        }
+
+        return choices;
     }
 
     /// <inheritdoc />
@@ -528,15 +576,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel
                 SettingGroupKey.Appearance,
                 description: "语言切换需要重启界面后生效（F-53）。",
                 requiresRestart: true,
-                choices: new[]
-                {
-                    new SettingChoice(string.Empty, "跟随系统"),
-                    new SettingChoice("zh-CN", "简体中文"),
-                    new SettingChoice("zh-TW", "繁體中文"),
-                    new SettingChoice("en-US", "English"),
-                    new SettingChoice("ja-JP", "日本語"),
-                    new SettingChoice("de-DE", "Deutsch"),
-                }),
+                choices: BuildLocaleChoices(fromProvider: null)),
             new SettingItemViewModel(
                 SettingsKeyNames.Density,
                 "界面密度",

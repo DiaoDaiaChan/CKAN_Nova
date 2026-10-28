@@ -4,7 +4,8 @@ namespace CkanUI.Localization;
 /// 新版 UI 文案键常量（16 篇 §5.1 键规范：<c>Ui.&lt;Area&gt;_&lt;Element&gt;[_&lt;Qualifier&gt;]</c>，
 /// 区域词表取规格原文的 11 个：NavRail / ManageMods / ModInfo / Changeset / Settings / Instances /
 /// Repos / Log / Saves / ModConfig / Tray / Common）。
-/// 与语言包的对应关系由 LanguagePackTests 校验：常量必须在 zh-CN 与 en-US 两套包里都存在。
+/// 与语言包的对应关系由 ShippedPacksTests（常量 ⇒ 两套包都有译文）与 LocalizationKeyDriftTests
+/// （包里有键但常量表没有 ⇒ 死键）双向校验，改这里必须同步 i18n/packs/{zh-CN,en-US}.json。
 /// </summary>
 public static class LocalizationKeys
 {
@@ -58,8 +59,14 @@ public static class LocalizationKeys
     /// <summary>导航栏：模组汉化/文本。</summary>
     public const string NavRailModText = "Ui_NavRail_ModText";
 
+    /// <summary>导航栏：日志与诊断（M8 / 14 篇 §4.1 / UI-LOG-01）。</summary>
+    public const string NavRailLogs = "Ui_NavRail_Logs";
+
     /// <summary>导航栏：设置。</summary>
     public const string NavRailSettings = "Ui_NavRail_Settings";
+
+    /// <summary>导航栏：Mod 配置适配层（M9）。</summary>
+    public const string NavRailModConfig = "Ui_NavRail_ModConfig";
 
     /// <summary>页面标题：模组管理。</summary>
     public const string ManageModsTitle = "Ui_ManageMods_Title";

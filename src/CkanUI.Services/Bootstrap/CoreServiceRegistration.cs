@@ -20,8 +20,13 @@ public static class CoreServiceRegistration
     /// 注册 UI 侧的 <see cref="IUser"/> 实现。App 层不能引用 CKAN 命名空间，
     /// 所以由这里把具体的 <c>AvaloniaUser</c> 转成 Core 的 IUser 契约。
     /// </summary>
+    /// <param name="factory">
+    /// 返回 UI 侧 IUser 的工厂。参数类型是 IUser 而不是具体的 <c>AvaloniaUser</c>：
+    /// App 常在它外面再套一层装饰器（如 LoggingUser，把 Core 的进度与警告送进结构化日志缓冲），
+    /// 钉死具体类型会逼调用方绕开 DI 自行拼装或重复注册 IUser。
+    /// </param>
     public static IServiceCollection AddCkanUser(this IServiceCollection services,
-                                                Func<IServiceProvider, Users.AvaloniaUser> factory)
+                                                Func<IServiceProvider, IUser> factory)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(factory);

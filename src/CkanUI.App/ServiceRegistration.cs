@@ -14,11 +14,14 @@ using CkanUI.Services.Abstractions;
 using CkanUI.Services.Bootstrap;
 using CkanUI.Services.Diagnostics;
 using CkanUI.Services.Lifecycle;
+using CkanUI.Services.Logs;
 using CkanUI.Services.Users;
 using CkanUI.ViewModels;
 using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Operations;
+using CkanUI.Services.Abstractions.Logs;
 using CkanUI.ViewModels.Pages;
+using CkanUI.ViewModels.Pages.Logs;
 using CkanUI.ViewModels.Pages.Settings;
 using CkanUI.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
@@ -67,11 +70,30 @@ public static class ServiceRegistration
             ownerProvider,
             sp.GetRequiredService<Func<string, Task>>()));
 
+        // 日志域（M8 / 14 篇）：缓冲是唯一真源，页面、抽屉、导出包都从它读。
+        // 规则表允许外置覆盖，缺失或 JSON 坏掉时分类器静默回落内置 20 条规则（并保留 LastLoadError）。
+        services.AddSingleton<ILogClassifier>(_ => new LogClassifier(
+            Path.Combine(AppContext.BaseDirectory, "Themes", "log-rules.json")));
+        services.AddSingleton<ILogStore>(sp => new LogStore(sp.GetService<ILogClassifier>()));
+        services.AddSingleton<ILogQueryService>(sp => new LogQueryService(sp.GetRequiredService<ILogStore>()));
+        services.AddSingleton<ILogRedactor>(_ => new LogRedactor());
+        // 诊断包里的非日志事实由 App 采（版本/主题/实例数/仓库数），服务层只编排与脱敏。
+        services.AddSingleton<IDiagnosticFactsProvider, Diagnostics.AppDiagnosticFactsProvider>();
+        services.AddSingleton<ILogBundleService>(sp => new LogBundleService(
+            sp.GetRequiredService<ILogStore>(),
+            sp.GetRequiredService<ILogRedactor>(),
+            sp.GetService<IDiagnosticFactsProvider>()));
+        services.AddSingleton<ILegacyLogImporter>(sp => new LegacyLogImporter(sp.GetRequiredService<ILogStore>()));
+
         // IUser 的 UI 形态：Core 的同步回调会在这里被拦到 UI 线程（INT-03）。
-        services.AddCkanUser(sp => new AvaloniaUser(
-            sp.GetRequiredService<IDispatcher>(),
-            sp.GetRequiredService<IDialogService>(),
-            sp.GetRequiredService<IErrorReporter>()));
+        // 外面再套一层 LoggingUser：Core 的进度与警告进结构化缓冲（Kind=User、进度按整十百分点限流）。
+        // 装饰器只写缓冲、不重复写 log4net —— AvaloniaUser.RaiseMessage 已经写过一遍，双写会让 UI 看板重复计数。
+        services.AddCkanUser(sp => new LoggingUser(
+            new AvaloniaUser(
+                sp.GetRequiredService<IDispatcher>(),
+                sp.GetRequiredService<IDialogService>(),
+                sp.GetRequiredService<IErrorReporter>()),
+            sp.GetRequiredService<ILogStore>()));
 
         // Core 类型：由 Services 层从 Core 的 Autofac 容器转接过来。
         services.AddCkanCoreServices();
@@ -117,6 +139,8 @@ public static class ServiceRegistration
             var page = ActivatorUtilities.CreateInstance<InstancesPageViewModel>(sp);
             page.ResourceRelease = sp.GetRequiredService<IResourceReleaseService>();
             page.UiSettings = sp.GetRequiredService<IUiSettingsStore>();
+            // F-48 自动计时：实例页启动/退出时记账，服务端与 IPlayTimeService 是同一单例（见 ServiceCollectionExtensions）。
+            page.PlayTime = sp.GetService<IPlayTimeTracker>();
             return page;
         });
         services.AddSingleton<SavesPageViewModel>();
@@ -128,6 +152,16 @@ public static class ServiceRegistration
         services.AddSingleton<InstallHistoryPageViewModel>();
         services.AddSingleton<PluginsPageViewModel>();
         services.AddSingleton<ModTextPageViewModel>();
+        // Mod 配置页（M9 / CFG-01..03）：目前只读骨架，编辑控件是 CFG-04 的活；
+        // DI 能满足四参构造（IModConfigService / IAdapterCatalog / Func<string,string> 都有注册，
+        // renderers 留空由 VM 自建默认注册表），所以不需要工厂。
+        services.AddSingleton<ModConfigPageViewModel>();
+        // 日志页与底部抽屉（M8 / LOG-01..05）：两者共享同一个 ILogStore 单例，抽屉挂在日志页之上
+        // （LogDrawerViewModel 内部另建一页供抽屉里的小时间线用），不重建日志页的状态。
+        services.AddSingleton<LogPageViewModel>();
+        services.AddSingleton(sp => new LogDrawerViewModel(
+            sp.GetRequiredService<ILogStore>(),
+            sp.GetRequiredService<ILogQueryService>()));
 
         // 分层资源释放的参与方（18 篇 §3）：L1 丢页面行投影，L0 放字形与背景位图。
         // 三个页面按窄接口登记，服务层只认识 IPageProjectionTrim，不认识任何具体页面。
@@ -148,19 +182,38 @@ public static class ServiceRegistration
         {
             var page = ActivatorUtilities.CreateInstance<SettingsPageViewModel>(sp);
             page.Diagnostics.CoreVersionProvider = () => CoreVersionInfo.ReleaseVersion;
+
+            // F-53：语言候选只列真正随包发布的语种（i18n/packs 里有的那些）。
+            // 硬编码 zh-TW/ja-JP/de-DE 会让用户选完重启后毫无变化——那是假 UI，宁可少列。
+            // 显示名取「本地名（代码）」，不拼覆盖率百分比，避免把 100% 误读成翻译质量。
+            var localizer = sp.GetRequiredService<ILocalizer>();
+            page.LocaleChoicesProvider = () => localizer.AvailableLocales
+                .Select(locale => (Code: locale.Name, Display: $"{locale.NativeName}（{locale.Name}）"))
+                .ToList();
+            page.RefreshLocaleChoices();
             return page;
         });
 
         // 本地化：磁盘语言包优先、内嵌兜底；App 侧把告警接到 log4net（docs/ops/i18n-guide.md §6.1）。
-        services.AddSingleton<ILocalizer>(_ =>
+        services.AddSingleton<ILocalizer>(sp =>
         {
             var packs = Path.Combine(AppContext.BaseDirectory, "i18n", "packs");
+            var log = new Log4NetLocalizationLog();
+
+            // 界面语言的唯一真源是 IUiSettingsStore.Locale（工程约定 §12），未设置时跟随系统 UI 语言。
+            // 这里必须显式 Load()：Localizer 是窗口显示前第一个被解析的单例，早于各 ThemeHost 的 Load 调用，
+            // 此时 Current 还是默认值，读它等于永远拿不到用户上次选的语言。
+            var locale = sp.GetService<IUiSettingsStore>()?.Load().Locale;
+
             return LocalizerFactory.CreateFromDirectory(packs, new LocalizationOptions
             {
-                Log = new Log4NetLocalizationLog(),
+                Log = log,
                 FallbackLocale = "en-US",
+                DefaultLocale = string.IsNullOrWhiteSpace(locale) ? null : locale,
                 // 只切 CurrentUICulture，数字/日期仍跟随系统区域（16 篇 §2.3 / Q3）。
                 ApplyThreadCulture = true,
+                // D11 的 L3：Core. 前缀键转发到上游 CKAN 的 209 条资源；资源缺失时该层静默降级（16 篇 §3）。
+                Sources = [new CoreResourceStringSource(log)],
             });
         });
 
@@ -229,7 +282,9 @@ public static class ServiceRegistration
         ["dedup"] = typeof(DedupPageViewModel),
         ["installhistory"] = typeof(InstallHistoryPageViewModel),
         ["plugins"] = typeof(PluginsPageViewModel),
+        ["logs"] = typeof(LogPageViewModel),
         ["modtext"] = typeof(ModTextPageViewModel),
+        ["modconfig"] = typeof(ModConfigPageViewModel),
         ["settings"] = typeof(SettingsPageViewModel),
     };
 

@@ -93,6 +93,65 @@ public sealed class InstallHistoryStore
         }
     }
 
+    /// <summary>
+    /// 删除时间戳为 <paramref name="timestamp"/> 的那一次操作（条目行 + 快照行），返回删掉的行数。
+    /// </summary>
+    /// <remarks>
+    /// 无法解析的行原样保留：它们可能是更高版本写的、或人手工改过的，
+    /// 静默丢弃等于替用户删掉看不懂的数据。
+    /// </remarks>
+    /// <exception cref="IOException">写盘失败（磁盘满、被占用）。调用方负责转成可重试的失败结果。</exception>
+    public int DeleteAt(DateTimeOffset timestamp)
+    {
+        lock (_gate)
+        {
+            var raw = ReadRawLines();
+            var kept = new List<string>(raw.Count);
+            var removed = 0;
+            foreach (var line in raw)
+            {
+                if (InstallHistoryLine.TryParse(line, out var parsed) && parsed is not null && parsed.At == timestamp)
+                {
+                    removed++;
+                    continue;
+                }
+
+                kept.Add(line);
+            }
+
+            if (removed == 0)
+            {
+                return 0;
+            }
+
+            WriteAtomic(kept);
+            return removed;
+        }
+    }
+
+    /// <summary>
+    /// 清空历史，返回清掉的行数。
+    /// </summary>
+    /// <remarks>
+    /// 写空文件而不是删文件：目录权限更稳（删文件在某些同步盘/杀软下会失败），
+    /// 也保留「文件在 = 历史已初始化」的语义。
+    /// </remarks>
+    /// <exception cref="IOException">写盘失败（磁盘满、被占用）。调用方负责转成可重试的失败结果。</exception>
+    public int Clear()
+    {
+        lock (_gate)
+        {
+            var raw = ReadRawLines();
+            if (raw.Count == 0)
+            {
+                return 0;
+            }
+
+            WriteAtomic([]);
+            return raw.Count;
+        }
+    }
+
     private int CountRawLines()
     {
         lock (_gate)

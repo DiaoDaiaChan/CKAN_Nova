@@ -4,6 +4,7 @@
         xmlns:local="using:CkanUI.App"
         xmlns:conv="using:CkanUI.App.Converters"
         xmlns:ops="using:CkanUI.App.Views.Operations"
+        xmlns:logs="using:CkanUI.App.Views.Logs"
         x:Class="CkanUI.App.MainWindow"
         x:DataType="vm:ShellViewModel"
         Title="{Binding Title}"
@@ -146,6 +147,18 @@
         <TextBlock Text="{Binding StatusText}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}"
                    FontSize="{DynamicResource CkanFontSizeCaption}" />
+      </Border>
+
+      <!--
+        底部日志抽屉（14 篇 §4.1 / UI-LOG-01）：跨页面常驻，收起时只留一条标题条。
+        半屏高度由代码按窗口实际尺寸算（MainWindow.UpdateLogDrawerHeight）——Avalonia 绑定
+        做不了数值缩放，写死像素在高 DPI 下要么挡掉整个工作区，要么只剩一行。
+        先声明的 Dock=Bottom 贴得更低，所以抽屉落在状态栏之上。
+      -->
+      <Border x:Name="LogDrawerHost"
+              DockPanel.Dock="Bottom"
+              IsVisible="{Binding LogDrawer, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <logs:LogDrawerView DataContext="{Binding LogDrawer}" />
       </Border>
       <!-- 页面切换动画在代码里按动效 token 装配（CrossFade.Duration 不是 Avalonia 属性，绑不了资源） -->
       <TransitioningContentControl x:Name="PageHost" Content="{Binding CurrentPage}" />

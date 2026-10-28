@@ -1,0 +1,23 @@
+﻿CKAN UI {{VERSION}} 第三方组件与许可证清单
+================================================
+
+分发形式：{{FLAVOR_NAME}}（未签名）。
+本文件只做汇总，许可证原文以各组件上游仓库为准。
+
+组件                            许可证      上游仓库
+-------------------------------- ----------- ------------------------------------------
+CKAN (CKAN Core)                 MIT         https://github.com/KSP-CKAN/CKAN
+Avalonia                         MIT         https://github.com/AvaloniaUI/Avalonia
+FluentAvaloniaUI                 MIT         https://github.com/amwx/FluentAvalonia
+Avalonia.Controls.DataGrid       MIT         https://github.com/AvaloniaUI/Avalonia
+CommunityToolkit.Mvvm            MIT         https://github.com/CommunityToolkit/dotnet
+Microsoft.Extensions.*           MIT         https://github.com/dotnet/runtime
+log4net                          Apache-2.0  https://github.com/apache/logging-log4net
+SkiaSharp / HarfBuzzSharp        MIT         https://github.com/mono/SkiaSharp
+.NET 运行时 / Windows Desktop    MIT         https://github.com/dotnet/runtime
+
+说明：
+1. CKAN Core 的完整许可证文本见本包 licenses\CKAN-LICENSE.md。
+2. 具体版本号见随包 DLL 的文件版本信息（在资源管理器里右键属性即可看到）。
+3. log4net 以 Apache-2.0 分发，要求保留版权与许可声明，原文见上游仓库。
+4. 本项目自身的许可证尚未在仓库中声明，待项目负责人确定；这不改变上述第三方条款。

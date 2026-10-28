@@ -67,7 +67,7 @@
 | 组合搜索面板 | `src/CkanUI.ViewModels/Pages/Mods/ModsSearchPanelViewModel.cs` + `src/CkanUI.App/Views/Mods/ModsSearchPanelView.axaml` | 18 字段逐项编辑（12 文本 + 6 三态「不限/是/否」）、与搜索框双向同步、实时预览生成的语法文本、面板自身输入不被规范化回填改写（F-20/F-21） |
 | 存档内核 | `src/CkanUI.Sfs/**` + `src/CkanUI.Sfs.Cli/**` | SFS 解析 / 格式化 / 校验（含 `format` / `validate` 子命令） |
 | 导航历史 | `src/CkanUI.ViewModels/Navigation/NavigationService.cs` | 页面级前进/后退（双栈、深度 64）+ 模组选中历史（深度 32），外壳与详情面板各两个按钮（F-25） |
-| 关于框 | `src/CkanUI.ViewModels/Dialogs/AboutDialogViewModel.cs` | 版本矩阵四行 + 三条官方链接 + GPL-3.0；外链走 Avalonia `Launcher`，失败只在框内提示（F-55） |
+| 关于框 | `src/CkanUI.ViewModels/Dialogs/AboutDialogViewModel.cs` | 版本矩阵四行 + 三条官方链接 + 双许可声明（界面 GPL-3.0、内置 CKAN 核心库沿用上游 MIT、第三方清单见 `THIRD-PARTY-NOTICES.txt`）；外链走 Avalonia `Launcher`，失败只在框内提示（F-55） |
 | 内容预览 | `src/CkanUI.ViewModels/Pages/ContentPageViewModel.cs` | ZIP 中央目录建树、未缓存时下载入库、路径复制与目录定位（F-29） |
 | modpack 编辑器 | `src/CkanUI.ViewModels/Pages/ModPackEditorPageViewModel.cs` | 元数据/作者/许可/关系行编辑、版本折叠、互斥校验（F-46） |
 | 下载统计 | `src/CkanUI.ViewModels/Pages/DownloadStatsPageViewModel.cs` | 自绘环图 + 排序表格，三档维度、超 12 段合并「其他」（F-47） |
@@ -83,7 +83,8 @@
 5. **插件页签的视图必须自带**：视图符合同程序集命名约定才能被解析，否则回退占位视图；工具项目前只有模组页一个落点（`PluginToolCatalog.ModsPageKey`），新页面要接需实现 `IPluginToolHost` 并在 DI 注册别名（见 `docs/design/plugins.md` §6.1 / §6.2）。
 6. **背景的「游戏截图」来源未做**：P-06 只做纯色/渐变/本机图片三来源，20 篇 §9.1 的「用当前游戏截图（读 `<GameDir>/Screenshots` 最新一张）」折叠进「本机图片」，留到 v2（20 篇 §9.4 已记差异）。
 7. **打包发布、性能验收**（M8–M14 主体）尚未开工。
-8. **沙箱里派生的 GUI 进程写不进 `%LocalAppData%\CKAN`**：本轮冒烟见状态栏「启动未完成：实例操作失败。」与模组汉化页 `Access to the path 'C:\Users\43701\AppData\Local\CKAN\ckan-ui\18n\packs' is denied.`；同一路径在 bash 里可写、GUI 进程不可写，判为沙箱派生进程的权限副作用而非产品缺陷。需在普通桌面（双击 exe）启动下复核：能写则撤销本条，仍报错按真缺陷修。
+8. **本地化只覆盖 XAML 侧，页面 VM 的运行期文案仍是中文硬编码**：`DynamicResource` 文案走词包，但页面 VM 内的状态/提示/校验文案与导航标题都是中文常量（全仓库 130+ 处，例：`src/CkanUI.ViewModels/Pages/ModTextPageViewModel.cs:208`「正在载入翻译词库...」、`src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:128` `Title => "模组"`），尚未按 16 篇 §5 的键规范迁移。这是跨页面的横切债，不是单页缺陷；迁移时应一次性按页面成批做，避免半页中半页英。
+9. **沙箱里派生的 GUI 进程写不进 `%LocalAppData%\CKAN`**：本轮冒烟见状态栏「启动未完成：实例操作失败。」与模组汉化页 `Access to the path 'C:\Users\43701\AppData\Local\CKAN\ckan-ui\18n\packs' is denied.`；同一路径在 bash 里可写、GUI 进程不可写，判为沙箱派生进程的权限副作用而非产品缺陷。需在普通桌面（双击 exe）启动下复核：能写则撤销本条，仍报错按真缺陷修。
 
 ## 5. 如何复核本表
 

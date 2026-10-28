@@ -59,7 +59,7 @@ public static class UnmanagedScanner
         var files = new List<UnmanagedFileInfo>();
         try
         {
-            foreach (var file in Directory.EnumerateFiles(gameDataDir, "*", SearchOption.AllDirectories))
+            foreach (var file in GameDataWalker.EnumerateFiles(gameDataDir, "*"))
             {
                 var relative = ToRelative(gameDataDir, file);
                 if (relative.Length == 0) continue;
@@ -143,6 +143,23 @@ public static class UnmanagedScanner
             return OperationResult<IReadOnlyList<string>>.Fail(
                 $"选中项包含受管内容，已拒绝删除：{string.Join("、", refused)}",
                 "受管文件请到模组页卸载，本页只处理未管理内容。",
+                retryable: false);
+        }
+
+        // 联接一律拒删：扫描不会列出联接，但调用方仍可能直接点名它；删联接可能带走 GameData 之外的内容。
+        var linked = new List<string>();
+        foreach (var relative in normalized)
+        {
+            var absolute = Path.Combine(gameDataDir, relative.Replace('/', Path.DirectorySeparatorChar));
+            var exists = Directory.Exists(absolute) || File.Exists(absolute);
+            if (exists && GameDataWalker.IsLink(absolute)) linked.Add(relative);
+        }
+
+        if (linked.Count > 0)
+        {
+            return OperationResult<IReadOnlyList<string>>.Fail(
+                $"选中项包含目录联接或符号链接，已拒绝删除：{string.Join("、", linked)}",
+                "联接可能指向 GameData 之外，删掉它可能带走别处的文件；请先在资源管理器里确认后手动处理。",
                 retryable: false);
         }
 

@@ -41,7 +41,20 @@ public sealed class AboutDialogTests
 
         Assert.That(vm.Links, Has.Count.EqualTo(3));
         Assert.That(vm.Links[0].Url, Does.Contain("github.com/KSP-CKAN/CKAN"));
-        Assert.That(vm.LicenseText, Does.Contain("GPL-3.0"));
+    }
+
+    /// <summary>
+    /// 许可文案必须是两段：界面自身 GPL-3.0、内置核心库 MIT。
+    /// 回归点：曾经的文案写成「CKAN 与 CKAN UI 均以 GPL-3.0 发布」，与上游 MIT 事实冲突。
+    /// </summary>
+    [Test]
+    public void LicenseText_SeparatesUiAndUpstreamLicenses()
+    {
+        var vm = new AboutDialogViewModel(Info());
+
+        Assert.That(vm.LicenseText, Does.Contain("CKAN UI 以 GPL-3.0"));
+        Assert.That(vm.LicenseText, Does.Contain("MIT"));
+        Assert.That(vm.LicenseText, Does.Not.Contain("CKAN 与 CKAN UI 均以"));
     }
 
     [Test]

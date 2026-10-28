@@ -21,6 +21,21 @@ public sealed partial class MainWindow : Window
         // 动效强度变化会重写这个 token；CrossFade.Duration 是普通属性，只能在代码里跟着重建。
         ResourcesChanged += (_, _) => ApplyPageTransition();
         ApplyPageTransition();
+
+        // 日志抽屉「上拉半屏」（14 篇 §4.1）：按窗口实际高度算 MaxHeight，不写死像素。
+        SizeChanged += (_, e) => UpdateLogDrawerHeight(e.NewSize.Height);
+        UpdateLogDrawerHeight(Bounds.Height);
+    }
+
+    /// <summary>把日志抽屉的最大高度钉在窗口一半（下限 160px，保证至少能看到几行）。</summary>
+    private void UpdateLogDrawerHeight(double windowHeight)
+    {
+        if (LogDrawerHost is null || double.IsNaN(windowHeight) || windowHeight <= 0)
+        {
+            return;
+        }
+
+        LogDrawerHost.MaxHeight = Math.Max(160d, windowHeight / 2d);
     }
 
     /// <summary>按当前动效强度装配页面切换动画；时长归零时干脆不装（关闭档要的是「瞬时」）。</summary>

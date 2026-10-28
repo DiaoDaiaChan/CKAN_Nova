@@ -12,6 +12,7 @@ using CkanUI.Services.Installers;
 using CkanUI.Services.Instances;
 using CkanUI.Services.Labels;
 using CkanUI.Services.Lifecycle;
+using CkanUI.Services.ModConfig;
 using CkanUI.Services.ModPacks;
 using CkanUI.Services.Operations;
 using CkanUI.Services.PlayTime;
@@ -112,6 +113,11 @@ public static class ServiceCollectionExtensions
         // 游戏时长（F-48）：App 数据目录下的单文件，损坏回退空表。
         services.TryAddSingleton<IPlayTimeService, PlayTimeService>();
 
+        // 会话计时窄接口（F-48）：实例页只认 IPlayTimeTracker。必须别名到同一个单例——
+        // 它和 IPlayTimeService 共用一份落盘文件（累计时长 + 会话账本），注册成两个实例会让两次原子替换互相覆盖。
+        services.TryAddSingleton<IPlayTimeTracker>(provider =>
+            (IPlayTimeTracker)provider.GetRequiredService<IPlayTimeService>());
+
         // 存档工作台（M7/E1）：格式化与诊断建立在 Sfs 内核之上，磁盘语义（快照 + 原子写）全在服务里。
         services.TryAddSingleton<ISaveFileService, SaveFileService>();
 
@@ -142,6 +148,10 @@ public static class ServiceCollectionExtensions
 
         // 自动更新与新版本检查器（F-52 / UI-27）。
         services.TryAddSingleton<IUpdateCheckService, Update.UpdateCheckService>();
+
+        // Mod 配置适配层（M9）：目录即插件（内置 <App>/adapters + 用户目录），写盘走 IAdapterWriter 单一入口。
+        // 用户目录与其它 UI 侧状态同处 %LocalAppData%\CKAN\ui，卸载实例不会连带删掉用户自写的 adapter。
+        services.AddCkanModConfig();
 
         // 启动编排放在最后：它依赖上面三个领域服务。
         services.TryAddSingleton<IAppBootstrapper, AppBootstrapper>();

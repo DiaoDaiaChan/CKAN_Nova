@@ -1,0 +1,50 @@
+// KSP Community Fixes 的配置适配器（首批 CFG-02 示例）。
+// 只声明"已取证"的三个键：键名与默认值来自 docs/plan/15-mod-config-adapters.md §4.1 / §4.2。
+// 该 mod 的 Settings.cfg 实测有 138 条键，其余 135 条待真机核验后补齐（见 README.md），
+// 盲目补键会写坏用户配置——本域的原则是"宁缺勿错"。
+{
+  "schemaVersion": 1,
+  "id": "ksp-community-fixes",
+  "name": "KSP Community Fixes",
+  "homepage": "https://github.com/KSPModdingLibs/KSPCommunityFixes",
+  "docUrl": "https://github.com/KSPModdingLibs/KSPCommunityFixes#readme",
+
+  "match": {
+    "ckanIdentifiers": ["KSPCommunityFixes"],
+    "paths": ["GameData/KSPCommunityFixes/Settings.cfg"],
+    "caseInsensitive": true
+  },
+
+  "modVersionRange": [">=1.30", "<2.0"],
+
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/KSPCommunityFixes/Settings.cfg",
+      "layout": "node",
+      "rootNode": "KSP_COMMUNITY_FIXES",
+      "mode": "editable",
+      "onMissing": "create-from-template",
+      "template": "fixtures/settings.default.cfg",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "Settings.cfg"
+    }
+  ],
+
+  "descriptionFromComment": true,
+  "groups": { "fromCommentHeadings": true },
+
+  "fields": [
+    { "file": "settings", "key": "RefundingOnRecovery", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "回收部件时退还全额资金" },
+    { "file": "settings", "key": "Language", "type": "enum",
+      "values": ["en-us", "de", "fr", "ja", "ru", "zh-cn"], "default": "en-us",
+      "risk": "low", "requiresRestart": true, "label": "界面语言" },
+    { "file": "settings", "key": "MaxPhysicsDelta", "type": "float", "min": 0.01, "max": 0.2,
+      "unit": "s", "default": 0.05, "risk": "medium", "requiresRestart": true,
+      "label": "物理步长上限（越大越省 CPU，但可能影响手感）" }
+  ],
+
+  "unlisted": "preserve"
+}

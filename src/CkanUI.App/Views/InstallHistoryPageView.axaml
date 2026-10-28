@@ -38,8 +38,14 @@
                   IsEnabled="{Binding IsIdle}" Margin="0,0,8,0"
                   ToolTip.Tip="重新读取当前实例的 install_history.jsonl" />
           <Button Content="从历史重装" Command="{Binding RestoreCommand}"
-                  IsEnabled="{Binding CanRestore}" Margin="0,0,16,0"
+                  IsEnabled="{Binding CanRestore}" Margin="0,0,8,0"
                   ToolTip.Tip="把当前实例的已装集合回退到左侧选中的时间点（走变更集 + 安装流水线）" />
+          <Button Content="删除选中" Command="{Binding DeleteSelectedCommand}"
+                  IsEnabled="{Binding CanDeleteSelected}" Margin="0,0,8,0"
+                  ToolTip.Tip="删除左侧选中的这一条历史（连同它的已装集合快照，不可撤销）" />
+          <Button Content="清空历史" Command="{Binding ClearHistoryCommand}"
+                  IsEnabled="{Binding CanClearHistory}" Margin="0,0,16,0"
+                  ToolTip.Tip="清空当前实例的全部安装历史（不可撤销，会先弹确认）" />
           <TextBlock Text="{Binding CountText}" VerticalAlignment="Center" Margin="0,0,12,0"
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />

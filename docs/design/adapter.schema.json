@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ckan-ui mod 配置适配器（adapters/<id>/adapter.json）",
+  "description": "纯声明式描述：哪个 mod、哪些文件、哪些字段可改。不含可执行代码（docs/plan/15 `4.4 信任模型）。校验器是 tools/verify-layout/JsonSchemaSubset.cs 的最小 draft-07 子集，只能用 type/required/properties/additionalProperties/items/enum/pattern/minLength/minItems/maxItems/minimum/maximum。",
+  "type": "object",
+  "required": ["schemaVersion", "id", "name", "match", "files"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "id": { "type": "string", "minLength": 2, "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "homepage": { "type": "string", "pattern": "^https?://" },
+    "docUrl": { "type": "string", "pattern": "^https?://" },
+    "match": {
+      "type": "object",
+      "required": ["ckanIdentifiers"],
+      "additionalProperties": false,
+      "properties": {
+        "ckanIdentifiers": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "paths": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "caseInsensitive": { "type": "boolean" },
+        "resolveByInstalledFiles": { "type": "boolean" }
+      }
+    },
+    "modVersionRange": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^(>=|<=|==|=|>|<)?[0-9]" }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "layout", "mode"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string", "minLength": 1, "pattern": "^[^/]" },
+          "layout": { "type": "string", "enum": ["node", "flat", "custom"] },
+          "rootNode": { "type": "string", "minLength": 1 },
+          "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+          "mode": { "type": "string", "enum": ["editable", "readonly"] },
+          "onMissing": { "type": "string", "enum": ["create-from-template", "error", "readonly"] },
+          "template": { "type": "string", "minLength": 1 },
+          "lineEnding": { "type": "string", "enum": ["preserve", "crlf", "lf"] },
+          "separator": { "type": "string", "minLength": 1 },
+          "readonlyReason": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "descriptionFromComment": { "type": "boolean" },
+    "groups": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fromCommentHeadings": { "type": "boolean" }
+      }
+    },
+    "fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "key", "type"],
+        "additionalProperties": false,
+        "properties": {
+          "file": { "type": ["integer", "string"], "minimum": 0 },
+          "key": { "type": "string", "minLength": 1 },
+          "type": { "type": "string", "enum": ["bool", "int", "float", "enum", "string", "path", "color", "keybinding", "list", "readonly"] },
+          "default": { "type": ["string", "number", "boolean"] },
+          "values": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "min": { "type": "number" },
+          "max": { "type": "number" },
+          "unit": { "type": "string" },
+          "risk": { "type": "string", "enum": ["low", "medium", "high"] },
+          "requiresRestart": { "type": "boolean" },
+          "label": { "type": "string", "minLength": 1 },
+          "pattern": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "unlisted": { "type": "string", "enum": ["preserve", "hide", "mark-unknown"] }
+  }
+}

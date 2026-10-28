@@ -31,6 +31,9 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     private IInstanceLaunchExitSignal? _exitSignal;
     private Task? _releaseShutdown;
 
+    // 本次启动的释放恢复是否已经做过一次：离开页面会先收尾一次，之后游戏真退出时不再重复恢复。
+    private bool _releaseSettled;
+
     /// <summary>默认构造：仅供设计器与 <c>new InstancesPageViewModel()</c> 这类无容器场景使用，不连任何服务。</summary>
     public InstancesPageViewModel()
         : this(new EmptyInstanceService(), new EmptyDialogService(), new EmptyErrorReporter())
@@ -84,6 +87,12 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
     /// <summary>UI 设置（取释放档位 <see cref="UiSettings.ReleaseTier"/>）；未注入时按均衡档。</summary>
     public IUiSettingsStore? UiSettings { get; set; }
+
+    /// <summary>
+    /// 游戏时长自动累计（18 篇 §5 / 12 篇 F-48）：启动成功时开始计时、游戏退出时结算。
+    /// 未注入时启动/退出照常，只是不自动累计（页面仍可手工补录）。
+    /// </summary>
+    public IPlayTimeTracker? PlayTime { get; set; }
 
     /// <summary>最近一次释放排程的任务（T3/T4/T5 时间轴），供测试等待；没有排程时为 null。</summary>
     public Task? PendingRelease => _releaseCoordinator?.Pending;
@@ -275,7 +284,13 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         }
 
         // 离开页面也要收尾：取消后续释放层并恢复数据，否则 L2 之后列表会是空的。
-        DetachExitSignal();
+        // 但只要还有未闭合的计时会话，就保留退出订阅：游戏通常在用户离开此页之后才退出，
+        // 退订会让结算信号彻底丢失，整段时长会在下次启动时被丢弃（宁可晚一点写盘，不要丢数据）。
+        if (PlayTime?.ActiveInstanceName is null)
+        {
+            DetachExitSignal();
+        }
+
         _releaseShutdown = StopReleaseScheduleAsync();
     }
 
@@ -839,6 +854,9 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             }
 
             StatusText = $"已启动「{row.Name}」：{command}";
+
+            // 计时必须在排程之前开始：排程会决定是否订阅退出信号，而计时依赖同一个信号结算。
+            PlayTime?.BeginSession(row.Name);
             StartReleaseSchedule();
         }
         catch (Exception ex)
@@ -849,19 +867,32 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
     /// <summary>
     /// 启动成功之后按 18 篇 §4 的 T3/T4/T5 排程释放（0s / +10s / +30s），并订阅游戏退出信号。
-    /// 档位取自 <see cref="UiSettings"/>，关闭档不排程也不订阅——用户明确关掉时连计时器都不起。
+    /// 档位取自 <see cref="UiSettings"/>，关闭档不排程——用户明确关掉释放时连释放计时器都不起；
+    /// 但游戏退出信号仍会订阅，因为游戏时长自动累计（F-48）要靠它结算。
     /// </summary>
     private void StartReleaseSchedule()
     {
-        if (ResourceRelease is not { } release)
-        {
-            return;
-        }
+        // 新一次启动开启新的收尾周期：上一次退出/离开页面已经把资源恢复过了。
+        _releaseSettled = false;
 
         var tier = UiSettings?.Current.ReleaseTier ?? ResourceReleaseTier.Balanced;
-        if (tier == ResourceReleaseTier.Off)
+        var release = ResourceRelease;
+
+        // 退出信号服务两件事：分层释放与游戏时长自动累计（F-48）。
+        // 只要其中任一项在场就必须订阅，否则「没注入释放服务」会连带让计时永不了结。
+        var schedulesRelease = release is not null && tier != ResourceReleaseTier.Off;
+        if (schedulesRelease || PlayTime is not null)
+        {
+            AttachExitSignal();
+        }
+        else
         {
             DetachExitSignal();
+        }
+
+        // 这里再判一次（而不是只依赖 schedulesRelease）：给编译器做流分析，也挡住两处判断日后各自演化。
+        if (release is null || tier == ResourceReleaseTier.Off)
+        {
             return;
         }
 
@@ -873,7 +904,6 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         }
 
         _releaseCoordinator.Begin(tier);
-        AttachExitSignal();
     }
 
     private void AttachExitSignal()
@@ -902,12 +932,23 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     private void OnGameExited(string gameDir)
     {
         DetachExitSignal();
+
+        // 先结算时长：写的是本地账本，与后面的释放恢复是否成功无关。
+        PlayTime?.EndSession();
         _releaseShutdown = StopReleaseScheduleAsync();
     }
 
     /// <summary>停止排程并恢复数据；失败时走统一错误出口（可重试），不抛异常。</summary>
     private async Task StopReleaseScheduleAsync()
     {
+        // 离开页面与游戏退出都可能触发收尾，服务层的 RestoreAsync 只该被调用一次。
+        if (_releaseSettled)
+        {
+            return;
+        }
+
+        _releaseSettled = true;
+
         if (_releaseCoordinator is not { } coordinator)
         {
             return;

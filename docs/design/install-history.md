@@ -40,8 +40,8 @@
 
 ## 4. 已知缺口
 
-1. **滚动截断按行数**（2000 行 ≈ 1000 次操作）。没有按时间/大小滚动，也没有归档到 `install_history.1.jsonl`；超大实例长期使用会丢掉最旧的记录。
-2. **不支持删除/清空历史**（规格 F-44 未要求）；用户只能手动删文件。
+1. **滚动截断按行数**（2000 行 ≈ 1000 次操作）。没有按时间/大小滚动，也没有归档到 `install_history.1.jsonl`；超大实例长期使用会丢掉最旧的记录。注意「清空历史」清的是账本文件本身，不回收已被截断丢弃的旧记录。
+2. ~~不支持删除/清空历史~~（已补齐，见下条）：页面已有「删除选中」「清空历史」两个入口，二次确认后才落盘；`InstallHistoryStore.DeleteAt` 按时间戳同时删 entry 与它对应的 extras 快照，`InstallHistoryStore.Clear` 写空文件而不是删文件（保留文件权限与「历史是空的」这个事实，读侧仍是一张空表）。契约侧新增 `IInstallHistoryMaintenance`（`DeleteAsync`/`ClearAsync`，返回删除的行数）并让 `InstallHistoryService` 实现它；没有 `IDialogService` 时两个命令直接不可用——宁可不能删，也不做无确认的静默删数据。覆盖用例：`tests/CkanUI.Services.Tests/InstallHistoryMaintenanceTests.cs`（13 例）、`tests/CkanUI.ViewModels.Tests/InstallHistoryMaintenancePageViewModelTests.cs`（13 例）。
 3. **没有真实的 CKAN 实例集成测试**：`InstallHistoryService` 的重装编排在替身（`RecordingChangeSetService` / `RecordingInstallerService`）上验证；`Registry.json` + `GameData` 的真实往返超出单测范围。
 4. **装饰器接线由 Lead 落地**：`IInstallerService` 只有注册成 `HistoryRecordingInstaller` 才会"每次安装自动落历史"；若容器仍直接注册 `InstallerService`，历史页只能显示服务自己重装产生的记录。
 5. **旧客户端写的历史不导入**：`<GameDir>/CKAN/history/*.ckan` 不解析，两边历史互不可见。

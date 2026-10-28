@@ -1,0 +1,171 @@
+# 发布流水线（PKG-01..03 / M6）
+#
+# 只负责「出包 + 归档」：在 windows-latest 上跑 tools/release/release.ps1，
+# 产出两个便携 zip + SHA256SUMS.txt + manifest.json，作为 workflow artifact 上传。
+#
+# 刻意不做的事：
+# 1. 不自动创建 GitHub Release —— 本期的包未签名（signed=false），正式对外发布要
+#    走 PKG-09（-unsigned 命名 + 发布页 SHA256 清单 + 后续 SignPath 签名），属 M13。
+# 2. 不发布到任何商店 / 更新源 —— 没有安装器，分发形态只有「解压即用」的 zip。
+# 3. 默认不跑 -SmokeTest：CI 的 windows-latest 没有交互桌面会话，Avalonia 起窗口
+#    不可靠；冒烟开关留给手动 workflow_dispatch 或本机使用。
+#
+# 触发方式：
+# - push 一个 v* 标签（例：v0.1.2）→ 强制 -RequireClean（打标签的树必须是干净的）
+# - 手动 workflow_dispatch → 可覆盖版本号、可打开冒烟
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '覆盖包版本号（留空则读 src/CkanUI.App/Version.props 里的 CkanUiVersion）'
+        required: false
+        default: ''
+      smoke_test:
+        description: '解压自包含 zip 并启动到主窗口冒烟（需要交互桌面，CI 上通常失败，默认关闭）'
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+  # 与 ci.yml 一致：CKAN Core 走上游仓库 + 分支，不依赖 submodule（本仓库没有 .gitmodules）
+  CKAN_CORE_REPO: https://github.com/KSP-CKAN/CKAN
+  CKAN_CORE_REF: master
+
+jobs:
+  package:
+    name: package win-x64
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 是硬需求：release.ps1 用 git rev-list --count 与短 sha 拼版本词法
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Checkout CKAN Core (fallback)
+        # 本仓库没有 .gitmodules，submodules: recursive 拉不到 external/CKAN，
+        # 这里按 ci.yml 的做法兜底 clone；已有内容则跳过。
+        shell: bash
+        run: |
+          if [ ! -f external/CKAN/Core/CKAN-core.csproj ]; then
+            rm -rf external/CKAN
+            git clone --depth 1 --branch "$CKAN_CORE_REF" "$CKAN_CORE_REPO" external/CKAN
+          else
+            echo "external/CKAN 已存在，跳过 clone"
+          fi
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Verify repository layout (H-01..H-12)
+        # 出包前先过布局门禁：版本文件、图标、脚本都必须在白名单路径内，
+        # 否则打出来的 zip 里会混进不该入库的东西。
+        run: dotnet run --project tools/verify-layout -c Release -- --all
+
+      - name: Build release packages
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $releaseArgs = @()
+          $requestedVersion = '${{ inputs.version }}'.Trim()
+          if ($requestedVersion -ne '') {
+            $releaseArgs += @('-Version', $requestedVersion)
+          }
+          if ('${{ github.event_name }}' -eq 'push') {
+            # 标签发布必须来自干净的树，避免把未提交的本地改动打进包里
+            $releaseArgs += '-RequireClean'
+          }
+          if ('${{ inputs.smoke_test }}' -eq 'true') {
+            $releaseArgs += '-SmokeTest'
+          }
+          Write-Host "release.ps1 $($releaseArgs -join ' ')"
+          & ./tools/release/release.ps1 @releaseArgs
+          if ($LASTEXITCODE -ne 0) {
+            throw "release.ps1 退出码 $LASTEXITCODE"
+          }
+
+      - name: Verify checksums against manifest
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifest = Get-Content 'artifacts/release/manifest.json' -Raw | ConvertFrom-Json
+          $sums = @{}
+          foreach ($line in Get-Content 'artifacts/release/SHA256SUMS.txt') {
+            if ($line -match '^([0-9a-f]{64})\s+(.+)$') {
+              $sums[$Matches[2]] = $Matches[1]
+            }
+          }
+          foreach ($artifact in $manifest.artifacts) {
+            $zipPath = Join-Path 'artifacts/release' $artifact.file
+            $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zipPath).Hash.ToLowerInvariant()
+            if ($actual -ne $artifact.sha256) {
+              throw "manifest 与实际 zip 不一致：$($artifact.file)"
+            }
+            if (-not $sums.ContainsKey($artifact.file) -or $sums[$artifact.file] -ne $actual) {
+              throw "SHA256SUMS.txt 与 zip 不一致：$($artifact.file)"
+            }
+            Write-Host "OK $($artifact.file) $actual"
+          }
+
+      - name: Write job summary
+        if: success()
+        shell: powershell
+        run: |
+          $manifest = Get-Content 'artifacts/release/manifest.json' -Raw | ConvertFrom-Json
+          $lines = @()
+          $lines += '### CKAN UI 发布包'
+          $lines += ''
+          $lines += "版本 $($manifest.version) / 运行时 $($manifest.runtime) / 未签名（signed=$($manifest.signed)）"
+          $lines += ''
+          $lines += "源码：commitCount=$($manifest.source.commitCount) sha=$($manifest.source.commitSha) dirty=$($manifest.source.dirty)"
+          $lines += ''
+          $lines += '| 产物 | 压缩体积 | 解压体积 | 文件数 | SHA256 |'
+          $lines += '| --- | --- | --- | --- | --- |'
+          foreach ($artifact in $manifest.artifacts) {
+            $zipMb = [math]::Round($artifact.sizeBytes / 1MB, 1)
+            $rawMb = [math]::Round($artifact.uncompressedBytes / 1MB, 1)
+            $lines += "| $($artifact.file) | $zipMb MB | $rawMb MB | $($artifact.fileCount) | $($artifact.sha256) |"
+          }
+          $lines += ''
+          $lines += '发布页需要同时贴出 SHA256SUMS.txt 的值，下载后用 certutil -hashfile 文件名 SHA256 自校。'
+          $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - name: Upload release artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ckan-ui-win-x64
+          path: |
+            artifacts/release/*.zip
+            artifacts/release/SHA256SUMS.txt
+            artifacts/release/manifest.json
+          retention-days: 30
+
+      - name: Upload release logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-logs
+          path: |
+            artifacts/release/_work/*.log
+            artifacts/release/manifest.json
+          retention-days: 7
+          if-no-files-found: ignore

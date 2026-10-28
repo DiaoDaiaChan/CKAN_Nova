@@ -139,6 +139,12 @@
   <x:Double x:Key="CkanFontSizeTitle">20</x:Double>
   <x:Double x:Key="CkanRowHeight">28</x:Double>
 
+  <!--
+    字体回退链（16 篇 §7.1）：拉丁用 Inter，缺字逐项下探到中/日/韩字体，最后落 Segoe UI。
+    整链写在一条 FontFamily 里，Avalonia 按逗号顺序探测，任何一档缺失都不会出豆腐块。
+  -->
+  <FontFamily x:Key="CkanUiFontFamily">Inter, Microsoft YaHei UI, Microsoft YaHei, SimSun, Yu Gothic UI, Meiryo, Malgun Gothic, Segoe UI</FontFamily>
+
   <Thickness x:Key="CkanPagePadding">16</Thickness>
   <Thickness x:Key="CkanToolbarPadding">12,8</Thickness>
   <CornerRadius x:Key="CkanCornerRadiusSmall">6</CornerRadius>

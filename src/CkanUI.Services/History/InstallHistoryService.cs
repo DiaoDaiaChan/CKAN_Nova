@@ -18,7 +18,7 @@ namespace CkanUI.Services.History;
 /// 落盘的只有标识与版本——这样历史文件不会因为注册表变化而失真。
 /// </para>
 /// </remarks>
-public sealed class InstallHistoryService : IInstallHistoryService
+public sealed class InstallHistoryService : IInstallHistoryService, IInstallHistoryMaintenance
 {
     private static readonly ILog Log = LogManager.GetLogger(typeof(InstallHistoryService));
 
@@ -94,6 +94,29 @@ public sealed class InstallHistoryService : IInstallHistoryService
                 ex.Message,
                 retryable: true));
         }
+    }
+
+    /// <inheritdoc />
+    public Task<OperationResult<int>> DeleteAsync(DateTimeOffset timestamp, CancellationToken ct = default)
+    {
+        if (ct.IsCancellationRequested)
+        {
+            return Task.FromResult(OperationResult<int>.Fail("操作已取消。", retryable: true));
+        }
+
+        // 删盘是同步小文件操作，用 Task.FromResult 包一层就够，不额外起线程。
+        return Task.FromResult(_recorder.DeleteAt(timestamp));
+    }
+
+    /// <inheritdoc />
+    public Task<OperationResult<int>> ClearAsync(CancellationToken ct = default)
+    {
+        if (ct.IsCancellationRequested)
+        {
+            return Task.FromResult(OperationResult<int>.Fail("操作已取消。", retryable: true));
+        }
+
+        return Task.FromResult(_recorder.Clear());
     }
 
     /// <inheritdoc />

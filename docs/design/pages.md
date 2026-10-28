@@ -447,7 +447,7 @@
 - **入口**：外壳左栏底部「关于」按钮（`MainWindow.axaml` 的 `OnAboutClick`），由 code-behind 建窗并指定 owner（05 篇 §2 铁律）。
 - **职责与数据来源**：VM 只接收字符串，不引用 Avalonia 与 CKAN。版本矩阵四行由 `src/CkanUI.App/AboutInfoFactory.cs` 采集：界面版本（程序集版本 `v{Major}.{Minor}.{Build}`）、核心库版本（`CkanUI.Services.Diagnostics.CoreVersionInfo.ReleaseVersion` → `CKAN.Meta.ReleaseVersion`）、运行时（`.NET {Environment.Version}`）、操作系统（`RuntimeInformation.OSDescription`）。
 - **状态与命令**：
-  - `Fields`（4 行 `AboutField`）、`Links`（3 条官方地址）、`LicenseText`（GPL-3.0）。
+  - `Fields`（4 行 `AboutField`）、`Links`（3 条官方地址）、`LicenseText`（双声明口径：CKAN UI 本体以 GPL-3.0 发布，内置的 CKAN 核心库沿用上游 MIT，第三方组件清单见发布包内的 `THIRD-PARTY-NOTICES.txt`，并声明不提供担保）。为什么必须分开写：`external/CKAN/LICENSE.md` 是 MIT，若把「CKAN + CKAN UI 均 GPL-3.0」写进关于框就是对外发布口径错误；`AboutDialogTests.LicenseText_SeparatesUiAndUpstreamLicenses` 就是这条的回归。
   - `OpenLinkCommand`：外链交给注入的 `Func<string, Task<bool>>`（App 侧是 Avalonia `Launcher.LaunchUriAsync`）。通道缺失、返回 false 或抛异常都收口成框内提示，不弹二级错误框、不关闭关于框。
   - 只有「关闭」一个按钮，`PrimaryCommand` 关闭并置 `IsConfirmed`。
 - **为什么把版本采集放在 App 层**：`CKAN` 命名空间只许出现在 Services/Localization（01 篇 §5），所以 `CoreVersionInfo` 是 Services 层薄壳，App 层负责把四个来源拼成 `AboutInfo`。

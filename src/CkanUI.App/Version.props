@@ -1,0 +1,35 @@
+<Project>
+
+  <!--
+    M6 / PKG-03：版本号单一真源。
+
+    为什么单独一份 props 而不是写进 Directory.Build.props：
+    Directory.Build.props 是共享文件（同时管 12 个项目与上游 CKAN 的构建参数），
+    发布版本只该影响「用户能看到的那一个程序集」，所以由 CkanUI.App.csproj 显式导入本文件即可。
+
+    提交数与短哈希由 tools/release/release.ps1 用 -p:CkanUiCommitCount / -p:CkanUiCommitSha 传入；
+    本地 dotnet build 不带这两个属性时退化成纯语义版本，MSBuild 因此不依赖 git（脱包源码也能构建）。
+  -->
+  <PropertyGroup>
+    <!-- 唯一需要手改的一行：发新版本时改这里，并同步 CHANGELOG.md 的「未发布」段。 -->
+    <CkanUiVersion Condition="'$(CkanUiVersion)' == ''">0.1.0</CkanUiVersion>
+
+    <Version>$(CkanUiVersion)</Version>
+
+    <!--
+      SDK 默认会把 SourceRevisionId（整条 40 位 sha）拼进 InformationalVersion，
+      格式随 SDK 版本变化；这里关掉它，改用下面自己拼的 "0.1.0+37.g4a888a5"，
+      词法固定，关于页（AboutInfoFactory）才能稳定解析出「提交数.短哈希」。
+    -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+
+    <CkanUiCommitSuffix Condition="'$(CkanUiCommitSha)' != '' and '$(CkanUiCommitCount)' != ''">$(CkanUiCommitCount).g$(CkanUiCommitSha)</CkanUiCommitSuffix>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(CkanUiCommitSuffix)' != ''">
+    <InformationalVersion>$(CkanUiVersion)+$(CkanUiCommitSuffix)</InformationalVersion>
+    <!-- 文件版本第四段用提交数：报障时看 exe 属性页就能定位到具体提交序号。 -->
+    <FileVersion>$(CkanUiVersion).$(CkanUiCommitCount)</FileVersion>
+  </PropertyGroup>
+
+</Project>

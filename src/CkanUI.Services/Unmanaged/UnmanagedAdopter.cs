@@ -69,6 +69,13 @@ public static class UnmanagedAdopter
             var absolute = Path.Combine(gameDataDir, relative.Replace('/', Path.DirectorySeparatorChar));
             if (Directory.Exists(absolute))
             {
+                // 联接不能接管：它指向 GameData 之外，接管后卸载会顺着联接删到别处的文件。
+                if (GameDataWalker.IsLink(absolute))
+                {
+                    items.Add(Refuse(relative, null, "这是目录联接或符号链接，扫描不会跟进它，也不能接管其中的文件。"));
+                    continue;
+                }
+
                 List<string> dlls;
                 try
                 {
@@ -155,7 +162,7 @@ public static class UnmanagedAdopter
     private static List<string> EnumerateDlls(string absoluteDir, string relativeDir)
     {
         var result = new List<string>();
-        foreach (var file in Directory.EnumerateFiles(absoluteDir, "*", SearchOption.AllDirectories))
+        foreach (var file in GameDataWalker.EnumerateFiles(absoluteDir, "*"))
         {
             if (!file.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) continue;
             var inner = Path.GetRelativePath(absoluteDir, file).Replace('\\', '/');

@@ -56,9 +56,13 @@ public sealed partial class AboutDialogViewModel : DialogViewModelBase
     /// <summary>外部链接（官方仓库、文档、问题反馈）。</summary>
     public IReadOnlyList<AboutLink> Links => DefaultLinks;
 
-    /// <summary>许可说明。</summary>
+    /// <summary>
+    /// 许可说明。两段必须分开写：CKAN UI 自身是 GPL-3.0，而内置的 CKAN 核心库沿用上游 MIT
+    /// （external/CKAN/LICENSE.md），把两者混成一句是对上游许可的错述。
+    /// </summary>
     public string LicenseText =>
-        "CKAN 与 CKAN UI 均以 GPL-3.0 许可发布；本程序不提供任何担保。";
+        "CKAN UI 以 GPL-3.0 许可发布；内置的 CKAN 核心库沿用上游 MIT 许可，第三方组件清单见发布包内的 THIRD-PARTY-NOTICES.txt。本程序不提供任何担保。";
+
 
     /// <summary>默认链接集合（不随实例变化，因此是静态只读）。</summary>
     public static IReadOnlyList<AboutLink> DefaultLinks { get; } = new AboutLink[]

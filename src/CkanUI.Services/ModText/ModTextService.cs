@@ -33,14 +33,21 @@ public sealed class ModTextService : IModTextService, IDisposable
     private readonly object _lock = new();
     private IModTextProvider _provider;
     private DictPack _currentPack;
+    private DictPack _currentOverrides;
+    private ModTextPolicy _policy;
+    private ModTextBlocklist _blocklist = ModTextBlocklist.Empty;
     private string _currentLanguage = "zh-cn";
     private int _totalEntries;
 
-    public ModTextService(string? customBaseDirectory = null)
+    public ModTextService(string? customBaseDirectory = null, ModTextPolicy policy = ModTextPolicy.ExistingOnly)
     {
         _baseDirectory = customBaseDirectory ?? GetDefaultStorageDirectory();
+        _policy = policy;
+
+        // 构造期只建空包，不碰磁盘：VM 构造不能有 IO，首帧要能立刻画出来（17 篇 §7）。
         _currentPack = new DictPack();
-        _provider = new ModTextProvider(_currentPack);
+        _currentOverrides = new DictPack();
+        _provider = new ModTextProvider(_currentOverrides, _currentPack, _policy, _blocklist);
     }
 
     public IModTextProvider Provider => _provider;
@@ -48,7 +55,62 @@ public sealed class ModTextService : IModTextService, IDisposable
     public int TotalEntries => _totalEntries;
     public string BaseDirectory => _baseDirectory;
 
+    /// <summary>本地 packs 目录（内含 &lt;lang&gt;/*.jsonl 与 overrides.jsonl）。</summary>
+    public string PacksRoot => Path.Combine(_baseDirectory, "packs");
+
+    /// <summary>黑名单文件路径（17 篇 MTI-07）。</summary>
+    public string BlocklistPath => Path.Combine(_baseDirectory, "blocklist.json");
+
+    /// <summary>
+    /// 译文使用策略（17 篇 MTI-08 三档）。改完立即生效，无需重载包。
+    /// </summary>
+    /// <remarks>
+    /// 没放进 <see cref="IModTextService"/>：加接口成员会波及 ViewModel 里的空服务替身与他人测试假服务，
+    /// 而设置页目前还没有这三档的入口，先留在实现类型上，等接线的任务再抬到接口。
+    /// </remarks>
+    public ModTextPolicy Policy
+    {
+        get => _policy;
+        set
+        {
+            _policy = value;
+            if (_provider is ModTextProvider provider)
+            {
+                provider.Policy = value;
+            }
+        }
+    }
+
+    /// <summary>当前黑名单（改完立即生效）。</summary>
+    public ModTextBlocklist Blocklist
+    {
+        get => _blocklist;
+        set
+        {
+            _blocklist = value ?? ModTextBlocklist.Empty;
+            if (_provider is ModTextProvider provider)
+            {
+                provider.Blocklist = _blocklist;
+            }
+        }
+    }
+
     public event Action? PackChanged;
+
+    /// <summary>
+    /// 按更新清单校验已安装的 packs（离线导入后自检 / 更新后复核，17 篇 MTI-06）。
+    /// 清单缺失或校验失败都返回原因码，不抛异常。
+    /// </summary>
+    /// <param name="manifestJson">manifest.json 文本。</param>
+    public ModTextPackVerification VerifyInstalledPacks(string? manifestJson)
+    {
+        if (!ModTextPackVerifier.TryReadManifest(manifestJson, out var manifest, out var error))
+        {
+            return ModTextPackVerification.Failed(error);
+        }
+
+        return ModTextPackVerifier.VerifyPacksDirectory(PacksRoot, manifest);
+    }
 
     public static string GetDefaultStorageDirectory()
     {
@@ -64,36 +126,53 @@ public sealed class ModTextService : IModTextService, IDisposable
             string lang = string.IsNullOrWhiteSpace(language) ? _currentLanguage : language.Trim().ToLowerInvariant();
             _currentLanguage = lang;
 
-            var pack = new DictPack();
+            var packs = new DictPack();
+            var overrides = new DictPack();
+            var blocklist = ModTextBlocklist.Empty;
 
             try
             {
-                // 1. 扫描 packs/<lang>/ 目录下的 *.jsonl
-                string langDir = Path.Combine(_baseDirectory, "packs", lang);
-                if (Directory.Exists(langDir))
+                // 1. 定位语言目录：PackLocator 会按 zh-cn → zh 逐级回退，并容忍目录名大小写不一致。
+                //    旧实现直接 Path.Combine(packs, lang)，遇到 zh-CN 这种目录名会整包漏载、界面直接全英文。
+                var resolution = PackLocator.Resolve(PacksRoot, lang);
+                if (resolution.Status == PackDirStatus.Found && !string.IsNullOrEmpty(resolution.Directory))
                 {
-                    var files = Directory.GetFiles(langDir, "*.jsonl", SearchOption.TopDirectoryOnly);
+                    var files = resolution.Files ?? [];
                     Array.Sort(files, StringComparer.Ordinal);
                     foreach (var file in files)
                     {
-                        LoadJsonlFile(pack, file);
+                        LoadJsonlFile(packs, file);
                     }
                 }
+                else
+                {
+                    // 缺包不是错误：降级为英文原文，首帧照常绘制（17 篇 §7「不阻塞首帧」）。
+                    Log.Info($"[ModTextService] 语言 '{lang}' 没有本地语言包（{resolution.Status}），元数据译文降级为英文。");
+                }
 
-                // 2. 扫描 overrides.jsonl（用户/全局覆盖层）
-                string overrideFile = Path.Combine(_baseDirectory, "packs", "overrides.jsonl");
+                // 2. 人工覆盖层单独成包：优先级由结构保证，不与几千条语言包混在一起。
+                string overrideFile = Path.Combine(PacksRoot, "overrides.jsonl");
                 if (File.Exists(overrideFile))
                 {
-                    LoadJsonlFile(pack, overrideFile);
+                    LoadJsonlFile(overrides, overrideFile);
+                }
+
+                // 3. 黑名单（MTI-07）：文件缺失或解析失败一律按空名单处理，绝不因名单问题丢译文。
+                blocklist = ModTextBlocklist.LoadFile(BlocklistPath);
+                if (blocklist.Count == 0)
+                {
+                    blocklist = ModTextBlocklist.LoadFile(Path.Combine(PacksRoot, "blocklist.json"));
                 }
 
                 lock (_lock)
                 {
-                    _currentPack = pack;
-                    _totalEntries = pack.Entries;
-                    _provider = new ModTextProvider(pack);
+                    _currentPack = packs;
+                    _currentOverrides = overrides;
+                    _blocklist = blocklist;
+                    _totalEntries = packs.Entries + overrides.Entries;
+                    _provider = new ModTextProvider(overrides, packs, _policy, blocklist);
                 }
-                Log.Info($"[ModTextService] 载入语言包 '{lang}' 完成，共 {_totalEntries} 条条目。");
+                Log.Info($"[ModTextService] 载入语言包 '{lang}' 完成，共 {_totalEntries} 条条目（语言包 {packs.Entries} + 覆盖 {overrides.Entries}），黑名单 {blocklist.Count} 条。");
             }
             catch (Exception ex)
             {
@@ -101,7 +180,8 @@ public sealed class ModTextService : IModTextService, IDisposable
                 lock (_lock)
                 {
                     _currentPack = new DictPack();
-                    _provider = new ModTextProvider(_currentPack);
+                    _currentOverrides = new DictPack();
+                    _provider = new ModTextProvider(_currentOverrides, _currentPack, _policy, _blocklist);
                     _totalEntries = 0;
                 }
             }
@@ -133,18 +213,21 @@ public sealed class ModTextService : IModTextService, IDisposable
         string lang = string.IsNullOrWhiteSpace(language) ? _currentLanguage : language.Trim().ToLowerInvariant();
         var result = new List<ModPackFileInfo>();
 
-        string langDir = Path.Combine(_baseDirectory, "packs", lang);
-        if (Directory.Exists(langDir))
+        // 目录名不一定是 lang 原样小写（zh-CN / zh-cn / zh），统一交给 PackLocator 决定。
+        var resolution = PackLocator.Resolve(PacksRoot, lang);
+        string langDir = resolution.Directory ?? string.Empty;
+        string dirName = string.IsNullOrEmpty(langDir) ? lang : Path.GetFileName(langDir);
+        if (!string.IsNullOrEmpty(langDir) && Directory.Exists(langDir))
         {
             foreach (var file in Directory.GetFiles(langDir, "*.jsonl", SearchOption.TopDirectoryOnly))
             {
                 var fi = new FileInfo(file);
                 int count = CountLines(file);
-                result.Add(new ModPackFileInfo(Path.Combine("packs", lang, fi.Name), fi.FullName, fi.Length, count, fi.LastWriteTimeUtc));
+                result.Add(new ModPackFileInfo(Path.Combine("packs", dirName, fi.Name), fi.FullName, fi.Length, count, fi.LastWriteTimeUtc));
             }
         }
 
-        string overrideFile = Path.Combine(_baseDirectory, "packs", "overrides.jsonl");
+        string overrideFile = Path.Combine(PacksRoot, "overrides.jsonl");
         if (File.Exists(overrideFile))
         {
             var fi = new FileInfo(overrideFile);
@@ -157,16 +240,23 @@ public sealed class ModTextService : IModTextService, IDisposable
 
     public IReadOnlyList<ModTextEntryItem> GetAllEntries(string? filter = null)
     {
-        DictPack pack;
+        DictPack packs;
+        DictPack overrides;
         lock (_lock)
         {
-            pack = _currentPack;
+            packs = _currentPack;
+            overrides = _currentOverrides;
         }
 
-        var items = new List<ModTextEntryItem>(pack.AllEntries.Count);
+        // 覆盖层排在前面：列表里先看到"我改过的条目"，与查找优先级一致。
+        var all = new List<DictEntry>(overrides.AllEntries.Count + packs.AllEntries.Count);
+        all.AddRange(overrides.AllEntries);
+        all.AddRange(packs.AllEntries);
+
+        var items = new List<ModTextEntryItem>(all.Count);
         string? q = string.IsNullOrWhiteSpace(filter) ? null : filter.Trim();
 
-        foreach (var entry in pack.AllEntries)
+        foreach (var entry in all)
         {
             if (q != null)
             {

@@ -19,10 +19,11 @@
 | [ops/engineering-conventions.md](ops/engineering-conventions.md) | 工程约定：构建、测试、代码风格、架构铁律、提交纪律 |
 | [ops/team-brief.md](ops/team-brief.md) | 并行开发简报：作用域划分、提交纪律、报告格式 |
 | [ops/verify-layout.md](ops/verify-layout.md) | `verify-layout` 仓库卫生门禁：12 条 H-01..H-12 用法与分级 |
+| [ops/build-environment.md](ops/build-environment.md) | 构建环境手册：external/ 两个依赖的接法、NuGet 源镜像、上游多 TFM 竞态与日常命令 |
 | [design/service-contracts.md](design/service-contracts.md) | 服务层契约冻结表：13 个接口 + 8 组 DTO + 实现归属 |
 | [design/pages.md](design/pages.md) | 页面设计：M1 各页布局、控件与交互落点 |
 | [design/theme-tokens.md](design/theme-tokens.md) | 主题 token 表：Ckan* 语义色/字号/间距在三套主题下的取值 |
-| [design/feature-matrix.md](design/feature-matrix.md) | F-01..F-55 实现状态矩阵（已实现 55 / 部分 0 / 未开始 0，100% 达成） |
+| [design/feature-matrix.md](design/feature-matrix.md) | F-01..F-55 实现状态矩阵（已实现 51 / 部分 4 / 未开始 0；逐条取证见 design/feature-matrix-verification.md） |
 | [design/milestones.md](design/milestones.md) | M0–M14 里程碑执行实况、已落地模块清单与已知缺口 |
 | [design/labels.md](design/labels.md) | F-24 标签组：分层、DIM 契约、Mods 页筛选与四条缺口 |
 | [design/mod-dialogs.md](design/mod-dialogs.md) | F-34/35/36 模组对话框族：推荐、虚拟提供者、冲突明细 |
@@ -44,6 +45,13 @@
 | [design/install-filters.md](design/install-filters.md) | F-16 安装文件过滤器编辑器：全局与实例规则、预设规则导入与配置校验（UI-31） |
 | [design/update-check.md](design/update-check.md) | F-52 自动更新与新版本检查器设计与实现（UI-27） |
 | [ops/i18n-guide.md](ops/i18n-guide.md) | 本地化指南：语言包格式、回退链、App 侧接线契约（§6） |
+| [ops/release.md](ops/release.md) | 发布操作手册：一条命令出包、两种包怎么选、未签名分发与回滚、冒烟检查单 |
+| [design/packaging.md](design/packaging.md) | 打包与版本决策：单一版本真源、便携包布局、确定性 zip、manifest schema |
+| [design/i18n-runtime.md](design/i18n-runtime.md) | 国际化运行时：三层字符串来源、伪本地化、诊断面与语言切换 |
+| [design/mod-metadata-i18n.md](design/mod-metadata-i18n.md) | 模组元数据本地化：抽取契约、词条哈希、过期判定与已知缺口 |
+| [design/logging-and-diagnostics.md](design/logging-and-diagnostics.md) | M8 日志与 AI 排障：采集四路、环形缓冲、9 族分类、脱敏与诊断包出口校验 |
+| [design/feature-matrix-verification.md](design/feature-matrix-verification.md) | 55 项特性逐条验收取证：实现证据 file:line、覆盖测试与强度分级，附与母表不一致项与缺口 |
+| [design/mod-config-adapters.md](design/mod-config-adapters.md) | M9 Mod 配置适配层：ConfigNode 往返保真、adapter schema 与状态机、写盘安全与只读页面骨架 |
 
 ## 索引 · 规格正文（docs/plan）
 

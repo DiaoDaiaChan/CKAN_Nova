@@ -53,7 +53,7 @@ public sealed class CkanManagedPathProvider : IManagedPathProvider
                 var gameData = Path.Combine(gameInstance.GameDir, GameDataFolder);
                 if (Directory.Exists(gameData))
                 {
-                    foreach (var file in Directory.EnumerateFiles(gameData, "*.dll", SearchOption.AllDirectories))
+                    foreach (var file in GameDataWalker.EnumerateFiles(gameData, "*.dll"))
                     {
                         var relative = Path.GetRelativePath(gameData, file).Replace('\\', '/');
                         var match = DllPattern.Match(relative);

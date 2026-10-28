@@ -18,6 +18,19 @@ public sealed class LocalizationOptions
     /// </summary>
     public bool ApplyThreadCulture { get; set; } = true;
 
+    /// <summary>
+    /// 语言包之外的补充字符串来源，按顺序探测、先命中先返回（16 篇 §3 D11 的 L2 元数据包 / L3 Core 资源）。
+    /// 为空表示只有语言包层——界面文案的常规形态；这些来源不参与覆盖率与快照。
+    /// </summary>
+    public IReadOnlyList<IStringSource> Sources { get; set; } = Array.Empty<IStringSource>();
+
+    /// <summary>
+    /// 伪本地化（16 篇 §7.3）：命中的译文统一包成 [!! Šéttíngš !!] 形状并加长约 30%，
+    /// 未命中的键保持原样。只影响显示文本（含显示快照），不改覆盖率与缺译计数；
+    /// 由环境变量 CKAN_UI_PSEUDO_LOCALE=1 打开（见 <see cref="LocalizerFactory.PseudoLocaleEnvironmentVariable"/>），发布版默认关闭。
+    /// </summary>
+    public bool PseudoLocalize { get; set; }
+
     /// <summary>取日志出口：未配置时用 Trace。</summary>
     public ILocalizationLog ResolveLog() => Log ?? TraceLocalizationLog.Instance;
 }

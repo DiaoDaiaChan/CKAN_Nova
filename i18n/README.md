@@ -8,6 +8,8 @@
 | --- | --- |
 | `i18n/packs/<locale>.json` | 随包语言包，一种语言一个文件，文件名即 BCP-47 标识（如 `zh-CN.json`） |
 | `i18n/glossary/` | 术语表：保证"模组/实例/依赖"等词在各语言里译法一致 |
+| `i18n/tools/extract_ckan_meta.py` | CKAN-meta 元数据候选抽取（哈希规则与 C# 侧 `UI18n.Core` 一致） |
+| `i18n/tools/contract-vectors.jsonl` | 跨语言哈希契约向量，由上面的脚本产出、由 `HashContractTests` 逐条校验 |
 
 ## 语言包格式
 
@@ -34,7 +36,10 @@
 
 ## 回退链（本实现的硬约定）
 
-`当前语言 → 当前语言的父语言（zh-CN→zh-Hans→zh）→ en-US（及其父语言）→ key 本身`。
+`当前语言 → 当前语言的父语言（zh-CN→zh-Hans→zh）→ en-US（及其父语言）→ 补充来源层 → key 本身`。
+
+父语言由 `CultureInfo.Parent` 逐级求得，链上每一级都去查对应语言包；`LocalizationOptions.Sources`
+里的补充来源（元数据译文、上游 Core 资源）只在语言包全链未命中后才会被问到。
 
 回退到 key 本身时：`ILocalizer.MissingKeys` 里该 key 计数 +1，并**每个 key 只记一次 Warn**
 （避免刷日志）。
@@ -45,8 +50,36 @@
 2. 逐条翻译 `strings`；**不要删键**——删键会走回退链，覆盖率随之下降（下拉里会显示成 `93%`）。
 3. 占位符（`{0}`、`{1}`…）必须与 en-US 完全一致，数量和序号都不能变（测试会校验）。
 4. 跑 `dotnet build ckan-ui.sln -v q --nologo` 后执行
-   `dotnet run --project tests/CkanUI.TestRunner -- Localization`，
-   `LanguagePackTests` 会校验：两套语言包键集一致、`LocalizationKeys` 里的常量全部存在、占位符一致。
+   `dotnet run --project tests/CkanUI.TestRunner -- Localization`，测试会校验：
+   两套语言包键集一致（`ShippedPacksTests`）、`LocalizationKeys` 里的常量全部存在
+   （`ShippedPacksTests`）、占位符一致（`ShippedPacksTests`）、包内不得出现常量之外的死键
+   （`LocalizationKeyDriftTests`）。
+
+## 元数据译文（与界面语言包分开）
+
+模组摘要/说明的译文不是「键 → 译文」，而是按**文本哈希**索引，落在用户目录：
+
+```
+%LocalAppData%/CKAN/ckan-ui/i18n/packs/<lang>/CKANMeta.jsonl   # 机器/人工译文
+%LocalAppData%/CKAN/ckan-ui/i18n/packs/overrides.jsonl         # 用户的单条人工覆盖（优先级最高）
+%LocalAppData%/CKAN/ckan-ui/i18n/blocklist.json                # 不翻译的 mod 名单
+```
+
+每行一个 JSON 对象：`h`（`fnv1a64(Normalize(s))` 的 16 位小写十六进制）、`n`（`ckan:<identifier>:<field>`）、
+`s`（英文原文）、`t`（译文）、`mod`（`CKANMeta`）、`ctx`（identifier）、`src`（`human`/`machine`）。
+查找链与三档策略（关 / 仅已有 / 允许机翻）见 `docs/design/mod-metadata-i18n.md`。
+
+抽取候选：
+
+```bash
+python i18n/tools/extract_ckan_meta.py --verify-vectors          # 先自检官方向量
+python i18n/tools/extract_ckan_meta.py --meta-root <CKAN-meta> --out CKANMeta.jsonl --state state.json
+```
+
+## 伪本地化（截图验收用）
+
+设 `CKAN_UI_PSEUDO_LOCALE=1` 后再启动，语言包文案会被重音化、外包 `[!! … !!]` 并加长 30%，
+占位符保持原样（`string.Format` 不会炸），CJK 不变形以便一眼看出漏译。发布默认关闭。
 
 ## 注意
 

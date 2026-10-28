@@ -33,6 +33,24 @@ internal static class TestPacks
                 Log = NullLocalizationLog.Instance,
             });
 
+    /// <summary>同上，但由调用方微调选项（如伪本地化、补充字符串来源）。</summary>
+    /// <param name="locale">初始语言。</param>
+    /// <param name="configure">选项改写回调（在线程 culture 已置 false 的基础上叠加）。</param>
+    /// <param name="packs">语言包。</param>
+    public static Localizer Create(string locale, Action<LocalizationOptions> configure, params LanguagePack[] packs)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var options = new LocalizationOptions
+        {
+            DefaultLocale = locale,
+            ApplyThreadCulture = false,
+            Log = NullLocalizationLog.Instance,
+        };
+        configure(options);
+        return new Localizer(packs, options);
+    }
+
     /// <summary>同上，但把告警收集起来。</summary>
     /// <param name="locale">初始语言。</param>
     /// <param name="log">日志出口。</param>

@@ -1,0 +1,99 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CkanUI.App.Views.Logs.LogDrawerView"
+             x:CompileBindings="False">
+  <!-- 底部日志抽屉（14 篇 §4.1 / UI-LOG-01）：所有页面可用、默认收起、最近 200 行 + 「有 N 个警告」徽标，
+       点开上拉半屏。收起/展开的动画时长走 Motion.Base（150ms）——高度由外壳决定，
+       外壳把本控件放进底部行并把该行高度在 IsOpen 时设为窗口一半即可，本控件不写死像素。 -->
+  <UserControl.Styles>
+    <Style Selector="TextBlock.mono">
+      <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Courier New, monospace" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.glyph">
+      <Setter Property="Width" Value="16" />
+      <Setter Property="TextAlignment" Value="Center" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.glyph.warn">
+      <Setter Property="Foreground" Value="{DynamicResource CkanWarningBrush}" />
+    </Style>
+    <Style Selector="TextBlock.glyph.error">
+      <Setter Property="Foreground" Value="{DynamicResource CkanDangerBrush}" />
+    </Style>
+    <Style Selector="ListBox.drawerList ListBoxItem">
+      <Setter Property="MinHeight" Value="20" />
+      <Setter Property="Padding" Value="4,0" />
+    </Style>
+    <Style Selector="Button.drawerButton">
+      <Setter Property="Padding" Value="8,2" />
+      <Setter Property="MinHeight" Value="22" />
+      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Border BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,1,0,0"
+          Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+    <Grid RowDefinitions="Auto,Auto">
+
+      <!-- 抽屉头条：始终可见，徽标只在收起时出现 -->
+      <Border Grid.Row="0" Padding="12,4"
+              Background="{DynamicResource CkanStatusBarBackgroundBrush}">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button Classes="drawerButton" Content="{Binding Title}" Command="{Binding ToggleCommand}"
+                    ToolTip.Tip="展开或收起日志抽屉" />
+            <Border IsVisible="{Binding IsBadgeVisible}"
+                    Background="{DynamicResource CkanWarningBrush}"
+                    CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="6,0">
+              <TextBlock Text="{Binding BadgeText}" FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextInverseBrush}" />
+            </Border>
+          </StackPanel>
+
+          <TextBlock Grid.Column="1" Text="{Binding Page.StatusText}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                     Margin="12,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+            <Button Classes="drawerButton" Content="刷新" Command="{Binding RefreshCommand}" />
+            <Button Classes="drawerButton" Content="展开日志页" Command="{Binding OpenPageCommand}"
+                    ToolTip.Tip="打开完整日志审查视图（过滤 / 搜索 / 聚合）" />
+            <Button Classes="drawerButton" Content="收起" Command="{Binding CloseCommand}"
+                    IsVisible="{Binding IsOpen}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- 抽屉体：最近 200 行，等宽等高，只读 -->
+      <Grid Grid.Row="1" IsVisible="{Binding IsOpen}" MinHeight="160" RowDefinitions="*,Auto">
+        <ListBox Grid.Row="0" Classes="drawerList" ItemsSource="{Binding RecentRows}"
+                 SelectionMode="Single">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Grid ColumnDefinitions="52,72,16,*" Height="20">
+                <TextBlock Grid.Column="0" Classes="mono" Text="{Binding Seq}"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                <TextBlock Grid.Column="1" Classes="mono" Text="{Binding TimeText}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="2" Classes="glyph"
+                           Classes.warn="{Binding IsWarning}"
+                           Classes.error="{Binding IsError}"
+                           Text="{Binding Glyph}" />
+                <TextBlock Grid.Column="3" Classes="mono" Text="{Binding Message}"
+                           TextTrimming="CharacterEllipsis" Margin="4,0,0,0" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <TextBlock Grid.Row="1" Margin="12,4" Text="{Binding Page.EmptyHint}"
+                   IsVisible="{Binding Page.ShowEmptyState}"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+      </Grid>
+    </Grid>
+  </Border>
+</UserControl>
