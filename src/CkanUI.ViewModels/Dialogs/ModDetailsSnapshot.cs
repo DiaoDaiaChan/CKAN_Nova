@@ -24,4 +24,41 @@ public sealed record ModDetailsSnapshot(
     IReadOnlyList<ModRelationItem>? Dependencies = null,
     IReadOnlyList<ModRelationItem>? Recommendations = null,
     IReadOnlyList<ModRelationItem>? Conflicts = null,
-    bool IsCompatible = true);
+    bool IsCompatible = true,
+    IReadOnlyList<ModVersionItemDto>? Versions = null,
+    IReadOnlyList<string>? InstalledFiles = null);
+
+/// <summary>
+/// 已装文件行（详情面板「文件与内容」页签的列表项）。
+/// 快照里存的是相对实例根目录的路径字符串，这里拆出文件名/所在目录供列表显示，避免视图里做字符串处理。
+/// </summary>
+/// <param name="Path">相对游戏实例根目录的文件路径（原样保留，用于完整展示）。</param>
+public sealed record InstalledFileItem(string Path)
+{
+    /// <summary>文件名（最后一个路径分隔符之后的部分）。</summary>
+    public string FileName
+    {
+        get
+        {
+            var index = LastSeparatorIndex();
+            return index < 0 ? Path : Path[(index + 1)..];
+        }
+    }
+
+    /// <summary>是否位于子目录（根目录文件不显示目录行）。</summary>
+    public bool HasDirectory => DirectoryText.Length > 0;
+
+    /// <summary>所在目录（不含文件名）；位于根目录时为空串。</summary>
+    public string DirectoryText
+    {
+        get
+        {
+            var index = LastSeparatorIndex();
+            return index <= 0 ? string.Empty : Path[..index];
+        }
+    }
+
+    private int LastSeparatorIndex() =>
+        string.IsNullOrEmpty(Path) ? -1 : Path.LastIndexOfAny(['/', '\\']);
+}
+

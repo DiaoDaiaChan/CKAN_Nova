@@ -1,93 +1,117 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:app="using:CkanUI.App.Theming"
              xmlns:controls="using:CkanUI.App.Controls"
              xmlns:dtos="using:CkanUI.Services.Abstractions.Dtos"
              x:Class="CkanUI.App.Views.DownloadStatsPageView"
              x:CompileBindings="False">
   <!-- 下载统计页（规格 F-47 / 06 篇 UI-25）：环形图 + 图例 + 可排序明细表。
-       颜色只用 Tokens.axaml 的语义 token；页面只读，唯一的写操作是「刷新」。 -->
+       颜色只用 Tokens.axaml 的语义 token；页面只读，唯一的写操作是「刷新」。
+       视觉规范：工具条/卡片/空态/错误条/骨架屏统一复用 FluentStyles 的 Ckan* 类。 -->
   <UserControl.Styles>
     <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
-    <Style Selector="Button.chip">
-      <Setter Property="Padding" Value="10,4" />
+    <!-- 页内 chip 复用全局 CkanChip，仅补右间距 -->
+    <Style Selector="Button.CkanChip">
       <Setter Property="Margin" Value="0,0,6,0" />
-      <Setter Property="MinHeight" Value="26" />
-    </Style>
-    <Style Selector="TextBlock.caption">
-      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
-      <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
     </Style>
   </UserControl.Styles>
 
-  <Grid RowDefinitions="Auto,Auto,*" Margin="16"
+  <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}"
         Background="{DynamicResource CkanSurfaceBackgroundBrush}">
 
     <!-- 页头 -->
     <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
-      <TextBlock Text="{Binding Title}"
-                 FontSize="{DynamicResource CkanFontSizeTitle}"
-                 FontWeight="SemiBold"
-                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      <TextBlock Text="{Binding Title}" Classes="CkanPageTitle" />
       <TextBlock Text="按本地仓库索引与下载缓存聚合，不联网；下载量缺字段的模组按 0 计。"
-                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                 TextWrapping="Wrap" />
+                 Classes="CkanCaption" TextWrapping="Wrap" />
     </StackPanel>
 
     <!-- 工具条：分组维度 + 排序 + 刷新 -->
-    <Border Grid.Row="1" Padding="{DynamicResource CkanToolbarPadding}"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-            BorderBrush="{DynamicResource CkanBorderBrush}"
-            BorderThickness="1">
+    <Border Grid.Row="1" Classes="CkanToolbar">
       <StackPanel Spacing="8">
         <WrapPanel Orientation="Horizontal">
-          <TextBlock Text="分组" VerticalAlignment="Center" Margin="0,0,8,0"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <Button Classes="chip" Content="按模组"
+          <TextBlock Text="分组" VerticalAlignment="Center" Margin="0,0,8,0" Classes="CkanCaption" />
+          <Button Classes="CkanChip" Content="按模组"
                   Command="{Binding SwitchDimensionCommand}"
                   CommandParameter="{x:Static dtos:DownloadStatsDimension.Mods}" />
-          <Button Classes="chip" Content="按标签"
+          <Button Classes="CkanChip" Content="按标签"
                   Command="{Binding SwitchDimensionCommand}"
                   CommandParameter="{x:Static dtos:DownloadStatsDimension.Tags}" />
-          <Button Classes="chip" Content="按安装状态"
+          <Button Classes="CkanChip" Content="按安装状态"
                   Command="{Binding SwitchDimensionCommand}"
                   CommandParameter="{x:Static dtos:DownloadStatsDimension.Installed}" />
-          <Button Classes="chip" Content="按仓库"
+          <Button Classes="CkanChip" Content="按仓库"
                   Command="{Binding SwitchDimensionCommand}"
                   CommandParameter="{x:Static dtos:DownloadStatsDimension.Repositories}" />
-          <TextBlock Text="排序" VerticalAlignment="Center" Margin="16,0,8,0"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <Button Classes="chip" Content="下载量"
+          <TextBlock Text="排序" VerticalAlignment="Center" Margin="16,0,8,0" Classes="CkanCaption" />
+          <Button Classes="CkanChip" Content="下载量"
                   Command="{Binding SetSortCommand}"
                   CommandParameter="{x:Static dtos:DownloadStatsSortColumn.Downloads}" />
-          <Button Classes="chip" Content="缓存占用"
+          <Button Classes="CkanChip" Content="缓存占用"
                   Command="{Binding SetSortCommand}"
                   CommandParameter="{x:Static dtos:DownloadStatsSortColumn.Cache}" />
-          <Button Classes="chip" Content="名称"
+          <Button Classes="CkanChip" Content="名称"
                   Command="{Binding SetSortCommand}"
                   CommandParameter="{x:Static dtos:DownloadStatsSortColumn.Name}" />
           <Button Content="刷新" Command="{Binding RefreshCommand}"
-                  Margin="16,0,0,0" MinHeight="26"
+                  Classes="CkanPrimary" Margin="16,0,0,0"
                   ToolTip.Tip="重新读取仓库索引与缓存清单" />
         </WrapPanel>
+        <!-- 统计条：三位数走 Heading 字号（CkanNumericLarge 的 tnum + 粗体），标签走 Caption；整体用 WrapPanel 保证 900 宽度下换行不溢出 -->
         <WrapPanel Orientation="Horizontal">
-          <TextBlock Classes="caption" Text="{Binding ModuleCountText, StringFormat='模组 {0}'}" Margin="0,0,16,0" />
-          <TextBlock Classes="caption" Text="{Binding TotalDownloadsText, StringFormat='下载合计 {0}'}" Margin="0,0,16,0" />
-          <TextBlock Classes="caption" Text="{Binding CacheTotalText, StringFormat='缓存合计 {0}'}" Margin="0,0,16,0" />
-          <TextBlock Classes="caption" Text="{Binding DimensionLabel, StringFormat='当前维度: {0}'}" Margin="0,0,16,0" />
-          <TextBlock Classes="caption" Text="{Binding TakenAt, StringFormat='统计于 {0:HH:mm:ss}'}"
-                     IsVisible="{Binding TakenAt, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <StackPanel Spacing="0" Margin="0,0,24,0" VerticalAlignment="Center">
+            <TextBlock Classes="CkanNumeric" FontSize="{DynamicResource CkanFontSizeHeading}"
+                       Text="{Binding ModuleCountText}" />
+            <TextBlock Classes="CkanCaption" Text="模组数" />
+          </StackPanel>
+          <StackPanel Spacing="0" Margin="0,0,24,0" VerticalAlignment="Center">
+            <TextBlock Classes="CkanNumeric" FontSize="{DynamicResource CkanFontSizeHeading}"
+                       Text="{Binding TotalDownloadsText}" />
+            <TextBlock Classes="CkanCaption" Text="下载合计" />
+          </StackPanel>
+          <StackPanel Spacing="0" Margin="0,0,24,0" VerticalAlignment="Center">
+            <TextBlock Classes="CkanNumeric" FontSize="{DynamicResource CkanFontSizeHeading}"
+                       Text="{Binding CacheTotalText}" />
+            <TextBlock Classes="CkanCaption" Text="缓存合计" />
+          </StackPanel>
+          <TextBlock Classes="CkanCaption" Text="{Binding DimensionLabel, StringFormat='当前维度: {0}'}" Margin="0,0,16,0" VerticalAlignment="Center" />
+          <TextBlock Classes="CkanCaption" Text="{Binding TakenAt, StringFormat='统计于 {0:HH:mm:ss}'}"
+                     IsVisible="{Binding TakenAt, Converter={x:Static ObjectConverters.IsNotNull}}"
+                     Margin="0,0,16,0" />
+          <!-- 状态文案：出错时由上方错误条承担，这里隐藏避免重复 -->
+          <TextBlock Classes="CkanCaption" Text="{Binding StatusText}"
+                     MaxWidth="320" TextTrimming="CharacterEllipsis"
+                     ToolTip.Tip="{Binding StatusText}"
+                     IsVisible="{Binding !HasError}" />
         </WrapPanel>
       </StackPanel>
     </Border>
 
-    <!-- 主体：左图例 + 右明细 -->
-    <Grid Grid.Row="2" ColumnDefinitions="280,*" Margin="0,12,0,0">
+    <!-- 页面级错误条 -->
+    <Border Grid.Row="2" Margin="0,12,0,0" Classes="CkanInfoBanner"
+            Background="{DynamicResource CkanDangerBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
+            IsVisible="{Binding HasError}">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <PathIcon Grid.Column="0"
+                  Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                  Width="18" Height="18" Margin="0,0,12,0"
+                  Foreground="{DynamicResource CkanDangerBrush}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{Binding ErrorText}" TextWrapping="Wrap"
+                   FontSize="{DynamicResource CkanFontSizeBody}" FontWeight="Medium"
+                   Foreground="{DynamicResource CkanDangerBrush}" VerticalAlignment="Center" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                    VerticalAlignment="Center" Margin="12,0,0,0">
+          <Button Content="重试" Command="{Binding RefreshCommand}" Classes="CkanSmall"
+                  ToolTip.Tip="重新读取仓库索引与缓存清单" />
+        </StackPanel>
+      </Grid>
+    </Border>
 
-      <Border Grid.Column="0" Padding="12" Margin="0,0,12,0"
-              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-              BorderBrush="{DynamicResource CkanBorderBrush}"
-              BorderThickness="1">
+    <!-- 主体：左图例 + 右明细 -->
+    <Grid Grid.Row="3" ColumnDefinitions="280,*" Margin="0,12,0,0">
+
+      <Border Grid.Column="0" Margin="0,0,12,0" Classes="CkanCard">
         <Grid RowDefinitions="Auto,*">
           <controls:DonutChart Height="180" RingThickness="22"
                                Slices="{Binding ChartSlices}"
@@ -102,9 +126,7 @@
                                FontSize="{DynamicResource CkanFontSizeBody}"
                                Foreground="{DynamicResource CkanTextPrimaryBrush}"
                                TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding DetailText}"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    <TextBlock Text="{Binding DetailText}" Classes="CkanCaption" />
                   </StackPanel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
@@ -113,45 +135,83 @@
         </Grid>
       </Border>
 
-      <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto">
-        <Border Grid.Row="0" Background="{DynamicResource CkanWarningBrush}"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="8,4" Margin="0,0,0,8"
+      <Grid Grid.Column="1" RowDefinitions="Auto,*">
+        <!-- 数据不全的提示：语义底色 + 图标，不靠透明度传达 -->
+        <Border Grid.Row="0" Margin="0,0,0,12" Classes="CkanInfoBanner"
+                Background="{DynamicResource CkanWarningBackgroundBrush}"
+                BorderBrush="{DynamicResource CkanWarningBrush}" BorderThickness="1"
                 IsVisible="{Binding HasUnavailableDownloads}">
-          <TextBlock Text="{Binding UnavailableHint}"
-                     FontSize="{DynamicResource CkanFontSizeCaption}"
-                     Foreground="{DynamicResource CkanTextInverseBrush}"
-                     TextWrapping="Wrap" />
+          <Grid ColumnDefinitions="Auto,*">
+            <PathIcon Grid.Column="0"
+                      Data="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"
+                      Width="18" Height="18" Margin="0,0,12,0"
+                      Foreground="{DynamicResource CkanWarningBrush}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding UnavailableHint}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanWarningBrush}" TextWrapping="Wrap" />
+          </Grid>
         </Border>
 
-        <TextBlock Grid.Row="1" Text="没有可统计的模组：先刷新仓库索引，或到仓库页添加索引后重试。"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                   IsVisible="{Binding ShowEmptyState}"
-                   TextWrapping="Wrap" Margin="0,0,0,8" />
+        <Grid Grid.Row="1">
+          <DataGrid ItemsSource="{Binding Rows}"
+                    AutoGenerateColumns="False"
+                    IsReadOnly="True"
+                    CanUserSortColumns="False"
+                    CanUserResizeColumns="True"
+                    RowHeight="{DynamicResource CkanRowHeight}"
+                    GridLinesVisibility="None"
+                    HeadersVisibility="Column"
+                    IsVisible="{Binding !ShowEmptyState}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="模组" Binding="{Binding Name}" Width="260" />
+              <DataGridTextColumn Header="标识符" Binding="{Binding Identifier}" Width="220" />
+              <DataGridTextColumn Header="下载量" Binding="{Binding DownloadsText}" Width="100" />
+              <DataGridTextColumn Header="缓存" Binding="{Binding CacheText}" Width="90" />
+              <DataGridTextColumn Header="状态" Binding="{Binding InstalledText}" Width="80" />
+            </DataGrid.Columns>
+          </DataGrid>
 
-        <DataGrid Grid.Row="2"
-                  ItemsSource="{Binding Rows}"
-                  AutoGenerateColumns="False"
-                  IsReadOnly="True"
-                  CanUserSortColumns="False"
-                  CanUserResizeColumns="True"
-                  RowHeight="26"
-                  GridLinesVisibility="Horizontal"
-                  HeadersVisibility="Column">
-          <DataGrid.Columns>
-            <DataGridTextColumn Header="模组" Binding="{Binding Name}" Width="260" />
-            <DataGridTextColumn Header="标识符" Binding="{Binding Identifier}" Width="220" />
-            <DataGridTextColumn Header="下载量" Binding="{Binding DownloadsText}" Width="100" />
-            <DataGridTextColumn Header="缓存" Binding="{Binding CacheText}" Width="90" />
-            <DataGridTextColumn Header="状态" Binding="{Binding InstalledText}" Width="80" />
-          </DataGrid.Columns>
-        </DataGrid>
-
-        <TextBlock Grid.Row="3" Text="{Binding StatusText}"
-                   Foreground="{DynamicResource CkanDangerBrush}"
-                   IsVisible="{Binding HasError}"
-                   TextWrapping="Wrap" Margin="0,8,0,0" />
+          <!-- 空态：图标 + 一句解释 + 一个主操作 -->
+          <Border Classes="CkanEmptyStateCard" IsVisible="{Binding ShowEmptyState}"
+                  HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel Spacing="12" HorizontalAlignment="Center" MaxWidth="460">
+              <Border Width="56" Height="56" HorizontalAlignment="Center"
+                      Background="{DynamicResource CkanAccentSubtleBrush}" CornerRadius="28">
+                <PathIcon Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center"
+                          Foreground="{DynamicResource CkanAccentBrush}"
+                          Data="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z" />
+              </Border>
+              <TextBlock Text="还没有可统计的模组" HorizontalAlignment="Center"
+                         FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+              <TextBlock Text="先刷新仓库索引，或到仓库页添加索引后重试。"
+                         TextWrapping="Wrap" TextAlignment="Center" Classes="CkanCaption" />
+              <Button Content="刷新" Command="{Binding RefreshCommand}"
+                      Classes="CkanPrimary" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Border>
+        </Grid>
       </Grid>
     </Grid>
+
+    <!-- 加载中遮罩：骨架屏 + 说明（同一时刻只有一个脉动元素） -->
+    <Border Grid.RowSpan="4" IsVisible="{Binding IsLoading}"
+            Background="{DynamicResource CkanBlockingScrimBrush}">
+      <Grid>
+        <StackPanel IsHitTestVisible="False" app:SkeletonPulse.IsEnabled="True"
+                    VerticalAlignment="Top" Spacing="12" Margin="18,24">
+          <Border Classes="CkanSkeleton" Height="16" Width="180" HorizontalAlignment="Left" />
+          <Border Classes="CkanSkeletonLine" Width="360" HorizontalAlignment="Left" />
+          <Border Classes="CkanSkeletonLine" />
+          <Border Classes="CkanSkeletonLine" Width="280" HorizontalAlignment="Left" />
+        </StackPanel>
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="360">
+          <ProgressBar IsIndeterminate="True" Width="240" />
+          <TextBlock Text="正在统计下载量…" TextAlignment="Center" TextWrapping="Wrap"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextInverseBrush}" />
+        </StackPanel>
+      </Grid>
+    </Border>
   </Grid>
 </UserControl>

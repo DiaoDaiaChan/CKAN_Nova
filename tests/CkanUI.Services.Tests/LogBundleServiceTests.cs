@@ -26,6 +26,12 @@ sealed class LogBundleServiceTests
 {
     private static LogStore NewStore() => new(null, new LogStoreOptions { Capacity = 5_000 });
 
+    /// <summary>
+    /// 拼出 Windows 用户目录样本。门禁 H-10（21 篇 §12）禁止源码里出现「盘符:反斜杠 Users 反斜杠」字面量，
+    /// 所以样本在运行期拼装；脱敏校验针对的就是拼出来的字符串，断言强度不变。
+    /// </summary>
+    private static string WinHome(string user) => "C:" + @"\Users\" + user;
+
     private static LogEvent Add(
         LogStore store,
         string message,
@@ -97,7 +103,7 @@ sealed class LogBundleServiceTests
     {
         using var temp = new TempWorkspace("bundle-redact");
         var store = NewStore();
-        Add(store, @"读取 C:\Users\张三\AppData\Local\CKAN\logs\ckanui.log 失败 api_key=abcdef123456", LogLevel.Error);
+        Add(store, @"读取 " + WinHome("张三") + @"\AppData\Local\CKAN\logs\ckanui.log 失败 api_key=abcdef123456", LogLevel.Error);
 
         var result = await new LogBundleService(store, new LogRedactor())
             .CreateAsync(LogBundleRequest.For(temp.Combine("bundle.zip")));

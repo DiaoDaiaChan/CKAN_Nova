@@ -99,6 +99,83 @@ public sealed class StringFieldRenderer : IModConfigFieldRenderer
     }
 }
 
+/// <summary>path 字段：用文本框直接编辑路径（CFG-04）。</summary>
+/// <remarks>
+/// 服务层对 path 没有额外约束（只有"不能为空/不能带换行"，见 ModConfigDetector.ValidateFieldValue），
+/// 所以这里给单行文本框而不是只读展示；将来加"浏览…"按钮时只需换 EditorKind 到
+/// <see cref="ModConfigEditorKind.PathPicker"/> 的模板，字段类型到渲染器的映射不用改。
+/// </remarks>
+public sealed class PathFieldRenderer : IModConfigFieldRenderer
+{
+    /// <inheritdoc />
+    public ModConfigFieldType FieldType => ModConfigFieldType.Path;
+
+    /// <inheritdoc />
+    public ModConfigEditorKind EditorKind => ModConfigEditorKind.PathPicker;
+
+    /// <inheritdoc />
+    public string FormatValue(ModConfigFieldState field)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        return string.IsNullOrWhiteSpace(field.Value) ? "未设置" : field.Value!;
+    }
+}
+
+/// <summary>list 字段：逐行文本编辑（CFG-04）。</summary>
+/// <remarks>
+/// 配置文件是"一行一键"，值里带换行会被服务层直接拒绝（ModConfigDetector 的换行拦截），
+/// 所以编辑器给多行文本框，写盘时由行 VM 拆项后用 ", " 拼成单行；展示沿用磁盘原文。
+/// </remarks>
+public sealed class ListFieldRenderer : IModConfigFieldRenderer
+{
+    /// <inheritdoc />
+    public ModConfigFieldType FieldType => ModConfigFieldType.List;
+
+    /// <inheritdoc />
+    public ModConfigEditorKind EditorKind => ModConfigEditorKind.ListEditor;
+
+    /// <inheritdoc />
+    public string FormatValue(ModConfigFieldState field)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        return string.IsNullOrWhiteSpace(field.Value) ? "未设置" : field.Value!;
+    }
+}
+
+/// <summary>color 字段：本版只读展示（取色器留待后续，行内会写明原因）。</summary>
+public sealed class ColorFieldRenderer : IModConfigFieldRenderer
+{
+    /// <inheritdoc />
+    public ModConfigFieldType FieldType => ModConfigFieldType.Color;
+
+    /// <inheritdoc />
+    public ModConfigEditorKind EditorKind => ModConfigEditorKind.ColorPicker;
+
+    /// <inheritdoc />
+    public string FormatValue(ModConfigFieldState field)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        return string.IsNullOrWhiteSpace(field.Value) ? "未设置" : field.Value!;
+    }
+}
+
+/// <summary>keybinding 字段：本版只读展示（按键捕获留待后续，行内会写明原因）。</summary>
+public sealed class KeybindingFieldRenderer : IModConfigFieldRenderer
+{
+    /// <inheritdoc />
+    public ModConfigFieldType FieldType => ModConfigFieldType.Keybinding;
+
+    /// <inheritdoc />
+    public ModConfigEditorKind EditorKind => ModConfigEditorKind.KeyCapture;
+
+    /// <inheritdoc />
+    public string FormatValue(ModConfigFieldState field)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        return string.IsNullOrWhiteSpace(field.Value) ? "未设置" : field.Value!;
+    }
+}
+
 /// <summary>数字与单位的公用格式化（int/float 共用，避免两份不完全一致的实现）。</summary>
 internal static class NumberText
 {

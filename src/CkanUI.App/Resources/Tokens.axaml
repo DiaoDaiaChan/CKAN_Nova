@@ -47,6 +47,20 @@
       <!-- 遮罩 -->
       <SolidColorBrush x:Key="CkanScrimBrush" Color="#99000000" />
       <SolidColorBrush x:Key="CkanBlockingScrimBrush" Color="#B3000000" />
+
+      <!-- 海拔（20 篇 P-08）：卡片低、浮层中、对话框高；统一从 token 取，禁止各页写字面量阴影 -->
+      <BoxShadows x:Key="CkanElevationLow">0 1 3 0 #12000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationMedium">0 4 14 0 #1C000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationHigh">0 12 32 0 #29000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationNone">0 0 0 0 #00000000</BoxShadows>
+
+      <!-- 焦点环、状态叠加层与骨架屏底色（键盘可达性 THM-09） -->
+      <SolidColorBrush x:Key="CkanFocusRingBrush" Color="#0A66C2" />
+      <SolidColorBrush x:Key="CkanHoverOverlayBrush" Color="#0F000000" />
+      <SolidColorBrush x:Key="CkanPressedOverlayBrush" Color="#1F000000" />
+      <SolidColorBrush x:Key="CkanAccentHoverBrush" Color="#0857A6" />
+      <SolidColorBrush x:Key="CkanSuccessBackgroundBrush" Color="#E7F6EC" />
+      <SolidColorBrush x:Key="CkanSkeletonBrush" Color="#E9ECF1" />
     </ResourceDictionary>
 
     <ResourceDictionary x:Key="Dark">
@@ -87,6 +101,20 @@
       <!-- 遮罩 -->
       <SolidColorBrush x:Key="CkanScrimBrush" Color="#99000000" />
       <SolidColorBrush x:Key="CkanBlockingScrimBrush" Color="#B3000000" />
+
+      <!-- 海拔（20 篇 P-08）：深色下阴影要靠更深的不透明度才看得出层次 -->
+      <BoxShadows x:Key="CkanElevationLow">0 1 4 0 #40000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationMedium">0 6 18 0 #59000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationHigh">0 14 36 0 #73000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationNone">0 0 0 0 #00000000</BoxShadows>
+
+      <!-- 焦点环、状态叠加层与骨架屏底色 -->
+      <SolidColorBrush x:Key="CkanFocusRingBrush" Color="#4C9AFF" />
+      <SolidColorBrush x:Key="CkanHoverOverlayBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="CkanPressedOverlayBrush" Color="#24FFFFFF" />
+      <SolidColorBrush x:Key="CkanAccentHoverBrush" Color="#6BAEFF" />
+      <SolidColorBrush x:Key="CkanSuccessBackgroundBrush" Color="#14301F" />
+      <SolidColorBrush x:Key="CkanSkeletonBrush" Color="#2A303C" />
     </ResourceDictionary>
 
     <!-- 高对比度：THM-10 要求高对比度强制压过一切，只保留纯黑/纯白 + 高对比黄。 -->
@@ -128,6 +156,20 @@
       <!-- 遮罩 -->
       <SolidColorBrush x:Key="CkanScrimBrush" Color="#99000000" />
       <SolidColorBrush x:Key="CkanBlockingScrimBrush" Color="#B3000000" />
+
+      <!-- 高对比度不要任何柔和阴影：层次只靠纯白描边表达 -->
+      <BoxShadows x:Key="CkanElevationLow">0 0 0 0 #00000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationMedium">0 0 0 0 #00000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationHigh">0 0 0 0 #00000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationNone">0 0 0 0 #00000000</BoxShadows>
+
+      <!-- 高对比度下焦点环必须用高对比黄，且不依赖透明度 -->
+      <SolidColorBrush x:Key="CkanFocusRingBrush" Color="#FFFF00" />
+      <SolidColorBrush x:Key="CkanHoverOverlayBrush" Color="#33FFFFFF" />
+      <SolidColorBrush x:Key="CkanPressedOverlayBrush" Color="#66FFFFFF" />
+      <SolidColorBrush x:Key="CkanAccentHoverBrush" Color="#FFFF66" />
+      <SolidColorBrush x:Key="CkanSuccessBackgroundBrush" Color="#003300" />
+      <SolidColorBrush x:Key="CkanSkeletonBrush" Color="#555555" />
     </ResourceDictionary>
   </ResourceDictionary.ThemeDictionaries>
 
@@ -150,4 +192,25 @@
   <CornerRadius x:Key="CkanCornerRadiusSmall">6</CornerRadius>
   <CornerRadius x:Key="CkanCornerRadiusMedium">10</CornerRadius>
   <CornerRadius x:Key="CkanCornerRadiusLarge">14</CornerRadius>
+  <CornerRadius x:Key="CkanCornerRadiusPill">999</CornerRadius>
+
+  <!--
+    8pt 间距刻度（20 篇 P-05）：所有页面的 Margin/Padding 从这里取，跨页面节奏才一致。
+    只做 Thickness，因为唯一的消费者就是 Margin/Padding/Spacing 三处。
+  -->
+  <Thickness x:Key="CkanSpacingXs">4</Thickness>
+  <Thickness x:Key="CkanSpacingSm">8</Thickness>
+  <Thickness x:Key="CkanSpacingMd">12</Thickness>
+  <Thickness x:Key="CkanSpacingLg">16</Thickness>
+  <Thickness x:Key="CkanSpacingXl">24</Thickness>
+  <Thickness x:Key="CkanSpacingGutter">16,12</Thickness>
+  <Thickness x:Key="CkanSpacingStack">0,0,0,8</Thickness>
+
+  <!-- 控件尺寸与焦点环：键盘可达性（THM-09）统一 2px 焦点环，不随字号缩放而变粗细 -->
+  <x:Double x:Key="CkanIconSizeSmall">14</x:Double>
+  <x:Double x:Key="CkanIconSizeMedium">16</x:Double>
+  <x:Double x:Key="CkanControlHeightSmall">28</x:Double>
+  <x:Double x:Key="CkanControlHeightMedium">32</x:Double>
+  <Thickness x:Key="CkanFocusRingThickness">2</Thickness>
+  <x:Double x:Key="CkanOverlayCardWidth">480</x:Double>
 </ResourceDictionary>

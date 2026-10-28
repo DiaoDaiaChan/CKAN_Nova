@@ -1,0 +1,185 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cp="using:CkanUI.ViewModels.CommandPalette"
+             x:Class="CkanUI.App.Views.CommandPaletteView"
+             x:DataType="cp:CommandPaletteViewModel"
+             x:CompileBindings="False"
+             IsVisible="{Binding IsOpen}">
+
+  <!--
+    命令面板浮层（Ctrl+K，F-52 / UI-27）。
+    - 定位：整窗遮罩 + 居中卡片；宿主把它放在 MainWindow 最外层 Panel 的最后一个子元素
+      （Panel.ZIndex 高于操作队列浮层的 10），这样遮罩能盖住页面内容、侧栏与状态栏。
+    - 开关由外壳的键盘绑定驱动（CommandPaletteViewModel.OpenCommand / CloseCommand /
+      ToggleCommand）；本视图只负责面板内部的上下选择、回车执行、Esc 与「点遮罩关闭」。
+    - 结果整体替换，列表交给 ListBox 虚拟化；无结果时列表折叠，只留一行提示（03 篇 §10 不显示空壳）。
+    - 颜色/圆角全部走 Tokens.axaml 的语义 token（THM-01），间距取 4 的倍数（03 篇 §11）。
+  -->
+  <UserControl.Styles>
+
+    <!-- 标题分段：普通段用主文字色，命中段用强调色 + 加粗。
+         视图模型只给「文本 + 是否命中」的纯数据，切段逻辑在单元测试里覆盖，视图不做字符串匹配。 -->
+    <Style Selector="TextBlock.segment">
+      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.segment.highlight">
+      <Setter Property="Foreground" Value="{DynamicResource CkanAccentTextBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- 选中行左侧强调条：与侧栏导航的激活指示条同宽同色（MainWindow.axaml 的 navIndicator） -->
+    <Style Selector="Rectangle.paletteBar">
+      <Setter Property="Width" Value="3" />
+      <Setter Property="Height" Value="18" />
+      <Setter Property="RadiusX" Value="2" />
+      <Setter Property="RadiusY" Value="2" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Fill" Value="Transparent" />
+    </Style>
+    <Style Selector="Rectangle.paletteBar.selected">
+      <Setter Property="Fill" Value="{DynamicResource CkanAccentBrush}" />
+    </Style>
+
+    <!-- 行容器：去掉默认内边距，行高对齐 CkanRowHeight（03 篇 §11 控件行高口径） -->
+    <Style Selector="ListBox.paletteList > ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="{DynamicResource CkanRowHeight}" />
+    </Style>
+
+    <!-- 不可执行的命令（例如需要先选实例）：整行淡出，点击回车都会被视图模型忽略 -->
+    <Style Selector="Grid.paletteRow.disabled">
+      <Setter Property="Opacity" Value="0.45" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- 遮罩：点空白处关闭面板（面板内部的点击会被 e.Source 判定挡掉） -->
+  <Grid Background="{DynamicResource CkanScrimBrush}"
+        PointerPressed="OnScrimPointerPressed">
+
+    <Border MaxWidth="640"
+            MaxHeight="520"
+            Margin="16"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            CornerRadius="{DynamicResource CkanCornerRadiusLarge}"
+            BorderThickness="1"
+            BoxShadow="0 4 12 0 #33000000">
+
+      <Border.Background>
+        <DynamicResource ResourceKey="CkanDialogBackgroundBrush" />
+      </Border.Background>
+      <Border.BorderBrush>
+        <DynamicResource ResourceKey="CkanBorderBrush" />
+      </Border.BorderBrush>
+
+      <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+        <!-- 搜索框：输入即搜（Query 变化由视图模型重新查询），打开面板时自动聚焦并全选 -->
+        <TextBox x:Name="SearchBox"
+                 Grid.Row="0"
+                 Margin="12,12,12,8"
+                 Padding="8,6"
+                 FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                 Text="{Binding Query, Mode=TwoWay}"
+                 PlaceholderText="{Binding PlaceholderText}"
+                 BorderThickness="0" />
+
+        <Border Grid.Row="1" Height="1" Background="{DynamicResource CkanBorderBrush}" />
+
+        <!-- 结果区：列表与空态提示互斥，同一时刻只会有一个可见 -->
+        <Grid Grid.Row="2" MinHeight="96">
+
+          <ListBox Classes="paletteList"
+                   ItemsSource="{Binding Results}"
+                   SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
+                   IsVisible="{Binding HasResults}"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   Padding="4"
+                   AutoScrollToSelectedItem="True"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid Classes="paletteRow"
+                      Classes.disabled="{Binding !IsEnabled}"
+                      ColumnDefinitions="3,*,Auto">
+
+                  <Rectangle Grid.Column="0"
+                             Classes="paletteBar"
+                             Classes.selected="{Binding $parent[ListBoxItem].IsSelected}" />
+
+                  <StackPanel Grid.Column="1" Margin="8,4" VerticalAlignment="Center">
+                    <!-- 标题按命中区间切段渲染：命中段加粗上色，不改变原文顺序 -->
+                    <ItemsControl ItemsSource="{Binding TitleSegments}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Classes="segment"
+                                     Classes.highlight="{Binding IsHighlighted}"
+                                     Text="{Binding Text}" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="{Binding DetailText}"
+                               IsVisible="{Binding HasDetail}"
+                               FontSize="{DynamicResource CkanFontSizeCaption}"
+                               Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                               TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+
+                  <!-- 快捷键徽标：只给真的有快捷键的命令显示，避免空徽标撑出占位 -->
+                  <Border Grid.Column="2"
+                          IsVisible="{Binding HasShortcut}"
+                          Padding="6,0"
+                          Margin="0,0,8,0"
+                          VerticalAlignment="Center"
+                          CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                          BorderThickness="1"
+                          BorderBrush="{DynamicResource CkanBorderBrush}">
+                    <TextBlock Text="{Binding ShortcutText}"
+                               FontSize="{DynamicResource CkanFontSizeCaption}"
+                               Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  </Border>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <!-- 无结果提示：别让用户以为面板卡住了 -->
+          <TextBlock Text="{Binding EmptyHintText}"
+                     IsVisible="{Binding ShowEmptyHint}"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     Margin="16,24"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </Grid>
+
+        <!-- 底部提示行：结果计数（左）+ 键盘说明（右） -->
+        <Border Grid.Row="3"
+                BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource CkanBorderBrush}">
+          <Grid ColumnDefinitions="Auto,*,Auto" Margin="12,8">
+            <TextBlock Text="{Binding ResultCountText}"
+                       IsVisible="{Binding HasResults}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2"
+                       Text="{Binding FooterHintText}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                       VerticalAlignment="Center" />
+          </Grid>
+        </Border>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

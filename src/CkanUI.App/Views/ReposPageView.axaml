@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:app="using:CkanUI.App.Theming"
              x:Class="CkanUI.App.Views.ReposPageView"
              x:CompileBindings="False">
   <UserControl.Styles>
@@ -7,6 +8,7 @@
       <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
       <Setter Property="Margin" Value="0,1" />
       <Setter Property="Padding" Value="12,6" />
+      <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Transitions">
         <Transitions>
           <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
@@ -19,6 +21,27 @@
     <Style Selector="ListBoxItem:selected">
       <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
     </Style>
+
+    <!-- 选中行左侧 3px 强调条：沿用 NavList 的 navIndicator 做法，其它列表要自己写同类样式 -->
+    <Style Selector="Rectangle.SelectionBar">
+      <Setter Property="Width" Value="3" />
+      <Setter Property="RadiusX" Value="1.5" />
+      <Setter Property="RadiusY" Value="1.5" />
+      <Setter Property="Fill" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="Margin" Value="2,6" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="ListBoxItem:selected Rectangle.SelectionBar">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
   </UserControl.Styles>
 
   <!-- 仓库管理页：工具条 + 有序仓库表 + 新增表单 + 状态栏。
@@ -29,24 +52,13 @@
     <!-- 页头 -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
       <StackPanel Grid.Column="0" Spacing="4">
-        <TextBlock Text="仓库管理"
-                   FontSize="{DynamicResource CkanFontSizeTitle}"
-                   FontWeight="SemiBold"
-                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+        <TextBlock Text="仓库管理" Classes="CkanPageTitle" />
         <TextBlock Text="越靠上的仓库优先级越高，同名模组以高优先级仓库的元数据为准。"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                   Classes="CkanCaption"
                    TextWrapping="Wrap" />
       </StackPanel>
-      <Border Grid.Column="1" VerticalAlignment="Center"
-              Background="{DynamicResource CkanSubtleBackgroundBrush}"
-              BorderBrush="{DynamicResource CkanBorderBrush}"
-              BorderThickness="1"
-              CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-              Padding="10,4">
-        <TextBlock Text="{Binding CountText}"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+      <Border Grid.Column="1" Classes="CkanBadge" VerticalAlignment="Center">
+        <TextBlock Text="{Binding CountText}" />
       </Border>
     </Grid>
 
@@ -54,47 +66,36 @@
     <Border Grid.Row="1" Classes="CkanToolbar">
       <WrapPanel Orientation="Horizontal">
         <Button Content="添加仓库" Command="{Binding BeginAddCommand}"
+                Classes="CkanPrimary"
                 IsEnabled="{Binding CanEdit}" Margin="0,0,8,0"
-                Background="{DynamicResource CkanAccentBrush}"
-                Foreground="{DynamicResource CkanAccentTextBrush}"
-                FontWeight="SemiBold"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="14,6"
                 ToolTip.Tip="填写名称与索引地址后加入列表" />
         <Button Content="移除" Command="{Binding RemoveCommand}"
+                Classes="CkanSecondary"
                 IsEnabled="{Binding CanRemoveSelected}" Margin="0,0,8,0"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="12,6"
                 ToolTip.Tip="从列表移除选中的仓库（至少要保留一个）" />
         <Button Content="上移" Command="{Binding MoveUpCommand}"
+                Classes="CkanSecondary"
                 IsEnabled="{Binding CanMoveUpSelected}" Margin="0,0,4,0"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="12,6"
                 ToolTip.Tip="提高选中仓库的优先级" />
         <Button Content="下移" Command="{Binding MoveDownCommand}"
+                Classes="CkanSecondary"
                 IsEnabled="{Binding CanMoveDownSelected}" Margin="0,0,8,0"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="12,6"
                 ToolTip.Tip="降低选中仓库的优先级" />
         <Button Content="刷新此仓库" Command="{Binding RefreshSelectedCommand}"
+                Classes="CkanSecondary"
                 IsEnabled="{Binding CanRefreshSelected}" Margin="0,0,8,0"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="12,6"
                 ToolTip.Tip="只重新下载选中仓库的索引" />
         <Button Content="刷新全部" Command="{Binding RefreshAllCommand}"
+                Classes="CkanSecondary"
                 IsEnabled="{Binding IsIdle}" Margin="0,0,8,0"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="12,6"
                 ToolTip.Tip="重新下载全部仓库的索引" />
         <Button Content="恢复默认" Command="{Binding RestoreDefaultsCommand}"
+                Classes="CkanSecondary"
                 IsEnabled="{Binding IsIdle}" Margin="0,0,8,0"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="12,6"
                 ToolTip.Tip="替换为官方默认仓库列表（需要联网）" />
         <Button Content="重新读取" Command="{Binding ReloadCommand}"
+                Classes="CkanSecondary"
                 IsEnabled="{Binding IsIdle}"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="12,6"
                 ToolTip.Tip="重新读取本地注册表中的仓库列表" />
       </WrapPanel>
     </Border>
@@ -159,11 +160,14 @@
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      Foreground="{DynamicResource CkanDangerBrush}" Opacity="0.85" />
         </StackPanel>
-        <Button Grid.Column="2" Content="关闭" Command="{Binding ClearErrorCommand}"
-                VerticalAlignment="Center" Margin="12,0,0,0"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="10,4"
-                FontSize="{DynamicResource CkanFontSizeCaption}" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                    VerticalAlignment="Center" Margin="12,0,0,0">
+          <Button Content="重试" Command="{Binding RefreshAllCommand}"
+                  Classes="CkanSmall"
+                  ToolTip.Tip="重新下载全部仓库的索引" />
+          <Button Content="关闭" Command="{Binding ClearErrorCommand}"
+                  Classes="CkanSmall" />
+        </StackPanel>
       </Grid>
     </Border>
 
@@ -180,16 +184,11 @@
                 Background="{DynamicResource CkanSubtleBackgroundBrush}"
                 BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
           <Grid ColumnDefinitions="*,2*,80,140,100">
-            <TextBlock Grid.Column="0" Text="名称" FontSize="12" FontWeight="SemiBold"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Grid.Column="1" Text="索引地址" FontSize="12" FontWeight="SemiBold"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Grid.Column="2" Text="优先级" FontSize="12" FontWeight="SemiBold"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Grid.Column="3" Text="上次刷新" FontSize="12" FontWeight="SemiBold"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Grid.Column="4" Text="状态" FontSize="12" FontWeight="SemiBold"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBlock Grid.Column="0" Text="名称" Classes="CkanCaption" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="1" Text="索引地址" Classes="CkanCaption" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="2" Text="优先级" Classes="CkanCaption" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="3" Text="上次刷新" Classes="CkanCaption" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="4" Text="状态" Classes="CkanCaption" FontWeight="SemiBold" />
           </Grid>
         </Border>
 
@@ -206,18 +205,14 @@
           </ListBox.ItemsPanel>
           <ListBox.ItemTemplate>
             <DataTemplate>
-              <Grid ColumnDefinitions="*,2*,80,140,100" Height="36">
+              <Grid ColumnDefinitions="*,2*,80,140,100" MinHeight="{DynamicResource CkanRowHeight}">
+                <Rectangle Grid.ColumnSpan="5" Classes="SelectionBar" />
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                   <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"
                              VerticalAlignment="Center" FontWeight="Medium"
                              Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                  <Border Background="{DynamicResource CkanAccentSubtleBrush}"
-                          BorderBrush="{DynamicResource CkanAccentBrush}" BorderThickness="1"
-                          CornerRadius="10"
-                          Padding="8,2" IsVisible="{Binding ShowDefaultBadge}">
-                    <TextBlock Text="{Binding DefaultText}"
-                               FontSize="10" FontWeight="SemiBold"
-                               Foreground="{DynamicResource CkanAccentBrush}" />
+                  <Border Classes="CkanBadge Accent" IsVisible="{Binding ShowDefaultBadge}">
+                    <TextBlock Text="{Binding DefaultText}" />
                   </Border>
                 </StackPanel>
                 <TextBlock Grid.Column="1" Text="{Binding Uri}" TextTrimming="CharacterEllipsis"
@@ -235,13 +230,9 @@
                              FontSize="{DynamicResource CkanFontSizeCaption}"
                              TextTrimming="CharacterEllipsis"
                              Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                  <Border IsVisible="{Binding NeedsRefresh}"
-                          Background="{DynamicResource CkanWarningBackgroundBrush}"
-                          BorderBrush="{DynamicResource CkanWarningBrush}" BorderThickness="1"
-                          CornerRadius="8"
-                          Padding="6,2" HorizontalAlignment="Left">
-                    <TextBlock Text="需刷新" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{DynamicResource CkanWarningBrush}" />
+                  <Border Classes="CkanBadge Warning" IsVisible="{Binding NeedsRefresh}"
+                          HorizontalAlignment="Left">
+                    <TextBlock Text="需刷新" />
                   </Border>
                   <TextBlock Text="{Binding FailureText}" IsVisible="{Binding HasFailure}"
                              FontSize="{DynamicResource CkanFontSizeCaption}"
@@ -255,8 +246,8 @@
         </ListBox>
 
         <!-- 空状态 -->
-        <Border Grid.Row="1" IsVisible="{Binding ShowEmptyState}" Padding="36"
-                Background="{DynamicResource CkanCardBackgroundBrush}">
+        <Border Grid.Row="1" IsVisible="{Binding ShowEmptyState}"
+                Classes="CkanEmptyStateCard" Margin="12">
           <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16" MaxWidth="480">
             <!-- 现代空状态轻量矢量图标 -->
             <Border Width="56" Height="56" CornerRadius="28"
@@ -280,11 +271,10 @@
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" Margin="0,4,0,0">
               <Button Content="恢复默认" Command="{Binding RestoreDefaultsCommand}"
-                      Background="{DynamicResource CkanAccentBrush}"
-                      Foreground="{DynamicResource CkanAccentTextBrush}"
-                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="16,7" />
+                      Classes="CkanPrimary" Padding="16,7"
+                      ToolTip.Tip="替换为官方默认仓库列表（需要联网）" />
               <Button Content="添加仓库" Command="{Binding BeginAddCommand}"
-                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="16,7" />
+                      Classes="CkanSecondary" Padding="16,7" />
             </StackPanel>
           </StackPanel>
         </Border>
@@ -303,15 +293,29 @@
                  TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
     </Grid>
 
-    <!-- 进行中遮罩 -->
+    <!-- 进行中遮罩：无数据走首屏骨架屏，有数据走进度条（同一次 IsBusy 里二选一） -->
     <Border Grid.RowSpan="6" IsVisible="{Binding IsBusy}"
             Background="{DynamicResource CkanBlockingScrimBrush}">
-      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="14" MaxWidth="360">
-        <ProgressBar IsIndeterminate="True" Width="240" />
-        <TextBlock Text="{Binding BusyText}" TextAlignment="Center" TextWrapping="Wrap"
-                   FontSize="14"
-                   Foreground="{DynamicResource CkanTextInverseBrush}" />
-      </StackPanel>
+      <Grid>
+        <!-- 首屏骨架屏：整块一起脉动（同一时刻只有一个脉动元素），动效关闭时保持静态 -->
+        <StackPanel IsVisible="{Binding !HasRows}" IsHitTestVisible="False"
+                    app:SkeletonPulse.IsEnabled="True"
+                    VerticalAlignment="Top" Spacing="12" Margin="18,24">
+          <Border Classes="CkanSkeleton" Height="16" Width="180" HorizontalAlignment="Left" />
+          <Border Classes="CkanSkeletonLine" />
+          <Border Classes="CkanSkeletonLine" Width="360" HorizontalAlignment="Left" />
+          <Border Classes="CkanSkeletonLine" />
+          <Border Classes="CkanSkeletonLine" Width="280" HorizontalAlignment="Left" />
+          <Border Classes="CkanSkeletonLine" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding HasRows}" VerticalAlignment="Center" HorizontalAlignment="Center"
+                    Spacing="14" MaxWidth="360">
+          <ProgressBar IsIndeterminate="True" Width="240" />
+          <TextBlock Text="{Binding BusyText}" TextAlignment="Center" TextWrapping="Wrap"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextInverseBrush}" />
+        </StackPanel>
+      </Grid>
     </Border>
   </Grid>
 </UserControl>

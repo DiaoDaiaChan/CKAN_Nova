@@ -166,4 +166,116 @@ public sealed class UpdateCheckServiceTests
         Assert.That(result.IsSuccess, Is.False);
         Assert.That(result.Value, Is.Null);
     }
+
+    private const string Sha256OfSomething = "9f2c1b7a4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8";
+
+    private static string MakeReleaseJsonWithAssets(string ver) => $$"""
+    {
+      "tag_name": "v{{ver}}",
+      "html_url": "https://github.com/KSP-CKAN/CKAN/releases/tag/v{{ver}}",
+      "body": "notes",
+      "assets": [
+        {
+          "name": "ckan-linux-x64.zip",
+          "browser_download_url": "https://example.test/ckan-linux-x64.zip",
+          "size": 100,
+          "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        {
+          "name": "ckan-win-x64.zip",
+          "browser_download_url": "https://example.test/ckan-win-x64.zip",
+          "size": 4096,
+          "digest": "sha256:{{Sha256OfSomething}}"
+        },
+        {
+          "name": "SHA256SUMS.txt",
+          "browser_download_url": "https://example.test/SHA256SUMS.txt",
+          "size": 64
+        }
+      ]
+    }
+    """;
+
+    [Test]
+    public async Task CheckForUpdatesAsync_WhenReleaseHasAssets_PicksWindowsZip()
+    {
+        var json = MakeReleaseJsonWithAssets("2.0.0");
+        var service = new UpdateCheckService(
+            settingsService: null,
+            httpGetHandler: (url, ct) => Task.FromResult(json),
+            currentVersionString: "v1.31.2");
+
+        var result = await service.CheckForUpdatesAsync(includeDevBuilds: false);
+
+        Assert.That(result.IsSuccess, Is.True);
+        var update = result.Value!;
+        Assert.That(update.HasAsset, Is.True);
+        Assert.That(update.AssetUrl, Is.EqualTo("https://example.test/ckan-win-x64.zip"));
+        Assert.That(update.AssetSha256, Is.EqualTo(Sha256OfSomething));
+        Assert.That(update.AssetSize, Is.EqualTo(4096));
+    }
+
+    [Test]
+    public async Task CheckForUpdatesAsync_WhenNoAssets_LeavesAssetFieldsEmpty()
+    {
+        var service = new UpdateCheckService(
+            settingsService: null,
+            httpGetHandler: (url, ct) => Task.FromResult(MakeReleaseJson("2.0.0")),
+            currentVersionString: "v1.31.2");
+
+        var result = await service.CheckForUpdatesAsync(includeDevBuilds: false);
+
+        var update = result.Value!;
+        Assert.That(update.HasUpdate, Is.True);
+        Assert.That(update.HasAsset, Is.False);
+        Assert.That(update.AssetUrl, Is.Null);
+        Assert.That(update.AssetSize, Is.Zero);
+    }
+
+    [Test]
+    public async Task CheckForUpdatesAsync_WhenAlreadyLatest_DoesNotPickAsset()
+    {
+        var json = MakeReleaseJsonWithAssets("1.31.2");
+        var service = new UpdateCheckService(
+            settingsService: null,
+            httpGetHandler: (url, ct) => Task.FromResult(json),
+            currentVersionString: "v1.31.2");
+
+        var result = await service.CheckForUpdatesAsync(includeDevBuilds: false);
+
+        var update = result.Value!;
+        Assert.That(update.HasUpdate, Is.False);
+        Assert.That(update.HasAsset, Is.False);
+    }
+
+    [Test]
+    public async Task CheckForUpdatesAsync_WhenDigestIsUnrecognised_DropsChecksumButKeepsUrl()
+    {
+        const string json = """
+        {
+          "tag_name": "v2.0.0",
+          "html_url": "https://example.test/release",
+          "body": null,
+          "assets": [
+            {
+              "name": "ckan-win-x64.zip",
+              "browser_download_url": "https://example.test/ckan-win-x64.zip",
+              "size": 128,
+              "digest": "md5:abc"
+            }
+          ]
+        }
+        """;
+        var service = new UpdateCheckService(
+            settingsService: null,
+            httpGetHandler: (url, ct) => Task.FromResult(json),
+            currentVersionString: "v1.31.2");
+
+        var result = await service.CheckForUpdatesAsync(includeDevBuilds: false);
+
+        var update = result.Value!;
+        Assert.That(update.AssetUrl, Is.EqualTo("https://example.test/ckan-win-x64.zip"));
+        Assert.That(update.AssetSha256, Is.Null);
+        Assert.That(update.AssetSize, Is.EqualTo(128));
+    }
 }

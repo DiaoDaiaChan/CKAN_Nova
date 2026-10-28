@@ -1,232 +1,255 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:app="using:CkanUI.App.Theming"
              x:Class="CkanUI.App.Views.SavesPageView"
              x:CompileBindings="False">
   <!-- 存档工作台（13 篇 §7 / 03 篇 §14 / 06 篇 E1）：存档列表 + 诊断列表 + 校验与格式化。
-       颜色一律走 Tokens.axaml 的语义 token，间距一律 4 的倍数。 -->
-  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="16"
+       颜色一律走 Tokens.axaml 的语义 token，间距一律 4 的倍数。
+       视觉规范：卡片/工具条/空态/错误条/骨架屏统一复用 FluentStyles 的 Ckan* 类。 -->
+  <UserControl.Styles>
+    <Style Selector="ListBoxItem">
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="8,0" />
+      <Setter Property="MinHeight" Value="{DynamicResource CkanRowHeight}" />
+    </Style>
+    <!-- 选中行左侧 3px 强调条（沿用导航栏 navIndicator 的做法） -->
+    <Style Selector="Rectangle.SelectionBar">
+      <Setter Property="Width" Value="3" />
+      <Setter Property="RadiusX" Value="1.5" />
+      <Setter Property="RadiusY" Value="1.5" />
+      <Setter Property="Fill" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="Margin" Value="2,6" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="ListBoxItem:selected Rectangle.SelectionBar">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
         Background="{DynamicResource CkanSurfaceBackgroundBrush}">
 
     <!-- 页头 -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Grid.Column="0" Spacing="4">
-        <TextBlock Text="存档"
-                   FontSize="{DynamicResource CkanFontSizeTitle}"
-                   FontWeight="SemiBold"
-                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-        <TextBlock Text="{Binding SavesDirectoryText}"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+        <TextBlock Text="存档" Classes="CkanPageTitle" />
+        <TextBlock Text="{Binding SavesDirectoryText}" Classes="CkanCaption"
                    TextTrimming="CharacterEllipsis" />
       </StackPanel>
-      <StackPanel Grid.Column="1" Spacing="4" HorizontalAlignment="Right">
-        <TextBlock Text="{Binding InstanceText}"
-                   HorizontalAlignment="Right"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBlock Text="{Binding CountText}"
-                   HorizontalAlignment="Right"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+      <StackPanel Grid.Column="1" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <TextBlock Text="{Binding InstanceText}" HorizontalAlignment="Right" Classes="CkanCaption" />
+        <Border Classes="CkanBadge" HorizontalAlignment="Right">
+          <TextBlock Text="{Binding CountText}" />
+        </Border>
       </StackPanel>
     </Grid>
 
     <!-- 工具条 -->
-    <Border Grid.Row="1" Padding="{DynamicResource CkanToolbarPadding}"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-            BorderBrush="{DynamicResource CkanBorderBrush}"
-            BorderThickness="1">
+    <Border Grid.Row="1" Classes="CkanToolbar">
       <WrapPanel Orientation="Horizontal">
         <Button Content="重新读取" Command="{Binding RefreshCommand}"
-                IsEnabled="{Binding IsIdle}" Margin="0,0,8,0"
+                IsEnabled="{Binding IsIdle}" Classes="CkanPrimary" Margin="0,0,8,0"
                 ToolTip.Tip="重新枚举 saves/ 目录下的存档文件" />
         <Button Content="校验" Command="{Binding ValidateCommand}"
-                IsEnabled="{Binding CanValidate}" Margin="0,0,8,0"
+                IsEnabled="{Binding CanValidate}" Classes="CkanSecondary" Margin="0,0,8,0"
                 ToolTip.Tip="只解析并检查结构，不写任何文件" />
         <Button Content="格式化到副本" Command="{Binding FormatCopyCommand}"
-                IsEnabled="{Binding CanFormatCopy}" Margin="0,0,8,0"
+                IsEnabled="{Binding CanFormatCopy}" Classes="CkanSecondary" Margin="0,0,8,0"
                 ToolTip.Tip="写出 &lt;名称&gt;.formatted.sfs，原文件不动" />
         <Button Content="就地重写" Command="{Binding FormatInPlaceCommand}"
-                IsEnabled="{Binding CanFormatInPlace}" Margin="0,0,8,0"
+                IsEnabled="{Binding CanFormatInPlace}" Classes="CkanDanger" Margin="0,0,8,0"
                 ToolTip.Tip="先写前快照，再原子替换（需要先校验通过）" />
         <Button Content="在文件夹中显示" Command="{Binding OpenFolderCommand}"
-                IsEnabled="{Binding CanOpenFolder}"
+                IsEnabled="{Binding CanOpenFolder}" Classes="CkanGhost"
                 ToolTip.Tip="在资源管理器中打开该存档所在目录" />
       </WrapPanel>
     </Border>
 
     <!-- 页面级错误条（03 篇 §8 D-03） -->
-    <Border Grid.Row="2" Margin="0,8,0,0" Padding="12,8"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+    <Border Grid.Row="2" Margin="0,12,0,0" Classes="CkanInfoBanner"
+            Background="{DynamicResource CkanDangerBackgroundBrush}"
             BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
             IsVisible="{Binding HasError}">
-      <Grid ColumnDefinitions="*,Auto">
-        <StackPanel Grid.Column="0" Spacing="4">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <PathIcon Grid.Column="0"
+                  Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                  Width="18" Height="18" Margin="0,0,12,0"
+                  Foreground="{DynamicResource CkanDangerBrush}" VerticalAlignment="Center" />
+        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
           <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap"
-                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     FontSize="{DynamicResource CkanFontSizeBody}" FontWeight="Medium"
                      Foreground="{DynamicResource CkanDangerBrush}" />
           <TextBlock Text="{Binding ErrorDetail}" TextWrapping="Wrap" MaxHeight="48"
                      IsVisible="{Binding HasErrorDetail}"
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
         </StackPanel>
-        <Button Grid.Column="1" Content="关闭" Command="{Binding ClearErrorCommand}"
-                VerticalAlignment="Top" Margin="8,0,0,0"
-                FontSize="{DynamicResource CkanFontSizeCaption}" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                    VerticalAlignment="Center" Margin="12,0,0,0">
+          <Button Content="重试" Command="{Binding RefreshCommand}" IsEnabled="{Binding IsIdle}"
+                  Classes="CkanSmall" ToolTip.Tip="重新枚举 saves/ 目录下的存档文件" />
+          <Button Content="关闭" Command="{Binding ClearErrorCommand}" Classes="CkanSmall" />
+        </StackPanel>
       </Grid>
     </Border>
 
     <!-- 主体：左列表 + 右诊断 -->
-    <Grid Grid.Row="3" ColumnDefinitions="3*,2*" Margin="0,8,0,0">
+    <Grid Grid.Row="3" ColumnDefinitions="3*,2*" Margin="0,12,0,0">
 
       <!-- 存档列表 -->
-      <Grid Grid.Column="0" RowDefinitions="Auto,*">
-        <Border Grid.Row="0" Padding="8,4"
-                BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
-          <Grid ColumnDefinitions="160,*,80,72,132,72,96,112,80">
-            <TextBlock Grid.Column="0" Text="槽位" FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Grid.Column="1" Text="标题" FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Grid.Column="2" Text="模式" FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Grid.Column="3" Text="版本" FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Grid.Column="4" Text="游戏内时间" FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Grid.Column="5" Text="飞船" FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Grid.Column="6" Text="资金" FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Grid.Column="7" Text="修改时间" FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Grid.Column="8" Text="体积" FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          </Grid>
-        </Border>
+      <Border Grid.Column="0" Classes="CkanCard" Padding="0">
+        <Grid RowDefinitions="Auto,*">
+          <Border Grid.Row="0" Padding="10,7"
+                  Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                  BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="160,*,80,72,132,72,96,112,80">
+              <TextBlock Grid.Column="0" Text="槽位" Classes="CkanCaption" />
+              <TextBlock Grid.Column="1" Text="标题" Classes="CkanCaption" />
+              <TextBlock Grid.Column="2" Text="模式" Classes="CkanCaption" />
+              <TextBlock Grid.Column="3" Text="版本" Classes="CkanCaption" />
+              <TextBlock Grid.Column="4" Text="游戏内时间" Classes="CkanCaption" />
+              <TextBlock Grid.Column="5" Text="飞船" Classes="CkanCaption" />
+              <TextBlock Grid.Column="6" Text="资金" Classes="CkanCaption" />
+              <TextBlock Grid.Column="7" Text="修改时间" Classes="CkanCaption" />
+              <TextBlock Grid.Column="8" Text="体积" Classes="CkanCaption" />
+            </Grid>
+          </Border>
 
-        <ListBox Grid.Row="1" ItemsSource="{Binding Rows}"
-                 SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
-                 BorderThickness="0" Background="Transparent"
-                 IsVisible="{Binding HasRows}">
-          <ListBox.ItemsPanel>
-            <ItemsPanelTemplate>
-              <VirtualizingStackPanel />
-            </ItemsPanelTemplate>
-          </ListBox.ItemsPanel>
-          <ListBox.ItemTemplate>
-            <DataTemplate>
-              <Grid ColumnDefinitions="160,*,80,72,132,72,96,112,80" Height="{DynamicResource CkanRowHeight}">
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding SlotText}" TextTrimming="CharacterEllipsis"
-                             VerticalAlignment="Center"
-                             Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                  <Border Background="{DynamicResource CkanStatusBarBackgroundBrush}"
-                          CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                          Padding="4,0" IsVisible="{Binding IsBackup}">
-                    <TextBlock Text="{Binding KindText}"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                  </Border>
-                </StackPanel>
-                <TextBlock Grid.Column="1" Text="{Binding TitleText}" TextTrimming="CharacterEllipsis"
-                           VerticalAlignment="Center" Margin="0,0,8,0"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="2" Text="{Binding ModeText}" VerticalAlignment="Center"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="3" Text="{Binding VersionText}" VerticalAlignment="Center"
-                           FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="4" Text="{Binding UniversalTimeText}" VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis"
-                           FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="5" Text="{Binding VesselCountText}" VerticalAlignment="Center"
-                           FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="6" Text="{Binding FundsText}" VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis"
-                           FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="7" Text="{Binding TimeText}" VerticalAlignment="Center"
-                           FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="8" Text="{Binding SizeText}" VerticalAlignment="Center"
-                           FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-              </Grid>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
+          <ListBox Grid.Row="1" ItemsSource="{Binding Rows}" Padding="4"
+                   SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                   BorderThickness="0" Background="Transparent"
+                   IsVisible="{Binding HasRows}">
+            <ListBox.ItemsPanel>
+              <ItemsPanelTemplate>
+                <VirtualizingStackPanel />
+              </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="160,*,80,72,132,72,96,112,80"
+                      MinHeight="{DynamicResource CkanRowHeight}">
+                  <Rectangle Grid.ColumnSpan="9" Classes="SelectionBar" />
+                  <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SlotText}" TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                    <Border Classes="CkanBadge Info" IsVisible="{Binding IsBackup}">
+                      <TextBlock Text="{Binding KindText}" />
+                    </Border>
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Text="{Binding TitleText}" TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center" Margin="0,0,8,0"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <TextBlock Grid.Column="2" Text="{Binding ModeText}" VerticalAlignment="Center"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <TextBlock Grid.Column="3" Text="{Binding VersionText}" VerticalAlignment="Center"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <TextBlock Grid.Column="4" Text="{Binding UniversalTimeText}" VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <TextBlock Grid.Column="5" Text="{Binding VesselCountText}" VerticalAlignment="Center"
+                             Classes="CkanNumeric" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                  <TextBlock Grid.Column="6" Text="{Binding FundsText}" VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <TextBlock Grid.Column="7" Text="{Binding TimeText}" VerticalAlignment="Center"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <TextBlock Grid.Column="8" Text="{Binding SizeText}" VerticalAlignment="Center"
+                             Classes="CkanNumeric" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
 
-        <!-- 空态：这个实例还没有存档（03 篇 §14.2） -->
-        <Border Grid.Row="1" IsVisible="{Binding ShowEmptyState}" Padding="16">
-          <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="420">
-            <TextBlock Text="{Binding EmptyStateTitle}"
-                       HorizontalAlignment="Center"
-                       FontSize="{DynamicResource CkanFontSizeSubtitle}"
-                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-            <TextBlock Text="{Binding EmptyStateHint}" TextWrapping="Wrap" TextAlignment="Center"
-                       FontSize="{DynamicResource CkanFontSizeBody}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <Button Content="{Binding EmptyStateActionText}" Command="{Binding OpenFolderCommand}"
-                    HorizontalAlignment="Center" />
-          </StackPanel>
-        </Border>
+          <!-- 空态：这个实例还没有存档（03 篇 §14.2） -->
+          <Border Grid.Row="1" Classes="CkanEmptyStateCard" Margin="12"
+                  IsVisible="{Binding ShowEmptyState}"
+                  HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="420">
+              <Border Width="56" Height="56" HorizontalAlignment="Center"
+                      Background="{DynamicResource CkanAccentSubtleBrush}" CornerRadius="28">
+                <PathIcon Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center"
+                          Foreground="{DynamicResource CkanAccentBrush}"
+                          Data="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z" />
+              </Border>
+              <TextBlock Text="{Binding EmptyStateTitle}" HorizontalAlignment="Center"
+                         FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+              <TextBlock Text="{Binding EmptyStateHint}" TextWrapping="Wrap" TextAlignment="Center"
+                         FontSize="{DynamicResource CkanFontSizeBody}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <Button Content="{Binding EmptyStateActionText}" Command="{Binding OpenFolderCommand}"
+                      Classes="CkanPrimary" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Border>
 
-        <!-- 空态：还没有选择实例 -->
-        <Border Grid.Row="1" IsVisible="{Binding ShowNoInstanceState}" Padding="16">
-          <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="420">
-            <TextBlock Text="还没有选择游戏实例"
-                       HorizontalAlignment="Center"
-                       FontSize="{DynamicResource CkanFontSizeSubtitle}"
-                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-            <TextBlock Text="{Binding NoInstanceStateHint}" TextWrapping="Wrap" TextAlignment="Center"
-                       FontSize="{DynamicResource CkanFontSizeBody}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          </StackPanel>
-        </Border>
-      </Grid>
+          <!-- 空态：还没有选择实例 -->
+          <Border Grid.Row="1" Classes="CkanEmptyStateCard" Margin="12"
+                  IsVisible="{Binding ShowNoInstanceState}"
+                  HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="420">
+              <Border Width="56" Height="56" HorizontalAlignment="Center"
+                      Background="{DynamicResource CkanMutedBackgroundBrush}" CornerRadius="28">
+                <PathIcon Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center"
+                          Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                          Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+              </Border>
+              <TextBlock Text="还没有选择游戏实例" HorizontalAlignment="Center"
+                         FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+              <TextBlock Text="{Binding NoInstanceStateHint}" TextWrapping="Wrap" TextAlignment="Center"
+                         FontSize="{DynamicResource CkanFontSizeBody}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Border>
 
       <!-- 右侧：选中存档详情 + 诊断列表 -->
-      <Border Grid.Column="1" Margin="12,0,0,0" Padding="12"
-              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-              BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1"
+      <Border Grid.Column="1" Margin="12,0,0,0" Classes="CkanCard"
               IsVisible="{Binding HasSelection}">
         <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
 
           <StackPanel Grid.Row="0" Spacing="4">
-            <TextBlock Text="{Binding SelectionTitle}"
-                       FontSize="{DynamicResource CkanFontSizeSubtitle}"
-                       TextTrimming="CharacterEllipsis"
-                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-            <TextBlock Text="{Binding SelectionSummary}" TextWrapping="Wrap"
-                       FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Text="{Binding SelectionTimeText}" TextWrapping="Wrap"
-                       FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBlock Text="{Binding SelectionTitle}" Classes="CkanCardTitle"
+                       TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding SelectionSummary}" TextWrapping="Wrap" Classes="CkanCaption" />
+            <TextBlock Text="{Binding SelectionTimeText}" TextWrapping="Wrap" Classes="CkanCaption" />
             <TextBlock Text="{Binding SelectionPath}" TextWrapping="Wrap"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                       Foreground="{DynamicResource CkanTextTertiaryBrush}" />
           </StackPanel>
 
           <Border Grid.Row="1" Margin="0,8,0,0" Height="1"
                   Background="{DynamicResource CkanBorderBrush}" />
 
           <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
-            <TextBlock Grid.Column="0" Text="{Binding DiagnosticsHeader}"
-                       FontSize="{DynamicResource CkanFontSizeBody}"
-                       TextTrimming="CharacterEllipsis"
-                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-            <TextBlock Grid.Column="1" Text="{Binding SelectionStatsText}"
-                       FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBlock Grid.Column="0" Text="{Binding DiagnosticsHeader}" Classes="CkanCardTitle"
+                       TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="1" Text="{Binding SelectionStatsText}" Classes="CkanCaption"
+                       VerticalAlignment="Center" />
           </Grid>
 
           <ListBox Grid.Row="3" Margin="0,4,0,0" ItemsSource="{Binding Diagnostics}"
-                   BorderThickness="0" Background="Transparent"
+                   BorderThickness="0" Background="Transparent" Padding="0,2"
                    IsVisible="{Binding HasDiagnostics}">
+            <ListBox.Styles>
+              <Style Selector="ListBoxItem">
+                <Setter Property="IsHitTestVisible" Value="False" />
+              </Style>
+            </ListBox.Styles>
             <ListBox.ItemsPanel>
               <ItemsPanelTemplate>
                 <VirtualizingStackPanel />
@@ -235,25 +258,19 @@
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <StackPanel Spacing="2" Margin="0,4">
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding SeverityText}"
-                               IsVisible="{Binding IsError}"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Foreground="{DynamicResource CkanDangerBrush}" />
-                    <TextBlock Text="{Binding SeverityText}"
-                               IsVisible="{Binding IsWarning}"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Foreground="{DynamicResource CkanWarningBrush}" />
-                    <TextBlock Text="{Binding SeverityText}"
-                               IsVisible="{Binding IsInfo}"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                    <TextBlock Text="{Binding Code}"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                    <TextBlock Text="{Binding LocationText}"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <!-- 严重级别用语义徽章，高对比度下也不靠颜色深浅区分 -->
+                    <Border Classes="CkanBadge Danger" IsVisible="{Binding IsError}">
+                      <TextBlock Text="{Binding SeverityText}" />
+                    </Border>
+                    <Border Classes="CkanBadge Warning" IsVisible="{Binding IsWarning}">
+                      <TextBlock Text="{Binding SeverityText}" />
+                    </Border>
+                    <Border Classes="CkanBadge Info" IsVisible="{Binding IsInfo}">
+                      <TextBlock Text="{Binding SeverityText}" />
+                    </Border>
+                    <TextBlock Text="{Binding Code}" Classes="CkanCaption" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding LocationText}" Classes="CkanCaption" VerticalAlignment="Center" />
                   </StackPanel>
                   <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
                              FontSize="{DynamicResource CkanFontSizeBody}"
@@ -270,42 +287,53 @@
 
           <!-- 校验通过：没有发现问题 -->
           <Border Grid.Row="3" IsVisible="{Binding ShowDiagnosticsEmpty}" Padding="8">
-            <TextBlock Text="{Binding DiagnosticsEmptyText}" TextWrapping="Wrap"
-                       VerticalAlignment="Top"
-                       FontSize="{DynamicResource CkanFontSizeBody}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <StackPanel Spacing="8">
+              <Border Classes="CkanBadge Success" HorizontalAlignment="Left">
+                <TextBlock Text="校验通过" />
+              </Border>
+              <TextBlock Text="{Binding DiagnosticsEmptyText}" TextWrapping="Wrap"
+                         VerticalAlignment="Top"
+                         FontSize="{DynamicResource CkanFontSizeBody}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </StackPanel>
           </Border>
 
           <TextBlock Grid.Row="4" Text="{Binding LastOutcomeText}" Margin="0,8,0,0"
                      IsVisible="{Binding HasLastOutcome}"
-                     TextWrapping="Wrap"
-                     FontSize="{DynamicResource CkanFontSizeCaption}"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                     TextWrapping="Wrap" Classes="CkanCaption" />
         </Grid>
       </Border>
     </Grid>
 
     <!-- 状态栏 -->
     <Grid Grid.Row="4" ColumnDefinitions="Auto,*" Margin="0,8,0,0">
-      <TextBlock Grid.Column="0" Text="{Binding SavesDirectoryText}"
-                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+      <TextBlock Grid.Column="0" Text="{Binding SavesDirectoryText}" Classes="CkanCaption"
                  TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-      <TextBlock Grid.Column="1" Text="{Binding StatusText}" Margin="12,0,0,0"
-                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+      <TextBlock Grid.Column="1" Text="{Binding StatusText}" Margin="12,0,0,0" Classes="CkanCaption"
                  TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
     </Grid>
 
-    <!-- 进行中遮罩（03 篇 §10：非模态操作条） -->
+    <!-- 进行中遮罩（03 篇 §10：非模态操作条）：无行时骨架屏，有行时进度条 -->
     <Border Grid.RowSpan="5" IsVisible="{Binding IsBusy}"
-            Background="{DynamicResource CkanStatusBarBackgroundBrush}" Opacity="0.9">
-      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="360">
-        <ProgressBar IsIndeterminate="True" Width="240" />
-        <TextBlock Text="{Binding BusyText}" TextAlignment="Center" TextWrapping="Wrap"
-                   FontSize="{DynamicResource CkanFontSizeBody}"
-                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-      </StackPanel>
+            Background="{DynamicResource CkanBlockingScrimBrush}">
+      <Grid>
+        <StackPanel IsVisible="{Binding !HasRows}" IsHitTestVisible="False"
+                    app:SkeletonPulse.IsEnabled="True"
+                    VerticalAlignment="Top" Spacing="12" Margin="18,24">
+          <Border Classes="CkanSkeleton" Height="16" Width="180" HorizontalAlignment="Left" />
+          <Border Classes="CkanSkeletonLine" />
+          <Border Classes="CkanSkeletonLine" Width="360" HorizontalAlignment="Left" />
+          <Border Classes="CkanSkeletonLine" Width="280" HorizontalAlignment="Left" />
+          <Border Classes="CkanSkeletonLine" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding HasRows}"
+                    VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="360">
+          <ProgressBar IsIndeterminate="True" Width="240" />
+          <TextBlock Text="{Binding BusyText}" TextAlignment="Center" TextWrapping="Wrap"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextInverseBrush}" />
+        </StackPanel>
+      </Grid>
     </Border>
   </Grid>
 </UserControl>

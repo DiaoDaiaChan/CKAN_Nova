@@ -149,6 +149,15 @@ public static class ServiceCollectionExtensions
         // 自动更新与新版本检查器（F-52 / UI-27）。
         services.TryAddSingleton<IUpdateCheckService, Update.UpdateCheckService>();
 
+        // 实例可靠性处置（F-08）：构造参数全可选（探针/时钟/记录路径），
+        // 所以必须用工厂注册 —— 直接 AddSingleton<接口,实现> 会让 DI 去解析可选参数而失败。
+        services.TryAddSingleton<Abstractions.Instances.IInstanceRepairService>(_ => new InstanceRepairService());
+
+        // 自动更新安装（F-52）：下载复用已注册的 IDownloadService（不新起 HttpClient），
+        // 解包/备份/替换/回滚都在 UpdateInstaller 里，宿主只负责喂 UpdateInstallPlan。
+        services.TryAddSingleton<Abstractions.Update.IUpdateInstaller>(provider =>
+            new Update.UpdateInstaller(provider.GetRequiredService<IDownloadService>()));
+
         // Mod 配置适配层（M9）：目录即插件（内置 <App>/adapters + 用户目录），写盘走 IAdapterWriter 单一入口。
         // 用户目录与其它 UI 侧状态同处 %LocalAppData%\CKAN\ui，卸载实例不会连带删掉用户自写的 adapter。
         services.AddCkanModConfig();

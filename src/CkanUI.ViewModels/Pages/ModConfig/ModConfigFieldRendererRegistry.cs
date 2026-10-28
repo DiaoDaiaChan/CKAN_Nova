@@ -6,22 +6,23 @@ namespace CkanUI.ViewModels.Pages.ModConfig;
 /// 渲染器注册表：页面按字段类型取渲染器，而不是自己 switch 九种类型。
 /// </summary>
 /// <remarks>
-/// v1 只注册 bool/int/float/enum/string 五种（UI-CFG-01 交付范围）；
-/// 其余类型落到 <see cref="UnsupportedFieldRenderer"/>（只读文本展示），
-/// 后续新增实现类后用 <see cref="Register"/> 注册即可。
+/// CFG-04 起九种类型都有渲染器：bool/int/float/enum/string/path/list 可编辑，
+/// color/keybinding 只读展示（行内会写明"本版只读"的原因，不做静默禁用）。
+/// 除 <see cref="ModConfigFieldType.ReadOnly"/> 之外的类型都已覆盖；未注册类型仍落到
+/// <see cref="UnsupportedFieldRenderer"/>（只读文本展示），后续新增类型用 <see cref="Register"/> 注册即可。
 /// </remarks>
 public sealed class ModConfigFieldRendererRegistry
 {
     private readonly Dictionary<ModConfigFieldType, IModConfigFieldRenderer> _renderers = [];
 
-    /// <summary>默认构造：注册 UI-CFG-01 的五种渲染器。</summary>
+    /// <summary>默认构造：注册内置九种渲染器。</summary>
     public ModConfigFieldRendererRegistry()
         : this(CreateDefaultRenderers())
     {
     }
 
     /// <summary>自定义构造：从给定集合注册（测试与后续扩展用）。</summary>
-    /// <param name="renderers">渲染器集合；为 null 时用默认五种。</param>
+    /// <param name="renderers">渲染器集合；为 null 时用默认九种。</param>
     public ModConfigFieldRendererRegistry(IEnumerable<IModConfigFieldRenderer>? renderers)
     {
         foreach (var renderer in renderers ?? CreateDefaultRenderers())
@@ -33,7 +34,7 @@ public sealed class ModConfigFieldRendererRegistry
     /// <summary>已注册的类型（按注册顺序）。</summary>
     public IReadOnlyCollection<ModConfigFieldType> SupportedTypes => _renderers.Keys;
 
-    /// <summary>默认五种渲染器。</summary>
+    /// <summary>默认九种渲染器（CFG-04 的九种字段类型）。</summary>
     public static IReadOnlyList<IModConfigFieldRenderer> CreateDefaultRenderers() =>
     [
         new BoolFieldRenderer(),
@@ -41,6 +42,10 @@ public sealed class ModConfigFieldRendererRegistry
         new FloatFieldRenderer(),
         new EnumFieldRenderer(),
         new StringFieldRenderer(),
+        new PathFieldRenderer(),
+        new ListFieldRenderer(),
+        new ColorFieldRenderer(),
+        new KeybindingFieldRenderer(),
     ];
 
     /// <summary>注册（同类型后注册的覆盖先注册的）。</summary>

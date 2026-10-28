@@ -234,6 +234,46 @@
                       CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                       Padding="10,6" />
             </StackPanel>
+            <!-- 实例自检与故障处置（F-08）：锁探测 / 强制解锁 / 坏注册表隔离 -->
+            <Separator Margin="0,6" Background="{DynamicResource CkanBorderBrush}" Height="1" />
+            <StackPanel Spacing="6">
+              <TextBlock Text="实例自检" FontSize="{DynamicResource CkanFontSizeCaption}" FontWeight="SemiBold"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <Button Content="自检（锁与注册表）" Command="{Binding DiagnoseCommand}"
+                      IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Center"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="10,6"
+                      ToolTip.Tip="只读检查：实例是否被锁定、registry.json 能否解析、CKAN 与游戏版本是否过旧" />
+              <TextBlock Text="{Binding DiagnosisSummary}" FontSize="11" TextWrapping="Wrap"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              <ItemsControl ItemsSource="{Binding RepairIssues}" IsVisible="{Binding HasRepairIssues}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Margin="0,3" Padding="8,6" CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                            Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                            BorderBrush="{DynamicResource CkanCardBorderBrush}" BorderThickness="1">
+                      <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Message}" FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="{Binding RepairAdvice}" IsVisible="{Binding HasRepairIssues}"
+                         FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource CkanAccentBrush}" />
+              <Button Content="强制解锁（游戏未运行）" Command="{Binding ForceUnlockCommand}"
+                      IsEnabled="{Binding CanForceUnlock}" HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Center"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="10,6"
+                      ToolTip.Tip="删除 CKAN/registry.locked 并把操作写入本地记录；不会动注册表、模组与存档" />
+              <Button Content="隔离损坏的注册表" Command="{Binding QuarantineRegistryCommand}"
+                      IsEnabled="{Binding CanQuarantineRegistry}" HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Center"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="10,6"
+                      ToolTip.Tip="把解析不了的 registry.json 改名成 registry.json.corrupt-时间戳（内容保留）" />
+            </StackPanel>
             <Separator Margin="0,6" Background="{DynamicResource CkanBorderBrush}" Height="1" />
             <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource CkanTextTertiaryBrush}"
                        FontSize="11" TextWrapping="Wrap" />

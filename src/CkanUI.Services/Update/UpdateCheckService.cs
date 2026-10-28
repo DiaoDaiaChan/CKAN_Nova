@@ -161,13 +161,97 @@ public sealed class UpdateCheckService : IUpdateCheckService
         var latestVersion = tagName ?? _currentVersionString;
         var hasUpdate = !string.IsNullOrWhiteSpace(tagName) && CompareVersions(tagName, _currentVersionString) > 0;
 
+        // 自动安装（F-52）要有可直接下载的包：只有「有更新」时才去挑资产，
+        // 否则既浪费解析也容易把旧包的地址带进弹窗。
+        var asset = hasUpdate ? PickUpdateAsset(root) : default;
+
         return new UpdateCheckResult(
             HasUpdate: hasUpdate,
             CurrentVersion: _currentVersionString,
             LatestVersion: latestVersion,
             ReleaseNotes: body,
             ReleaseUrl: htmlUrl,
-            IsDevBuild: false);
+            IsDevBuild: false,
+            AssetUrl: asset.Url,
+            AssetSha256: asset.Sha256,
+            AssetSize: asset.Size);
+    }
+
+    /// <summary>
+    /// 从 GitHub release 的 <c>assets</c> 里挑出可直接下载的更新包。
+    /// 排序口径：名字里带 win 的优先、带 x64/amd64 的次优先，其余 zip 兜底；
+    /// 一个 zip 都没有时返回全空（界面据此降级为「打开发布页手动下载」）。
+    /// </summary>
+    private static (string? Url, string? Sha256, long Size) PickUpdateAsset(JsonElement root)
+    {
+        if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
+        {
+            return (null, null, 0);
+        }
+
+        string? bestUrl = null;
+        string? bestSha = null;
+        var bestSize = 0L;
+        var bestRank = -1;
+
+        foreach (var asset in assets.EnumerateArray())
+        {
+            if (asset.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var url = asset.TryGetProperty("browser_download_url", out var urlProp) ? urlProp.GetString() : null;
+            if (string.IsNullOrWhiteSpace(url) || !url.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var name = asset.TryGetProperty("name", out var nameProp) ? nameProp.GetString() ?? string.Empty : string.Empty;
+            var rank = 0;
+            if (name.Contains("win", StringComparison.OrdinalIgnoreCase))
+            {
+                rank += 2;
+            }
+
+            if (name.Contains("x64", StringComparison.OrdinalIgnoreCase) ||
+                name.Contains("amd64", StringComparison.OrdinalIgnoreCase))
+            {
+                rank += 1;
+            }
+
+            if (rank <= bestRank)
+            {
+                continue;
+            }
+
+            bestRank = rank;
+            bestUrl = url;
+            bestSize = asset.TryGetProperty("size", out var sizeProp) && sizeProp.TryGetInt64(out var size) ? size : 0;
+            bestSha = asset.TryGetProperty("digest", out var digestProp)
+                ? NormalizeDigest(digestProp.GetString())
+                : null;
+        }
+
+        return (bestUrl, bestSha, bestSize);
+    }
+
+    /// <summary>把 GitHub 的 <c>digest</c>（形如 <c>sha256:HEX</c>）归一成裸 SHA256；不认识的格式一律丢弃。</summary>
+    private static string? NormalizeDigest(string? digest)
+    {
+        if (string.IsNullOrWhiteSpace(digest))
+        {
+            return null;
+        }
+
+        var text = digest.Trim();
+        const string prefix = "sha256:";
+        if (text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            text = text[prefix.Length..];
+        }
+
+        return text.Length == 64 ? text : null;
     }
 
     /// <summary>

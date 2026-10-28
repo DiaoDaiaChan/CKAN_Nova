@@ -112,6 +112,7 @@ public sealed partial class ShellViewModel : ObservableObject
         _navigation.Navigated += OnNavigated;
 
         NavigateCommand = new AsyncRelayCommand<string>(ExecuteNavigateAsync);
+        ToggleNavCollapsedCommand = new RelayCommand(ToggleNavCollapsed);
         BackCommand = new AsyncRelayCommand(ExecuteBackAsync);
         ForwardCommand = new AsyncRelayCommand(ExecuteForwardAsync);
         _navigation.HistoryChanged += OnHistoryChanged;
@@ -149,6 +150,28 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>页面导航异步命令。</summary>
     public IAsyncRelayCommand<string> NavigateCommand { get; }
 
+    /// <summary>
+    /// 侧栏是否收起为「图标栏」。只影响呈现（250px ↔ 68px），不影响导航语义：
+    /// 收起后仍可点图标切页，选中的那一项照样高亮。
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNavExpanded))]
+    [NotifyPropertyChangedFor(nameof(NavToggleToolTip))]
+    [NotifyPropertyChangedFor(nameof(NavToggleGlyph))]
+    private bool _isNavCollapsed;
+
+    /// <summary>侧栏是否展开；供视图做「只在展开时显示文字」的反向可见性绑定。</summary>
+    public bool IsNavExpanded => !IsNavCollapsed;
+
+    /// <summary>折叠按钮提示（收起时提示「展开侧栏」，反之亦然）。</summary>
+    public string NavToggleToolTip => _translate(IsNavCollapsed ? "Ui_NavRail_Expand" : "Ui_NavRail_Collapse");
+
+    /// <summary>折叠按钮图标文本：展开态用「‹」提示往左收，收起态用「›」提示往右放。</summary>
+    public string NavToggleGlyph => IsNavCollapsed ? "›" : "‹";
+
+    /// <summary>切换侧栏展开/收起（Ctrl+B 也走这条命令）。</summary>
+    public IRelayCommand ToggleNavCollapsedCommand { get; }
+
     /// <summary>回退命令（F-25）。</summary>
     public IAsyncRelayCommand BackCommand { get; }
 
@@ -175,6 +198,12 @@ public sealed partial class ShellViewModel : ObservableObject
         {
             _ = ExecuteNavigateAsync(value.Key, CancellationToken.None);
         }
+    }
+
+    /// <summary>翻转侧栏展开状态。</summary>
+    private void ToggleNavCollapsed()
+    {
+        IsNavCollapsed = !IsNavCollapsed;
     }
 
     private void OnInstanceChanged(InstanceInfo? instance)
@@ -354,6 +383,8 @@ public sealed partial class ShellViewModel : ObservableObject
         ["Ui_NavRail_Logs"] = "日志",
         ["Ui_NavRail_Settings"] = "设置",
         ["Ui_NavRail_ModConfig"] = "Mod 配置",
+        ["Ui_NavRail_Collapse"] = "收起侧栏",
+        ["Ui_NavRail_Expand"] = "展开侧栏",
         ["Ui_Common_Nav_Back"] = "后退",
         ["Ui_Common_Nav_Forward"] = "前进",
         ["Ui_Common_Status_Ready"] = "就绪",

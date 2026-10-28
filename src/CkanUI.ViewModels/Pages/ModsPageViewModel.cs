@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.ViewModels.Dialogs;
 using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Pages.Mods;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -68,6 +69,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     private string? _currentSelection;
     private bool _restoringSelection;
     private IReadOnlyList<ModRowData> _all = Array.Empty<ModRowData>();
+    private ModDetailsViewModel? _details;
     private ModsQuery _query = ModsQuery.Empty;
 
     // 组合搜索面板（F-20）：谁改的搜索文本决定要不要回填面板字段。
@@ -1207,6 +1209,55 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         ToggleFavouriteCommand.NotifyCanExecuteChanged();
         ToggleHiddenCommand.NotifyCanExecuteChanged();
         ToggleHeldCommand.NotifyCanExecuteChanged();
+        SyncDetails();
+    }
+
+    /// <summary>
+    /// 富详情面板（F-26 四页签）：由宿主在 DI 里注入，选中行变化时同步快照。
+    /// </summary>
+    /// <remarks>
+    /// null 表示本次宿主没接详情面板（例如设计时构造），此时页面右侧只剩列表字段，
+    /// 不会因为缺少面板而报错。
+    /// </remarks>
+    public ModDetailsViewModel? Details
+    {
+        get => _details;
+        set
+        {
+            if (ReferenceEquals(_details, value))
+            {
+                return;
+            }
+
+            _details = value;
+            SyncDetails();
+        }
+    }
+
+    private void SyncDetails()
+    {
+        if (_details is null)
+        {
+            return;
+        }
+
+        _details.ShowDetails(SelectedRow is { } row
+            ? ModDetailsSnapshotBuilder.Build(row.Data, InstalledIdentifiers())
+            : null);
+    }
+
+    private IReadOnlyList<string> InstalledIdentifiers()
+    {
+        var installed = new List<string>();
+        foreach (var item in _all)
+        {
+            if (item.IsInstalled)
+            {
+                installed.Add(item.Identifier);
+            }
+        }
+
+        return installed;
     }
 
     private static string DescribeInstallFilter(ModsInstallFilter filter) => filter switch
@@ -1613,6 +1664,53 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             IsBusy = false;
             RefreshDerived();
         }
+    }
+
+    /// <summary>
+    /// 按标识符定位并选中一行（深链 <c>ckan://mod/&lt;identifier&gt;</c> 的落点，ARC-05）。
+    /// </summary>
+    /// <param name="identifier">模组标识符。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>是否命中并选中了具体行；未命中时搜索框仍会保留该关键字，便于用户自己看。</returns>
+    /// <remarks>
+    /// 命中不了当前投影时走搜索框：<see cref="PendingSearch"/> 由 <c>OnSearchTextChanged</c>
+    /// 同步挂上防抖任务，等它就等于等这次检索落定，不需要在路由器里另造计时器。
+    /// </remarks>
+    public async Task<bool> ShowIdentifierAsync(string? identifier, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            return false;
+        }
+
+        var target = identifier.Trim();
+        if (FindRowByIdentifier(target) is not null)
+        {
+            return SelectRowByIdentifier(target);
+        }
+
+        if (!string.Equals(SearchText, target, StringComparison.Ordinal))
+        {
+            SearchText = target;
+            await PendingSearch.ConfigureAwait(true);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return SelectRowByIdentifier(target);
+    }
+
+    private ModsRowView? FindRowByIdentifier(string identifier) =>
+        Rows.FirstOrDefault(row => string.Equals(row.Identifier, identifier, StringComparison.OrdinalIgnoreCase));
+
+    private bool SelectRowByIdentifier(string identifier)
+    {
+        if (FindRowByIdentifier(identifier) is not { } row)
+        {
+            return false;
+        }
+
+        SelectedRow = row;
+        return true;
     }
 
     /// <summary>清空搜索框（Esc / 按钮）。</summary>

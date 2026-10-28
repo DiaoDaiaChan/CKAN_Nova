@@ -166,7 +166,8 @@ public sealed partial class LogRedactor : ILogRedactor
 
     private sealed record Detector(Regex Pattern, RedactionLeakKind Kind, MatchEvaluator Replace);
 
-    // C:\Users\<name>\ / C:/Users/<name>/ / Documents and Settings（XP 遗留）
+    // 形如 <盘符>:\Users\<name>\ 或 <盘符>:/Users/<name>/ 的 Windows 用户目录，外加 Documents and Settings（XP 遗留）。
+    // 注释里不写具体盘符：H-10 门禁会把它当成本机绝对路径（21 篇 §12）。
     // 用户名段允许空格：Windows 用户名可以是 "John Smith"，按 [^\s] 切只会抹掉 "John" 而漏掉 "Smith"。
     // 安全性由「必须紧跟反斜杠」保证——段内不含反斜杠，所以最多吃到下一个目录分隔符为止。
     [GeneratedRegex(

@@ -162,6 +162,30 @@ public sealed partial class ReposPageViewModel : PageViewModel
         }
     }
 
+    /// <summary>
+    /// 按仓库名或索引地址选中一行（深链 <c>ckan://repo/&lt;name&gt;</c> 的落点，ARC-05）。
+    /// </summary>
+    /// <param name="nameOrUri">仓库名或索引地址，大小写不敏感。</param>
+    /// <returns>是否命中并选中；列表里没有匹配项时返回 <c>false</c>，不改动当前选中。</returns>
+    public bool SelectRepository(string? nameOrUri)
+    {
+        if (string.IsNullOrWhiteSpace(nameOrUri))
+        {
+            return false;
+        }
+
+        var value = nameOrUri.Trim();
+        var target = Rows.FirstOrDefault(row => string.Equals(row.Name, value, StringComparison.OrdinalIgnoreCase))
+                     ?? Rows.FirstOrDefault(row => string.Equals(row.Uri, value, StringComparison.OrdinalIgnoreCase));
+        if (target is null)
+        {
+            return false;
+        }
+
+        SelectedRow = target;
+        return true;
+    }
+
     // ---- 生命周期 ----------------------------------------------------------
 
     /// <inheritdoc />

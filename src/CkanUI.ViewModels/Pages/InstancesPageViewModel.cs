@@ -1,5 +1,6 @@
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.Services.Abstractions.Instances;
 using CkanUI.ViewModels.Dialogs.InstanceDialogs;
 using CkanUI.ViewModels.Pages.Instances;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -1185,6 +1186,294 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         ErrorDetail = null;
     }
 
+    // ---- 自检与处置（12 篇 F-08） -----------------------------------------
+
+    /// <summary>
+    /// 实例自检与处置服务（12 篇 F-08）：锁占用探测 / 强制解锁 / 坏注册表隔离 / 版本兼容建议。
+    /// 未注入时「自检」给出可读提示而不是崩溃——容器里注册 <c>IInstanceRepairService</c> 之后由 App 层赋值即可。
+    /// </summary>
+    public IInstanceRepairService? Repair { get; set; }
+
+    /// <summary>最近一次自检结果；为空表示还没自检过或自检失败。</summary>
+    [ObservableProperty]
+    private InstanceRepairDiagnosis? _diagnosis;
+
+    /// <summary>命中的问题清单（整体替换，视图逐条显示标题与修复建议）。</summary>
+    [ObservableProperty]
+    private IReadOnlyList<InstanceIssue> _repairIssues = Array.Empty<InstanceIssue>();
+
+    /// <summary>升级建议（版本不满足时的可读指引，取各问题的修复建议拼接）；没有建议时为空。</summary>
+    [ObservableProperty]
+    private string? _repairAdvice;
+
+    /// <summary>是否已有自检结果（视图据此显示「处置」区）。</summary>
+    public bool HasDiagnosis => Diagnosis is not null;
+
+    /// <summary>是否有需要处理的问题。</summary>
+    public bool HasRepairIssues => RepairIssues.Count > 0;
+
+    /// <summary>能否强制解锁：锁存在且游戏进程没在跑（服务层会再校验一次，这里只提前灰显按钮）。</summary>
+    public bool CanForceUnlock => Diagnosis?.CanForceUnlock == true;
+
+    /// <summary>能否隔离 registry.json：确实存在一个解析不了的注册表文件。</summary>
+    public bool CanQuarantineRegistry => Diagnosis?.HasCorruptedRegistry == true;
+
+    /// <summary>自检摘要（一行中文，同时写进状态栏）。</summary>
+    public string DiagnosisSummary
+    {
+        get
+        {
+            if (Diagnosis is not { } diagnosis)
+            {
+                return "尚未自检。";
+            }
+
+            if (diagnosis.IsHealthy)
+            {
+                return $"实例「{diagnosis.InstanceName}」自检通过：锁与注册表都正常。";
+            }
+
+            var first = diagnosis.Issues.Count > 0 ? diagnosis.Issues[0].Title : "存在问题";
+            return $"实例「{diagnosis.InstanceName}」发现 {diagnosis.Issues.Count} 个问题：{first}。";
+        }
+    }
+
+    /// <summary>命令：对当前选中实例做一次自检（锁占用 / 注册表可解析 / 版本兼容）。</summary>
+    [RelayCommand]
+    private Task DiagnoseAsync() => DiagnoseInstanceAsync(SelectedRow);
+
+    /// <summary>对指定实例自检（headless 单测直接调用，不必绕命令）。</summary>
+    public async Task DiagnoseInstanceAsync(InstanceRowViewModel? row)
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        var target = ResolveRepairTarget(row, "自检");
+        if (target is null)
+        {
+            return;
+        }
+
+        ClearError();
+        IsBusy = true;
+        BusyText = "正在自检实例…";
+        try
+        {
+            await ApplyDiagnosisAsync(target);
+        }
+        catch (Exception ex)
+        {
+            OnException(ex, "实例自检");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>命令：强制解锁当前实例（仅游戏进程确实没在跑时才允许，见 12 篇 F-08）。</summary>
+    [RelayCommand]
+    private Task ForceUnlockAsync() => ForceUnlockInstanceAsync(SelectedRow);
+
+    /// <summary>强制解锁指定实例的占用标记（headless 单测直接调用）。</summary>
+    public async Task ForceUnlockInstanceAsync(InstanceRowViewModel? row)
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        var target = ResolveRepairTarget(row, "强制解锁");
+        if (target is null)
+        {
+            return;
+        }
+
+        if (Diagnosis is not { } diagnosis
+            || !string.Equals(diagnosis.InstanceName, target.InstanceName, StringComparison.Ordinal))
+        {
+            SetError($"请先对实例「{target.InstanceName}」点一次「自检」，确认游戏没有在运行后再强制解锁。", target.GameDir);
+            return;
+        }
+
+        if (!diagnosis.CanForceUnlock)
+        {
+            SetError(
+                diagnosis.IsGameRunning
+                    ? $"游戏正在运行，无法解锁实例「{diagnosis.InstanceName}」。请先退出游戏再重试。（不可重试）"
+                    : $"实例「{diagnosis.InstanceName}」当前没有被锁定，无需解锁。（不可重试）",
+                diagnosis.GameDir);
+            return;
+        }
+
+        try
+        {
+            var confirmed = await _dialogs.ConfirmAsync(
+                "强制解锁实例",
+                $"会删掉实例「{diagnosis.InstanceName}」的占用标记（CKAN/registry.locked），不会动注册表、模组或存档。要继续吗？",
+                diagnosis.GameDir);
+            if (!confirmed)
+            {
+                StatusText = "已取消解锁。";
+                return;
+            }
+
+            IsBusy = true;
+            BusyText = "正在强制解锁…";
+            ClearError();
+
+            var result = await Repair!.ForceUnlockAsync(target, "实例页手工强制解锁");
+            if (!result.IsSuccess || result.Value is null)
+            {
+                SetError(InstancesErrorText.Compose(result.Message, "强制解锁失败。", result.Retryable), result.Detail);
+                return;
+            }
+
+            // 解锁是个「状态已变」的动作：立刻复核一次，避免详情区还挂着旧的 🔒。
+            // 复核会把状态栏刷成自检摘要，所以处置结果要在复核之后再写回状态栏。
+            await ApplyDiagnosisAsync(target);
+            StatusText = result.Value.Message;
+        }
+        catch (Exception ex)
+        {
+            OnException(ex, "强制解锁实例");
+        }
+        finally
+        {
+            IsBusy = false;
+            Reload();
+        }
+    }
+
+    /// <summary>命令：把解析不了的 registry.json 改名隔离（保留文件内容，绝不删除用户数据）。</summary>
+    [RelayCommand]
+    private Task QuarantineRegistryAsync() => QuarantineInstanceRegistryAsync(SelectedRow);
+
+    /// <summary>隔离指定实例的坏注册表（headless 单测直接调用）。</summary>
+    public async Task QuarantineInstanceRegistryAsync(InstanceRowViewModel? row)
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        var target = ResolveRepairTarget(row, "隔离注册表");
+        if (target is null)
+        {
+            return;
+        }
+
+        if (Diagnosis is not { } diagnosis
+            || !string.Equals(diagnosis.InstanceName, target.InstanceName, StringComparison.Ordinal))
+        {
+            SetError($"请先对实例「{target.InstanceName}」点一次「自检」，确认注册表已损坏后再隔离。", target.GameDir);
+            return;
+        }
+
+        if (!diagnosis.HasCorruptedRegistry)
+        {
+            SetError(
+                $"实例「{diagnosis.InstanceName}」的 registry.json 当前可以正常解析，无需隔离。（不可重试）",
+                diagnosis.RegistryPath);
+            return;
+        }
+
+        try
+        {
+            var confirmed = await _dialogs.ConfirmAsync(
+                "隔离损坏的注册表",
+                $"会把解析不了的 registry.json 改名成 registry.json.corrupt-<时间戳> 留在原目录，CKAN 下次启动会重建一个空注册表（模组文件不会被删除）。要继续吗？",
+                diagnosis.RegistryPath);
+            if (!confirmed)
+            {
+                StatusText = "已取消隔离。";
+                return;
+            }
+
+            IsBusy = true;
+            BusyText = "正在隔离注册表…";
+            ClearError();
+
+            var result = await Repair!.QuarantineRegistryAsync(target);
+            if (!result.IsSuccess || result.Value is null)
+            {
+                SetError(InstancesErrorText.Compose(result.Message, "隔离注册表失败。", result.Retryable), result.Detail);
+                return;
+            }
+
+            // 隔离同样要先复核（坏注册表已改名，复核应当通过），再把隔离结果写回状态栏。
+            await ApplyDiagnosisAsync(target);
+            StatusText = result.Value.Message;
+        }
+        catch (Exception ex)
+        {
+            OnException(ex, "隔离注册表");
+        }
+        finally
+        {
+            IsBusy = false;
+            Reload();
+        }
+    }
+
+    private InstanceRepairTarget? ResolveRepairTarget(InstanceRowViewModel? row, string action)
+    {
+        if (row is null)
+        {
+            SetError($"请先选择一个实例，再点「{action}」。", null);
+            return null;
+        }
+
+        if (Repair is null)
+        {
+            SetError("实例自检功能尚未接线：请在容器里注册 IInstanceRepairService 后重试。", null);
+            return null;
+        }
+
+        return new InstanceRepairTarget(row.Name, row.GameDir, row.GameVersion);
+    }
+
+    private async Task ApplyDiagnosisAsync(InstanceRepairTarget target)
+    {
+        var result = await Repair!.DiagnoseAsync(target);
+        if (!result.IsSuccess || result.Value is null)
+        {
+            ResetDiagnosis();
+            SetError(InstancesErrorText.Compose(result.Message, "实例自检失败。", result.Retryable), result.Detail);
+            return;
+        }
+
+        var diagnosis = result.Value;
+        Diagnosis = diagnosis;
+        RepairIssues = diagnosis.Issues;
+        RepairAdvice = ComposeRepairAdvice(diagnosis);
+        // 自检「不健康」不是失败：状态栏给出摘要、问题清单逐条渲染，错误条留给真正失败的动作。
+        StatusText = DiagnosisSummary;
+    }
+
+    private void ResetDiagnosis()
+    {
+        Diagnosis = null;
+        RepairIssues = Array.Empty<InstanceIssue>();
+        RepairAdvice = null;
+    }
+
+    private static string? ComposeRepairAdvice(InstanceRepairDiagnosis diagnosis)
+    {
+        var hints = new List<string>();
+        foreach (var issue in diagnosis.Issues)
+        {
+            if (!string.IsNullOrWhiteSpace(issue.FixHint))
+            {
+                hints.Add(issue.FixHint!.Trim());
+            }
+        }
+
+        return hints.Count == 0 ? null : string.Join(" ", hints);
+    }
+
     // ---- 内部工具 ---------------------------------------------------------
 
     private InstanceRowViewModel? ResolveSelection(string? previousName)
@@ -1274,6 +1563,26 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         OnPropertyChanged(nameof(CanForgetSelected));
         OnPropertyChanged(nameof(CanOpenSelected));
         OnPropertyChanged(nameof(CanEditCommands));
+
+        // 换到别的实例后旧的诊断结论作废（同实例的刷新保留，见 Reload 会重建行快照）。
+        if (Diagnosis is not null && !string.Equals(Diagnosis.InstanceName, value?.Name, StringComparison.Ordinal))
+        {
+            ResetDiagnosis();
+        }
+    }
+
+    partial void OnDiagnosisChanged(InstanceRepairDiagnosis? value)
+    {
+        OnPropertyChanged(nameof(HasDiagnosis));
+        OnPropertyChanged(nameof(CanForceUnlock));
+        OnPropertyChanged(nameof(CanQuarantineRegistry));
+        OnPropertyChanged(nameof(DiagnosisSummary));
+    }
+
+    partial void OnRepairIssuesChanged(IReadOnlyList<InstanceIssue> value)
+    {
+        OnPropertyChanged(nameof(HasRepairIssues));
+        OnPropertyChanged(nameof(DiagnosisSummary));
     }
 
     partial void OnErrorTextChanged(string? value) => OnPropertyChanged(nameof(HasError));

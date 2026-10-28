@@ -1,6 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.ViewModels.Navigation;
+using CkanUI.ViewModels.Pages;
 using CkanUI.ViewModels.Pages.Settings;
 
 namespace CkanUI.ViewModels.Dialogs;
@@ -16,19 +19,38 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
 {
     private readonly IRepositoryService _repository;
     private readonly IRegistryService _registry;
+    private readonly IChangeSetService? _changeSets;
+    private readonly IChangeRequestSink? _changeSink;
+    private readonly INavigationService? _navigation;
     private string? _identifier;
     private ModRowData? _row;
     private InstalledModuleInfo? _installed;
     private ModDetailsSnapshot? _details;
 
     /// <summary>创建详情面板 VM。</summary>
-    public ModDetailsViewModel(IRepositoryService repository, IRegistryService registry)
+    /// <param name="repository">仓库服务（列表行回查）。</param>
+    /// <param name="registry">实例注册表服务（已装版本回查）。</param>
+    /// <param name="changeSets">
+    /// 变更集服务（F-30 指定版本安装）。可为 null：未接线时版本页的安装按钮只给出「没有可用服务」的提示，
+    /// 详情浏览本身不受影响（与 <c>DetailsProvider</c> 同一套可选接线思路，保持既有 2 参构造调用零改动）。
+    /// </param>
+    /// <param name="changeSink">变更集页落点（可选）：算好预览后把请求灌给它，由变更集页确认安装。</param>
+    /// <param name="navigation">页面导航服务（可选）：页签四跳转全局 ZIP 内容预览页（F-29）。</param>
+    public ModDetailsViewModel(
+        IRepositoryService repository,
+        IRegistryService registry,
+        IChangeSetService? changeSets = null,
+        IChangeRequestSink? changeSink = null,
+        INavigationService? navigation = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(registry);
 
         _repository = repository;
         _registry = registry;
+        _changeSets = changeSets;
+        _changeSink = changeSink;
+        _navigation = navigation;
     }
 
     private bool _isUpdatingTolerance;
@@ -261,10 +283,269 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
         }
     }
 
+
+    /// <summary>页签数量（元数据与简介 / 依赖关系 / 全部版本 / 文件与内容）。</summary>
+    public const int TabCount = 4;
+
+    /// <summary>全局 ZIP 内容预览页的导航目标键，与 <c>ServiceRegistration</c> 的页面表保持一致。</summary>
+    public const string ContentPreviewPageKey = "content";
+
+    private int _selectedTabIndex;
+
+    /// <summary>
+    /// 当前页签索引：0=元数据与简介，1=依赖关系，2=全部版本（F-30），3=文件与内容（F-26/F-29）。
+    /// 越界值自动收敛，避免宿主或测试塞进非法下标后视图空白。
+    /// </summary>
+    public int SelectedTabIndex
+    {
+        get => _selectedTabIndex;
+        set
+        {
+            var clamped = value < 0 ? 0 : value >= TabCount ? TabCount - 1 : value;
+            if (clamped == _selectedTabIndex)
+            {
+                return;
+            }
+
+            _selectedTabIndex = clamped;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>元数据页签标题。</summary>
+    public string MetadataTabHeaderText => "元数据与简介";
+
+    /// <summary>依赖关系页签标题（有关系时带计数角标）。</summary>
+    public string RelationsTabHeaderText =>
+        RelationsTotal > 0 ? "依赖关系 (" + RelationsTotal + ")" : "依赖关系";
+
+    /// <summary>全部版本页签标题（有版本时带计数角标）。</summary>
+    public string VersionsTabHeaderText =>
+        HasVersions ? "全部版本 (" + Versions.Count + ")" : "全部版本";
+
+    /// <summary>文件与内容页签标题（有已装文件时带计数角标）。</summary>
+    public string ContentsTabHeaderText =>
+        HasInstalledFiles ? "文件与内容 (" + InstalledFiles.Count + ")" : "文件与内容";
+
+    /// <summary>依赖 + 推荐 + 冲突的关系总数，用于页签计数角标。</summary>
+    public int RelationsTotal => Dependencies.Count + Recommendations.Count + Conflicts.Count;
+
+    /// <summary>是否有任意关系（依赖 / 推荐 / 冲突）。</summary>
+    public bool HasRelations => RelationsTotal > 0;
+
+    /// <summary>
+    /// 全部版本列表（F-30）。数据由 <see cref="ModDetailsSnapshot.Versions"/> 提供；
+    /// 快照可能来自缓存而没标 IsInstalled，这里按当前实例的已装版本补齐"当前已安装"标记。
+    /// </summary>
+    public IReadOnlyList<ModVersionItemDto> Versions
+    {
+        get
+        {
+            var source = _details?.Versions;
+            if (source is null || source.Count == 0)
+            {
+                return Array.Empty<ModVersionItemDto>();
+            }
+
+            var installedVersion = FirstNonEmpty(_installed?.Version, _row?.InstalledVersion);
+            if (string.IsNullOrWhiteSpace(installedVersion))
+            {
+                return source;
+            }
+
+            List<ModVersionItemDto>? patched = null;
+            for (var index = 0; index < source.Count; index++)
+            {
+                var item = source[index];
+                if (item.IsInstalled ||
+                    !string.Equals(item.Version, installedVersion, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                patched ??= new List<ModVersionItemDto>(source);
+                patched[index] = item with { IsInstalled = true };
+            }
+
+            return patched ?? source;
+        }
+    }
+
+    /// <summary>是否有版本记录。</summary>
+    public bool HasVersions => Versions.Count > 0;
+
+    /// <summary>版本计数文案。</summary>
+    public string VersionsCountText =>
+        HasVersions ? "共 " + Versions.Count + " 个版本" : "暂无版本记录";
+
+    /// <summary>版本页空状态文案。</summary>
+    public string VersionsEmptyText => "该模组暂无可用版本记录。";
+
+    /// <summary>已装文件清单（相对游戏实例根目录）。</summary>
+    public IReadOnlyList<string> InstalledFiles =>
+        _details?.InstalledFiles ?? Array.Empty<string>();
+
+    /// <summary>内容页列表行（把路径拆成文件名 + 所在目录，供视图两行显示）。</summary>
+    public IReadOnlyList<InstalledFileItem> InstalledFileRows
+    {
+        get
+        {
+            var source = _details?.InstalledFiles;
+            if (source is null || source.Count == 0)
+            {
+                return Array.Empty<InstalledFileItem>();
+            }
+
+            var rows = new InstalledFileItem[source.Count];
+            for (var index = 0; index < source.Count; index++)
+            {
+                rows[index] = new InstalledFileItem(source[index]);
+            }
+
+            return rows;
+        }
+    }
+
+    /// <summary>是否有已装文件记录。</summary>
+    public bool HasInstalledFiles => InstalledFiles.Count > 0;
+
+    /// <summary>已装文件计数文案。</summary>
+    public string InstalledFilesCountText =>
+        HasInstalledFiles ? "共 " + InstalledFiles.Count + " 个文件" : "暂无文件记录";
+
+    /// <summary>内容页空状态文案。</summary>
+    public string ContentsEmptyText => "暂无已装文件记录。";
+
+    /// <summary>关系页空状态文案。</summary>
+    public string RelationsEmptyText => "该模组没有声明依赖、推荐或冲突关系。";
+
+    /// <summary>内容预览按钮文案。</summary>
+    public string ContentPreviewButtonText => "打开内容预览";
+
+    /// <summary>内容页引导文案（按是否已装给不同说明）。</summary>
+    public string ContentPreviewHintText => IsInstalled
+        ? "下面是本实例里该模组的已装文件；也可打开全局内容预览页查看压缩包内的完整结构。"
+        : "该模组尚未安装，可打开全局内容预览页查看压缩包内的文件结构。";
+
+    /// <summary>
+    /// 外部跳转委托（模组标识 → void）。未接入 <see cref="INavigationService"/> 的宿主用它接管
+    /// 内容预览跳转（例如主窗口自己切页或弹窗），保证 VM 不依赖 Avalonia 与具体页面。
+    /// </summary>
+    public Action<string>? ExternalNavigateAction { get; set; }
+
+    private string? _installStatusText;
+
+    /// <summary>版本安装的状态反馈文案（未发起过安装时为空）。</summary>
+    public string InstallStatusText
+    {
+        get => _installStatusText ?? string.Empty;
+        private set
+        {
+            if (string.Equals(_installStatusText, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _installStatusText = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasInstallStatusText));
+        }
+    }
+
+    /// <summary>是否有安装状态反馈文案。</summary>
+    public bool HasInstallStatusText => !string.IsNullOrWhiteSpace(InstallStatusText);
+
+    private bool _installStatusIsError;
+
+    /// <summary>安装状态反馈是否为失败（视图据此把提示横幅换成危险色）。</summary>
+    public bool InstallStatusIsError
+    {
+        get => _installStatusIsError;
+        private set
+        {
+            if (_installStatusIsError == value)
+            {
+                return;
+            }
+
+            _installStatusIsError = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private ChangeSetPreview? _lastChangeSet;
+
+    /// <summary>
+    /// 最近一次"安装指定版本"生成的变更集预览（供变更集页确认安装）。
+    /// 生成失败或换选中模组时清空，避免显示上一轮的陈旧结果。
+    /// </summary>
+    public ChangeSetPreview? LastChangeSet
+    {
+        get => _lastChangeSet;
+        private set
+        {
+            if (ReferenceEquals(_lastChangeSet, value))
+            {
+                return;
+            }
+
+            _lastChangeSet = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasLastChangeSet));
+        }
+    }
+
+    /// <summary>是否有最近一次生成的变更集预览。</summary>
+    public bool HasLastChangeSet => _lastChangeSet is not null;
+
+    private bool _isInstalling;
+
+    /// <summary>是否正在生成变更集（安装按钮据此禁用，防连点重复计算）。</summary>
+    public bool IsInstalling
+    {
+        get => _isInstalling;
+        private set
+        {
+            if (_isInstalling == value)
+            {
+                return;
+            }
+
+            _isInstalling = value;
+            OnPropertyChanged();
+            InstallVersionCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private string? _contentNavigationStatusText;
+
+    /// <summary>内容预览跳转的状态反馈文案（未触发过跳转时为空）。</summary>
+    public string ContentNavigationStatusText
+    {
+        get => _contentNavigationStatusText ?? string.Empty;
+        private set
+        {
+            if (string.Equals(_contentNavigationStatusText, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _contentNavigationStatusText = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasContentNavigationStatusText));
+        }
+    }
+
+    /// <summary>是否有内容预览跳转的状态反馈文案。</summary>
+    public bool HasContentNavigationStatusText =>
+        !string.IsNullOrWhiteSpace(ContentNavigationStatusText);
+
     /// <summary>选中一个模组（按 Identifier 回查快照；null 表示清空）。</summary>
     public void Select(string? identifier)
     {
+        var previous = _identifier;
         _identifier = string.IsNullOrWhiteSpace(identifier) ? null : identifier;
+        ResetTransientState(previous);
         Reload();
     }
 
@@ -281,8 +562,10 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
             return;
         }
 
+        var previous = _identifier;
         _identifier = string.IsNullOrWhiteSpace(details.Identifier) ? null : details.Identifier;
         _details = details;
+        ResetTransientState(previous);
         Reload();
     }
 
@@ -294,8 +577,118 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
         _installed = null;
         _details = null;
         _selectedStabilityToleranceOverride = null;
+        SelectedTabIndex = 0;
+        SetInstallStatus(string.Empty, isError: false);
+        LastChangeSet = null;
+        ContentNavigationStatusText = string.Empty;
         Refresh();
     }
+
+
+    /// <summary>
+    /// 跳转到全局 ZIP 内容预览页（页签四 / F-26、F-29）。
+    /// 优先走 <see cref="INavigationService"/> 并带上当前模组标识作为参数；宿主未接入导航服务时回落到
+    /// <see cref="ExternalNavigateAction"/>，两者都不可用才给出提示文案，保证 VM 不引用 Avalonia 与具体页面类型。
+    /// </summary>
+    [RelayCommand]
+    private async Task NavigateToContentPreviewAsync()
+    {
+        var identifier = _identifier;
+        if (identifier is null)
+        {
+            ContentNavigationStatusText = "未选中模组，无法打开内容预览。";
+            return;
+        }
+
+        if (_navigation is not null)
+        {
+            try
+            {
+                if (await _navigation.NavigateAsync(ContentPreviewPageKey, identifier).ConfigureAwait(true))
+                {
+                    ContentNavigationStatusText = string.Empty;
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                ContentNavigationStatusText = "打开内容预览页失败：" + ex.Message;
+                return;
+            }
+        }
+
+        if (ExternalNavigateAction is not null)
+        {
+            ExternalNavigateAction(identifier);
+            ContentNavigationStatusText = string.Empty;
+            return;
+        }
+
+        ContentNavigationStatusText = "当前没有可用的导航服务，无法打开内容预览。";
+    }
+
+    /// <summary>
+    /// 安装指定版本（F-30）：把目标版本号放进 <see cref="ChangeRequest.TargetVersion"/> 交给变更集服务算预览。
+    /// 精确版本解析由 Core 侧 <c>CoreChangeSetPlanner</c> 负责（VM 不接触 Core 类型）；
+    /// 生成的预览同时经 <see cref="IChangeRequestSink"/> 交给变更集页确认安装。
+    /// </summary>
+    /// <param name="version">用户在版本页点选的版本行。</param>
+    [RelayCommand(CanExecute = nameof(CanInstallVersion))]
+    private async Task InstallVersionAsync(ModVersionItemDto? version)
+    {
+        if (version is null)
+        {
+            return;
+        }
+
+        var identifier = _identifier;
+        if (identifier is null)
+        {
+            SetInstallStatus("未选中模组，无法发起安装。", isError: true);
+            return;
+        }
+
+        if (_changeSets is null)
+        {
+            SetInstallStatus("当前没有可用的变更集服务，无法发起安装。", isError: true);
+            return;
+        }
+
+        var requests = new[] { new ChangeRequest(identifier, ChangeAction.Install, version.Version) };
+        IsInstalling = true;
+        try
+        {
+            var result = await _changeSets.BuildAsync(requests).ConfigureAwait(true);
+            if (!result.IsSuccess)
+            {
+                LastChangeSet = null;
+                _changeSink?.SetRequests(null);
+                SetInstallStatus("生成变更集失败：" + result.Message, isError: true);
+                return;
+            }
+
+            var preview = result.Value;
+            LastChangeSet = preview;
+            _changeSink?.SetRequests(requests);
+            SetInstallStatus(
+                preview is null || preview.IsEmpty
+                    ? "目标版本 " + version.VersionText + " 已在实例中或不可用，没有需要安装的内容。"
+                    : "已生成变更集：安装 " + version.VersionText + "，共 " + preview.Items.Count +
+                      " 项变更，预计下载 " + ModDetailsFormatter.FormatSize(preview.EstimatedDownloadBytes) + "。",
+                isError: false);
+        }
+        catch (Exception ex)
+        {
+            LastChangeSet = null;
+            SetInstallStatus("生成变更集失败：" + ex.Message, isError: true);
+        }
+        finally
+        {
+            IsInstalling = false;
+        }
+    }
+
+    private bool CanInstallVersion(ModVersionItemDto? version) => !_isInstalling;
 
     /// <inheritdoc />
     public void Activate()
@@ -389,6 +782,33 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
     }
 
     private void Refresh() => OnPropertyChanged(string.Empty);
+
+    /// <summary>设置安装状态反馈文案与其成败标记（两者必须同步，否则横幅颜色会和文案矛盾）。</summary>
+    /// <param name="text">反馈文案，空串表示清空。</param>
+    /// <param name="isError">是否为失败反馈。</param>
+    private void SetInstallStatus(string text, bool isError)
+    {
+        InstallStatusIsError = isError && !string.IsNullOrWhiteSpace(text);
+        InstallStatusText = text;
+    }
+
+    /// <summary>
+    /// 换选中模组时重置一次性状态：回到第一个页签、清掉上一轮的安装/跳转反馈与变更集预览，
+    /// 避免同名面板里残留上一个模组的结果。
+    /// </summary>
+    /// <param name="previousIdentifier">切换前的标识符。</param>
+    private void ResetTransientState(string? previousIdentifier)
+    {
+        if (string.Equals(previousIdentifier, _identifier, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        SelectedTabIndex = 0;
+        SetInstallStatus(string.Empty, isError: false);
+        LastChangeSet = null;
+        ContentNavigationStatusText = string.Empty;
+    }
 
     private ModRowData? FindRow(string identifier)
     {

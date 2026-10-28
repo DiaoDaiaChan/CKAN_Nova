@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.Services.Abstractions.Update;
 using CkanUI.ViewModels.Dialogs;
 using CkanUI.ViewModels.Pages;
 using NUnit.Framework;
@@ -33,6 +34,57 @@ public sealed class UpdateDialogViewModelTests
         Assert.That(vm.ReleaseUrl, Is.EqualTo("https://github.com/KSP-CKAN/CKAN/releases/tag/v1.32.0"));
         Assert.That(vm.IsDevBuild, Is.False);
         Assert.That(vm.UpdatePromptText, Does.Contain("CKAN 存在可用的新版本"));
+    }
+
+    [Test]
+    public void FromUpdateCheckResult_WithAsset_DerivesInstallPlan()
+    {
+        var result = new UpdateCheckResult(
+            true,
+            "v1.31.2",
+            "v1.32.0",
+            "notes",
+            "https://example.test/release",
+            false,
+            AssetUrl: "https://example.test/ckan-win-x64.zip",
+            AssetSha256: new string('b', 64),
+            AssetSize: 2048);
+
+        var vm = new UpdateAvailableDialogViewModel(result);
+
+        Assert.That(vm.InstallPlan, Is.Not.Null);
+        Assert.That(vm.InstallPlan!.FileName, Is.EqualTo("ckan-win-x64.zip"));
+        Assert.That(vm.InstallPlan.HasChecksum, Is.True);
+        Assert.That(vm.InstallPlan.ExpectedSize, Is.EqualTo(2048));
+        // 没有安装器时「立即安装」必须禁用，并给出一句可读原因。
+        Assert.That(vm.CanInstall, Is.False);
+        Assert.That(vm.InstallAvailabilityText, Does.Contain("自动安装未接线"));
+    }
+
+    [Test]
+    public void FromUpdateCheckResult_WithoutAsset_LeavesPlanNullAndExplainsWhy()
+    {
+        var result = CreateUpdateResult();
+        // 装上安装器，才轮到「上游没给包」这条原因出场（没安装器时先报未接线）。
+        var vm = new UpdateAvailableDialogViewModel(result) { Installer = new StubInstaller() };
+
+        Assert.That(vm.InstallPlan, Is.Null);
+        Assert.That(vm.CanInstall, Is.False);
+        Assert.That(vm.InstallAvailabilityText, Does.Contain("上游没有提供可直接下载的更新包地址"));
+    }
+
+    /// <summary>只用来点亮「安装器已接线」的最小替身；本文件不验证安装流程。</summary>
+    private sealed class StubInstaller : IUpdateInstaller
+    {
+        public string UpdatesDirectory => "updates";
+
+        public string ProgramDirectory => "app";
+
+        public Task<OperationResult<UpdateInstallResult>> InstallAsync(
+            UpdateInstallPlan plan,
+            IProgress<UpdateInstallProgress>? progress = null,
+            CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<UpdateInstallResult>.Fail("本替身不执行安装。"));
     }
 
     [Test]

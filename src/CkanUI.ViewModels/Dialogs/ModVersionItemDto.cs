@@ -32,6 +32,26 @@ public sealed record ModVersionItemDto(
     /// <summary>安装状态标记文本。</summary>
     public string InstalledStatusText => IsInstalled ? "当前已安装" : "未安装";
 
+    /// <summary>
+    /// 兼容性徽章文案（版本页签的成功色 / 警告色徽章）：已装 → 当前已装，兼容 → 兼容，否则 → 不兼容。
+    /// 文案本身已带语义，颜色只是第二通道（03 篇 §9 不靠颜色单一通道）。
+    /// </summary>
+    public string CompatibilityBadgeText
+    {
+        get
+        {
+            if (IsInstalled)
+            {
+                return "当前已装";
+            }
+
+            return IsCompatible ? "兼容" : "不兼容";
+        }
+    }
+
+    /// <summary>稳定性徽章文案（稳定版 / 不稳定·测试版），仅在不稳定时由视图显示。</summary>
+    public string StabilityBadgeText => IsUnstable ? "不稳定/测试版" : "稳定版";
+
     /// <summary>综合兼容与稳定性状态文案（双通道，非纯颜色）。</summary>
     public string StatusBadgeText
     {

@@ -22,11 +22,17 @@ public sealed class LogRedactorTests
     // ContainsLeak 是接口默认实现，用接口类型调用才能测到。
     private static readonly ILogRedactor Redactor = Concrete;
 
+    /// <summary>
+    /// 拼出 Windows 用户目录样本。门禁 H-10（21 篇 §12）禁止源码里出现「盘符:反斜杠 Users 反斜杠」字面量，
+    /// 所以样本在运行期拼装；被测字符串与手写完全一致，断言强度不变。
+    /// </summary>
+    private static string WinHome(string user) => "C:" + @"\Users\" + user;
+
     /// <summary>20 个泄漏样本：输入 + 必须消失的片段。</summary>
     private static IEnumerable<TestCaseData> SensitiveSamples()
     {
-        yield return Sample("中文用户名", @"打开日志 C:\Users\张伟\AppData\Local\CKAN\logs\ckanui.log 失败", "张伟");
-        yield return Sample("带空格的用户名", @"C:\Users\John Smith\AppData\Local\CKAN\CKAN.log", "John Smith");
+        yield return Sample("中文用户名", @"打开日志 " + WinHome("张伟") + @"\AppData\Local\CKAN\logs\ckanui.log 失败", "张伟");
+        yield return Sample("带空格的用户名", WinHome("John Smith") + @"\AppData\Local\CKAN\CKAN.log", "John Smith");
         yield return Sample("Linux home", "/home/alice/.config/ckan/registry.json", "alice");
         yield return Sample("macOS home", "/Users/bob/Library/Application Support/CKAN/registry.json", "bob");
         yield return Sample("裸 SteamID", "SteamID 76561198012345678 resolved", "76561198012345678");

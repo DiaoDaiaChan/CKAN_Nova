@@ -1,5 +1,11 @@
+using System;
 using System.ComponentModel;
+using Avalonia;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
+using Avalonia.Media;
+using Avalonia.Styling;
 using CkanUI.ViewModels.Dialogs;
 
 namespace CkanUI.App.Views.Dialogs;
@@ -11,6 +17,9 @@ namespace CkanUI.App.Views.Dialogs;
 /// </summary>
 public class DialogWindow : Window
 {
+    /// <summary>页面级动效时长 token（20 篇 P-10 由 MotionHost 写入）。</summary>
+    private const string MotionToken = "CkanMotionDurationPage";
+
     private INotifyPropertyChanged? _viewModel;
 
     /// <summary>初始化对话框窗口的公共外观（不可缩放、居中于 owner、不进任务栏）。</summary>
@@ -22,6 +31,55 @@ public class DialogWindow : Window
         MinWidth = 360;
         MaxWidth = 760;
         MaxHeight = 720;
+    }
+
+    /// <summary>
+    /// 入场动画（轻量淡入 + 96%→100% 缩放）：对话框是从「点下去的那一刻」开始的，
+    /// 直接硬闪出来会让点击与结果之间缺少因果感。时长取 `CkanMotionDurationPage`，
+    /// 关闭动效（时长 0）时干脆不挂动画 —— 无障碍设置优先于观感。
+    /// </summary>
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+
+        if (!this.TryFindResource(MotionToken, out var raw) || raw is not TimeSpan duration || duration <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        // 关掉动效还原时不能残留 96% 的缩放：先显式置回 1，动画再从 0.96 开始。
+        RenderTransform = new ScaleTransform(1d, 1d);
+
+        var entrance = new Animation
+        {
+            Duration = duration,
+            Easing = new CubicEaseOut(),
+            Children =
+            {
+                new KeyFrame
+                {
+                    Cue = new Cue(0d),
+                    Setters =
+                    {
+                        new Setter(OpacityProperty, 0d),
+                        new Setter(ScaleTransform.ScaleXProperty, 0.96d),
+                        new Setter(ScaleTransform.ScaleYProperty, 0.96d),
+                    },
+                },
+                new KeyFrame
+                {
+                    Cue = new Cue(1d),
+                    Setters =
+                    {
+                        new Setter(OpacityProperty, 1d),
+                        new Setter(ScaleTransform.ScaleXProperty, 1d),
+                        new Setter(ScaleTransform.ScaleYProperty, 1d),
+                    },
+                },
+            },
+        };
+
+        _ = entrance.RunAsync(this);
     }
 
     /// <inheritdoc />

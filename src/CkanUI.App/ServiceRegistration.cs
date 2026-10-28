@@ -11,15 +11,21 @@ using CkanUI.Platform.Dialogs;
 using CkanUI.Platform.Threading;
 using CkanUI.Services;
 using CkanUI.Services.Abstractions;
+using CkanUI.Services.Abstractions.Commands;
 using CkanUI.Services.Bootstrap;
+using CkanUI.Services.Commands;
 using CkanUI.Services.Diagnostics;
 using CkanUI.Services.Lifecycle;
 using CkanUI.Services.Logs;
 using CkanUI.Services.Users;
 using CkanUI.ViewModels;
+using CkanUI.ViewModels.CommandPalette;
+using CkanUI.ViewModels.Dialogs;
 using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Operations;
+using CkanUI.Services.Abstractions.Instances;
 using CkanUI.Services.Abstractions.Logs;
+using CkanUI.Services.Abstractions.Update;
 using CkanUI.ViewModels.Pages;
 using CkanUI.ViewModels.Pages.Logs;
 using CkanUI.ViewModels.Pages.Settings;
@@ -114,18 +120,28 @@ public static class ServiceRegistration
             sp.GetService<IUiSettingsStore>(),
             sp.GetService<IRepositoryService>()));
         services.AddSingleton<IChangeRequestSink>(sp => sp.GetRequiredService<ChangesPageViewModel>());
-        services.AddSingleton(sp => new ModsPageViewModel(
-            sp.GetRequiredService<IRepositoryService>(),
-            sp.GetRequiredService<IRegistryService>(),
-            sp.GetRequiredService<IInstanceService>(),
-            sp.GetRequiredService<IErrorReporter>(),
-            sp.GetService<IChangeSetService>(),
-            sp.GetService<IUiSettingsStore>(),
-            sp.GetService<IChangeRequestSink>(),
-            sp.GetService<INavigationService>(),
-            sp.GetService<IModSearchParser>(),
-            sp.GetService<ILabelService>(),
-            sp.GetService<IModSearchFormatter>()));
+        // 详情面板（F-26 四页签）：模组页右侧直接渲染这同一个 VM，注册成单例后由模组页工厂注入，
+        // 免得每页各建一份、切换实例后状态对不上。
+        services.AddSingleton<ModDetailsViewModel>();
+        services.AddSingleton(sp =>
+        {
+            var page = new ModsPageViewModel(
+                sp.GetRequiredService<IRepositoryService>(),
+                sp.GetRequiredService<IRegistryService>(),
+                sp.GetRequiredService<IInstanceService>(),
+                sp.GetRequiredService<IErrorReporter>(),
+                sp.GetService<IChangeSetService>(),
+                sp.GetService<IUiSettingsStore>(),
+                sp.GetService<IChangeRequestSink>(),
+                sp.GetService<INavigationService>(),
+                sp.GetService<IModSearchParser>(),
+                sp.GetService<ILabelService>(),
+                sp.GetService<IModSearchFormatter>());
+
+            // 富字段快照由模组页在选中行变化时喂进来（ModDetailsSnapshotBuilder），这里只负责接线。
+            page.Details = sp.GetRequiredService<ModDetailsViewModel>();
+            return page;
+        });
         // 内容预览页要拿模组页的当前选中项（F-29）：只经 IContentTargetProvider 窄接口，不直接耦合。
         services.AddSingleton<IContentTargetProvider>(sp =>
             new ModsSelectionContentTarget(sp.GetRequiredService<ModsPageViewModel>()));
@@ -141,6 +157,8 @@ public static class ServiceRegistration
             page.UiSettings = sp.GetRequiredService<IUiSettingsStore>();
             // F-48 自动计时：实例页启动/退出时记账，服务端与 IPlayTimeService 是同一单例（见 ServiceCollectionExtensions）。
             page.PlayTime = sp.GetService<IPlayTimeTracker>();
+            // F-08 实例自检/强制解锁/坏注册表隔离：服务在 Services 层注册，页面只认窄接口。
+            page.Repair = sp.GetService<IInstanceRepairService>();
             return page;
         });
         services.AddSingleton<SavesPageViewModel>();
@@ -191,6 +209,13 @@ public static class ServiceRegistration
                 .Select(locale => (Code: locale.Name, Display: $"{locale.NativeName}（{locale.Name}）"))
                 .ToList();
             page.RefreshLocaleChoices();
+
+            // F-52 更新弹窗：VM 只发委托，真实弹窗与「打开发布页」的浏览器通道都在 App 侧接。
+            // 不接的话更新弹窗永远不会出现——用户只能看到状态栏里一句「发现新版本」，点不到安装。
+            page.OpenExternalUrlAsync = CreateUrlLauncher(ownerProvider);
+            page.ShowUpdateDialogAsync = dialogVm => ShowDialogAsync(
+                new Views.Dialogs.UpdateAvailableDialogView { DataContext = dialogVm },
+                ownerProvider);
             return page;
         });
 
@@ -220,9 +245,28 @@ public static class ServiceRegistration
         // 视图模型不引用本地化层（架构铁律 2），只拿一个「取译文」委托。
         services.AddSingleton<Func<string, string>>(sp => sp.GetRequiredService<ILocalizer>().Get);
 
+        // 命令面板（UI-27）：模糊匹配与命令目录属于服务层，视图模型只认接口；
+        // 29 条内置命令（19 导航 + 10 动作）在这里一次性注册，Id 由 DefaultCommands 保证唯一。
+        // 注意：ShortcutsCatalogViewModel 不登记单例 —— 它是 DialogViewModelBase，IsClosed 是状态，复用会带着上次关闭态。
+        services.AddSingleton<IFuzzyMatcher>(_ => new FuzzyMatcher());
+        services.AddSingleton<ICommandCatalog>(sp =>
+        {
+            var catalog = new CommandCatalog(sp.GetRequiredService<IFuzzyMatcher>());
+            _ = catalog.Register(DefaultCommands.CreateAll(sp.GetRequiredService<Func<string, string>>()));
+            return catalog;
+        });
+        services.AddSingleton<CommandPaletteViewModel>();
+
         // 导航与外壳。
         services.AddSingleton<INavigationService>(sp => new NavigationService(CreatePageFactory(sp)));
         services.AddSingleton<ShellViewModel>();
+
+        // 深链路由（ARC-05）：解析 ckan:// 的是 Platform 层的 CkanUri，视图模型层不引用 Platform，
+        // 所以这里把「按导航键取页面单例」的委托喂进去，路由器只管落点。
+        services.AddSingleton(sp => new DeepLinkRouter(
+            sp.GetRequiredService<INavigationService>(),
+            sp.GetService<IInstanceService>(),
+            key => PageTypes.TryGetValue(key, out var pageType) ? sp.GetService(pageType) : null));
 
         // 托盘（12 篇 F-51 / UI-26）：VM 只描述菜单，图标与原生菜单由 App 层的 TrayHost 装。
         services.AddSingleton<TrayHostActions>(sp => new TrayHostActions(
@@ -295,5 +339,40 @@ public static class ServiceRegistration
         return key => PageTypes.TryGetValue(key, out var type)
             ? services.GetService(type)
             : Plugins.PluginPageFactory.CreateFor(services, key, PageTypes.Keys);
+    }
+
+    /// <summary>
+    /// 把 URL 交给系统默认浏览器：优先用 owner 窗口的 Avalonia Launcher。
+    /// 拿不到窗口（启动早期／无窗口宿主）时返回 false，由 VM 提示用户手动访问，而不是抛异常。
+    /// </summary>
+    private static Func<string, Task<bool>> CreateUrlLauncher(Func<Window?> ownerProvider) => async url =>
+    {
+        if (ownerProvider() is not { } owner || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        return await owner.Launcher.LaunchUriAsync(uri).ConfigureAwait(true);
+    };
+
+    /// <summary>
+    /// 弹出一个对话框窗口：有可见 owner 时严格模态，否则降级非模态并等它关闭
+    /// （与 <see cref="Dialogs.DialogPresenter"/> 的口径一致，避免无窗口宿主里 ShowDialog 抛异常）。
+    /// </summary>
+    private static async Task ShowDialogAsync(Window window, Func<Window?> ownerProvider)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+
+        var owner = ownerProvider();
+        if (owner is not null && owner.IsVisible)
+        {
+            await window.ShowDialog(owner).ConfigureAwait(true);
+            return;
+        }
+
+        var closed = new TaskCompletionSource();
+        window.Closed += (_, _) => closed.TrySetResult();
+        window.Show();
+        await closed.Task.ConfigureAwait(true);
     }
 }

@@ -41,7 +41,7 @@
   </Style>
 
   <Style Selector="Button.CkanPrimary:pointerover">
-    <Setter Property="Background" Value="{DynamicResource CkanPrimaryBrush}" />
+    <Setter Property="Background" Value="{DynamicResource CkanAccentHoverBrush}" />
     <Setter Property="RenderTransform" Value="translateY(-1px)" />
   </Style>
 
@@ -58,7 +58,7 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
     <Setter Property="Padding" Value="14" />
-    <Setter Property="BoxShadow" Value="0 2 10 0 #14000000" />
+    <Setter Property="BoxShadow" Value="{DynamicResource CkanElevationLow}" />
     <Setter Property="Transitions">
       <Transitions>
         <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
@@ -88,7 +88,7 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
     <Setter Property="Padding" Value="12,10" />
-    <Setter Property="BoxShadow" Value="0 1 6 0 #10000000" />
+    <Setter Property="BoxShadow" Value="{DynamicResource CkanElevationLow}" />
     <Setter Property="Transitions">
       <Transitions>
         <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
@@ -359,6 +359,452 @@
         <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
       </Transitions>
     </Setter>
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 键盘可达性：可见焦点环（THM-09）             -->
+  <!-- 只在 :focus-visible 下加环（鼠标点击不弹环）， -->
+  <!-- 粗细与颜色全部走 token，高对比度下自动换成高对比黄。 -->
+  <!-- ========================================== -->
+  <Style Selector="Button:focus-visible">
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanFocusRingBrush}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource CkanFocusRingThickness}" />
+  </Style>
+
+  <Style Selector="TextBox:focus-visible">
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanFocusRingBrush}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource CkanFocusRingThickness}" />
+  </Style>
+
+  <Style Selector="ComboBox:focus-visible">
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanFocusRingBrush}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource CkanFocusRingThickness}" />
+  </Style>
+
+  <Style Selector="ListBoxItem:focus-visible">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanFocusRingBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="DataGridRow:focus-visible">
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanFocusRingBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 按钮家族：主 / 次 / 幽灵 / 危险 / 图标 / 小  -->
+  <!-- ========================================== -->
+  <Style Selector="Button.CkanSecondary">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="MinHeight" Value="{DynamicResource CkanControlHeightMedium}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Button.CkanSecondary:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <Style Selector="Button.CkanSecondary:pressed">
+    <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
+  </Style>
+
+  <Style Selector="Button.CkanGhost">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="MinHeight" Value="{DynamicResource CkanControlHeightMedium}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Button.CkanGhost:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanHoverOverlayBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+  </Style>
+
+  <Style Selector="Button.CkanGhost:pressed">
+    <Setter Property="Background" Value="{DynamicResource CkanPressedOverlayBrush}" />
+  </Style>
+
+  <Style Selector="Button.CkanDanger">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanDangerBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanDangerBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="MinHeight" Value="{DynamicResource CkanControlHeightMedium}" />
+  </Style>
+
+  <Style Selector="Button.CkanDanger:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanDangerBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="Button.CkanIcon">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Width" Value="30" />
+    <Setter Property="Height" Value="30" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Button.CkanIcon:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanHoverOverlayBrush}" />
+    <Setter Property="RenderTransform" Value="none" />
+  </Style>
+
+  <!-- 小号按钮：表格行内操作、工具条次要动作 -->
+  <Style Selector="Button.CkanSmall">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+    <Setter Property="Padding" Value="8,3" />
+    <Setter Property="MinHeight" Value="{DynamicResource CkanControlHeightSmall}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 状态徽章（Badge）：语义色 + 药丸圆角         -->
+  <!-- ========================================== -->
+  <Style Selector="Border.CkanBadge">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusPill}" />
+    <Setter Property="Padding" Value="8,2" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Border.CkanBadge TextBlock">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Border.CkanBadge.Success">
+    <Setter Property="Background" Value="{DynamicResource CkanSuccessBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanSuccessBrush}" />
+  </Style>
+
+  <Style Selector="Border.CkanBadge.Success TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource CkanSuccessBrush}" />
+  </Style>
+
+  <Style Selector="Border.CkanBadge.Warning">
+    <Setter Property="Background" Value="{DynamicResource CkanWarningBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanWarningBrush}" />
+  </Style>
+
+  <Style Selector="Border.CkanBadge.Warning TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource CkanWarningBrush}" />
+  </Style>
+
+  <Style Selector="Border.CkanBadge.Danger">
+    <Setter Property="Background" Value="{DynamicResource CkanDangerBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanDangerBrush}" />
+  </Style>
+
+  <Style Selector="Border.CkanBadge.Danger TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource CkanDangerBrush}" />
+  </Style>
+
+  <Style Selector="Border.CkanBadge.Info">
+    <Setter Property="Background" Value="{DynamicResource CkanInfoBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanInfoBrush}" />
+  </Style>
+
+  <Style Selector="Border.CkanBadge.Info TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource CkanInfoBrush}" />
+  </Style>
+
+  <Style Selector="Border.CkanBadge.Accent">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <Style Selector="Border.CkanBadge.Accent TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 文本层级：页面标题 / 小节标题 / 说明 / 数字  -->
+  <!-- ========================================== -->
+  <Style Selector="TextBlock.CkanPageTitle">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeTitle}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="TextWrapping" Value="NoWrap" />
+  </Style>
+
+  <Style Selector="TextBlock.CkanSectionTitle">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeHeading}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.CkanCardTitle">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeSubtitle}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.CkanCaption">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.CkanMuted">
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+  </Style>
+
+  <!-- 统计数字：等宽数字（tnum）防止数值跳动时左右抖 -->
+  <Style Selector="TextBlock.CkanNumeric">
+    <Setter Property="FontFeatures" Value="tnum" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.CkanNumericLarge">
+    <Setter Property="FontFeatures" Value="tnum" />
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeTitle}" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 可点击卡片：hover 抬升 + 阴影加深            -->
+  <!-- ========================================== -->
+  <Style Selector="Border.CkanCardInteractive">
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="RenderTransform" Value="none" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BoxShadowsTransition Property="BoxShadow" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationFast}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Border.CkanCardInteractive:pointerover">
+    <Setter Property="BoxShadow" Value="{DynamicResource CkanElevationMedium}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="RenderTransform" Value="translateY(-2px)" />
+  </Style>
+
+  <Style Selector="Border.CkanCardInteractive:pressed">
+    <Setter Property="RenderTransform" Value="scale(0.995)" />
+  </Style>
+
+  <!-- 选中态卡片：左边 3px 强调条由视图里的 Rectangle.SelectionBar 承担 -->
+  <Style Selector="Border.CkanCardSelected">
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 骨架屏（加载态占位）：底色走 token，脉动由   -->
+  <!-- CkanUI.App.Theming.SkeletonPulse 附加属性驱动 -->
+  <!-- ========================================== -->
+  <Style Selector="Border.CkanSkeleton">
+    <Setter Property="Background" Value="{DynamicResource CkanSkeletonBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="MinHeight" Value="12" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+  </Style>
+
+  <Style Selector="Border.CkanSkeletonLine">
+    <Setter Property="Background" Value="{DynamicResource CkanSkeletonBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Height" Value="10" />
+    <Setter Property="MinWidth" Value="120" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 页签（TabControl / TabItem）：下划线指示器   -->
+  <!-- 下划线用透明度 + 横向缩放两条过渡，时长走 token -->
+  <!-- ========================================== -->
+  <Style Selector="TabControl">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
+  <Style Selector="TabItem">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="Padding" Value="14,8" />
+    <Setter Property="MinHeight" Value="36" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="Transparent" Padding="{TemplateBinding Padding}">
+          <StackPanel Spacing="6">
+            <ContentPresenter Content="{TemplateBinding Header}"
+                              ContentTemplate="{TemplateBinding HeaderTemplate}"
+                              HorizontalAlignment="Center"
+                              TextElement.Foreground="{TemplateBinding Foreground}" />
+            <Border x:Name="PART_TabUnderline"
+                    Height="2"
+                    CornerRadius="1"
+                    Background="{DynamicResource CkanAccentBrush}"
+                    Opacity="0"
+                    RenderTransform="scaleX(0.4)">
+              <Border.Transitions>
+                <Transitions>
+                  <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
+                  <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationBase}" />
+                </Transitions>
+              </Border.Transitions>
+            </Border>
+          </StackPanel>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+
+  <Style Selector="TabItem:pointerover">
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+  </Style>
+
+  <Style Selector="TabItem:selected">
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="TabItem:selected /template/ Border#PART_TabUnderline">
+    <Setter Property="Opacity" Value="1" />
+    <Setter Property="RenderTransform" Value="scaleX(1)" />
+  </Style>
+
+  <Style Selector="TabItem:focus-visible /template/ Border#PART_TabUnderline">
+    <Setter Property="Opacity" Value="1" />
+    <Setter Property="RenderTransform" Value="scaleX(1)" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 工具提示（ToolTip）：浮层海拔 + 小字号        -->
+  <!-- ========================================== -->
+  <Style Selector="ToolTip">
+    <Setter Property="Background" Value="{DynamicResource CkanDialogBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanCardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="MaxWidth" Value="420" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 右键菜单（ContextMenu / MenuItem）           -->
+  <!-- ========================================== -->
+  <Style Selector="ContextMenu">
+    <Setter Property="Background" Value="{DynamicResource CkanDialogBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanCardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+    <Setter Property="Padding" Value="4" />
+  </Style>
+
+  <Style Selector="MenuItem">
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationFast}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="MenuItem:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 滚动条：细身、圆头、hover 才明显             -->
+  <!-- ========================================== -->
+  <Style Selector="ScrollBar:vertical">
+    <Setter Property="Width" Value="10" />
+    <Setter Property="MinWidth" Value="10" />
+  </Style>
+
+  <Style Selector="ScrollBar:horizontal">
+    <Setter Property="Height" Value="10" />
+    <Setter Property="MinHeight" Value="10" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 进度条：细高度 + 强调色 + 圆角              -->
+  <!-- ========================================== -->
+  <Style Selector="ProgressBar">
+    <Setter Property="MinHeight" Value="6" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 分割线与栅格分隔条                          -->
+  <!-- ========================================== -->
+  <Style Selector="Separator">
+    <Setter Property="Background" Value="{DynamicResource CkanBorderBrush}" />
+  </Style>
+
+  <Style Selector="GridSplitter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="MinWidth" Value="6" />
+    <Setter Property="MinHeight" Value="6" />
+  </Style>
+
+  <Style Selector="GridSplitter:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 禁用态：统一降透明度（可读但明显不可点）      -->
+  <!-- ========================================== -->
+  <Style Selector="Button:disabled">
+    <Setter Property="Opacity" Value="0.45" />
+  </Style>
+
+  <Style Selector="RepeatButton:disabled">
+    <Setter Property="Opacity" Value="0.45" />
+  </Style>
+
+  <Style Selector="TextBox:disabled">
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
+
+  <Style Selector="ComboBox:disabled">
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
+
+  <Style Selector="CheckBox:disabled">
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
+
+  <Style Selector="RadioButton:disabled">
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
+
+  <Style Selector="ToggleSwitch:disabled">
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
+
+  <Style Selector="Slider:disabled">
+    <Setter Property="Opacity" Value="0.5" />
   </Style>
 
 </Styles>

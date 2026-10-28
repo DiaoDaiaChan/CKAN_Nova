@@ -1,0 +1,105 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:cp="clr-namespace:CkanUI.ViewModels.CommandPalette;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.ShortcutsDialogView"
+                       x:DataType="cp:ShortcutsCatalogViewModel"
+                       Title="{Binding Title}"
+                       Width="560"
+                       Height="560">
+
+  <!--
+    快捷键目录对话框（F-53 / UI-28）。
+    - 只读：列出「命令目录里真的接线了的快捷键」+ 面板/对话框自身的导航手势，可过滤、可复制成纯文本。
+    - 分组用两层 ItemsControl：外层按分类，内层按条目；条目不虚拟化（数量级只有几十条）。
+    - 关闭走 DialogViewModelBase 的 PrimaryCommand（IsCancel=True 让 Esc 也能关），
+      关窗仍由 DialogWindow 观察 IsClosed 完成，本视图不自己 Close。
+    - 颜色/圆角全部走 Tokens.axaml 的语义 token（THM-01）。
+  -->
+  <Grid Margin="20" RowDefinitions="Auto,*,Auto">
+
+    <!-- 过滤框：输入即过滤（Filter 变化由视图模型重算分组） -->
+    <TextBox Grid.Row="0"
+             x:Name="FilterBox"
+             Padding="8,6"
+             Text="{Binding Filter, Mode=TwoWay}"
+             PlaceholderText="{Binding FilterWatermark}" />
+
+    <!-- 条目区：分组列表；过滤后为空时折叠，只留一行提示 -->
+    <Grid Grid.Row="1" Margin="0,12,0,0">
+
+      <ScrollViewer IsVisible="{Binding HasEntries}"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <ItemsControl ItemsSource="{Binding Groups}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="cp:ShortcutGroupViewModel">
+              <StackPanel Spacing="2" Margin="0,0,0,12">
+
+                <TextBlock Text="{Binding Category}"
+                           FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                           Margin="0,0,0,4" />
+
+                <ItemsControl ItemsSource="{Binding Entries}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="cp:ShortcutEntryDto">
+                      <Grid ColumnDefinitions="140,*" Margin="0,2">
+
+                        <!-- 手势：等宽徽标，便于竖着扫读 -->
+                        <Border HorizontalAlignment="Left"
+                                Padding="6,2"
+                                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                                BorderThickness="1"
+                                BorderBrush="{DynamicResource CkanBorderBrush}">
+                          <TextBlock Text="{Binding Gesture}"
+                                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                                     Foreground="{DynamicResource CkanAccentTextBrush}" />
+                        </Border>
+
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding Description}"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+      <TextBlock Text="{Binding EmptyHintText}"
+                 IsVisible="{Binding ShowEmptyHint}"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Center"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+    </Grid>
+
+    <!-- 底部：条目总数（左）+ 复制 / 关闭（右） -->
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,12,0,0">
+
+      <TextBlock Text="{Binding TotalCountText}"
+                 VerticalAlignment="Center"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+        <Button Content="{Binding CopyButtonText}"
+                Command="{Binding CopyCommand}"
+                MinWidth="92"
+                HorizontalContentAlignment="Center" />
+        <Button Content="{Binding PrimaryButtonText}"
+                Command="{Binding PrimaryCommand}"
+                IsDefault="True"
+                IsCancel="True"
+                MinWidth="92"
+                HorizontalContentAlignment="Center" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</dialogs:DialogWindow>

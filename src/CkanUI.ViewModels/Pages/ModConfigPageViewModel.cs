@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.ModConfig;
 using CkanUI.ViewModels.Pages.ModConfig;
@@ -7,12 +8,14 @@ using CommunityToolkit.Mvvm.Input;
 namespace CkanUI.ViewModels.Pages;
 
 /// <summary>
-/// Mod 配置页（M9 / UI-CFG-01 骨架，15 篇 §5、§6）。
-/// 左侧是"有适配器的 mod"卡片列表，右侧是选中 mod 的字段行；本骨架只做只读渲染与筛选。
+/// Mod 配置页（M9 / UI-CFG-01 骨架 + CFG-04 编辑与写盘入口，15 篇 §5、§6）。
+/// 左侧是"有适配器的 mod"卡片列表，右侧是选中 mod 的字段行（可编辑部分就地改），底部是改动条与写盘入口。
 /// </summary>
 /// <remarks>
 /// 为什么这一页不碰文件：读盘合成模型在 <see cref="IModConfigService"/>，写盘唯一入口是 IAdapterWriter（CFG-05），
-/// 页面只负责编排与文案，这样"写坏配置"的风险被限制在服务层的校验/快照/自校验里（工程约定 §7）。
+/// 页面只负责把草稿收集成 <see cref="ModConfigFieldChange"/> 并按文件投递，这样"写坏配置"的风险被限制在
+/// 服务层的校验/快照/自校验里（工程约定 §7）。.bak 回滚另走 <see cref="IModConfigBackupRestorer"/>。
+/// 两个确认位（游戏运行中、高风险字段）都用注入的 <see cref="IDialogService"/>，页面 VM 自己 new 对话框。
 /// 译文走构造注入的委托，本层不引用本地化实现（铁律 3）。
 /// </remarks>
 public sealed partial class ModConfigPageViewModel : PageViewModel
@@ -21,6 +24,16 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
     private readonly IAdapterCatalog? _catalog;
     private readonly Func<string, string>? _translate;
     private readonly ModConfigFieldRendererRegistry _renderers;
+    private readonly IAdapterWriter? _writer;
+    private readonly IDialogService? _dialogs;
+    private readonly IModConfigBackupRestorer _restorer;
+
+    /// <summary>待保存的草稿（key = 文件路径 + 分隔符 + 键名；跨 mod 保留，切卡片不丢）。</summary>
+    private readonly Dictionary<string, PendingEdit> _pending = new(StringComparer.Ordinal);
+
+    /// <summary>上一次写盘产生的快照路径（"恢复上次快照"动作的原料）。</summary>
+    private IReadOnlyList<string> _backups = [];
+
     private ModConfigInstanceModel? _model;
 
     /// <summary>无参构造：供设计时预览与视图定位器反射使用（依赖是空实现）。</summary>
@@ -33,17 +46,26 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
     /// <param name="config">配置读取服务（合成页面模型）。</param>
     /// <param name="catalog">适配器目录；为 null 时页面不展示适配器清单。</param>
     /// <param name="translate">译文委托（键为中文原文，缺省时原样返回）。</param>
-    /// <param name="renderers">字段渲染器注册表；缺省用内置五种。</param>
+    /// <param name="renderers">字段渲染器注册表；缺省用内置九种。</param>
+    /// <param name="writer">写盘入口（IAdapterWriter）；为 null 时页面只读（保存会给出可读原因）。</param>
+    /// <param name="dialogs">确认对话框服务；为 null 时任何需要确认的写盘一律取消。</param>
+    /// <param name="restorer">.bak 快照恢复器；缺省用内置实现。</param>
     public ModConfigPageViewModel(
         IModConfigService config,
         IAdapterCatalog? catalog = null,
         Func<string, string>? translate = null,
-        ModConfigFieldRendererRegistry? renderers = null)
+        ModConfigFieldRendererRegistry? renderers = null,
+        IAdapterWriter? writer = null,
+        IDialogService? dialogs = null,
+        IModConfigBackupRestorer? restorer = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _catalog = catalog;
         _translate = translate;
         _renderers = renderers ?? new ModConfigFieldRendererRegistry();
+        _writer = writer;
+        _dialogs = dialogs;
+        _restorer = restorer ?? new ModConfigBackupRestorer();
         StatusText = T("选择左侧的 mod 查看可配置项；没有适配器的 mod 只提供原始只读视图。");
     }
 
@@ -80,6 +102,10 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
     [ObservableProperty]
     private bool _isBusy;
 
+    /// <summary>是否正在写盘/回滚（写盘期间禁用保存与回滚按钮）。</summary>
+    [ObservableProperty]
+    private bool _isWriting;
+
     /// <summary>忙碌时的提示文案。</summary>
     [ObservableProperty]
     private string _busyText = string.Empty;
@@ -99,6 +125,10 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
     /// <summary>实例摘要（"实例：默认｜游戏目录：…"）。</summary>
     [ObservableProperty]
     private string _instanceSummaryText = string.Empty;
+
+    /// <summary>最近一次保存/回滚的逐文件失败说明（每项一行）。</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string> _saveFailures = [];
 
     // ---- 派生文案 ----------------------------------------------------------
 
@@ -158,13 +188,60 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
         ? string.Empty
         : "显示 " + VisibleFieldCount + " / " + FieldTotal + " 项";
 
-    /// <summary>底部 diff 条文案（"改动 N 项"）。</summary>
-    public string ModifiedBarText => SelectedMod is { } card && card.HasModified
-        ? "改动 " + card.Snapshot.ModifiedCount + " 项"
+    /// <summary>待保存的草稿条数（跨 mod 累计）。</summary>
+    public int PendingChangeCount => _pending.Count;
+
+    /// <summary>是否有待保存的草稿。</summary>
+    public bool HasPendingChanges => _pending.Count > 0;
+
+    /// <summary>底部改动条文案（"改动 N 项（待保存 M 项）"）。</summary>
+    public string ModifiedBarText
+    {
+        get
+        {
+            var modified = SelectedMod is { HasModified: true } card
+                ? "改动 " + card.Snapshot.ModifiedCount + " 项"
+                : string.Empty;
+            var pending = HasPendingChanges ? "待保存 " + PendingChangeCount + " 项" : string.Empty;
+            if (modified.Length == 0)
+            {
+                return pending;
+            }
+
+            return pending.Length == 0 ? modified : modified + "（" + pending + "）";
+        }
+    }
+
+    /// <summary>是否有改动（磁盘上已改的 + 还没保存的草稿），决定 diff 条是否可见。</summary>
+    public bool HasChanges => HasPendingChanges || SelectedMod is { HasModified: true };
+
+    /// <summary>保存按钮文案（"保存 N 项改动"）。</summary>
+    public string SaveButtonText => PendingChangeCount == 0 ? T("保存改动") : "保存 " + PendingChangeCount + " 项改动";
+
+    /// <summary>底部写盘说明（写前快照 + 写后自校验 + 部分失败不丢输入）。</summary>
+    public string WriteNoteText => T("保存时逐文件写盘：写前快照、写后重新解析自校验；某个文件失败时只报它，其余改动与输入都保留。");
+
+    /// <summary>是否显示底部动作条（有改动、有快照或上次保存失败时都要显示）。</summary>
+    public bool ShowActionBar => HasChanges || HasBackups || HasSaveFailures;
+
+    /// <summary>是否有可回滚的快照。</summary>
+    public bool HasBackups => _backups.Count > 0;
+
+    /// <summary>回滚按钮文案（"恢复上次快照（N 个文件）"）。</summary>
+    public string RestoreButtonText => HasBackups
+        ? "恢复上次快照（" + _backups.Count + " 个文件）"
+        : T("恢复上次快照");
+
+    /// <summary>快照说明（没有快照时为空串）。</summary>
+    public string BackupHintText => HasBackups
+        ? "上一次写盘前的快照：" + string.Join("、", _backups.Select(Path.GetFileName))
         : string.Empty;
 
-    /// <summary>是否有改动（决定 diff 条是否可见）。</summary>
-    public bool HasChanges => SelectedMod is { HasModified: true };
+    /// <summary>是否有保存/回滚的逐文件失败说明。</summary>
+    public bool HasSaveFailures => SaveFailures.Count > 0;
+
+    /// <summary>失败列表标题。</summary>
+    public string SaveFailureTitle => T("以下文件没有写成，改动已保留在页面上：");
 
     /// <summary>选中卡片最需要提示的一条告警。</summary>
     public string SelectedWarningText => SelectedMod?.WarningText ?? string.Empty;
@@ -204,16 +281,16 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
             var result = await _config.LoadAsync(string.Empty).ConfigureAwait(true);
             if (!result.IsSuccess || result.Value is not { } model)
             {
-                ApplyModel(null);
+                ApplyModelCore(null, null);
                 SetError(result.Message ?? T("读取 mod 配置失败。"), result.Detail);
                 return;
             }
 
-            ApplyModel(model);
+            ApplyModelCore(model, null);
         }
         catch (Exception ex)
         {
-            ApplyModel(null);
+            ApplyModelCore(null, null);
             // 页面是最后一道防线：服务层约定返回 OperationResult，这里兜住意外异常，别让异常穿到 UI 线程外。
             SetError(T("读取 mod 配置失败：") + ex.Message, ex.GetType().Name);
         }
@@ -225,6 +302,105 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
 
     /// <summary>加载条件：不忙。</summary>
     public bool CanLoad => !IsBusy;
+
+    /// <summary>保存整页草稿（Ctrl+S / 底部"保存"按钮）。</summary>
+    [RelayCommand(CanExecute = nameof(CanSave))]
+    private async Task SaveAsync() => await SaveEditsAsync(_pending.Values.ToArray()).ConfigureAwait(true);
+
+    /// <summary>
+    /// 保存条件：有草稿、不忙。
+    /// 刻意不把"有没有写盘入口"算进条件：没有 <see cref="IAdapterWriter"/> 时按钮仍可点，
+    /// 点下去给一条可读错误（"当前环境没有写盘入口"），比一个沉默禁用的按钮更容易排查。
+    /// </summary>
+    public bool CanSave => HasPendingChanges && !IsBusy && !IsWriting;
+
+    /// <summary>提交单行（Enter 键）：只写这一行所在的文件。</summary>
+    /// <param name="row">要提交的字段行。</param>
+    [RelayCommand]
+    private async Task SaveRowAsync(ModConfigFieldRowViewModel? row)
+    {
+        if (row is null || !row.HasPendingChange)
+        {
+            SetStatus(T("这一行没有需要保存的改动。"));
+            return;
+        }
+
+        await SaveEditsAsync([new PendingEdit(row.FilePath, row.Key, row.WireValue, row.Field.Risk)]).ConfigureAwait(true);
+    }
+
+    /// <summary>丢弃所有还没保存的草稿。</summary>
+    [RelayCommand(CanExecute = nameof(CanDiscardPending))]
+    private void DiscardPending()
+    {
+        var count = _pending.Count;
+        foreach (var row in FieldGroups.SelectMany(group => group.Rows))
+        {
+            row.ResetEdit();
+        }
+
+        _pending.Clear();
+        SetSaveFailures([]);
+        NotifyEditState();
+        SetStatus("已放弃 " + count + " 项未保存的改动。");
+    }
+
+    /// <summary>是否有可放弃的草稿。</summary>
+    public bool CanDiscardPending => HasPendingChanges && !IsWriting;
+
+    /// <summary>把上一次写盘前的快照恢复回去（保存失败/写坏后的回滚入口）。</summary>
+    [RelayCommand(CanExecute = nameof(CanRestoreBackups))]
+    private async Task RestoreBackupsAsync()
+    {
+        if (!HasBackups)
+        {
+            SetStatus(T("没有可恢复的快照：只有保存过一次之后才有 .bak 快照。"));
+            return;
+        }
+
+        if (!await ConfirmAsync(
+                T("恢复上次快照"),
+                "将把 " + _backups.Count + " 个配置文件回滚到上一次写盘前的 .bak 快照，页面上还没保存的输入会被丢弃。继续吗？")
+            .ConfigureAwait(true))
+        {
+            SetStatus(T("已取消恢复快照。"));
+            return;
+        }
+
+        IsWriting = true;
+        try
+        {
+            var result = await _restorer.RestoreAsync(_backups).ConfigureAwait(true);
+            if (!result.IsSuccess || result.Value is not { } value)
+            {
+                SetError(result.Message ?? T("恢复快照失败。"), result.Detail);
+                return;
+            }
+
+            _backups = [];
+            _pending.Clear();
+            SetSaveFailures(value.Failures);
+            await RefreshModelAsync().ConfigureAwait(true);
+            if (value.Failures.Count > 0)
+            {
+                SetError("已恢复 " + value.RestoredPaths.Count + " 个文件，但还有 " + value.Failures.Count + " 个没有恢复。", null);
+            }
+            else
+            {
+                SetStatus("已恢复 " + value.RestoredPaths.Count + " 个文件到上一次写盘前的快照。");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetError(T("恢复快照失败：") + ex.Message, ex.GetType().Name);
+        }
+        finally
+        {
+            IsWriting = false;
+        }
+    }
+
+    /// <summary>回滚条件：有快照、不忙。</summary>
+    public bool CanRestoreBackups => HasBackups && !IsBusy && !IsWriting;
 
     /// <summary>重读适配器目录（用户往用户目录塞了新 adapter 后不用重启）。</summary>
     [RelayCommand]
@@ -254,7 +430,53 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
 
     /// <summary>把服务层模型装进页面（null 表示没有模型/加载失败）。</summary>
     /// <param name="model">实例模型。</param>
-    public void ApplyModel(ModConfigInstanceModel? model)
+    public void ApplyModel(ModConfigInstanceModel? model) => ApplyModelCore(model, null);
+
+    /// <summary>按当前筛选条件重建字段分组（未保存的草稿会重新铺回编辑器）。</summary>
+    public void RebuildGroups()
+    {
+        if (SelectedMod is not { } card)
+        {
+            FieldGroups = [];
+            NotifyFilterState();
+            return;
+        }
+
+        var rows = new List<ModConfigFieldRowViewModel>();
+        foreach (var file in card.Snapshot.Files)
+        {
+            foreach (var field in file.Fields)
+            {
+                var row = new ModConfigFieldRowViewModel(field, _renderers.Resolve(field.Type), file.IsWritable, file.FilePath, file.ReadonlyReason);
+                if (!row.Matches(SearchText))
+                {
+                    continue;
+                }
+
+                if (OnlyModified && !row.IsModified)
+                {
+                    continue;
+                }
+
+                // 重读模型（保存/刷新）后把还没保存的草稿铺回去，别让用户的输入白白丢掉。
+                if (_pending.TryGetValue(PendingKey(row.FilePath, row.Key), out var pending))
+                {
+                    row.ApplyDraft(pending.NewValue);
+                }
+
+                row.PropertyChanged += OnRowPropertyChanged;
+                rows.Add(row);
+            }
+        }
+
+        FieldGroups = rows
+            .GroupBy(row => row.GroupTitle, StringComparer.Ordinal)
+            .Select(group => new ModConfigFieldGroupViewModel(group.Key, group.ToArray()))
+            .ToArray();
+        NotifyFilterState();
+    }
+
+    private void ApplyModelCore(ModConfigInstanceModel? model, string? preferredAdapterId)
     {
         _model = model;
         if (model is null)
@@ -275,8 +497,12 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
             ? "实例：" + model.InstanceName + "｜游戏目录：" + model.GameDir
             : "游戏目录：" + model.GameDir;
 
-        // 优先停在"可编辑且有改动"的卡片上：用户多半是来确认自己改过的东西。
-        SelectedMod = cards.FirstOrDefault(card => card.IsEditable && card.HasModified)
+        // 刷新时优先停在原来那张卡上（用户刚在这页改过东西）；首次加载按"可编辑且有改动 → 可编辑 → 第一张"。
+        var preferred = preferredAdapterId is null
+            ? null
+            : cards.FirstOrDefault(card => string.Equals(card.AdapterId, preferredAdapterId, StringComparison.Ordinal));
+        SelectedMod = preferred
+            ?? cards.FirstOrDefault(card => card.IsEditable && card.HasModified)
             ?? cards.FirstOrDefault(card => card.IsEditable)
             ?? cards.FirstOrDefault();
 
@@ -284,43 +510,6 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
             ? T("这个实例里没有已适配的 mod：可以把 adapter.json 放进用户目录后重试。")
             : "读取完成：" + ModCountText + "。");
         NotifyModelState();
-    }
-
-    /// <summary>按当前筛选条件重建字段分组。</summary>
-    public void RebuildGroups()
-    {
-        if (SelectedMod is not { } card)
-        {
-            FieldGroups = [];
-            NotifyFilterState();
-            return;
-        }
-
-        var rows = new List<ModConfigFieldRowViewModel>();
-        foreach (var file in card.Snapshot.Files)
-        {
-            foreach (var field in file.Fields)
-            {
-                var row = new ModConfigFieldRowViewModel(field, _renderers.Resolve(field.Type), file.IsWritable);
-                if (!row.Matches(SearchText))
-                {
-                    continue;
-                }
-
-                if (OnlyModified && !row.IsModified)
-                {
-                    continue;
-                }
-
-                rows.Add(row);
-            }
-        }
-
-        FieldGroups = rows
-            .GroupBy(row => row.GroupTitle, StringComparer.Ordinal)
-            .Select(group => new ModConfigFieldGroupViewModel(group.Key, group.ToArray()))
-            .ToArray();
-        NotifyFilterState();
     }
 
     private void LoadAdapters()
@@ -334,6 +523,272 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
         Adapters = _catalog.Adapters
             .Select(adapter => new ModConfigAdapterSummaryViewModel(adapter))
             .ToArray();
+    }
+
+    // ---- 写盘 --------------------------------------------------------------
+
+    private async Task SaveEditsAsync(IReadOnlyList<PendingEdit> edits)
+    {
+        SetSaveFailures([]);
+        if (edits.Count == 0)
+        {
+            SetStatus(T("没有需要保存的改动。"));
+            return;
+        }
+
+        if (_writer is not { } writer)
+        {
+            SetError(T("当前环境没有写盘入口（IAdapterWriter），已取消保存。"), null);
+            return;
+        }
+
+        if (_model is not { } model)
+        {
+            SetError(T("还没有读到实例模型，已取消保存。"), null);
+            return;
+        }
+
+        var groups = GroupByFile(edits);
+        if (groups.Count == 0)
+        {
+            SetError(T("这些改动找不到所属的 mod，已取消保存。"), string.Join("、", edits.Select(edit => edit.Key).Distinct(StringComparer.Ordinal)));
+            return;
+        }
+
+        // 确认一：游戏运行中要重启 KSP 才生效。
+        var confirmedGameRunning = false;
+        if (IsGameRunning)
+        {
+            if (!await ConfirmAsync(
+                    T("KSP 正在运行"),
+                    "KSP 正在运行：现在写入的配置要等游戏重启后才会生效，运行中的游戏还可能覆盖这次写入。仍然保存吗？")
+                .ConfigureAwait(true))
+            {
+                SetStatus(T("已取消保存：KSP 正在运行时的写盘需要确认。"));
+                return;
+            }
+
+            confirmedGameRunning = true;
+        }
+
+        // 确认二：高风险字段（adapter 声明的 risk=high）再问一次。
+        var confirmedRiskHigh = false;
+        var riskyKeys = edits
+            .Where(edit => edit.Risk == ModConfigFieldRisk.High)
+            .Select(edit => edit.Key)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (riskyKeys.Length > 0)
+        {
+            if (!await ConfirmAsync(
+                    T("确认修改高风险字段"),
+                    "这些字段被适配器标记为高风险，改错可能让 mod 行为异常甚至进不了游戏：" +
+                    string.Join("、", riskyKeys) + "。确认写入吗？")
+                .ConfigureAwait(true))
+            {
+                SetStatus(T("已取消保存：高风险字段的改动需要二次确认。"));
+                return;
+            }
+
+            confirmedRiskHigh = true;
+        }
+
+        IsWriting = true;
+        var failures = new List<string>();
+        var writtenFiles = new List<string>();
+        var backups = new List<string>();
+        var writtenChanges = 0;
+        var restartCount = 0;
+        try
+        {
+            foreach (var group in groups)
+            {
+                var request = new AdapterWriteRequest(
+                    model.InstanceName,
+                    model.GameDir,
+                    group.AdapterId,
+                    group.Changes,
+                    ConfirmedRiskHigh: confirmedRiskHigh,
+                    ConfirmedGameRunning: confirmedGameRunning);
+                OperationResult<AdapterWriteResult> result;
+                try
+                {
+                    result = await writer.WriteAsync(request).ConfigureAwait(true);
+                }
+                catch (Exception ex)
+                {
+                    // 写盘器约定返回 OperationResult；这里兜住意外异常，别让一个文件的异常打断其余文件。
+                    result = OperationResult<AdapterWriteResult>.Fail(T("写入配置失败：") + ex.Message, ex.GetType().Name);
+                }
+
+                if (!result.IsSuccess)
+                {
+                    failures.Add(RelativeName(group.FilePath) + "：" + (result.Message ?? T("写入失败。"))
+                        + (string.IsNullOrWhiteSpace(result.Detail) ? string.Empty : "（" + result.Detail + "）"));
+                    continue;
+                }
+
+                writtenFiles.Add(group.FilePath);
+                writtenChanges += result.Value?.Changes.Count ?? group.Changes.Count;
+                restartCount += result.Value?.RequiresRestartCount ?? 0;
+                if (result.Value is { } value)
+                {
+                    backups.AddRange(value.BackupPaths);
+                }
+            }
+        }
+        finally
+        {
+            IsWriting = false;
+        }
+
+        // 写成功的文件从待保存里摘掉；失败的文件保留草稿，用户可以改完再存。
+        foreach (var id in _pending
+                     .Where(pair => writtenFiles.Contains(pair.Value.FilePath, StringComparer.Ordinal))
+                     .Select(pair => pair.Key)
+                     .ToArray())
+        {
+            _pending.Remove(id);
+        }
+
+        foreach (var row in FieldGroups.SelectMany(group => group.Rows))
+        {
+            if (writtenFiles.Contains(row.FilePath, StringComparer.Ordinal))
+            {
+                row.MarkSaved();
+            }
+        }
+
+        _backups = backups;
+        SetSaveFailures(failures);
+        NotifyEditState();
+
+        // 先重读（拿磁盘真值 + 把失败文件的草稿铺回去），再覆盖状态文案，免得被"读取完成"冲掉。
+        await RefreshModelAsync().ConfigureAwait(true);
+
+        if (failures.Count == 0)
+        {
+            var summary = "已保存 " + writtenChanges + " 项改动（" + writtenFiles.Count + " 个文件）";
+            if (restartCount > 0)
+            {
+                summary += "；" + restartCount + " 项需要重启 KSP 后生效";
+            }
+
+            ErrorText = null;
+            SetStatus(summary + "。");
+        }
+        else
+        {
+            SetError(
+                writtenFiles.Count == 0
+                    ? T("保存失败：这次没有任何文件写成，改动已保留。")
+                    : "部分文件保存失败：" + failures.Count + " / " + (writtenFiles.Count + failures.Count) + " 个文件没写成，改动已保留。",
+                null);
+        }
+    }
+
+    private IReadOnlyList<PendingWriteGroup> GroupByFile(IReadOnlyList<PendingEdit> edits)
+    {
+        var owners = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var card in Mods)
+        {
+            foreach (var file in card.Snapshot.Files)
+            {
+                owners[file.FilePath] = card.AdapterId;
+            }
+        }
+
+        var groups = new List<PendingWriteGroup>();
+        var index = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var edit in edits)
+        {
+            if (!owners.TryGetValue(edit.FilePath, out var adapterId))
+            {
+                continue;
+            }
+
+            var id = adapterId + '\u0000' + edit.FilePath;
+            if (!index.TryGetValue(id, out var position))
+            {
+                position = groups.Count;
+                index[id] = position;
+                groups.Add(new PendingWriteGroup(adapterId, edit.FilePath, []));
+            }
+
+            groups[position].Changes.Add(new ModConfigFieldChange(edit.FilePath, edit.Key, edit.NewValue));
+        }
+
+        return groups;
+    }
+
+    private async Task RefreshModelAsync()
+    {
+        try
+        {
+            var result = await _config.LoadAsync(string.Empty).ConfigureAwait(true);
+            if (result.IsSuccess && result.Value is { } model)
+            {
+                ApplyModelCore(model, SelectedMod?.AdapterId);
+            }
+            else
+            {
+                SetError(result.Message ?? T("重读 mod 配置失败。"), result.Detail);
+            }
+        }
+        catch (Exception ex)
+        {
+            SetError(T("重读 mod 配置失败：") + ex.Message, ex.GetType().Name);
+        }
+    }
+
+    // ---- 草稿收集 ----------------------------------------------------------
+
+    private void OnRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not ModConfigFieldRowViewModel row
+            || !string.Equals(e.PropertyName, nameof(ModConfigFieldRowViewModel.EditValue), StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var id = PendingKey(row.FilePath, row.Key);
+        if (row.HasPendingChange)
+        {
+            _pending[id] = new PendingEdit(row.FilePath, row.Key, row.WireValue, row.Field.Risk);
+        }
+        else
+        {
+            _pending.Remove(id);
+        }
+
+        NotifyEditState();
+    }
+
+    private void SetSaveFailures(IReadOnlyList<string> failures)
+    {
+        SaveFailures = failures;
+        OnPropertyChanged(nameof(HasSaveFailures));
+        OnPropertyChanged(nameof(ShowActionBar));
+    }
+
+    private static string PendingKey(string filePath, string key) => filePath + '\u0000' + key;
+
+    private static string RelativeName(string filePath)
+    {
+        var name = Path.GetFileName(filePath);
+        return string.IsNullOrEmpty(name) ? filePath : name;
+    }
+
+    private async Task<bool> ConfirmAsync(string title, string message)
+    {
+        if (_dialogs is not { } dialogs)
+        {
+            // 没有对话框服务时宁可不动磁盘：写盘是不可逆操作，不能靠"默认同意"蒙混过去。
+            SetError(T("当前环境没有确认对话框，已取消这次写盘。"), "IDialogService");
+            return false;
+        }
+
+        return await dialogs.ConfirmAsync(title, message).ConfigureAwait(true);
     }
 
     private void SetStatus(string message) => StatusText = message;
@@ -371,12 +826,30 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
         OnPropertyChanged(nameof(FieldTotal));
         OnPropertyChanged(nameof(VisibleFieldCount));
         OnPropertyChanged(nameof(VisibleCountText));
-        OnPropertyChanged(nameof(ModifiedBarText));
-        OnPropertyChanged(nameof(HasChanges));
         OnPropertyChanged(nameof(SelectedWarningText));
         OnPropertyChanged(nameof(HasSelectedWarning));
         OnPropertyChanged(nameof(CanFilter));
         OnPropertyChanged(nameof(HasAdapters));
+        NotifyEditState();
+    }
+
+    private void NotifyEditState()
+    {
+        OnPropertyChanged(nameof(PendingChangeCount));
+        OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(ModifiedBarText));
+        OnPropertyChanged(nameof(HasChanges));
+        OnPropertyChanged(nameof(SaveButtonText));
+        OnPropertyChanged(nameof(ShowActionBar));
+        OnPropertyChanged(nameof(HasBackups));
+        OnPropertyChanged(nameof(RestoreButtonText));
+        OnPropertyChanged(nameof(BackupHintText));
+        OnPropertyChanged(nameof(CanSave));
+        OnPropertyChanged(nameof(CanDiscardPending));
+        OnPropertyChanged(nameof(CanRestoreBackups));
+        SaveCommand.NotifyCanExecuteChanged();
+        DiscardPendingCommand.NotifyCanExecuteChanged();
+        RestoreBackupsCommand.NotifyCanExecuteChanged();
     }
 
     /// <inheritdoc />
@@ -398,8 +871,14 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
     {
         OnPropertyChanged(nameof(CanLoad));
         OnPropertyChanged(nameof(ShowEmptyState));
+        OnPropertyChanged(nameof(CanSave));
+        OnPropertyChanged(nameof(CanRestoreBackups));
         LoadCommand.NotifyCanExecuteChanged();
+        SaveCommand.NotifyCanExecuteChanged();
+        RestoreBackupsCommand.NotifyCanExecuteChanged();
     }
+
+    partial void OnIsWritingChanged(bool value) => NotifyEditState();
 
     partial void OnErrorTextChanged(string? value) => OnPropertyChanged(nameof(HasError));
 
@@ -421,6 +900,12 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
         OnPropertyChanged(nameof(GameRunningWarningText));
         OnPropertyChanged(nameof(ShowGameRunningWarning));
     }
+
+    /// <summary>一条还没保存的草稿。</summary>
+    private sealed record PendingEdit(string FilePath, string Key, string NewValue, ModConfigFieldRisk Risk);
+
+    /// <summary>按"适配器 + 文件"归并的一组写盘请求。</summary>
+    private sealed record PendingWriteGroup(string AdapterId, string FilePath, List<ModConfigFieldChange> Changes);
 
     /// <summary>设计时/预览用的空实现：什么都没装，页面显示空状态而不是崩。</summary>
     private sealed class EmptyModConfigService : IModConfigService

@@ -18,16 +18,16 @@ public enum ModConfigEditorKind
     /// <summary>单行文本（string，可带正则校验）。</summary>
     TextField,
 
-    /// <summary>路径选择（path，v1 只读展示）。</summary>
+    /// <summary>路径编辑（path）：本版用文本框直接改，"浏览…"按钮留待后续。</summary>
     PathPicker,
 
-    /// <summary>颜色选择（color，v1 只读展示）。</summary>
+    /// <summary>颜色选择（color）：本版只读展示，并在行内写明"本版只读"的原因。</summary>
     ColorPicker,
 
-    /// <summary>按键捕获（keybinding，v1 只读展示）。</summary>
+    /// <summary>按键捕获（keybinding）：本版只读展示，并在行内写明"本版只读"的原因。</summary>
     KeyCapture,
 
-    /// <summary>列表编辑（list，v1 只读展示）。</summary>
+    /// <summary>列表编辑（list）：逐行文本，写盘时拼成单行（配置文件一行一键，值里不能带换行）。</summary>
     ListEditor,
 
     /// <summary>只读展示（readonly 或暂未支持的类型）。</summary>

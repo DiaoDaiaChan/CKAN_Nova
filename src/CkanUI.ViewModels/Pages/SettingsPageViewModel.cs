@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Globalization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.Services.Abstractions.Update;
 using CkanUI.ViewModels.Dialogs;
 using CkanUI.ViewModels.Pages.Settings;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -31,6 +32,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     private readonly IUiSettingsStore _uiSettings;
     private readonly IInstanceService? _instances;
     private readonly IUpdateCheckService? _updateCheckService;
+    private readonly IUpdateInstaller? _updateInstaller;
     private readonly AuthTokenEditorViewModel _tokenEditor;
     private readonly SettingsDiagnosticsViewModel _diagnostics;
     private readonly StabilityToleranceFile _stability = new();
@@ -46,6 +48,9 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     /// <summary>弹窗呈现委托，解耦视图层。</summary>
     public Func<UpdateAvailableDialogViewModel, Task>? ShowUpdateDialogAsync { get; set; }
 
+    /// <summary>打开外部链接的宿主委托（更新弹窗里的「打开发布页」）；为空时弹窗只提示手动访问。</summary>
+    public Func<string, Task<bool>>? OpenExternalUrlAsync { get; set; }
+
     /// <summary>
     /// 界面语言候选的提供器（组装根按「实际发过包」的语种注入）。
     /// 为什么走委托：候选来自本地化层，而 VM 不引用本地化层；
@@ -59,12 +64,14 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     /// <param name="instances">实例服务：供「自动打开的实例」下拉与实例级容差文件定位；为空时这两项退化为只读/不可用。</param>
     /// <param name="copyTextAsync">写剪贴板的宿主委托（DI 已注册 <c>Func&lt;string, Task&gt;</c>）；为空时复制按钮给出无通道提示。</param>
     /// <param name="updateCheckService">自动更新与新版本检查器（F-52）。</param>
+    /// <param name="updateInstaller">更新包安装器（F-52 下载 → 校验 → 备份 → 替换）；为空时更新弹窗只能打开发布页。</param>
     public SettingsPageViewModel(
         ISettingsService settings,
         IUiSettingsStore uiSettings,
         IInstanceService? instances = null,
         Func<string, Task>? copyTextAsync = null,
-        IUpdateCheckService? updateCheckService = null)
+        IUpdateCheckService? updateCheckService = null,
+        IUpdateInstaller? updateInstaller = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(uiSettings);
@@ -73,6 +80,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel
         _uiSettings = uiSettings;
         _instances = instances;
         _updateCheckService = updateCheckService;
+        _updateInstaller = updateInstaller;
         _tokenEditor = new AuthTokenEditorViewModel(settings);
         _tokenEditor.PropertyChanged += OnTokenEditorPropertyChanged;
         _diagnostics = new SettingsDiagnosticsViewModel(copyTextAsync);
@@ -1395,12 +1403,10 @@ public sealed partial class SettingsPageViewModel : PageViewModel
 
             if (ShowUpdateDialogAsync != null)
             {
-                var dialogVm = new UpdateAvailableDialogViewModel(
-                    updateInfo.CurrentVersion ?? "v0.0.0",
-                    updateInfo.LatestVersion ?? "v0.0.0",
-                    updateInfo.ReleaseNotes,
-                    updateInfo.ReleaseUrl,
-                    updateInfo.IsDevBuild);
+                // 安装计划由 UpdateCheckResult 里挑出来的资产推出（见 UpdateCheckService.PickUpdateAsset）。
+                var dialogVm = new UpdateAvailableDialogViewModel(updateInfo, OpenExternalUrlAsync);
+                // 安装器与安装计划两者都在才会亮「立即安装」；缺任一项弹窗自动降级成「打开发布页」。
+                dialogVm.Installer = _updateInstaller;
 
                 await ShowUpdateDialogAsync(dialogVm).ConfigureAwait(true);
             }

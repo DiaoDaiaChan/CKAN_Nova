@@ -92,7 +92,7 @@ public sealed class ModConfigFieldRendererTests
     }
 
     [Test]
-    public void Registry_DefaultCoversFiveTypesInOrder()
+    public void Registry_DefaultCoversNineTypesInOrder()
     {
         var registry = new ModConfigFieldRendererRegistry();
         var defaults = ModConfigFieldRendererRegistry.CreateDefaultRenderers();
@@ -104,20 +104,26 @@ public sealed class ModConfigFieldRendererTests
             ModConfigFieldType.Float,
             ModConfigFieldType.Enum,
             ModConfigFieldType.String,
+            ModConfigFieldType.Path,
+            ModConfigFieldType.List,
+            ModConfigFieldType.Color,
+            ModConfigFieldType.Keybinding,
         }));
-        Assert.That(registry.SupportedTypes.Count, Is.EqualTo(5));
+        Assert.That(registry.SupportedTypes.Count, Is.EqualTo(9));
         Assert.That(registry.SupportedTypes, Does.Contain(ModConfigFieldType.Enum));
+        Assert.That(registry.SupportedTypes, Does.Contain(ModConfigFieldType.List));
     }
 
     [Test]
     public void Registry_FallsBackForUnsupportedType()
     {
         var registry = new ModConfigFieldRendererRegistry();
-        var field = ModConfigTestData.Field("keyToggleWindow", ModConfigFieldType.Keybinding, "KeypadMultiply");
+        var field = ModConfigTestData.Field("rawLine", ModConfigFieldType.ReadOnly, "KeypadMultiply");
 
-        Assert.That(registry.TryGet(ModConfigFieldType.Keybinding, out _), Is.False);
+        // ReadOnly 是"永远不注册渲染器"的类型：它本身就表示只读原文，只能落兜底渲染器。
+        Assert.That(registry.TryGet(ModConfigFieldType.ReadOnly, out _), Is.False);
 
-        var renderer = registry.Resolve(ModConfigFieldType.Keybinding);
+        var renderer = registry.Resolve(ModConfigFieldType.ReadOnly);
         Assert.That(renderer, Is.SameAs(UnsupportedFieldRenderer.Instance));
         Assert.That(renderer.EditorKind, Is.EqualTo(ModConfigEditorKind.ReadOnlyText));
         Assert.That(renderer.FormatValue(field), Is.EqualTo("KeypadMultiply"));
@@ -132,7 +138,7 @@ public sealed class ModConfigFieldRendererTests
         registry.Register(new AlwaysYesRenderer());
 
         Assert.That(registry.Resolve(ModConfigFieldType.Bool).FormatValue(field), Is.EqualTo("总是开"));
-        Assert.That(registry.SupportedTypes.Count, Is.EqualTo(5));
+        Assert.That(registry.SupportedTypes.Count, Is.EqualTo(9));
     }
 
     /// <summary>用来验证"同类型覆盖"的测试渲染器。</summary>

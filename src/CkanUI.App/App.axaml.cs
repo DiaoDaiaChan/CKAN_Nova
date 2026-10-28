@@ -8,9 +8,12 @@ using CkanUI.App.Tray;
 using CkanUI.Localization;
 using CkanUI.Platform.SingleInstance;
 using CkanUI.Services.Abstractions;
+using CkanUI.Services.Abstractions.Commands;
 using CkanUI.Services.Abstractions.Logs;
+using CkanUI.Services.Commands;
 using CkanUI.Services.Logs;
 using CkanUI.ViewModels;
+using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Shell;
 using log4net;
 using Microsoft.Extensions.DependencyInjection;
@@ -121,6 +124,14 @@ public sealed partial class App : Application
             shell.LogDrawer.OpenPageRequested += (_, _) => shell.NavigateCommand.Execute("logs");
 
             var window = new MainWindow { DataContext = shell };
+
+            // 命令面板（UI-27）：键位与「命令 Id → 动作」的映射留在外壳，这里只交 VM、目录与动作落点。
+            window.AttachCommandPalette(
+                _services.GetRequiredService<CkanUI.ViewModels.CommandPalette.CommandPaletteViewModel>(),
+                _services.GetRequiredService<ICommandCatalog>(),
+                _services.GetRequiredService<Func<string, string>>(),
+                HandlePaletteAction);
+
             desktop.MainWindow = window;
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
             desktop.Exit += (_, _) => Shutdown();
@@ -178,7 +189,8 @@ public sealed partial class App : Application
             };
 
             // 启动序列放后台跑：UI 线程必须保持空闲，否则 02 篇 §1 里的网络/磁盘步骤会冻住窗口。
-            _ = StartAsync(shell);
+            // 首个进程用 ckan:// 直接启动时同样要执行深链，所以把启动参数一并交给启动序列，在它收尾后落点。
+            _ = StartAsync(shell, desktop.Args ?? Array.Empty<string>());
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -216,7 +228,7 @@ public sealed partial class App : Application
         _logRouter?.Report(e.Exception, "ui-dispatcher");
     }
 
-    private async Task StartAsync(ShellViewModel shell)
+    private async Task StartAsync(ShellViewModel shell, IReadOnlyList<string>? launchArgs = null)
     {
         var services = _services!;
         var dispatcher = services.GetRequiredService<IDispatcher>();
@@ -239,6 +251,129 @@ public sealed partial class App : Application
             errors.Report(ex, "启动序列", "CKAN UI 启动失败。");
             var failedText = services.GetRequiredService<ILocalizer>().Get("Ui_Common_Status_StartupFailed");
             await dispatcher.InvokeAsync(() => shell.StatusText = failedText).ConfigureAwait(false);
+        }
+        finally
+        {
+            // 深链放在启动序列之后：实例列表/仓库索引都就位了才谈得上定位（ARC-05）。
+            if (launchArgs is { Count: > 0 })
+            {
+                try
+                {
+                    await DispatchDeepLinksAsync(launchArgs).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("启动期深链处理失败。", ex);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 命令面板里 action: 命令的落点（UI-27）。外壳只管「面板自身那四条」，
+    /// 其余六条要落到具体能力上：托盘动作、诊断包、更新检查、主题与密度。
+    /// 返回 true 表示已处理；未接线的动作在目录注册时就被置为禁用，用户不会看到「按了没反应」。
+    /// </summary>
+    private bool HandlePaletteAction(string id)
+    {
+        if (_services is null)
+        {
+            return false;
+        }
+
+        if (id == DefaultCommands.ActionId("open-log-folder"))
+        {
+            _ = RunTrayActionAsync(() => _services.GetRequiredService<TrayHostActions>().OpenLogFolder());
+            return true;
+        }
+
+        if (id == DefaultCommands.ActionId("open-instance-folder"))
+        {
+            _ = RunTrayActionAsync(() => _services.GetRequiredService<TrayHostActions>().OpenInstanceFolder());
+            return true;
+        }
+
+        if (id == DefaultCommands.ActionId("export-diagnostics"))
+        {
+            // 诊断包（脱敏 + SHA256 + 出口反向扫描）由日志域实现，直接复用日志页的默认导出命令，
+            // 免得命令面板里再走一套旁路逻辑、把脱敏规则绕过。
+            _services.GetRequiredService<CkanUI.ViewModels.Pages.Logs.LogPageViewModel>()
+                     .ExportDefaultCommand.Execute(null);
+            return true;
+        }
+
+        if (id == DefaultCommands.ActionId("check-updates"))
+        {
+            _services.GetRequiredService<CkanUI.ViewModels.Pages.SettingsPageViewModel>()
+                     .CheckForUpdatesCommand.Execute(null);
+            return true;
+        }
+
+        if (id == DefaultCommands.ActionId("toggle-theme"))
+        {
+            CycleUiSetting(ThemeCycle, settings => settings.Theme, (settings, value) => settings with { Theme = value }, "主题");
+            return true;
+        }
+
+        if (id == DefaultCommands.ActionId("toggle-density"))
+        {
+            CycleUiSetting(DensityCycle, settings => settings.Density, (settings, value) => settings with { Density = value }, "密度");
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>主题循环：深色 → 浅色 → 跟随系统（高对比度是可达性模式，不进循环，免得误触）。</summary>
+    private static readonly string[] ThemeCycle = ["dark", "light", "system"];
+
+    /// <summary>密度循环：标准 → 紧凑 → 宽松。</summary>
+    private static readonly string[] DensityCycle = ["standard", "compact", "comfortable"];
+
+    /// <summary>
+    /// 把某个 UI 设置推到下一档并落盘。宿主们订阅了 <see cref="IUiSettingsStore.Changed"/>，
+    /// 所以这里不用自己去碰主题/密度宿主，也不需要在 UI 线程上额外封送（Save 在调用线程同步完成）。
+    /// </summary>
+    private void CycleUiSetting(
+        string[] cycle,
+        Func<UiSettings, string?> read,
+        Func<UiSettings, string, UiSettings> write,
+        string what)
+    {
+        if (_services?.GetService<IUiSettingsStore>() is not { } store)
+        {
+            return;
+        }
+
+        var settings = store.Load();
+        var current = read(settings)?.Trim();
+        var index = Array.FindIndex(cycle, value => string.Equals(value, current, StringComparison.OrdinalIgnoreCase));
+        var next = cycle[(index + 1) % cycle.Length];
+        var saved = store.Save(write(settings, next));
+        if (saved.IsSuccess)
+        {
+            Log.Info($"{what}已切换为 {next}。");
+        }
+        else
+        {
+            Log.Warn($"{what}切换未能保存：{saved.Message} {saved.Detail}");
+        }
+    }
+
+    /// <summary>托盘动作返回 OperationResult，命令面板不需要回执；失败只进日志，不弹框打断输入。</summary>
+    private static async Task RunTrayActionAsync(Func<Task<OperationResult>> action)
+    {
+        try
+        {
+            var result = await action().ConfigureAwait(false);
+            if (!result.IsSuccess)
+            {
+                Log.Warn($"命令面板动作失败：{result.Message} {result.Detail}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("命令面板动作抛出异常。", ex);
         }
     }
 
@@ -282,8 +417,7 @@ public sealed partial class App : Application
     }
 
     /// <summary>
-    /// 处理第二个进程转发过来的命令行（ARC-05）：把主窗口拉到前台，
-    /// 并解析 ckan:// 命令。深链的实际跳转属 M1，这里只记录。
+    /// 处理第二个进程转发过来的命令行（ARC-05）：把主窗口拉到前台，并执行 ckan:// 深链。
     /// </summary>
     public static void HandleExternalArguments(IReadOnlyList<string> args)
     {
@@ -301,13 +435,50 @@ public sealed partial class App : Application
             window.Show();
             window.Activate();
 
-            foreach (var arg in args)
+            _ = Instance.DispatchDeepLinksAsync(args);
+        });
+    }
+
+    /// <summary>
+    /// 逐个执行命令行里的 ckan:// 深链（ARC-05）：非深链参数直接忽略，单条失败只记日志、不影响其余。
+    /// </summary>
+    private async Task DispatchDeepLinksAsync(IReadOnlyList<string> args)
+    {
+        if (_services is null || args.Count == 0)
+        {
+            return;
+        }
+
+        var router = _services.GetService<DeepLinkRouter>();
+        if (router is null)
+        {
+            Log.Warn("深链路由器未注册，外部参数已忽略。");
+            return;
+        }
+
+        foreach (var arg in args)
+        {
+            if (!CkanUri.TryParse(arg, out var command))
             {
-                if (CkanUri.TryParse(arg, out var command))
+                continue;
+            }
+
+            try
+            {
+                var outcome = await router.DispatchAsync(command.Kind, command.Value).ConfigureAwait(true);
+                if (outcome.Handled)
                 {
-                    Log.Info($"解析到深链命令：{command.Kind} = {command.Value}");
+                    Log.Info($"深链已执行：{outcome.Summary}");
+                }
+                else
+                {
+                    Log.Warn($"深链未落到目标：{command.Kind} = {command.Value}；{outcome.Summary}");
                 }
             }
-        });
+            catch (Exception ex)
+            {
+                Log.Warn($"深链处理抛出异常：{command.Kind} = {command.Value}", ex);
+            }
+        }
     }
 }

@@ -2,7 +2,7 @@
 
 > 规格来源：`docs/plan/15-mod-config-adapters.md`（下称"15 篇"）。
 > 本文记录**已实现的事实**：为什么这么切、哪些地方与规格不同、哪些还没做、以及实测出来的坑。
-> 状态：CFG-01 / CFG-02 / CFG-03 / CFG-05 服务层完成；UI-CFG-01 只读页面骨架完成；CFG-04（编辑控件与写盘入口）未做。
+> 状态：CFG-01 / CFG-02 / CFG-03 / CFG-05 服务层完成；UI-CFG-01 页面骨架完成；**CFG-04 编辑控件与写盘入口完成**（color / keybinding 两类按本段范围只读展示，行内写明原因）。
 
 ## 1. 目标与边界
 
@@ -20,7 +20,7 @@
 2. **宁缺勿错**。没取证过的键不写进 adapter。写了错键名 = 静默写坏用户配置，比"少一个可改项"严重得多（15 篇 §7 Q4）。
 3. **写盘只有一个入口** `IAdapterWriter`。页面、命令、将来的 CLI 都走它，校验/快照/自校验/回滚只实现一次。
 
-明确不做（本段不涉及）：远程 adapter 导入与哈希展示、CFG-04 的九种编辑控件、MemGraph 等 mod 的具体 adapter、配置项搜索跨 mod 聚合。
+明确不做（本段不涉及）：远程 adapter 导入与哈希展示、颜色选择器与按键捕获控件（CFG-04 里这两类仍是只读展示）、MemGraph 等 mod 的具体 adapter、配置项搜索跨 mod 聚合。
 
 ## 2. 分层与依赖方向
 
@@ -38,8 +38,13 @@ public ModConfigPageViewModel(
     IModConfigService config,
     IAdapterCatalog? catalog = null,
     Func<string, string>? translate = null,
-    ModConfigFieldRendererRegistry? renderers = null)
+    ModConfigFieldRendererRegistry? renderers = null,
+    IAdapterWriter? writer = null,          // CFG-04：写盘入口
+    IDialogService? dialogs = null,         // CFG-04：双重确认
+    IModConfigBackupRestorer? restorer = null)  // CFG-04：.bak 快照回滚
 ```
+
+后三个参数都是可选的，`AddCkanModConfig()` 已注册 `IAdapterWriter`、`IDialogService` 也已由 `ServiceRegistration` 注册，所以**现有 DI 无需改注册**即可满足七参构造；设计时无参构造仍落到 `EmptyModConfigService`。缺任何一个可选依赖都不会崩：没有 writer 时点保存给可读错误，没有 dialogs 时拒绝写盘并说明原因（**不静默禁用按钮**）。
 
 ## 3. CFG-01：无损 ConfigNode（字节级往返）
 
@@ -211,21 +216,24 @@ CKAN 的 `ModuleVersion` 构造**对任意字符串都不抛异常**：`new Modu
 1. **行尾注释吞空格**：裸值扫描到注释符后要**向前回退吃掉空白**再取值末位置，否则 `a = 1 // 注释` 改成 2 会变成 `a = 2// 注释`（空格被当值吃掉）。修好后 `SetValue_KeepsTrailingComment` 转绿。
 2. **声明文件永远匹配不上**：见 6.1 第 2 条，`FindFile` 现在先与 `gameDir` 拼绝对路径。
 
-## 7. UI-CFG-01：只读页面骨架
+## 7. UI-CFG-01 + CFG-04：页面骨架与编辑写盘
 
 ### 7.1 结构
 
 ```
-┌ 页头：标题 + 说明 + 实例摘要 ────────────────────────────┐
-├ KSP 运行中警示（仅运行中显示，不粗暴禁写）──────────────┤
-├ 工具条：搜索 / 清空 / 仅看已改 / 刷新 / 重新加载适配器 ──┤
-├ 左 340px：mod 卡片列表（名字/版本/徽标/已改数/告警）────┤
-│            底部：⊘ N 个 mod 无适配器 + 已加载适配器清单   │
-├ 右：选中 mod 的字段行（按注释标题分组，键名/值/说明/风险）─┤
-└ 底部 diff 条：改动 N 项 + "写前快照/写后自校验"说明 ─────┘
+┌ 页头：标题 + 说明 + 实例摘要 ──────────────────────────────┐
+├ KSP 运行中警示（仅运行中显示，不粗暴禁写）────────────────┤
+├ 错误提示区：读盘/写盘/回滚的失败原因（仅 HasError 显示）──┤
+├ 工具条：搜索 / 清空 / 仅看已改 / 刷新 / 重新加载适配器 ────┤
+├ 左 340px：mod 卡片列表（名字/版本/徽标/已改数/告警）──────┤
+│            底部：⊘ N 个 mod 无适配器 + 已加载适配器清单     │
+├ 右：选中 mod 的字段行（按注释标题分组，每行 = 编辑控件 + ───┤
+│      键名/说明/风险/需重启/已改/待保存 徽标）              │
+└ 底部动作条：改动计数 + 保存 + 放弃未保存改动 + 恢复快照 +  ┘
+   "写前快照/写后自校验"说明 + 逐文件失败列表
 ```
 
-渲染器扩展点（CFG-04 的地基）：
+渲染器扩展点：
 
 ```csharp
 public interface IModConfigFieldRenderer
@@ -238,14 +246,52 @@ public interface IModConfigFieldRenderer
 
 `ModConfigEditorKind` 是**编辑器形态**（`Toggle / NumberField / Dropdown / TextField / PathPicker / ColorPicker / KeyCapture / ListEditor / ReadOnlyText`），视图按形态选模板，不按字段类型写 switch。新增一种字段类型 = 加一个 renderer + 注册，不动页面。
 
-已实现 5 种：`BoolFieldRenderer`（开/关）、`IntFieldRenderer` / `FloatFieldRenderer`（数字 + 单位，非法数字老实显示原文）、`EnumFieldRenderer`（下拉，白名单来自 adapter）、`StringFieldRenderer`。未注册的类型退回 `UnsupportedFieldRenderer`（只读原值）——**先能看，才谈能改**。
+默认注册表已覆盖 9 种字段类型（顺序固定：Bool / Int / Float / Enum / String / Path / List / Color / Keybinding）：`BoolFieldRenderer`（开/关 → `Toggle`）、`IntFieldRenderer` / `FloatFieldRenderer`（数字 + 单位，非法数字老实显示原文 → `NumberField`）、`EnumFieldRenderer`（下拉，白名单来自 adapter → `Dropdown`）、`StringFieldRenderer` / `PathFieldRenderer`（文本框 → `TextField` / `PathPicker`）、`ListFieldRenderer`（逐行文本 → `ListEditor`）、`ColorFieldRenderer` / `KeybindingFieldRenderer`（只读展示 → `ColorPicker` / `KeyCapture`）。`ReadOnly` 类型与任何未注册类型退回 `UnsupportedFieldRenderer`（只读原值 → `ReadOnlyText`）。
 
-筛选与分组：搜索三路匹配（键名 / 显示名 / 注释），"仅看已改"按 `value != default` 过滤，分组标题来自 adapter 声明的 `// #### 分节注释`（无标题的组不画表头）。
+筛选与分组：搜索三路匹配（键名 / 显示名 / 注释），"仅看已改"按 `value != default` 过滤，分组标题来自 adapter 声明的 `// #### 分节注释`（无标题的组不画表头）。**筛选只重建行对象，草稿保存在页面 VM 的 `_pending` 字典里**，所以来回筛选/切换 mod 再切回来，未保存的输入仍在（行对象会被换成新实例，草稿按 `文件路径 + 键名` 铺回）。
 
-### 7.2 本段刻意没做
+### 7.2 CFG-04：编辑、脏标记与保存
 
-- 没有编辑控件、没有"保存"按钮：写盘入口留给 CFG-04（`IAdapterWriter` 已就绪）。
-- 没有九种类型的完整控件（path/color/keybinding/list/readonly 只做只读展示）。
+**编辑形态**（`ModConfigFieldRowViewModel`，`: ObservableObject`）：
+
+| 字段类型 | 控件 | 说明 |
+| --- | --- | --- |
+| bool | `CheckBox` | `IsToggleOn` 读写，"true/1" 视为开，写回 `true`/`false` |
+| int / float | `TextBox` | 视图侧不格式化，写盘前由服务层 `ModConfigDetector` 校验数字与范围 |
+| enum | `ComboBox` | `Choices` 来自 adapter 白名单；**当前值不在白名单时补到首位**，避免"显示空白 + 一保存就变值" |
+| string | `TextBox` | 单行 |
+| path | `TextBox` | **本版用文本框直接改**；"浏览…"按钮（`PathPicker` 形态）留待后续，不假装有 |
+| list | 多行 `TextBox` | 逐行编辑，写盘时按 `", "` 拼成**单行**——服务层的校验明确拒绝含换行的值（配置文件一行一键），所以多行只能停在 UI 层 |
+| color / keybinding | 只读 `TextBlock` + 行内说明 | 见下 |
+
+**只读不是静默禁用**：每行都能拿到一句可见原因（`ReadOnlyNote`，绑定到 `HasReadOnlyNote`）。文件不可写 → "只读：<adapter 声明的 readonlyReason>" 或"只读：所在配置文件当前不可写。"；`ReadOnly` 字段类型 → "只读字段：值由 mod 自己维护，页面不提供修改。"；color → "本版只读：颜色值请在配置文件里手工调整。"；keybinding → "本版只读：按键组合请在配置文件里手工调整。"；其它未覆盖形态 → "本版只读：这类字段还没有编辑控件。"
+
+**脏标记**：`HasPendingChange`（行）= 行可编辑且 `WireValue.Trim()` 与基线（当前磁盘值或最近一次保存后的值）逐字符不等（`Ordinal`，只 trim 两端）；页面侧 `_pending` 以 `文件路径 + \0 + 键名` 为键累积草稿，底部动作条的 `ModifiedBarText` 实时给出"改动 N 项（待保存 M 项）"这类组合文案。**行内编辑只更新 `_pending` 与计数，绝不重建字段行**——一重建焦点就没了。
+
+**保存流程**（`SaveCommand` / 单行 `SaveRowCommand`，两者走同一段编排）：
+
+```
+按文件路径分组（每文件一次 IAdapterWriter.WriteAsync）
+→ 有 IAdapterWriter 才写；没有则给可读错误（按钮可点，不静默禁用）
+→ KSP 运行中：先确认一次（说明"要等重启游戏才生效，运行中的游戏还可能覆盖"）
+→ 存在 ModConfigRisk.High 改动：再确认一次（列出键名）
+→ 逐组 new AdapterWriteRequest(实例名, 游戏目录, adapterId, changes,
+      ConfirmedRiskHigh: …, ConfirmedGameRunning: …)
+→ 成功文件：移除草稿、行 MarkSaved、收集 BackupPaths 与 RequiresRestartCount
+→ 失败文件：逐文件一行错误，**草稿全部保留**（不整页丢用户输入）
+→ 结尾重新读盘刷新模型，并停在原来选中的 mod
+```
+
+两个确认位是 `AdapterWriteRequest` 上的**标志**而不是"页面自己记得"：拒绝任意一次确认就完全不写（`ConfirmedGameRunning` / `ConfirmedRiskHigh` 仍为 `false`，服务层也会再拒一次），同意才把标志一起带下去。测试用假 `IDialogService` 覆盖了"拒绝则不写"与"同意则写"两条路径。
+
+**回滚入口**：保存成功后页面记下服务层返回的 `.bak` 路径清单（`HasBackups`/`RestoreButtonText`/`BackupHintText`）。"恢复上次快照"经确认后交给 `ModConfigBackupRestorer`（ViewModels 层，`IModConfigBackupRestorer`）：从 `<文件>.ckan-ui-yyyyMMdd-HHmmss[-N].bak` 的文件名反推原文件，读字节 → 同目录临时文件 → `File.Move(overwrite: true)` 原子替换 → 删临时文件。失败按文件给可读原因（"快照文件名不是 … 的格式，无法定位原文件。" / "快照文件已不存在，无法恢复。"），部分成功会同时报成功数与失败清单。
+
+**键盘**：`Ctrl+S` 保存整页、单行文本框里 `Enter` 提交当前行（多行 list 编辑器里 `Enter` 是换行，不劫持）、`Tab` 顺序＝控件自然顺序。实现走 `ModConfigPageView.axaml.cs` 的隧道键处理（与本仓库其它页面一致），而不是 XAML `KeyBindings`。
+
+### 7.3 本段刻意没做
+
+- 没有颜色选择器与按键捕获控件：这两类字段只读展示，并在行内写明"本版只读"的原因（不静默禁用）。
+- 没有路径"浏览…"按钮：path 用文本框编辑，选择器留待后续。
 - 没有本地化：页面文案是中文原文，经 `Func<string,string>` 委托转出，键由 Lead 统一登记。
 
 ## 8. 首批 adapter 与取证状态
@@ -278,9 +324,11 @@ public interface IModConfigFieldRenderer
 | 状态机 | `.../ModConfigDetectorTests.cs` | 18 |
 | 版本区间 | `.../ModConfigVersionRangeTests.cs` | 19 |
 | 写盘安全 | `.../AdapterWriterTests.cs` | 23 |
-| 页面 VM | `tests/CkanUI.ViewModels.Tests/ModConfig/*` | 64 |
+| 页面 VM / 编辑 / 回滚 | `tests/CkanUI.ViewModels.Tests/ModConfig/*` | 119 |
 
 写盘安全用例覆盖：只改目标行、快照字节等于写前文件、无 `*.tmp-*` 残留、同秒两次写不覆盖快照、KSP 运行中拒绝/确认后成功、高风险需确认、只读文件/未知键/未声明文件/越界值/非法枚举被拒、缺失文件按模板创建、非 UTF-8 拒写、含空格值加引号后重解析等价、node 布局不误伤其它节点同名键、并发两次写都落盘。
+
+页面侧编辑用例（CFG-04 新增 55 例，其中 19 例行编辑语义、27 例页面写盘编排、9 例 .bak 恢复器真实文件 IO）覆盖：编辑即置脏与底部计数（"改动 2 项（待保存 1 项）"）、改回原值清脏、**每文件恰好一次 `WriteAsync` 且请求参数（实例名/游戏目录/adapterId/改动键值）正确**、跨 mod 按 adapter 分组、无确认需求时两个确认位保持 `false`、游戏运行中同意写入（`ConfirmedGameRunning = true`）与拒绝不写、高风险拒绝不写、两个确认各问一次、没有 `IDialogService` 时拒绝写盘、成功/部分失败/全失败的文案与"失败文件草稿保留"、写盘器抛异常时逐文件报错、保存后重新读盘（`LoadAsync(string.Empty)`）且停在原选中 mod、保存后暴露 `.bak` 供回滚、回滚拒绝不调用、回滚成功清空快照与草稿、回滚失败保留快照、放弃草稿恢复原值、筛选与搜索来回之后草稿仍保留、只读文件行不产生草稿、`SaveRowCommand` 只写本行所属文件、list 字段逐行文本写盘时拼成不带换行的单行。
 
 命令（**禁 `dotnet test`**，沙箱拒绝 Testhost）：
 
@@ -294,9 +342,9 @@ dotnet run --project tools/verify-layout
 
 ## 11. 已知限制与后续
 
-1. **CFG-04 未做**：没有编辑控件与保存流程，页面只能看。`IAdapterWriter` 已就绪，接线即可（需要 Lead 接 DI：`AddCkanModConfig()`）。
+1. **颜色 / 按键两类字段仍只读**：本段只做"值可见 + 行内写明只读原因"，没有取色器与按键捕获控件。路径字段用文本框编辑，没有"浏览…"按钮。`ModConfigEditorKind` 里的 `ColorPicker`/`KeyCapture`/`PathPicker` 三个形态已经就位，补控件时不需要改页面 VM。
 2. **没有实例选择器**：页面固定读 `IInstanceService.Current`，切实例靠上层页面。
-3. **路径/颜色/按键捕获/列表四种类型**只有只读展示。
+3. **回滚只回滚到"上一次写盘前"**：`IAdapterWriter` 每次写盘都新建带时间戳的快照（不覆盖旧快照），但页面只跟踪本会话最近一次保存返回的那批 `.bak`；历史快照需要手工在磁盘上找。服务层没有"从快照恢复"的公共方法，所以恢复逻辑放在 ViewModels 层的 `ModConfigBackupRestorer`（做 IO 在本仓库有先例：`StabilityToleranceFile` / `LaunchCommandFile`），没有改 Services 层。
 4. **adapter 导入/远程更新**未做（15 篇 §4.4 的信任模型只实现到"内置 + 用户目录"）。
 5. **配置项关键词的本地化**：搜索只匹配 adapter 声明的中英文 label 与注释，不做中文同义词。
 6. **Avalonia 视图未截图验证**：本段只能保证编译 0 警告、绑定名与 VM 属性一致（`IsSelectionEmpty` 这类取反属性已补进 VM 而不是在 XAML 里做转换）。

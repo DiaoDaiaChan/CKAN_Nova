@@ -68,6 +68,12 @@ public static class LocalizationKeys
     /// <summary>导航栏：Mod 配置适配层（M9）。</summary>
     public const string NavRailModConfig = "Ui_NavRail_ModConfig";
 
+    /// <summary>导航栏：收起为图标栏（提示文案与无障碍名称）。</summary>
+    public const string NavRailCollapse = "Ui_NavRail_Collapse";
+
+    /// <summary>导航栏：展开为完整侧栏（提示文案与无障碍名称）。</summary>
+    public const string NavRailExpand = "Ui_NavRail_Expand";
+
     /// <summary>页面标题：模组管理。</summary>
     public const string ManageModsTitle = "Ui_ManageMods_Title";
 
@@ -85,6 +91,101 @@ public static class LocalizationKeys
 
     /// <summary>设置页：选西语时"旧版 CKAN 不支持"提示（16 篇 §6.3 / Q4）。</summary>
     public const string SettingsLanguageLegacyWarning = "Ui_Settings_Language_LegacyWarning";
+
+    // ---- 命令面板与快捷键目录（UI-27） ----
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Palette_Placeholder。</summary>
+    public const string CmdPalettePlaceholder = "Ui_Cmd_Palette_Placeholder";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Palette_Empty。</summary>
+    public const string CmdPaletteEmpty = "Ui_Cmd_Palette_Empty";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Palette_FooterHint。</summary>
+    public const string CmdPaletteFooterHint = "Ui_Cmd_Palette_FooterHint";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Palette_ResultCountFormat。</summary>
+    public const string CmdPaletteResultCountFormat = "Ui_Cmd_Palette_ResultCountFormat";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Palette_TruncatedSuffix。</summary>
+    public const string CmdPaletteTruncatedSuffix = "Ui_Cmd_Palette_TruncatedSuffix";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Shortcuts_Title。</summary>
+    public const string CmdShortcutsTitle = "Ui_Cmd_Shortcuts_Title";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Shortcuts_FilterWatermark。</summary>
+    public const string CmdShortcutsFilterWatermark = "Ui_Cmd_Shortcuts_FilterWatermark";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Shortcuts_Empty。</summary>
+    public const string CmdShortcutsEmpty = "Ui_Cmd_Shortcuts_Empty";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Shortcuts_Copy。</summary>
+    public const string CmdShortcutsCopy = "Ui_Cmd_Shortcuts_Copy";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Shortcuts_Close。</summary>
+    public const string CmdShortcutsClose = "Ui_Cmd_Shortcuts_Close";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Shortcuts_TotalCountFormat。</summary>
+    public const string CmdShortcutsTotalCountFormat = "Ui_Cmd_Shortcuts_TotalCountFormat";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Category_Global。</summary>
+    public const string CmdCategoryGlobal = "Ui_Cmd_Category_Global";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Category_Palette。</summary>
+    public const string CmdCategoryPalette = "Ui_Cmd_Category_Palette";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Category_ShortcutsDialog。</summary>
+    public const string CmdCategoryShortcutsDialog = "Ui_Cmd_Category_ShortcutsDialog";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Shortcut_MoveUp。</summary>
+    public const string CmdShortcutMoveUp = "Ui_Cmd_Shortcut_MoveUp";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Shortcut_MoveDown。</summary>
+    public const string CmdShortcutMoveDown = "Ui_Cmd_Shortcut_MoveDown";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Shortcut_Execute。</summary>
+    public const string CmdShortcutExecute = "Ui_Cmd_Shortcut_Execute";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Shortcut_Dismiss。</summary>
+    public const string CmdShortcutDismiss = "Ui_Cmd_Shortcut_Dismiss";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Shortcut_CloseDialog。</summary>
+    public const string CmdShortcutCloseDialog = "Ui_Cmd_Shortcut_CloseDialog";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Category_Navigate。</summary>
+    public const string CmdCategoryNavigate = "Ui_Cmd_Category_Navigate";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Category_Interface。</summary>
+    public const string CmdCategoryInterface = "Ui_Cmd_Category_Interface";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Action_ShowPalette。</summary>
+    public const string CmdActionShowPalette = "Ui_Cmd_Action_ShowPalette";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Action_ShowShortcuts。</summary>
+    public const string CmdActionShowShortcuts = "Ui_Cmd_Action_ShowShortcuts";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Action_GoBack。</summary>
+    public const string CmdActionGoBack = "Ui_Cmd_Action_GoBack";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Action_GoForward。</summary>
+    public const string CmdActionGoForward = "Ui_Cmd_Action_GoForward";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Action_OpenInstanceFolder。</summary>
+    public const string CmdActionOpenInstanceFolder = "Ui_Cmd_Action_OpenInstanceFolder";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Action_OpenLogFolder。</summary>
+    public const string CmdActionOpenLogFolder = "Ui_Cmd_Action_OpenLogFolder";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Action_ExportDiagnostics。</summary>
+    public const string CmdActionExportDiagnostics = "Ui_Cmd_Action_ExportDiagnostics";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Action_CheckUpdates。</summary>
+    public const string CmdActionCheckUpdates = "Ui_Cmd_Action_CheckUpdates";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Action_ToggleTheme。</summary>
+    public const string CmdActionToggleTheme = "Ui_Cmd_Action_ToggleTheme";
+
+    /// <summary>命令面板 / 快捷键目录（UI-27）：Ui_Cmd_Action_ToggleDensity。</summary>
+    public const string CmdActionToggleDensity = "Ui_Cmd_Action_ToggleDensity";
 
     /// <summary>通用：页面占位说明。</summary>
     public const string CommonPagePending = "Ui_Common_Page_Pending";

@@ -194,3 +194,98 @@
   `src/CkanUI.App/Theming/AccentHost.cs` 调 `Refresh()`；`AccentHost.Apply` 检测到当前变体是高对比度时直接
   `RemoveOverride` 掉四个强调色键，**不注入任何自定义颜色**。优先级因此固定为
   `系统/无障碍 > 主题包 > 用户覆盖 > 内置默认`（20 篇 §15）。
+
+---
+
+## 5. 第 2 轮设计系统升级（本轮新增）
+
+本轮把「能看」提升到「耐看、可交互」：补齐海拔、焦点、间距与骨架四类基础设施，
+把先前只在页面内零散出现的按钮/徽章/标题写法收敛成样式类，并给外壳加上可折叠图标栏。
+
+### 5.1 新增主题色 Token（三变体，均在 `ResourceDictionary.ThemeDictionaries` 内）
+
+| Token Key | 语义说明 | 浅色 | 深色 | 高对比度 |
+|---|---|---|---|---|
+| `CkanFocusRingBrush` | 键盘焦点环颜色（`:focus-visible`） | `#0A66C2` | `#4C9AFF` | `#FFFF00` |
+| `CkanHoverOverlayBrush` | 通用悬停叠加层（半透明，不改底色） | `#0F000000` | `#14FFFFFF` | `#33FFFFFF` |
+| `CkanPressedOverlayBrush` | 按下叠加层（比悬停更重一档） | `#1F000000` | `#24FFFFFF` | `#66FFFFFF` |
+| `CkanAccentHoverBrush` | 强调色按钮的悬停态底色 | `#0857A6` | `#6BAEFF` | `#FFFF66` |
+| `CkanSuccessBackgroundBrush` | 成功态徽章/横幅的淡底（此前只有前景色） | `#E7F6EC` | `#14301F` | `#003300` |
+| `CkanSkeletonBrush` | 骨架屏占位块底色 | `#E9ECF1` | `#2A303C` | `#555555` |
+
+> 高对比度下 `CkanAccentHoverBrush` 用 `#FFFF66` 而不是加深：HC 只允许纯黑白与荧光黄系列，
+> 加深会掉到「看不见的灰」；`CkanSkeletonBrush` 同理用中灰而不是深灰——骨架块必须与纯黑底有可辨边界。
+
+### 5.2 海拔（BoxShadow）Token
+
+| Token Key | 语义说明 | 浅色 | 深色 | 高对比度 |
+|---|---|---|---|---|
+| `CkanElevationLow` | 卡片、工具条默认海拔 | `0 1 3 0 #12000000` | `0 1 4 0 #40000000` | `0 0 0 0 #00000000` |
+| `CkanElevationMedium` | 可交互卡片悬停、浮层 | `0 4 14 0 #1C000000` | `0 6 18 0 #59000000` | `0 0 0 0 #00000000` |
+| `CkanElevationHigh` | 对话框、命令面板 | `0 12 32 0 #29000000` | `0 14 36 0 #73000000` | `0 0 0 0 #00000000` |
+| `CkanElevationNone` | 显式取消阴影（嵌套卡片不叠两层阴影） | 全零 | 全零 | 全零 |
+
+> 高对比度下一律归零：HC 的层级靠 1px 纯白描边表达，阴影只会把文字边缘糊掉。
+> 三档数值都写进 token 而不是留 `BoxShadow="..."` 字面量，理由与 §1.1 同：主题包与高对比度要能整体改写。
+
+### 5.3 新增非主题 Token（尺寸与节奏）
+
+| Token Key | 类型 | 值 | 用途 |
+|---|---|---|---|
+| `CkanCornerRadiusPill` | `CornerRadius` | `999` | 药丸形徽章/筛选片 |
+| `CkanSpacingXs` / `Sm` / `Md` / `Lg` / `Xl` | `x:Double` | `4 / 8 / 12 / 16 / 24` | 8pt 间距刻度，替代随手写的 `Margin="13,0,0,0"` |
+| `CkanSpacingGutter` | `Thickness` | `16,12` | 页面级外边距 |
+| `CkanSpacingStack` | `Thickness` | `0,0,0,8` | 纵向堆叠项间距 |
+| `CkanIconSizeSmall` / `Medium` | `x:Double` | `14 / 16` | 行内图标与导航图标 |
+| `CkanControlHeightSmall` / `Medium` | `x:Double` | `28 / 32` | 小按钮与标准控件高度 |
+| `CkanFocusRingThickness` | `Thickness` | `2` | 焦点环描边厚度（必须 `Thickness`，写成 `x:Double` 会在 `BorderThickness` 上解析失败） |
+| `CkanOverlayCardWidth` | `x:Double` | `480` | 浮层卡片（命令面板、抽屉）宽度基准 |
+
+### 5.4 样式类清单（`src/CkanUI.App/Resources/FluentStyles.axaml`）
+
+新增的样式类都是「视图里写 `Classes="..."` 就能用」的语义单元，页面不要再拼行内属性：
+
+- **按钮家族**：`Button.CkanSecondary`（次要实心）、`Button.CkanGhost`（无底悬停才亮）、
+  `Button.CkanDanger`（危险操作）、`Button.CkanIcon`（30×30 纯图标）、`Button.CkanSmall`（紧凑高度）。
+- **徽章**：`Border.CkanBadge` + `.Success` / `.Warning` / `.Danger` / `.Info` / `.Accent`；
+  内部 `TextBlock` 自动接 Caption 字号与 SemiBold，不必逐个写前景色。
+- **文本层级**：`TextBlock.CkanPageTitle` / `.CkanSectionTitle` / `.CkanCardTitle` / `.CkanCaption` /
+  `.CkanMuted` / `.CkanNumeric` / `.CkanNumericLarge`（后两者 `FontFeatures="tnum"`，数字列对齐不跳动）。
+- **可点击卡片**：`Border.CkanCardInteractive`（悬停抬升到 `CkanElevationMedium` + `translateY(-2px)`，
+  按下 `scale(0.995)`）与 `Border.CkanCardSelected`（选中态描边）。
+- **骨架屏**：`Border.CkanSkeleton` / `.CkanSkeletonLine`（`IsHitTestVisible=False`，不挡点击）。
+- **页签**：`TabControl` / `TabItem` 全量自定义模板——表头下方 `Border#PART_TabUnderline`（高 2、圆角 1、
+  底色 `CkanAccentBrush`）在 `:selected` 与 `:focus-visible` 时 `Opacity` 0→1、`ScaleX` 0.4→1，
+  过渡时长取 `CkanMotionDurationBase`。
+- **焦点可见**：`Button/TextBox/ComboBox:focus-visible` 加 `CkanFocusRingBrush` 描边；
+  `ListBoxItem`/`DataGridRow:focus-visible` 用 `CkanAccentSubtleBrush` 底 + 1px 环。鼠标点击不触发环（`:focus-visible` 而非 `:focus`）。
+- **浮层与细节**：`ToolTip`（`MaxWidth=420`、CardBorder 描边、DialogBackground 底）、`ContextMenu`/`MenuItem`
+  （Small 圆角、`:pointerover` 用 `CkanAccentSubtleBrush`）、细滚动条（宽 10）、`ProgressBar`（MinHeight 6）、
+  `Separator`/`GridSplitter`（`:pointerover` 才显色）。
+
+> **两条 Avalonia 硬约束**（踩过，别再试）：① `ToolTip` 与 `ContextMenu` **没有** `BoxShadow` 属性，
+> 设置会编译期报 `AVLN2000: Unable to resolve suitable regular or attached property BoxShadow`，
+> 要给它们阴影只能换自定义 `Popup`；② 自定义 `TabItem` 模板里被样式选择器命中的子元素必须用 `x:Name`
+> （`Selector="TabItem:selected /template/ Border#PART_TabUnderline"`）。
+
+### 5.5 骨架屏行为（`src/CkanUI.App/Theming/SkeletonPulse.cs`）
+
+- 用法：`<Border Classes="CkanSkeleton" app:SkeletonPulse.IsEnabled="True" />`。
+- 实现：附加属性 `SkeletonPulse.IsEnabled` 挂 `AttachedToVisualTree` / `DetachedFromVisualTree`，
+  用 `Animation`（`IterationCount.Infinite`、`PlaybackDirection.Alternate`，`Opacity` 1 ↔ 0.35）`RunAsync`。
+- **动效关闭时不闪**：脉动时长取 `CkanMotionDurationBase`，该 token 为 0（`reduced`/`none` 档或系统关闭动画）时直接不启动动画，
+  只留静态骨架块——避免为了「好看」违反无障碍设置。
+- 附加属性的 `TOwner` 必须是**非静态**类型（`public sealed class SkeletonPulse`）：静态类型作泛型参数会 `CS0718`。
+
+### 5.6 外壳：可折叠图标栏（`src/CkanUI.App/MainWindow.axaml`）
+
+- **宽度**：展开 250px ↔ 收起 68px，`Border#NavPanel` 的 `Width` 走 `DoubleTransition`（时长 `CkanMotionDurationBase`）；
+  收起时 `Classes.Collapsed` 同时隐藏 `TextBlock.NavLabel`（导航标题与「CKAN」品牌字）、
+  把底部「关于」换成 `?` 图标按钮、把页脚 `StackPanel#NavFooterActions` 转成竖排、导航项内容居中。
+- **状态**：`ShellViewModel.IsNavCollapsed` / `IsNavExpanded` / `NavToggleGlyph` / `NavToggleToolTip`（键 `Ui_NavRail_Collapse` / `Ui_NavRail_Expand`），
+  命令 `ToggleNavCollapsedCommand`。收起**只影响呈现**：`NavItems` 与 `SelectedNavItem` 都不变，收起后照样靠高亮条认出当前页。
+- **键盘**：`Ctrl+B` 折叠/展开侧栏；`Alt+←` / `Alt+→` 前进后退（`Window.KeyBindings` 直接绑命令，视图模型不引用 Avalonia）。
+- **布局调整**：前进/后退从侧栏顶栏移到主工作区顶部 34px 条左侧（贴近内容、鼠标位移最短），
+  侧栏顶栏只留品牌与折叠，底部留「关于 + 折叠」；状态栏右侧常驻版本号（`MainWindow.ApplyStatusBarFacts` 取
+  `AboutInfoFactory.Create().AppVersion`，悬停提示 CKAN 核心版本与运行时版本）——报问题截图即带版本。
+
