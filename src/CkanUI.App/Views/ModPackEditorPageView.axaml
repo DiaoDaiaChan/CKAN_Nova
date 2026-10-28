@@ -50,7 +50,7 @@
                      Margin="0,0,8,0"
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <TextBox Grid.Column="1" Text="{Binding FilePath}"
+          <TextBox Grid.Column="1" Text="{Binding FilePath, Mode=TwoWay}"
                    PlaceholderText="例如 C:\\Mods\\my-modpack.ckan" />
         </Grid>
       </StackPanel>
@@ -107,62 +107,62 @@
         <TextBlock Grid.Row="0" Grid.Column="0" Text="标识" VerticalAlignment="Center"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Identifier}"
+        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Identifier, Mode=TwoWay}"
                  PlaceholderText="小写字母 / 数字 / 连字符" />
         <TextBlock Grid.Row="0" Grid.Column="2" Text="名称" VerticalAlignment="Center"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding Name}" />
+        <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding Name, Mode=TwoWay}" />
 
         <TextBlock Grid.Row="1" Grid.Column="0" Text="版本" VerticalAlignment="Center"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Version}" PlaceholderText="例如 1.0.0" />
+        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Version, Mode=TwoWay}" PlaceholderText="例如 1.0.0" />
         <TextBlock Grid.Row="1" Grid.Column="2" Text="规范版本" VerticalAlignment="Center"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding SpecVersion}"
+        <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding SpecVersion, Mode=TwoWay}"
                  PlaceholderText="留空则由 CKAN 自动推导" />
 
         <TextBlock Grid.Row="2" Grid.Column="0" Text="发布状态" VerticalAlignment="Center"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
         <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding ReleaseStatusOptions}"
-                  SelectedItem="{Binding ReleaseStatus}" HorizontalAlignment="Stretch" />
+                  SelectedItem="{Binding ReleaseStatus, Mode=TwoWay}" HorizontalAlignment="Stretch" />
         <TextBlock Grid.Row="2" Grid.Column="2" Text="包类型" VerticalAlignment="Center"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
         <ComboBox Grid.Row="2" Grid.Column="3" ItemsSource="{Binding KindOptions}"
-                  SelectedItem="{Binding Kind}" HorizontalAlignment="Stretch" />
+                  SelectedItem="{Binding Kind, Mode=TwoWay}" HorizontalAlignment="Stretch" />
 
         <TextBlock Grid.Row="3" Grid.Column="0" Text="游戏版本" VerticalAlignment="Center"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding KspVersion}" PlaceholderText="例如 1.12.5" />
+        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding KspVersion, Mode=TwoWay}" PlaceholderText="例如 1.12.5" />
         <TextBlock Grid.Row="3" Grid.Column="2" Text="版本下限" VerticalAlignment="Center"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="3" Grid.Column="3" Text="{Binding KspVersionMin}" />
+        <TextBox Grid.Row="3" Grid.Column="3" Text="{Binding KspVersionMin, Mode=TwoWay}" />
 
         <TextBlock Grid.Row="4" Grid.Column="0" Text="版本上限" VerticalAlignment="Center"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding KspVersionMax}" />
+        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding KspVersionMax, Mode=TwoWay}" />
         <TextBlock Grid.Row="4" Grid.Column="2" Text="下载地址" VerticalAlignment="Center"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="4" Grid.Column="3" Text="{Binding DownloadUrl}"
+        <TextBox Grid.Row="4" Grid.Column="3" Text="{Binding DownloadUrl, Mode=TwoWay}"
                  PlaceholderText="kind=package 时必填" />
 
         <TextBlock Grid.Row="5" Grid.Column="0" Text="摘要" VerticalAlignment="Center"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Abstract}" />
+        <TextBox Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Abstract, Mode=TwoWay}" />
 
         <TextBlock Grid.Row="6" Grid.Column="0" Text="描述" VerticalAlignment="Top" Margin="0,4,0,0"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Description}"
+        <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Description, Mode=TwoWay}"
                  AcceptsReturn="True" TextWrapping="Wrap" MinHeight="56" />
 
         <Grid Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="3" ColumnDefinitions="*,*" ColumnSpacing="12">
@@ -170,7 +170,7 @@
             <TextBlock Text="作者" FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-              <TextBox Grid.Column="0" Text="{Binding NewAuthor}" PlaceholderText="按回车或点「加」" />
+              <TextBox Grid.Column="0" Text="{Binding NewAuthor, Mode=TwoWay}" PlaceholderText="按回车或点「加」" />
               <Button Grid.Column="1" Content="加" Command="{Binding AddAuthorCommand}" />
             </Grid>
             <ItemsControl ItemsSource="{Binding Authors}">
@@ -193,7 +193,7 @@
             <TextBlock Text="许可证" FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-              <TextBox Grid.Column="0" Text="{Binding NewLicense}" PlaceholderText="例如 MIT、GPL-3.0、unknown" />
+              <TextBox Grid.Column="0" Text="{Binding NewLicense, Mode=TwoWay}" PlaceholderText="例如 MIT、GPL-3.0、unknown" />
               <Button Grid.Column="1" Content="加" Command="{Binding AddLicenseCommand}" />
             </Grid>
             <ItemsControl ItemsSource="{Binding Licenses}">
@@ -254,19 +254,19 @@
             <Grid ColumnDefinitions="110,110,*,160,56" Height="{DynamicResource CkanRowHeight}">
               <ComboBox Grid.Column="0" Margin="0,0,6,0"
                         ItemsSource="{Binding $parent[ListBox].DataContext.RelationTypeOptions}"
-                        SelectedItem="{Binding RelationType}" />
+                        SelectedItem="{Binding RelationType, Mode=TwoWay}" />
               <ComboBox Grid.Column="1" Margin="0,0,6,0"
                         ItemsSource="{Binding $parent[ListBox].DataContext.ModeOptions}"
-                        SelectedItem="{Binding Mode}" />
+                        SelectedItem="{Binding Mode, Mode=TwoWay}" />
 
               <TextBox Grid.Column="2" Margin="0,0,6,0" IsVisible="{Binding IsSingleMode}"
-                       Text="{Binding Name}" PlaceholderText="小写模组标识，例如 modulemanager" />
+                       Text="{Binding Name, Mode=TwoWay}" PlaceholderText="小写模组标识，例如 modulemanager" />
               <TextBox Grid.Column="2" Margin="0,0,6,0" IsVisible="{Binding IsCandidateMode}"
-                       Text="{Binding CandidatesText}" PlaceholderText="候选标识，逗号分隔" />
+                       Text="{Binding CandidatesText, Mode=TwoWay}" PlaceholderText="候选标识，逗号分隔" />
 
               <Grid Grid.Column="3" ColumnDefinitions="*,*" ColumnSpacing="4" IsVisible="{Binding IsSingleMode}">
-                <TextBox Grid.Column="0" Text="{Binding MinVersion}" PlaceholderText="下限" />
-                <TextBox Grid.Column="1" Text="{Binding MaxVersion}" PlaceholderText="上限" />
+                <TextBox Grid.Column="0" Text="{Binding MinVersion, Mode=TwoWay}" PlaceholderText="下限" />
+                <TextBox Grid.Column="1" Text="{Binding MaxVersion, Mode=TwoWay}" PlaceholderText="上限" />
               </Grid>
               <TextBlock Grid.Column="3" Text="{Binding VersionText}" VerticalAlignment="Center"
                          IsVisible="{Binding IsCandidateMode}"

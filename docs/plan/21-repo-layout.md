@@ -77,11 +77,11 @@ ckan-ui\
 │   │   └── Properties\Resources.resx  新 UI 文案（L1）
 │   ├── CkanUI.ViewModels\             VM，零 Avalonia 引用
 │   ├── CkanUI.Services\               服务实现（唯一接触 CKAN 的地方）
-│   │   ├── Threading\  Install\  Repositories\  Saves\  Logging\  Ai\  Theme\  Lifecycle\  Platform\Windows\
+│   │   ├── Threading\  Install\  Repositories\  Saves\  Logging\  Ai\  Theme\  Lifecycle\  Platform\
 │   ├── CkanUI.Services.Abstractions\  接口 + DTO，零依赖
 │   ├── CkanUI.Core\                   领域模型与纯函数（无 Avalonia、无 IO）
 │   ├── CkanUI.Controls\               自绘控件
-│   ├── CkanUI.Platform\               单实例 IPC、协议、托盘、Steam/注册表探测
+│   ├── CkanUI.Platform\               单实例 IPC、协议、托盘；注册表读取在 Services/Platform（Steam 库定位）
 │   ├── CkanUI.Localization\           三层解析 + 官方 resx 快照（纯库）
 │   ├── CkanUI.ModText\                元数据译文 Provider（纯库、无 IO）
 │   ├── CkanUI.Sfs\                    SFS 解析/序列化/格式化（纯库）

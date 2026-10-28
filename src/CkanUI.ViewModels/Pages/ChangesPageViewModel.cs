@@ -81,6 +81,9 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     /// <summary>当前待计算的请求集合（由模组页或调用方通过 <see cref="SetRequests"/> 灌入）。</summary>
     public IReadOnlyCollection<ChangeRequest> Requests { get; private set; } = Array.Empty<ChangeRequest>();
 
+    /// <inheritdoc />
+    public event Action? RequestsApplied;
+
     // ---- 可观察状态 -------------------------------------------------------
 
     /// <summary>执行流状态（03 篇 §4.1）。</summary>
@@ -310,14 +313,16 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     {
         Subscribe();
         RefreshGameRunning();
-        RebuildFromRequests();
+        if (State is not (ChangeExecutionState.Applying or ChangeExecutionState.Done))
+        {
+            RebuildFromRequests();
+        }
     }
 
     /// <inheritdoc />
     protected override void OnDeactivated()
     {
         Unsubscribe();
-        CancelPendingApply();
     }
 
     private void Subscribe()
@@ -542,6 +547,8 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         {
             State = ChangeExecutionState.Done;
             StatusText = ChangesFormatter.InstallResult(report);
+            Requests = Array.Empty<ChangeRequest>();
+            RequestsApplied?.Invoke();
 
             // 卸载收尾（12 篇 F-43）：只有后端报了残留目录、且宿主给了对话框与当前实例才弹。
             await ShowResidualCleanupAsync(report).ConfigureAwait(true);

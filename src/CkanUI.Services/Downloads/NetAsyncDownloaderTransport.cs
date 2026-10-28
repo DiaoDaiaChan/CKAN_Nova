@@ -66,12 +66,21 @@ public sealed class NetAsyncDownloaderTransport : IDownloadTransport
                                                               IProgress<TransferProgress>? progress,
                                                               CancellationToken ct)
     {
-        // size 必须传 0：Core 会把 DownloadTargetFile.size 当作「已有字节数」去做断点续传
-        // （DownloadPart 构造器 size = bytesLeft = target.size），我们的临时文件每次都是新的，
-        // 传 0 才能从第 0 字节开始下。
+        // Core 把 DownloadTargetFile.size 当作「已经有这么多字节」：DownloadPart 构造器里
+        // size = bytesLeft = target.size（Core/Net/NetAsyncDownloader.DownloadPart.cs:43），
+        // ResumingWebClient 据此发 `Range: bytes=N-`（Core/Net/ResumingWebClient.cs:112）
+        // 并 `FileMode.Append` 追加写（同文件 :212）。
+        // 所以「临时文件里还剩多少」不需要额外参数：看一眼文件长度就是从哪个字节续传。
+        // 首次调用时文件不存在 → 0 → 从第 0 字节开始，与旧行为一致。
+        var resumeFrom = FileLengthOrZero(tempFilePath);
+        if (resumeFrom > 0)
+        {
+            _log.Info(FormattableString.Invariant($"续传 {request.Title}：临时文件已有 {resumeFrom} 字节，从断点继续下载"));
+        }
+
         var target = new NetAsyncDownloader.DownloadTargetFile(request.Urls.ToList(),
                                                                tempFilePath,
-                                                               0,
+                                                               resumeFrom,
                                                                request.MimeType ?? string.Empty);
 
         var downloader = new NetAsyncDownloader(_user, () => SHA256.Create(), _userAgent, ct);
@@ -82,7 +91,8 @@ public sealed class NetAsyncDownloaderTransport : IDownloadTransport
 
         // 踩坑点：TargetProgress 的签名写着 (target, bytesLeft, size)，第二个参数是「剩余字节」而不是
         // 「已接收字节」（Core/Net/NetAsyncDownloader.cs:289 传的是 download.bytesLeft）。
-        // 已接收 = size - bytesLeft。
+        // 已接收 = size - bytesLeft；续传时 size 是「整份文件大小」（含已有字节），所以算出来的是绝对值，
+        // 进度条不会从 0 跳回，也不需要外部再加偏移量。
         downloader.TargetProgress += (_, bytesLeft, size) =>
         {
             received = Math.Max(0, size - bytesLeft);
@@ -120,7 +130,7 @@ public sealed class NetAsyncDownloaderTransport : IDownloadTransport
 
         // 走到这里说明最后一个镜像成功（Core 在全部失败时会抛 DownloadErrorsKraken）。
         var length = FileLengthOrZero(tempFilePath);
-        _log.Info($"下载完成 {request.Title}：{length} 字节");
+        _log.Info(FormattableString.Invariant($"下载完成 {request.Title}：{length} 字节（其中 {resumeFrom} 字节来自断点续传）"));
         return OperationResult<TransferOutcome>.Ok(
             new TransferOutcome(tempFilePath, sha256, etag, received > 0 ? received : length));
     }

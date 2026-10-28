@@ -2,34 +2,72 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:CkanUI.ViewModels"
         xmlns:local="using:CkanUI.App"
+        xmlns:conv="using:CkanUI.App.Converters"
         xmlns:ops="using:CkanUI.App.Views.Operations"
         x:Class="CkanUI.App.MainWindow"
         x:DataType="vm:ShellViewModel"
         Title="{Binding Title}"
         Width="1280" Height="800"
         MinWidth="960" MinHeight="600"
+        TransparencyLevelHint="Mica, AcrylicBlur"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
         Background="{DynamicResource CkanSurfaceBackgroundBrush}">
   <Window.DataTemplates>
     <local:ViewLocator />
   </Window.DataTemplates>
 
-  <Grid ColumnDefinitions="220,*">
-    <Border Grid.Column="0" Background="{DynamicResource CkanSidebarBackgroundBrush}">
+  <Panel>
+    <!--
+      背景层（20 篇 P-06 / THM-05）：纯色或渐变走 BackgroundLayer 的画笔，图片走 BackgroundImage，
+      平铺也走 BackgroundLayer（ImageBrush）。四个控件都不吃鼠标事件，内容层整体压在它们之上。
+      高对比度下整块被 BackgroundHost 清空（THM-10 优先）。
+    -->
+    <Panel IsHitTestVisible="False">
+      <Border x:Name="BackgroundLayer" />
+      <Image x:Name="BackgroundImage" Stretch="UniformToFill" />
+      <Border x:Name="BackgroundDim" Opacity="0" />
+      <Border x:Name="BackgroundScrim"
+              Opacity="0"
+              Background="{DynamicResource CkanSurfaceBackgroundBrush}" />
+    </Panel>
+
+    <Grid ColumnDefinitions="250,*">
+    <!-- Fluent 侧边导航栏 -->
+    <Border Grid.Column="0"
+            Background="{DynamicResource CkanSidebarBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanBorderBrush}"
+            BorderThickness="0,0,1,0">
       <DockPanel LastChildFill="True">
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="16,20,16,12">
-          <TextBlock Grid.Column="0"
-                     Text="CKAN"
-                     VerticalAlignment="Center"
-                     Foreground="{DynamicResource CkanTextPrimaryBrush}"
-                     FontSize="{DynamicResource CkanFontSizeTitle}"
-                     FontWeight="SemiBold" />
-          <!-- 前进/后退（F-25）：历史由 INavigationService 维护，按钮只反映可用性。 -->
+        <!-- 顶栏：应用徽标与前进后退导航 -->
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="16,28,16,14">
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <!-- 品牌图标 -->
+            <Border Width="30" Height="30"
+                    CornerRadius="8"
+                    Background="{DynamicResource CkanAccentBrush}">
+              <TextBlock Text="C"
+                         Foreground="{DynamicResource CkanTextInverseBrush}"
+                         FontWeight="Bold"
+                         FontSize="16"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center" />
+            </Border>
+            <TextBlock Text="CKAN"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                       FontSize="{DynamicResource CkanFontSizeTitle}"
+                       FontWeight="SemiBold" />
+          </StackPanel>
+
+          <!-- 前进/后退历史导航 -->
           <Button Grid.Column="1"
                   Content="←"
                   Command="{Binding BackCommand}"
                   IsEnabled="{Binding CanGoBack}"
                   ToolTip.Tip="{Binding BackToolTip}"
-                  Padding="8,2"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                  Padding="8,4"
                   Margin="0,0,4,0"
                   MinWidth="0" />
           <Button Grid.Column="2"
@@ -37,46 +75,83 @@
                   Command="{Binding ForwardCommand}"
                   IsEnabled="{Binding CanGoForward}"
                   ToolTip.Tip="{Binding ForwardToolTip}"
-                  Padding="8,2"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                  Padding="8,4"
                   MinWidth="0" />
         </Grid>
-        <!-- 帮助与关于（12 篇 F-55）：关于框由 code-behind 建窗，VM 只提供数据与命令。 -->
-        <Button DockPanel.Dock="Bottom"
-                Content="关于"
-                Click="OnAboutClick"
-                Margin="16,8,16,12"
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Center"
-                FontSize="{DynamicResource CkanFontSizeCaption}" />
+
+        <!-- 底部关于按钮 -->
+        <Border DockPanel.Dock="Bottom" Padding="14,8,14,12">
+          <Button Content="关于"
+                  Click="OnAboutClick"
+                  HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                  Padding="10,7"
+                  FontSize="{DynamicResource CkanFontSizeCaption}" />
+        </Border>
+
+        <!-- 导航项列表 -->
         <ListBox x:Name="NavList"
                  ItemsSource="{Binding NavItems}"
-                 SelectionChanged="OnNavSelectionChanged"
+                 SelectedItem="{Binding SelectedNavItem, Mode=TwoWay}"
                  Background="Transparent"
                  BorderThickness="0"
-                 Margin="8,0">
+                 Margin="8,4">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:NavItem">
-              <TextBlock Text="{Binding Title}" Padding="4,6" />
+              <Grid ColumnDefinitions="4,24,*" Margin="0,2">
+                <!-- Fluent 风格激活指示器 -->
+                <Rectangle Grid.Column="0"
+                           Classes="navIndicator"
+                           Fill="{DynamicResource CkanAccentBrush}"
+                           RadiusX="2" RadiusY="2"
+                           Width="3" Height="18"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Center" />
+                <PathIcon Grid.Column="1"
+                          Data="{Binding Glyph, Converter={x:Static conv:NavGlyphToGeometryConverter.Instance}}"
+                          Width="16" Height="16"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center" />
+                <TextBlock Grid.Column="2"
+                           Text="{Binding Title}"
+                           VerticalAlignment="Center"
+                           Margin="10,0,0,0"
+                           FontSize="{DynamicResource CkanFontSizeBody}" />
+              </Grid>
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
       </DockPanel>
     </Border>
 
+    <!-- 主工作区与状态栏 -->
     <DockPanel Grid.Column="1" LastChildFill="True">
+      <!-- 顶部现代一体化标题拖拽区与原生系统按钮避让 -->
+      <Grid DockPanel.Dock="Top" Height="34" Background="Transparent">
+        <TextBlock Text="{Binding Title}"
+                   Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   VerticalAlignment="Center"
+                   Margin="16,0,150,0"
+                   IsHitTestVisible="False" />
+      </Grid>
+
       <Border DockPanel.Dock="Bottom"
               Background="{DynamicResource CkanStatusBarBackgroundBrush}"
               BorderBrush="{DynamicResource CkanBorderBrush}"
               BorderThickness="0,1,0,0"
-              Padding="12,6">
+              Padding="16,6">
         <TextBlock Text="{Binding StatusText}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}"
                    FontSize="{DynamicResource CkanFontSizeCaption}" />
       </Border>
-      <ContentControl Content="{Binding CurrentPage}" />
+      <!-- 页面切换动画在代码里按动效 token 装配（CrossFade.Duration 不是 Avalonia 属性，绑不了资源） -->
+      <TransitioningContentControl x:Name="PageHost" Content="{Binding CurrentPage}" />
     </DockPanel>
 
-    <!-- 操作队列浮层（UI-08）：覆盖在整窗最上层，不参与页面布局。 -->
+    <!-- 操作队列浮层 -->
     <Grid Grid.Column="0" Grid.ColumnSpan="2"
           IsVisible="{Binding HasOperationQueue}"
           HorizontalAlignment="Right"
@@ -84,5 +159,6 @@
           Panel.ZIndex="10">
       <ops:OperationQueueOverlayView DataContext="{Binding OperationQueue}" />
     </Grid>
-  </Grid>
+    </Grid>
+  </Panel>
 </Window>

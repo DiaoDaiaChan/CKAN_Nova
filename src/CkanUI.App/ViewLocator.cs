@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using CkanUI.Services.Abstractions;
 using CkanUI.ViewModels;
 using CkanUI.ViewModels.Pages;
 
@@ -11,7 +12,7 @@ namespace CkanUI.App;
 /// </summary>
 public sealed class ViewLocator : IDataTemplate
 {
-    public bool Match(object? data) => data is PageViewModel;
+    public bool Match(object? data) => data is PageViewModel or IPluginPage;
 
     public Control? Build(object? param)
     {
@@ -48,6 +49,31 @@ public sealed class ViewLocator : IDataTemplate
         var viewName = viewModelName.Replace(".ViewModels.Pages.", ".App.Views.", StringComparison.Ordinal)
                                     .Replace(".ViewModels.", ".App.Views.", StringComparison.Ordinal)
                                     .Replace("ViewModel", "View", StringComparison.Ordinal);
-        return Type.GetType(viewName);
+        return Type.GetType(viewName) ?? ResolvePluginViewType(viewModelType, viewModelName);
+    }
+
+    /// <summary>
+    /// 插件页的视图解析（12 篇 F-17）：视图必须与视图模型同程序集同命名空间，只差类型名后缀。
+    /// </summary>
+    /// <remarks>
+    /// 这里不能用 <see cref="Type.GetType(string)"/>：插件程序集加载在可卸载 <c>AssemblyLoadContext</c> 里，
+    /// 默认上下文按名字查不到。改成在视图模型自己的程序集里找，顺带也就支持了插件自带的视图。
+    /// </remarks>
+    private static Type? ResolvePluginViewType(Type viewModelType, string viewModelName)
+    {
+        var viewName = viewModelName.Replace("ViewModel", "View", StringComparison.Ordinal);
+        if (string.Equals(viewName, viewModelName, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        try
+        {
+            return viewModelType.Assembly.GetType(viewName, throwOnError: false);
+        }
+        catch (Exception ex) when (ex is TypeLoadException or FileLoadException or BadImageFormatException)
+        {
+            return null;
+        }
     }
 }

@@ -325,7 +325,7 @@ internal sealed class InstancesFakeShellLauncher : IInstanceShellLauncher, IInst
 }
 
 /// <summary>Steam 库探测替身。</summary>
-internal sealed class InstancesFakeSteamSource : ISteamLibrarySource
+internal sealed class InstancesFakeSteamSource : ISteamLibraryLocator
 {
     public IReadOnlyList<string> Found { get; set; } = Array.Empty<string>();
 

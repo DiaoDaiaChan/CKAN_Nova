@@ -125,7 +125,7 @@
 | F-15 | 无 | 首选下载主机 |
 | F-16 | 无 | 安装过滤器 |
 | F-17 | 无 | 插件系统（含 API 重定义） |
-| F-20/21 | MOD-01 仅含模型 | 组合搜索 UI 缺失 |
+| F-20/21 | MOD-01 仅含模型 | 组合搜索 UI 缺失（**已补齐**：`src/CkanUI.ViewModels/Pages/Mods/ModsSearchPanelViewModel.cs` + `src/CkanUI.App/Views/Mods/ModsSearchPanelView.axaml`） |
 | F-24 | 无 | Label 属性编辑 |
 | F-28 | 无 | 关系树 |
 | F-34 | 无 | 提供者选择 |

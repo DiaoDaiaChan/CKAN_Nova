@@ -214,6 +214,65 @@ public sealed class PluginService : IPluginService
         }
     }
 
+    /// <inheritdoc />
+    public Task<OperationResult> InvokeToolItemAsync(string pluginId, string itemKey, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(pluginId) || string.IsNullOrWhiteSpace(itemKey))
+        {
+            return Task.FromResult(OperationResult.Fail("插件标识与工具项键都不能为空。"));
+        }
+
+        var entry = Find(pluginId.Trim());
+        if (entry is null)
+        {
+            return Task.FromResult(OperationResult.Fail("插件「" + pluginId + "」还没有加载。"));
+        }
+
+        if (entry.Info.State != PluginState.Active)
+        {
+            return Task.FromResult(OperationResult.Fail(
+                "插件「" + entry.Info.DisplayName + "」未激活，工具项不可用。"));
+        }
+
+        var item = entry.Info.ToolItems
+            .FirstOrDefault(candidate => candidate is not null &&
+                string.Equals(candidate.Key, itemKey.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (item is null)
+        {
+            return Task.FromResult(OperationResult.Fail(
+                "插件「" + entry.Info.DisplayName + "」没有声明键为「" + itemKey + "」的工具项。"));
+        }
+
+        return InvokeToolItemCoreAsync(entry, item, ct);
+    }
+
+    private async Task<OperationResult> InvokeToolItemCoreAsync(
+        PluginEntry entry,
+        PluginToolItemDescriptor item,
+        CancellationToken ct)
+    {
+        // 插件代码一律在锁外调用（与 ActivateCore 同口径）：插件回调里再问宿主不会自锁。
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            await entry.Load.Plugin.ExecuteToolItemAsync(item.Key, ct).ConfigureAwait(false);
+            Log.Info("已执行插件工具项：" + entry.Info.Id + "/" + item.Key);
+            return OperationResult.Ok();
+        }
+        catch (OperationCanceledException)
+        {
+            return OperationResult.Fail("工具项「" + item.Title + "」已取消。");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("插件工具项执行失败：" + entry.Info.Id + "/" + item.Key, ex);
+            return OperationResult.Fail(
+                "工具项「" + item.Title + "」执行失败：" + ex.Message,
+                ex.ToString(),
+                retryable: true);
+        }
+    }
+
     private IReadOnlyList<PluginInfo> Snapshot(PluginState state)
     {
         lock (_gate)
@@ -327,6 +386,7 @@ public sealed class PluginService : IPluginService
 
         PluginInfo info;
         IReadOnlyList<PluginPageDescriptor> pages;
+        IReadOnlyList<PluginToolItemDescriptor> toolItems;
         try
         {
             var plugin = load.Plugin;
@@ -340,6 +400,7 @@ public sealed class PluginService : IPluginService
                 fullPath,
                 PluginState.Dormant);
             pages = plugin.Pages ?? Array.Empty<PluginPageDescriptor>();
+            toolItems = plugin.ToolItems ?? Array.Empty<PluginToolItemDescriptor>();
         }
         catch (Exception ex)
         {
@@ -385,7 +446,7 @@ public sealed class PluginService : IPluginService
                     plugin: duplicate.Info);
             }
 
-            entry = new PluginEntry(info with { Pages = pages }, load, fullPath);
+            entry = new PluginEntry(info with { Pages = pages, ToolItems = toolItems }, load, fullPath);
             _loaded[info.Id] = entry;
             _failures.RemoveAll(failure => string.Equals(failure.AssemblyPath, fullPath, StringComparison.OrdinalIgnoreCase));
         }

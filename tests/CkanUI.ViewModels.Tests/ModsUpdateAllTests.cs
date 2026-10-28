@@ -110,6 +110,7 @@ public sealed class ModsUpdateAllTests
     private sealed class RecordingSink : IChangeRequestSink
     {
         public IReadOnlyCollection<ChangeRequest>? Last { get; private set; }
+        public event Action? RequestsApplied { add { } remove { } }
 
         public void SetRequests(IReadOnlyCollection<ChangeRequest>? requests) => Last = requests;
     }

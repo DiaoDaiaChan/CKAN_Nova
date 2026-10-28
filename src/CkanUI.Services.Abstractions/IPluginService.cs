@@ -62,4 +62,16 @@ public interface IPluginService
     /// 源文件已在插件目录内时不复制，直接加载。
     /// </summary>
     Task<PluginLoadResult> AddFromPathAsync(string sourcePath, bool activate = false, CancellationToken ct = default);
+
+    /// <summary>
+    /// 执行插件声明的一个工具项（12 篇 F-17 的「往现有工具条插按钮」）。
+    /// </summary>
+    /// <param name="pluginId">插件标识。</param>
+    /// <param name="itemKey">工具项键（<see cref="PluginToolItemDescriptor.Key"/>）。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>成功/失败结果；插件代码抛异常不会冒泡成异常，只会变成带原因的失败。</returns>
+    /// <remarks>只有在插件已激活、且确实声明了该键的工具项时才回调插件。默认实现返回不可重试失败，
+    /// 让「没接线」的替身不必跟着改（工程约定 §12 第 9 条）。</remarks>
+    Task<OperationResult> InvokeToolItemAsync(string pluginId, string itemKey, CancellationToken ct = default) =>
+        Task.FromResult(OperationResult.Fail("当前实现未提供插件工具项调用能力。"));
 }

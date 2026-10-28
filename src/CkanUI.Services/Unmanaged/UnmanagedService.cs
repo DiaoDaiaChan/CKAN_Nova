@@ -11,12 +11,17 @@ public sealed class UnmanagedService : IUnmanagedService
 {
     private static readonly IReadOnlySet<string> EmptySet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly IReadOnlyDictionary<string, string> EmptyDlls =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
     private readonly IManagedPathProvider _managed;
+    private readonly IManagedFileRegistrar _registrar;
     private readonly IErrorReporter _errors;
 
-    public UnmanagedService(IManagedPathProvider managed, IErrorReporter errors)
+    public UnmanagedService(IManagedPathProvider managed, IManagedFileRegistrar registrar, IErrorReporter errors)
     {
         _managed = managed ?? throw new ArgumentNullException(nameof(managed));
+        _registrar = registrar ?? throw new ArgumentNullException(nameof(registrar));
         _errors = errors ?? throw new ArgumentNullException(nameof(errors));
     }
 
@@ -38,15 +43,12 @@ public sealed class UnmanagedService : IUnmanagedService
     }
 
     /// <inheritdoc />
-    /// <remarks>接管（写回注册表）属于 INT-09 的后续迭代；当前只支持查看与删除，明确返回不可重试失败。</remarks>
-    public Task<OperationResult<IReadOnlyList<string>>> AdoptAsync(
-        InstanceInfo instance, IReadOnlyCollection<string> relativePaths, CancellationToken ct = default)
+    public Task<OperationResult<UnmanagedAdoptResult>> AdoptAsync(
+        InstanceInfo instance, IReadOnlyCollection<string> relativePaths,
+        bool dryRun = false, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(instance);
-        return Task.FromResult(OperationResult<IReadOnlyList<string>>.Fail(
-            "尚未支持把未管理文件接管为受管安装。",
-            "本次迭代只提供扫描、定位与删除；接管能力随 INT-09 补齐。",
-            retryable: false));
+        return GuardAsync(() => Adopt(instance, relativePaths, dryRun, ct), "接管未管理文件");
     }
 
     private OperationResult<IReadOnlyList<UnmanagedFileInfo>> Scan(InstanceInfo instance, CancellationToken ct)
@@ -64,6 +66,62 @@ public sealed class UnmanagedService : IUnmanagedService
         return UnmanagedScanner.Scan(
             UnmanagedScanner.ResolveGameData(instance.GameDir),
             managed.Value ?? EmptySet);
+    }
+
+    private OperationResult<UnmanagedAdoptResult> Adopt(
+        InstanceInfo instance, IReadOnlyCollection<string> relativePaths, bool dryRun, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var managed = _managed.GetManagedPaths(instance);
+        if (!managed.IsSuccess)
+        {
+            return OperationResult<UnmanagedAdoptResult>.Fail(
+                managed.Message ?? "读取注册表失败，无法判断哪些内容受管。",
+                managed.Detail,
+                managed.Retryable);
+        }
+
+        var registered = _registrar.GetInstalledDlls(instance);
+        if (!registered.IsSuccess)
+        {
+            return OperationResult<UnmanagedAdoptResult>.Fail(
+                registered.Message ?? "读取注册表失败，无法判断已登记的手工安装 DLL。",
+                registered.Detail,
+                registered.Retryable);
+        }
+
+        var plan = UnmanagedAdopter.Plan(
+            UnmanagedScanner.ResolveGameData(instance.GameDir),
+            managed.Value ?? EmptySet,
+            registered.Value ?? EmptyDlls,
+            relativePaths,
+            _registrar.NormalizeIdentifier);
+
+        if (!plan.IsSuccess || plan.Value is null)
+        {
+            return OperationResult<UnmanagedAdoptResult>.Fail(
+                plan.Message ?? "接管未管理文件失败。", plan.Detail, plan.Retryable);
+        }
+
+        var (items, additions) = plan.Value;
+        if (additions.Count == 0 || dryRun)
+        {
+            return OperationResult<UnmanagedAdoptResult>.Ok(new UnmanagedAdoptResult(items));
+        }
+
+        var merge = _registrar.MergeDlls(instance, additions);
+        if (!merge.IsSuccess)
+        {
+            return OperationResult<UnmanagedAdoptResult>.Fail(
+                merge.Message ?? "写入注册表失败。", merge.Detail, merge.Retryable);
+        }
+
+        var outcome = merge.Value ?? new DllMergeResult(false, null);
+        var backups = outcome.BackupPath is { Length: > 0 } backup
+            ? new[] { backup }
+            : Array.Empty<string>();
+        return OperationResult<UnmanagedAdoptResult>.Ok(
+            new UnmanagedAdoptResult(items, backups, Applied: outcome.Changed));
     }
 
     private OperationResult<IReadOnlyList<string>> Delete(

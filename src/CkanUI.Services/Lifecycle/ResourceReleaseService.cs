@@ -57,8 +57,9 @@ public sealed class ResourceReleaseService : IResourceReleaseService
         _instances = instances ?? throw new ArgumentNullException(nameof(instances));
         _memory = memory ?? throw new ArgumentNullException(nameof(memory));
 
-        // 参与方可选：当前版本 UI 侧与日志侧都还没有可清理的实现（L0/L1 只是接入点），
-        // DI 里没有注册时就是空集合，两层照样「执行成功、释放 0 条」。
+        // 参与方可选：L0（界面字形与背景位图）由 App 层登记，L1（页面行投影、本地化诊断表）由
+        // App 与 Services 分别登记；单元测试或 headless 场景下 DI 里可能一个都没有，
+        // 此时两层照样「执行成功、释放 0 条」，调用方不需要分辨「没得清」和「清过了」。
         _viewParticipants = (viewParticipants ?? []).Where(p => p is not null).ToArray();
         _cacheParticipants = (cacheParticipants ?? []).Where(p => p is not null).ToArray();
     }

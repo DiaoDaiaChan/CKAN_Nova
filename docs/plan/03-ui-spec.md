@@ -151,13 +151,19 @@ Idle → 确认中(Core 或本 UI 询问) → 下载中(可取消)
 | 安装中 | 发出取消 → 等待当前模组完成 → 事务回滚 → 报告"已取消" |
 | 安装中（用户强制关闭窗口） | 因为 `CkanTransaction`+强杀可能留半装，见 08 篇 R-03 |
 
+**实现注记（下载重试与续传，UI-35 落地）**：下载中遇到网络类失败不会立刻弹错误，而是最多自动重试 3 次
+（400ms → 1200ms 递增退避，`DownloadRetryPolicy`），进度文案变成「正在重试 …（第 n/3 次）：原因」；
+重试复用同一个临时文件，传输层把已有字节数交给 Core 的 `Range` 续传，只补下剩余字节。
+三次都失败才把失败交给错误详情页（`DownloadsFailedDialog` 的逐项重试/跳过）。
+校验类失败（大小 / SHA256）与用户取消**不重试**——同一份坏数据再拉一遍只会再坏一次。
+
 ## 5. V-03 InstancesView
 
 | 区块 | 内容 |
 |---|---|
 | 实例卡片列表 | 名称、游戏版本、路径、模组数、最后使用时间、是否锁定（⚠ 被其他进程占用） |
 | 操作 | 设为当前 / 编辑 / 克隆 / 删除（删除只移除记录，不动文件，需二次确认文案明确）/ 打开目录 |
-| 自动探测 | "添加实例 → 自动查找" 扫描 Steam 库与常见路径（Core 提供探测） |
+| 自动探测 | "添加实例 → 自动查找" 扫描 Steam 库与常见路径（Core 提供探测）。**实现注记（UI-32 落地）**：根来源注册表 `SteamPath` 优先、其次 `%ProgramFiles(x86)%\Steam` 与 `%ProgramFiles%\Steam`；每根先读 `config/libraryfolders.vdf`（现代 Steam）再读 `steamapps/libraryfolders.vdf`，两处都缺时把根自己当库根；IO 失败给可重试失败，取消单独收敛（`src/CkanUI.Services/Platform/SteamLibraryLocator.cs`） |
 | 异常态 | 路径不存在（灰显 + "重新定位"）、KSP 版本未知、目录只读 |
 
 切换实例规则见 02 篇 §5（必须 `DisposeAll` → `SetCurrentInstance` → 重新 `Instance`）。UI 侧：切换时全屏遮罩"正在切换实例…"，禁止并发操作。

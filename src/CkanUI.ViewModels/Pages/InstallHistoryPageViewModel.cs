@@ -292,6 +292,7 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
             ? rows.FirstOrDefault(row => row.Timestamp == stamp)
             : null;
         SelectedEntry = target ?? rows.FirstOrDefault();
+        OnPropertyChanged(nameof(InstanceTitleText));
         OnPropertyChanged(nameof(CountText));
         OnPropertyChanged(nameof(HasEntries));
         OnPropertyChanged(nameof(ShowEmptyState));
@@ -426,7 +427,12 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
     }
 
     /// <inheritdoc />
-    protected override void OnActivated() => LoadCommand.Execute(null);
+    protected override void OnActivated()
+    {
+        base.OnActivated();
+        OnPropertyChanged(nameof(InstanceTitleText));
+        LoadCommand.Execute(null);
+    }
 
     partial void OnEntriesChanged(IReadOnlyList<InstallHistoryEntryRowViewModel> value)
     {

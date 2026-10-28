@@ -114,6 +114,23 @@ public void PlayGame(string command, IUser user, Action? onExit = null)
 3. **L3 是"唯一会明显卡一下"的层**，因此只在窗口不可见或最小化时执行；
 4. **不用 `GC.Collect()` 当日常手段**：只在这一次释放窗口里用（[05 篇](05-threading.md) 会写明禁则在其它路径）。
 
+### 3.1 实现注记（L0/L1 参与方落地，2026-10-28）
+
+L0/L1 原先只有接口（`IViewResourceParticipant` / `IAppCacheParticipant`）而没有实现，保守档实际统计 0 项。现补上生产参与方：
+
+| 层 | 参与方 | 释放什么 | 为什么不影响功能 |
+|---|---|---|---|
+| L0 | `src/CkanUI.App/Lifecycle/UiViewResourceParticipant.cs` | `NavGlyphToGeometryConverter.ClearCache()`（18 个字形的 `StreamGeometry`）+ `BackgroundHost.TryReleaseCachedBitmap()`（≤1600 宽的背景位图） | 字形是纯加速层，下次绑定重新解析；位图在还原/切回时按设置重建 |
+| L1 | `src/CkanUI.App/Lifecycle/PageProjectionCacheParticipant.cs` | 模组页行投影（`Rows` + `_all`）、内容预览的 `Entries`/`RootNodes`、模组文本的 `_allEntries` | 三个页面重新激活时按原流程重载（模组的勾选待变更集**不清**，那是用户的待变更集） |
+| L1 | `src/CkanUI.Services/Lifecycle/LocalizerCacheParticipant.cs` | `Localizer.ClearDiagnostics()`（缺译表 + 告警表） | 两张表只服务「缺译清单」，下次取译文重新累计，界面文案一字不变 |
+
+两个实现层面的约束：
+
+1. **位图只在没人引用时 Dispose**（`BackgroundHost.IsReferencedBy` 按引用比图片层图源与平铺画笔图源）：Avalonia 的渲染线程会直接用画笔里的位图，提前释放等于把已销毁对象交给渲染器。所以非 UI 线程调 L0 时，参与者只 `IDispatcher.Post` 一次并在本次报告里少计 1 项（宁可少报不可谎报）。
+2. **单页释放失败不连累同层其它页**：`PageProjectionCacheParticipant` 逐页 try/catch，异常记 Warn 后继续累加，返回的是真实释放条数。
+
+测试：`tests/CkanUI.ViewModels.Tests/{ModsProjectionTrimTests,ContentPageViewModelTests,ModTextPageViewModelTests}.cs`（裁剪后可重建）、`tests/CkanUI.App.Tests/{ResourceReleaseParticipantsTests,BackgroundHostTests}.cs`（缓存清理、跨线程排程、引用判定）、`tests/CkanUI.Localization.Tests/DiagnosticsTests.cs`、`tests/CkanUI.Services.Tests/LocalizerCacheParticipantTests.cs`。
+
 ---
 
 ## 4. 时机编排（T0–T5）
@@ -383,6 +400,8 @@ T5  （T2 起 +30 s）执行 L3 + L4 —— 堆压缩与工作集 trim
 ---
 
 ## 16. 修订记录
+
+- **v1.3（L0/L1 落地后）**：§3.1 记录 L0/L1 的生产参与方（字形缓存与背景位图、三页行投影、缺译诊断表）与两条实现约束；L4 仍返回 `Unsupported`。
 
 - **v1.2（E8 落盘后）**：本文 110h / M12（W49–W51）不变；全量口径随 E8 变为 **2196h / 60 周**（[20 篇](20-appearance-personalization.md) 206h / M14 = W56–W60）。E8 与本篇的交点：**外观里的背景图与模糊属于"视图侧缓存"**，在 T3 阶段（L0/L1）一并释放，但需在恢复时按用户选择重建（20 篇 §14 的 8MB/2 张预算即为此）。
 

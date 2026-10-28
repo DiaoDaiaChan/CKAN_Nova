@@ -41,6 +41,26 @@ public interface ICkanUiPlugin
     IReadOnlyList<PluginPageDescriptor> Pages => Array.Empty<PluginPageDescriptor>();
 
     /// <summary>
+    /// 插件声明的工具项（往宿主既有页面的工具条上插按钮）。默认空列表。
+    /// </summary>
+    /// <remarks>
+    /// 工具项不构造视图模型，点下去时宿主回调 <see cref="ExecuteToolItemAsync"/>：
+    /// 插件只要实现一个方法，不必为了一个按钮再写一个空页面。
+    /// </remarks>
+    IReadOnlyList<PluginToolItemDescriptor> ToolItems => Array.Empty<PluginToolItemDescriptor>();
+
+    /// <summary>
+    /// 执行一个工具项。宿主保证在 UI 线程之外调用，并在 try/catch 里包住（抛异常只会让这次点击报错）。
+    /// </summary>
+    /// <param name="key">工具项键（<see cref="PluginToolItemDescriptor.Key"/>；忽略大小写）。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>完成即成功；抛异常即失败。</returns>
+    /// <remarks>默认实现抛 <see cref="NotSupportedException"/>：声明了工具项却没实现回调的插件，用户会看到
+    /// 「插件未实现工具项执行」，而不是点了没反应。</remarks>
+    Task ExecuteToolItemAsync(string key, CancellationToken ct) =>
+        throw new NotSupportedException("插件未实现工具项执行。");
+
+    /// <summary>
     /// 激活插件（进入 Active）。宿主在 try/catch 里调用：抛异常只会让插件留在 Dormant 并显示原因。
     /// </summary>
     void Initialize();

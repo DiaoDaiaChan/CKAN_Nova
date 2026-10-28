@@ -5,4 +5,8 @@
     <AssemblyName>CkanUI.ModText</AssemblyName>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="$(UI18nCoreProject)" />
+  </ItemGroup>
+
 </Project>

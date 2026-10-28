@@ -18,13 +18,16 @@ ICkanUiPlugin（ICkanUiPlugin.cs）——元数据用属性而非方法：宿主
 | Id / Name / Version / Author / Description | 插件自述；Id 空串视为无效插件，Name 空串视为元数据不完整 |
 | MinimumHostVersion | 空串或无法解析 = 不限制（1.2.0-beta 这类预发布串放行） |
 | Pages（DIM，默认空） | PluginPageDescriptor(Key, Title, ViewModelTypeName)；纯后台插件不声明页签合法 |
+| ToolItems（DIM，默认空） | PluginToolItemDescriptor(TargetPageKey, Key, Title, ToolTip)；声明往哪个内置页面工具条插一个按钮 |
+| ExecuteToolItemAsync(key, ct) | 工具项被点击时的回调；默认实现抛 NotSupportedException，宿主把它转成可读失败 |
 | Initialize() / Deinitialize() | 激活/停用钩子；Deinitialize 必须可反复调用（重载路径 Initialize → Deinitialize → Initialize） |
 
 IPluginService（IPluginService.cs）：PluginsDirectory、Active、Dormant、Failures、event Changed、DiscoverAsync、LoadAsync(path,
-activate)、ActivateAsync / DeactivateAsync / ReloadAsync / UnloadAsync(id)、AddFromPathAsync(sourcePath, activate)。
+activate)、ActivateAsync / DeactivateAsync / ReloadAsync / UnloadAsync(id)、AddFromPathAsync(sourcePath, activate)、InvokeToolItemAsync(pluginId,
+itemKey, ct)（默认实现返回不可重试失败，替身不必跟着改）。
 Failures 与 Activate/Deactivate 是相对任务书列表的追加：按钮按 Id 操作，失败条目要留痕给用户看。DTO：PluginState（Dormant=0/Active=1/Failed=2）、PluginInfo（AssemblyPath、State、
-FailureReason、Pages，派生 IsActive / DisplayName = 「名字 - 版本」，对齐原版 IGUIPlugin.ToString()）、PluginLoadResult（Ok / Fail）、
-PluginLoadFailure（None / NotFound / NotAnAssembly / MissingDependency / NoPluginType / HostVersionTooOld / InstantiationFailed /
+FailureReason、Pages、ToolItems，派生 IsActive / DisplayName = 「名字 - 版本」，对齐原版 IGUIPlugin.ToString()）、PluginLoadResult（Ok / Fail）、
+PluginToolItemDescriptor（TargetPageKey / Key / Title / ToolTip）、PluginLoadFailure（None / NotFound / NotAnAssembly / MissingDependency / NoPluginType / HostVersionTooOld / InstantiationFailed /
 MetadataFailed / AlreadyLoaded / DuplicateId / ActivationFailed / LoadFailed）。
 契约层零依赖：不放 Type、不放视图类型、不收 CKAN 类型——页签用类型全名字符串，宿主按 ViewLocator 约定反射解析。
 
@@ -81,9 +84,56 @@ Deinitialize / 元数据 getter）一律在锁外调用，锁内只改表**，�
   AddNewAsync 给出「当前视图没有提供文件选择器」，不静默禁用。
 - Views/PluginsPageView.axaml：页头（含「默认不启用 / 不沙箱」说明）+ 工具条 6 按钮 + 错误条 + 两栏 ListBox（ColumnDefinitions="*,16,*"）+ 状态栏（状态文案、失败清单、插件目录）+ 忙碌遮罩；颜色/圆角全部走 Ckan* token。
 - **不订阅 Changed 而是拉取式**：服务层可能在后台线程回调，直接改绑定集合会踩跨线程集合异常；本页所有状态变化都
-  源自本页命令，命令末尾统一 ApplyState() 重拉快照。事件留给未来的 Shell 级监听者（刷新导航项）。
+  源自本页命令，命令末尾统一 ApplyState() 重拉快照。事件留给 Shell 级监听者（刷新导航项，见下节）。
+
+### 6.1 插件页签的渲染（F-17 的「页签」这一半）
+
+插件声明页签只需要三步：在 `ICKANUIPlugin.Pages` 里返回 `PluginPageDescriptor(Key, Title, ViewModelTypeName)`，
+视图模型实现 `IPluginPage`（`src/CkanUI.Services.Abstractions/IPluginPage.cs`），并把视图与视图模型放在**同程序集、
+同命名空间**、只差类型名后缀（`XxxPageViewModel` → `XxxPageView`）。插件因此只引用契约程序集即可编译，
+不需要引用宿主的视图模型层——但它自己要引用 Avalonia（视图是控件）。
+
+- **导航项**：`ShellViewModel` 订阅 `IPluginService.Changed`，用 `PluginPageCatalog.Collect(Active, 内置键)` 取页签，
+  插在「插件」页之后（不打断内置页签的分组顺序）。过滤口径集中在 `src/CkanUI.ViewModels/Navigation/PluginPageCatalog.cs`：
+  只要 Active、按插件名排序稳定、键/标题/类型名任一为空即丢弃、与内置键或先到的插件键重名即丢弃（忽略大小写）。
+  `Changed` 可能来自后台线程，改集合前用构造时捕获的 `SynchronizationContext` 封送（视图模型层不引用 Avalonia，架构铁律 1）。
+- **集合是差分的不是换新**：`NavItems` 改成 `ObservableCollection<NavItem>` 后逐项比对、只插删必要项，插件页签的
+  `NavItem` 按 key 缓存复用，否则整体换集合会把 ListBox 的选中项变成悬空引用、当前页签不高亮。
+  当前页所属插件被卸载时退回「插件」页，避免停在一个没有入口的页面上。
+- **页面实例**：页面工厂先查内置 `PageTypes`，查不到再交给 `src/CkanUI.App/Plugins/PluginPageFactory.cs`：
+  在插件页签里按 key 找描述 → 在已加载程序集里解析类型（`Type.GetType` 先试，失败再逐程序集按全名找，
+  可卸载 ALC 里的类型只能这样找）→ `ActivatorUtilities.CreateInstance` 构造（插件页可注入宿主服务）。
+  **不做类型缓存**：缓存 `Type` 会钉住可回收 ALC，插件卸载后程序集再也回收不了。
+- **视图解析**：`ViewLocator.Match` 现在接受 `PageViewModel` 或 `IPluginPage`；`ResolveViewType` 在内置命名空间改写
+  查不到时，退回「视图模型自己的程序集里找同命名空间的 `XxxView`」。解析不到就回退占位视图，导航不会因插件缺视图而崩。
+
+### 6.2 插件工具项（F-17 的「工具项」这一半）
+
+工具项 = 往**已存在的**页面工具条插一个按钮。与页签相反，这条路**不走反射**：
+
+- **为什么不用 ViewModelTypeName**：工具项只是「一个标题 + 一次回调」。若沿用页签的做法，插件就得为一个按钮写一个空视图模型，
+  反射失败还会让按钮静默消失——插件作者很难看出是自己把类型名写错了。
+- **契约**：`ICKANUIPlugin.ToolItems`（`PluginToolItemDescriptor(TargetPageKey, Key, Title, ToolTip)`）
+  + `ExecuteToolItemAsync(key, ct)`。`TargetPageKey` 用内置页签键（当前只有 `mods`，见 `PluginToolCatalog.ModsPageKey`）；
+  键不认识就当没声明，不会往不存在的页面投递。
+- **执行**：`IPluginService.InvokeToolItemAsync(pluginId, itemKey, ct)`。宿主先校验「插件已加载 / 已激活 / 确实声明了这个键」，
+  再在**锁外**调插件；插件抛异常只会变成可重试失败（`工具项「标题」执行失败：…`），不冒泡到 UI。
+  声明了却没实现的插件拿到的是默认实现抛出的 `NotSupportedException`，宿主同样转成可读失败——用户看到「未实现」，而不是点了没反应。
+- **收集**：`src/CkanUI.ViewModels/Navigation/PluginToolCatalog.cs`。只收 Active、按插件名再 Id 排序、
+  `TargetPageKey`/`Key`/`Title` 任一为空即丢弃、同「页面 + 键」重名留排序在前的那个（与页签的重名规则一致）、
+  空白 ToolTip 归一为 null。页面侧再用 `ForPage(entries, pageKey)` 过滤，忽略大小写。
+- **分发**：`src/CkanUI.App/Plugins/PluginToolItemHost.cs`（App 层）。构造时拿 DI 里全部 `IPluginToolHost`（页面单例，与外壳同一实例）；
+  `Install()` 先算一次——发现/激活往往发生在安装之前——之后只跟随 `IPluginService.Changed`，
+  并经 `IDispatcher` 封送回 UI 线程（按钮集合是 `ObservableCollection`）。单个页面组装失败只记 Warn、不影响其它页面；
+  `Active` 读失败整轮跳过（下次 Changed 再试）。
+- **落点**：模组页工具条（`src/CkanUI.App/Views/ModsPageView.axaml`，`Grid.Column="10"`、`IsVisible="{Binding HasPluginTools}"`）。
+  `ModsPageViewModel` 实现 `IPluginToolHost`（`ToolHostKey => "mods"`），`PluginTools` 是按钮集合；
+  新页面要接工具项只需实现这个接口并在 DI 里注册别名，宿主代码不用改。
+- **按钮**：`PluginToolButtonViewModel`。`IsBusy` 兼作重入保护（连点只执行一次）；`LastMessage` 记最后一次结果，
+  并把 `ToolTipText` 从「插件名 · 键」换成结果文本——插件没有自己的状态栏，这就是它的反馈通道。
 
 ## 7. 测试
+
 
 - tests/CkanUI.Services.Tests/PluginServiceTests.cs（23 个用例）：发现只加载不激活、目录不存在时自动创建、同路径重复加载被拒、
   加载器失败留痕且不抛、同 Id 拒绝并释放新程序集、最小宿主版本拒绝 / 不可解析视为不限、Id 空拒绝、元数据 getter 抛异常被隔离、
@@ -95,18 +145,24 @@ Deinitialize / 元数据 getter）一律在锁外调用，锁内只改表**，�
   调用与状态文案、无文件选择器的提示、失败清单投影、忙碌态保护、取消与错误上报。App.Tests/ViewLocatorTests.cs 另加 PluginsPageViewModel
   → CkanUI.App.Views.PluginsPageView 断言。
 
+- tests/CkanUI.Services.Tests/PluginToolItemTests.cs（8 个用例）：元数据透传到 PluginInfo、按声明的键回调（忽略大小写与前后空白）、
+  未知插件 / 未激活 / 未声明的键三种拒绝、插件抛异常转成可重试失败、只声明没实现时给出「未实现」提示。
+- tests/CkanUI.ViewModels.Tests/PluginToolCatalogTests.cs（12 个用例）：只收 Active、空白字段丢弃、同页面同键去重留排序在前者、
+  按页过滤忽略大小写；按钮的成功 / 失败 / 异常文案、忙碌时连点只执行一次、ToolTip 三级回退。
+- tests/CkanUI.App.Tests/PluginToolItemHostTests.cs（7 个用例）：按目标页分发、未知页键不投递、Changed 后重算、
+  Active 抛异常不崩、Dispose 后不再刷新、按钮回调带上声明者与键、构造参数校验。
+
 ## 8. 已知缺口
 
-- **插件页签还没渲染**：PluginPageDescriptor 只声明「Key / 标题 / VM 类型全名」，宿主侧没有把这批描述翻译成导航项或工具项并注册进
-  PageTypes（当前是 static readonly Dictionary）。落地需 Lead 让页面工厂支持动态 key 并按 ViewLocator 规则解析插件 VM 类型；
-  在此之前 Pages 只在页面上显示「提供 N 个页签」。
+- **插件页签的视图必须自带**：宿主只认「同程序集同命名空间、后缀换 View」这一条约定，没有 XAML 文件名约定之外的兜底；
+  插件视图还必须是 Avalonia 控件且有无参构造函数，否则该页签显示占位视图。
 - **ALC 卸载是「尽力而为」**：Unload() 只是标记可回收，插件若持有静态引用、启动线程或注册全局事件，程序集不会被真正回收（宿主不阻止也不检测）；装载计数/回收验证未做。
 - **不做签名校验**：任何能写进插件目录的 dll 都会被加载，信任边界是文件系统权限；
 - **不递归子目录**：插件依赖必须与插件 dll 平铺在同一目录（否则 Load 探测不到 → MissingDependency）；MinimumHostVersion
   用宿主程序集版本比较，构建号不参与，Beta 里宿主版本号若未更新则版本校验形同虚设。
 - 页面不监听 Changed：若未来 Shell 自己加载插件（例如启动时发现），本页需用户点一次「扫描目录」才看到。
 
-## 9. 需要 Lead 落地（本文件禁止自行改动的位置）
+## 9. 需要 Lead 落地（本文件禁止自行改动的位置；0.1 已全部落地，保留为登记口径）
 
 - src/CkanUI.Services/ServiceCollectionExtensions.cs：第 98 行 services.TryAddSingleton<IAppBootstrapper, AppBootstrapper>(); 之后追加
   services.TryAddSingleton<IPluginService, PluginService>();（using CkanUI.Services.Plugins;）。无参构造即用默认目录。
@@ -118,3 +174,46 @@ Deinitialize / 元数据 getter）一律在锁外调用，锁内只改表**，�
   i18n/packs/zh-CN.json 第 15 行后加 "Ui_NavRail_Plugins": "插件"，en-US.json 同位置加 "Ui_NavRail_Plugins": "Plugins"；
   ShellViewModel 第 154 行（["Ui_NavRail_Cache"] = "下载缓存"）后加 FallbackTexts 中文兜底。
 - docs/README.md：登记 docs/design/plugins.md。页面内文案按仓库现状写在 VM/axaml 里，收口到语言包需另开 Plugins.* 键。
+
+## 10. 最小示例插件（本轮冒烟用的那个）
+
+拷进 `%LocalAppData%\CKAN\plugins` 就能被「插件」页发现；选中 + 激活后，模组页工具条右侧多出按钮。项目文件里 `Private=false` 是关键：契约程序集由宿主提供，插件自带副本会被独立 ALC 判成「另一份类型身份」，加载器报 NoPluginType（见 §7 里那条真实加载器用例）。
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="CkanUI.Services.Abstractions">
+      <HintPath>…\src\CkanUI.Services.Abstractions\bin\Debug\net10.0\CkanUI.Services.Abstractions.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
+```
+
+```csharp
+public sealed class DemoPlugin : ICkanUiPlugin
+{
+    public string Id => "demo.toolbar";
+    public string Name => "工具条演示插件";
+    public string Version => "1.0.0";
+    public string Author => "CKAN UI";
+    public string Description => "演示 F-17 的工具项。";
+    public string MinimumHostVersion => string.Empty;
+
+    public IReadOnlyList<PluginToolItemDescriptor> ToolItems { get; } =
+        [new("mods", "hello", "打个招呼", "插件把结果写回按钮提示")];
+
+    public Task ExecuteToolItemAsync(string key, CancellationToken ct) => Task.CompletedTask;
+
+    public void Initialize() { }
+
+    public void Deinitialize() { }
+}
+```
+
+声明了 `ToolItems` 就必须实现 `ExecuteToolItemAsync`（默认实现抛 `NotSupportedException`，宿主把它转成「未实现」的不可重试失败）；纯后台插件或只声明页签的插件不实现它也合法。窗口侧的现象与截图见 `docs/design/milestones.md` §6.3。

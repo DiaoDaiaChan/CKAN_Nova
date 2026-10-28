@@ -102,7 +102,18 @@ public sealed class GUIMod : INotifyPropertyChanged
     public string SearchableIdentifier { get; private set; }
     public string SearchableAbstract { get; private set; }
     public string SearchableDescription { get; private set; }
+    public string? SearchableTranslatedAbstract { get; private set; }
+    public string? SearchableTranslatedDescription { get; private set; }
     public List<string> SearchableAuthors { get; private set; }
+
+    /// <summary>
+    /// 注入翻译后摘要/描述，供搜索并集匹配使用（17 篇 §6.2）。
+    /// </summary>
+    public void SetTranslations(string? translatedAbstract, string? translatedDescription)
+    {
+        SearchableTranslatedAbstract = string.IsNullOrEmpty(translatedAbstract) ? null : CkanModule.nonAlphaNumsAnyLanguage.Replace(translatedAbstract, "");
+        SearchableTranslatedDescription = string.IsNullOrEmpty(translatedDescription) ? null : CkanModule.nonAlphaNumsAnyLanguage.Replace(translatedDescription, "");
+    }
 
     /// <summary>
     /// Return whether this mod is installable.

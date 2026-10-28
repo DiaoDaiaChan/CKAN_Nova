@@ -18,7 +18,6 @@ public sealed partial class CachePageViewModel : PageViewModel
     private readonly IDialogService _dialogs;
     private readonly IChangeRequestSink? _changeSink;
     private readonly INavigationService? _navigation;
-    private bool _loaded;
     private ICacheShellLauncher? _shellLauncher;
 
     /// <summary>设计时构造：全部能力用空实现，保证预览器不崩。</summary>
@@ -183,9 +182,10 @@ public sealed partial class CachePageViewModel : PageViewModel
     /// <inheritdoc />
     protected override void OnActivated()
     {
-        if (_loaded) return;
-        _loaded = true;
-        _ = RefreshAsync();
+        if (!IsBusy)
+        {
+            _ = RefreshAsync();
+        }
     }
 
     /// <summary>重新读取统计与条目。</summary>

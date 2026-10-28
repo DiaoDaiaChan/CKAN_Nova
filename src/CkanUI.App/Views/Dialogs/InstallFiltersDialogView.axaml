@@ -51,7 +51,7 @@
                 CornerRadius="6"
                 Padding="4">
             <ListBox ItemsSource="{Binding Filters}"
-                     SelectedItem="{Binding SelectedFilter}"
+                     SelectedItem="{Binding SelectedFilter, Mode=TwoWay}"
                      Background="Transparent">
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:FilterItemViewModel">

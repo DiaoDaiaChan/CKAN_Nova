@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -77,6 +77,9 @@ internal static class ModsRowFactory
 internal static class Search
 {
     public static readonly global::CkanUI.Services.Search.ModSearchParser Parser = new();
+
+    /// <summary>反向格式化器（面板改字段 → 语法文本）。</summary>
+    public static readonly global::CkanUI.Services.Search.ModSearchFormatter Formatter = new();
 
     public static global::CkanUI.ViewModels.Pages.Mods.ModsQuery Parse(string? text) =>
         global::CkanUI.ViewModels.Pages.Mods.ModsQuery.FromSpec(Parser.Parse(text));

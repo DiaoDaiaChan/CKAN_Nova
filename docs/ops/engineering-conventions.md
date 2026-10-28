@@ -50,6 +50,8 @@ dotnet run --project tests/CkanUI.TestRunner -- Services   # 过滤词匹配的�
 3. `CkanUI.ViewModels` 只能引用 `Services.Abstractions`，不得引用 `CkanUI.Services`；
 4. `Core` / `Services.Abstractions` / `Sfs` / `ModText` 四个项目**零 ProjectReference 零 PackageReference**（测试框架除外）；
 5. 依赖方向唯一：`App → ViewModels → Services.Abstractions ← Services → CKAN`。
+6. `Microsoft.Win32.Registry` 只允许出现在 `src/CkanUI.Services/Platform/`（只读探测）与 `Platform/Windows/`（写入，见 01 篇 §16）。跨平台 TFM 下必须 `OperatingSystem.IsWindows()` + `[SupportedOSPlatform("windows")]` 双保险，否则 CA1416 会把构建打红（Steam 库定位就是这么写的）；
+   另注意 `CkanUI.Services.Registry` 是本仓命名空间，会遮蔽 `Microsoft.Win32.Registry`，调用要全限定。**本仓 `CkanUI.Platform` 不得读注册表。**
 
 ## §6 提交
 
@@ -129,7 +131,9 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
 13. **下载分两层**：字节搬运在 `IDownloadTransport`（生产实现 `NetAsyncDownloaderTransport`，测试用假传输层，**测试绝不触网**），
     落盘语义（`.tmp-{guid}` → 大小校验 → SHA256 校验 → `File.Move(overwrite:true)` 重试 → finally 删临时文件）在 `DownloadService`。
     踩坑固定结论：`NetAsyncDownloader.DownloadAndWait` 是同步阻塞（必须 `Task.Run` 包，取消靠构造器 token）、`TargetProgress` 第二参是**剩余字节**、
-    `DownloadTargetFile.size` 是断点续传起点（新下载必须传 0）。失败分类只产出 `retryable` 标志，重试策略交给上层（F-38 / UI-35）。
+    `DownloadTargetFile.size` 是断点续传起点（**传临时文件现有长度**，不是常量 0——这是续传的实现方式）。
+    自动重试也在 `DownloadService`：`DownloadRetryPolicy`（默认 3 次，400ms→1200ms 递增）只重试网络类失败，
+    重试复用同一个临时文件，由传输层把已有字节数交给 Core 的 `Range` 续传；校验类失败与取消一律不重试（F-38 / UI-35）。
 14. **启动命令持久化在 `<GameDir>/CKAN/GUIConfig.json` 的 `CommandLines` 键**（与老 GUI 共用同一文件）：只改该键、其余字段原样保留，写 `.tmp` 再 `File.Move(overwrite:true)`；
     默认命令按 `KerbalSpaceProgram.DefaultCommandLines` 语义生成，命令解析口径与 Core `PlayGame` 一致（首个 token 为 binary）。
 

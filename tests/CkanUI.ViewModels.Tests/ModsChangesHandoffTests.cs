@@ -122,11 +122,44 @@ public sealed class ModsChangesHandoffTests
         Assert.That(((ChangesPageViewModel)sink).Requests, Is.Empty);
     }
 
+    [Test]
+    public void RequestsApplied_ClearsSelectedModsInModsPage()
+    {
+        SeedRows();
+        var vm = CreateViewModel();
+        vm.Activate();
+        vm.ToggleSelection("Alpha");
+        Assert.That(vm.SelectedCount, Is.EqualTo(1));
+
+        _sink.TriggerRequestsApplied();
+
+        Assert.That(vm.SelectedCount, Is.Zero);
+    }
+
+    [Test]
+    public void DeactivateThenActivate_WhenInstanceChanged_ClearsSelection()
+    {
+        SeedRows();
+        var vm = CreateViewModel();
+        vm.Activate();
+        vm.ToggleSelection("Alpha");
+        Assert.That(vm.SelectedCount, Is.EqualTo(1));
+
+        vm.Deactivate();
+        _instances.Current = new InstanceInfo("KSP2", "C:\\KSP2", "1.12.5", false, false, 0);
+        vm.Activate();
+
+        Assert.That(vm.SelectedCount, Is.Zero);
+    }
+
     private sealed class RecordingSink : IChangeRequestSink
     {
         public int Calls { get; private set; }
 
         public IReadOnlyCollection<ChangeRequest>? Last { get; private set; }
+        public event Action? RequestsApplied;
+
+        public void TriggerRequestsApplied() => RequestsApplied?.Invoke();
 
         public void SetRequests(IReadOnlyCollection<ChangeRequest>? requests)
         {

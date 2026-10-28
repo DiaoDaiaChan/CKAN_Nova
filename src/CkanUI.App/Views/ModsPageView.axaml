@@ -1,56 +1,104 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:modsViews="using:CkanUI.App.Views.Mods"
              x:Class="CkanUI.App.Views.ModsPageView"
              x:CompileBindings="False"
              KeyDown="OnRootKeyDown">
 
-  <!-- DataGrid 主题：App.axaml 没有全局包含，这里在本视图内单独引入（DataGrid 目前仅本页使用）。 -->
+  <!-- DataGrid 主题：在本视图内单独引入 -->
   <UserControl.Styles>
     <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
 
-    <!-- 标签组开关（F-24）：未选中用中性面色，选中用强调色；颜色只取 Tokens.axaml 的 Ckan* 语义 brush。 -->
+    <!-- 标签组筛选胶囊 (Chips) -->
     <Style Selector="Button.labelChip">
-      <Setter Property="Background" Value="{DynamicResource CkanSurfaceBackgroundBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
-      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="Padding" Value="10,3" />
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.labelChip:pointerover">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
     </Style>
     <Style Selector="Button.labelChip.active">
-      <Setter Property="Background" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource CkanAccentTextBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
-    <!-- 详情面板里的三组常用标签开关（收藏 / 隐藏 / 锁定版本）。 -->
+    <!-- 详情面板标签开关按钮 (Toggle) -->
     <Style Selector="Button.labelToggle">
-      <Setter Property="Background" Value="{DynamicResource CkanSurfaceBackgroundBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
-      <Setter Property="Padding" Value="8,2" />
-      <Setter Property="FontSize" Value="12" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.labelToggle:pointerover">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
     </Style>
     <Style Selector="Button.labelToggle.active">
       <Setter Property="Background" Value="{DynamicResource CkanAccentBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource CkanAccentTextBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
   </UserControl.Styles>
 
-  <Grid RowDefinitions="Auto,*,Auto" Margin="12">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="16,14,16,12">
 
-    <!-- 工具条（03 篇 §3.1）：搜索、过滤下拉、排序、刷新、应用 -->
-    <Border Grid.Row="0" Padding="8" CornerRadius="6" Background="{DynamicResource SystemControlBackgroundListLowBrush}">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto">
+    <!-- 顶部现代化工具栏 Card -->
+    <Border Grid.Row="0"
+            Background="{DynamicResource CkanCardBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanCardBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Padding="12,10">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto,Auto">
+        <!-- 搜索输入框 -->
         <TextBox x:Name="SearchBox"
                  Grid.Column="0"
-                 MinWidth="220"
+                 MinWidth="240"
                  VerticalAlignment="Center"
+                 CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                 Padding="10,6"
+                 MinHeight="32"
                  Text="{Binding SearchText, Mode=TwoWay}"
                  PlaceholderText="搜索模组：名称 / @作者 / tag: / is:installed / -否定"
                  KeyDown="OnSearchKeyDown" />
-        <Button Grid.Column="1" Margin="6,0,0,0" Content="清空" Command="{Binding ClearSearchTextCommand}"
+
+        <Button Grid.Column="1" Margin="6,0,0,0" Content="清空"
+                Command="{Binding ClearSearchTextCommand}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="10,5"
                 ToolTip.Tip="清空搜索（Esc）" />
-        <ComboBox Grid.Column="2" Margin="12,0,0,0" MinWidth="110" VerticalAlignment="Center"
+
+        <!-- 组合搜索面板开关（F-20/F-21）：逐字段填写，生成同一套搜索语法 -->
+        <Button Grid.Column="2" Margin="6,0,0,0" Content="{Binding SearchPanel.SummaryText}"
+                Command="{Binding SearchPanel.ToggleExpandedCommand}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="10,5"
+                ToolTip.Tip="展开 / 收起组合搜索面板（18 个字段逐项筛选）" />
+
+        <!-- 过滤器组合框 -->
+        <ComboBox Grid.Column="3" Margin="10,0,0,0" MinWidth="110" VerticalAlignment="Center"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                   SelectedIndex="{Binding InstallFilterIndex, Mode=TwoWay}"
                   ToolTip.Tip="安装状态过滤">
           <ComboBoxItem>全部</ComboBoxItem>
@@ -58,14 +106,18 @@
           <ComboBoxItem>未装</ComboBoxItem>
           <ComboBoxItem>有更新</ComboBoxItem>
         </ComboBox>
-        <ComboBox Grid.Column="3" Margin="8,0,0,0" MinWidth="110" VerticalAlignment="Center"
+
+        <ComboBox Grid.Column="4" Margin="8,0,0,0" MinWidth="115" VerticalAlignment="Center"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                   SelectedIndex="{Binding CompatibilityFilterIndex, Mode=TwoWay}"
                   ToolTip.Tip="兼容性过滤（默认仅兼容）">
           <ComboBoxItem>全部</ComboBoxItem>
           <ComboBoxItem>仅兼容</ComboBoxItem>
           <ComboBoxItem>仅不兼容</ComboBoxItem>
         </ComboBox>
-        <ComboBox Grid.Column="4" Margin="8,0,0,0" MinWidth="120" VerticalAlignment="Center"
+
+        <ComboBox Grid.Column="5" Margin="8,0,0,0" MinWidth="120" VerticalAlignment="Center"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                   SelectedIndex="{Binding SortColumnIndex, Mode=TwoWay}"
                   ToolTip.Tip="排序依据">
           <ComboBoxItem>名称</ComboBoxItem>
@@ -77,23 +129,62 @@
           <ComboBoxItem>体积</ComboBoxItem>
           <ComboBoxItem>已装状态</ComboBoxItem>
         </ComboBox>
-        <Button Grid.Column="5" Margin="6,0,0,0" Content="↑↓" Command="{Binding ToggleSortCommand}"
+
+        <Button Grid.Column="6" Margin="6,0,0,0" Content="↑↓"
+                Command="{Binding ToggleSortCommand}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="10,5"
                 ToolTip.Tip="切换升序 / 降序" />
-        <Button Grid.Column="6" Margin="12,0,0,0" Content="刷新仓库"
+
+        <Button Grid.Column="7" Margin="10,0,0,0" Content="刷新仓库"
                 Command="{Binding RefreshRepositoriesCommand}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="12,5"
                 ToolTip.Tip="联网刷新仓库索引（Ctrl+R）" />
-        <Button Grid.Column="7" Margin="6,0,0,0" Content="全量更新"
+
+        <Button Grid.Column="8" Margin="6,0,0,0" Content="全量更新"
                 Command="{Binding UpdateAllCommand}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="12,5"
                 ToolTip.Tip="勾选所有可更新模组（F-32）" />
-        <Button Grid.Column="8" Margin="6,0,0,0" Content="应用变更"
+
+        <!-- 主操作按钮强调色高亮 -->
+        <Button Grid.Column="9" Margin="6,0,0,0" Content="应用变更"
                 Command="{Binding ApplyChangesCommand}"
+                Background="{DynamicResource CkanAccentBrush}"
+                Foreground="{DynamicResource CkanAccentTextBrush}"
+                FontWeight="SemiBold"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="14,5"
                 ToolTip.Tip="审查并应用当前变更集（F-32）" />
 
-        <!-- 标签组筛选（F-24）：多选为"或"（命中任一选中标签即通过），每个开关自带命令。
-             未接线 ILabelService 时整行隐藏，不影响既有布局。 -->
-        <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="9" Margin="0,8,0,0"
-                Padding="6,4" CornerRadius="4" BorderThickness="1"
+        <!-- 插件工具项（12 篇 F-17）：插件往本页工具条插的按钮，没有插件声明时整块不占位 -->
+        <ItemsControl Grid.Column="10" Margin="10,0,0,0" VerticalAlignment="Center"
+                      IsVisible="{Binding HasPluginTools}"
+                      ItemsSource="{Binding PluginTools}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="6" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Button Content="{Binding Title}"
+                      Command="{Binding ExecuteCommand}"
+                      IsEnabled="{Binding !IsBusy}"
+                      ToolTip.Tip="{Binding ToolTipText}"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                      Padding="10,5" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- 标签组筛选行 -->
+        <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="11" Margin="0,10,0,0"
+                Padding="10,6" CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Background="{DynamicResource CkanSubtleBackgroundBrush}"
                 BorderBrush="{DynamicResource CkanBorderBrush}"
+                BorderThickness="1"
                 IsVisible="{Binding HasLabelService}">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <TextBlock Text="标签组" FontSize="12" VerticalAlignment="Center"
@@ -110,168 +201,218 @@
                           Classes.active="{Binding IsActive}"
                           Command="{Binding ToggleCommand}"
                           Content="{Binding DisplayText}"
-                          Margin="0,0,4,0" Padding="8,2" FontSize="12"
+                          Margin="0,0,4,0"
                           ToolTip.Tip="{Binding ColorHex}" />
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <Button Content="清除标签筛选" FontSize="12" Padding="8,2"
+            <Button Content="清除标签筛选" FontSize="12" Padding="8,3"
+                    CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                     Command="{Binding ResetLabelFiltersCommand}"
                     ToolTip.Tip="取消全部标签组筛选" />
-            <Button Content="管理标签..." FontSize="12" Padding="8,2" Margin="4,0,0,0"
+            <Button Content="管理标签..." FontSize="12" Padding="8,3" Margin="4,0,0,0"
+                    CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                     Command="{Binding ManageLabelsCommand}"
                     ToolTip.Tip="打开标签组管理对话框 (F-23 / F-24)" />
           </StackPanel>
         </Border>
+
+        <!-- 组合搜索面板（F-20/F-21）：DataContext 换成面板自身，展开状态与字段都在面板里 -->
+        <modsViews:ModsSearchPanelView Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="11"
+                                       Margin="0,8,0,0"
+                                       DataContext="{Binding SearchPanel}"
+                                       IsVisible="{Binding IsExpanded}" />
       </Grid>
     </Border>
 
-    <!-- 主体：左列表 + 右详情（03 篇 §3.1） -->
-    <Grid Grid.Row="1" ColumnDefinitions="*,4,360" Margin="0,8,0,0">
+    <!-- 主体区域：左侧表格 Card + 右侧详情 Card -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,6,380" Margin="0,10,0,0">
 
-      <Grid Grid.Column="0">
-        <!-- 虚拟化表格（03 篇 §3.2 / UI-02）：DataGrid 自带 VirtualizingStackPanel，3,000 行只实体化可见行；
-             列头可拖拽改宽，列宽由 ModsPageViewModel 记忆（键见 DefaultColumnWidths）。 -->
-        <DataGrid x:Name="ModsGrid"
-                  ItemsSource="{Binding Rows}"
-                  SelectionChanged="OnRowSelectionChanged"
-                  AutoGenerateColumns="False"
-                  IsReadOnly="True"
-                  CanUserReorderColumns="False"
-                  CanUserSortColumns="False"
-                  CanUserResizeColumns="True"
-                  HeadersVisibility="Column"
-                  GridLinesVisibility="None"
-                  RowHeight="26"
-                  BorderThickness="0">
-          <!-- 右键上下文菜单（F-31 / UI-18） -->
-          <DataGrid.ContextMenu>
-            <ContextMenu>
-              <MenuItem Header="重新安装" Command="{Binding ReinstallSelectedCommand}" IsEnabled="{Binding CanReinstallSelected}" />
-              <Separator />
-              <MenuItem Header="复制模组标识符" Command="{Binding CopySelectedIdentifierCommand}" />
-              <MenuItem Header="复制下载链接" Command="{Binding CopySelectedDownloadUrlCommand}" />
-              <Separator />
-              <MenuItem Header="打开主页" Command="{Binding OpenSelectedHomepageCommand}" IsEnabled="{Binding CanOpenHomepage}" />
-            </ContextMenu>
-          </DataGrid.ContextMenu>
-          <DataGrid.Columns>
-            <!-- 行首：已装绿色竖条 + 勾选框（§3.3） -->
-            <DataGridTemplateColumn Header="选" Width="32" CanUserResize="False">
-              <DataGridTemplateColumn.CellTemplate>
-                <DataTemplate>
-                  <Grid>
-                    <Border Width="3" Margin="0,2" CornerRadius="1" HorizontalAlignment="Left"
-                            Background="#2E7D32" IsVisible="{Binding IsInstalled}" />
-                    <CheckBox IsChecked="{Binding IsSelected, Mode=OneWay}"
-                              Click="OnSelectionCheckBoxClick"
-                              HorizontalAlignment="Center" VerticalAlignment="Center"
-                              ToolTip.Tip="加入 / 移出变更集（Space）" />
-                  </Grid>
-                </DataTemplate>
-              </DataGridTemplateColumn.CellTemplate>
-            </DataGridTemplateColumn>
+      <!-- 左侧模组列表 Card -->
+      <Border Grid.Column="0"
+              Background="{DynamicResource CkanCardBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanCardBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              ClipToBounds="True">
+        <Grid>
+          <!-- 虚拟化表格 -->
+          <DataGrid x:Name="ModsGrid"
+                    ItemsSource="{Binding Rows}"
+                    SelectionChanged="OnRowSelectionChanged"
+                    AutoGenerateColumns="False"
+                    IsReadOnly="True"
+                    CanUserReorderColumns="False"
+                    CanUserSortColumns="False"
+                    CanUserResizeColumns="True"
+                    HeadersVisibility="Column"
+                    GridLinesVisibility="None"
+                    RowHeight="32"
+                    BorderThickness="0"
+                    Background="Transparent">
+            <!-- 右键上下文菜单 -->
+            <DataGrid.ContextMenu>
+              <ContextMenu>
+                <MenuItem Header="重新安装" Command="{Binding ReinstallSelectedCommand}" IsEnabled="{Binding CanReinstallSelected}" />
+                <Separator />
+                <MenuItem Header="复制模组标识符" Command="{Binding CopySelectedIdentifierCommand}" />
+                <MenuItem Header="复制下载链接" Command="{Binding CopySelectedDownloadUrlCommand}" />
+                <Separator />
+                <MenuItem Header="打开主页" Command="{Binding OpenSelectedHomepageCommand}" IsEnabled="{Binding CanOpenHomepage}" />
+              </ContextMenu>
+            </DataGrid.ContextMenu>
+            <DataGrid.Columns>
+              <!-- 行首：已装状态指示条 + 复选框 -->
+              <DataGridTemplateColumn Header="选" Width="38" CanUserResize="False">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <Grid>
+                      <Border Width="3" Margin="0,4" CornerRadius="1.5" HorizontalAlignment="Left"
+                              Background="{DynamicResource CkanSuccessBrush}" IsVisible="{Binding IsInstalled}" />
+                      <CheckBox IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                Click="OnSelectionCheckBoxClick"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                ToolTip.Tip="加入 / 移出变更集（Space）" />
+                    </Grid>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
 
-            <!-- 名称 + 徽章 -->
-            <DataGridTemplateColumn Header="名称" Width="260">
-              <DataGridTemplateColumn.CellTemplate>
-                <DataTemplate>
-                  <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                    <Border Background="#1F6FEB" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowUpdateBadge}">
-                      <TextBlock Text="↑ 更新" FontSize="11" Foreground="White" />
-                    </Border>
-                    <Border Background="#6E7781" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowAutoBadge}">
-                      <TextBlock Text="自动" FontSize="11" Foreground="White" />
-                    </Border>
-                    <Border Background="#8250DF" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowDependencyBadge}">
-                      <TextBlock Text="依赖" FontSize="11" Foreground="White" />
-                    </Border>
-                    <Border Background="#B35900" CornerRadius="3" Padding="4,0" IsVisible="{Binding ShowIncompatibleBadge}">
-                      <TextBlock Text="⚠ 不兼容" FontSize="11" Foreground="White" />
-                    </Border>
-                  </StackPanel>
-                </DataTemplate>
-              </DataGridTemplateColumn.CellTemplate>
-            </DataGridTemplateColumn>
+              <!-- 名称 + 语义胶囊徽章 -->
+              <DataGridTemplateColumn Header="名称" Width="260">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="6,0">
+                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontWeight="Medium" />
+                      <Border Background="{DynamicResource CkanAccentSubtleBrush}" BorderBrush="{DynamicResource CkanAccentBrush}" BorderThickness="1" CornerRadius="4" Padding="5,1" IsVisible="{Binding ShowUpdateBadge}">
+                        <TextBlock Text="↑ 更新" FontSize="11" Foreground="{DynamicResource CkanAccentBrush}" FontWeight="SemiBold" />
+                      </Border>
+                      <Border Background="{DynamicResource CkanSubtleBackgroundBrush}" BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="5,1" IsVisible="{Binding ShowAutoBadge}">
+                        <TextBlock Text="自动" FontSize="11" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                      </Border>
+                      <Border Background="{DynamicResource CkanInfoBackgroundBrush}" BorderBrush="{DynamicResource CkanInfoBrush}" BorderThickness="1" CornerRadius="4" Padding="5,1" IsVisible="{Binding ShowDependencyBadge}">
+                        <TextBlock Text="依赖" FontSize="11" Foreground="{DynamicResource CkanInfoBrush}" />
+                      </Border>
+                      <Border Background="{DynamicResource CkanWarningBackgroundBrush}" BorderBrush="{DynamicResource CkanWarningBrush}" BorderThickness="1" CornerRadius="4" Padding="5,1" IsVisible="{Binding ShowIncompatibleBadge}">
+                        <TextBlock Text="⚠ 不兼容" FontSize="11" Foreground="{DynamicResource CkanWarningBrush}" FontWeight="SemiBold" />
+                      </Border>
+                    </StackPanel>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
 
-            <DataGridTextColumn Header="已装" Width="90"
-                                Binding="{Binding InstalledVersionText}" />
-            <DataGridTextColumn Header="最新" Width="90"
-                                Binding="{Binding LatestVersionText}" />
-            <DataGridTextColumn Header="作者" Width="140"
-                                Binding="{Binding AuthorText}" />
-            <DataGridTextColumn Header="下载量" Width="80"
-                                Binding="{Binding DownloadText}" />
-            <DataGridTextColumn Header="标签" Width="200"
-                                Binding="{Binding TagsText}" />
-            <DataGridTextColumn Header="大小" Width="70"
-                                Binding="{Binding SizeText}" />
-          </DataGrid.Columns>
-        </DataGrid>
+              <DataGridTextColumn Header="已装" Width="90"
+                                  Binding="{Binding InstalledVersionText}" />
+              <DataGridTextColumn Header="最新" Width="90"
+                                  Binding="{Binding LatestVersionText}" />
+              <DataGridTextColumn Header="作者" Width="140"
+                                  Binding="{Binding AuthorText}" />
+              <DataGridTextColumn Header="下载量" Width="80"
+                                  Binding="{Binding DownloadText}" />
+              <DataGridTextColumn Header="标签" Width="180"
+                                  Binding="{Binding TagsText}" />
+              <DataGridTextColumn Header="大小" Width="70"
+                                  Binding="{Binding SizeText}" />
+            </DataGrid.Columns>
+          </DataGrid>
 
-        <!-- 空状态（03 篇 §10） -->
-        <Border IsVisible="{Binding ShowEmptyState}"
-                Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
-          <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="420">
-            <TextBlock Text="{Binding EmptyStateTitle}" FontSize="18" HorizontalAlignment="Center" />
-            <TextBlock Text="{Binding EmptyStateHint}" Opacity="0.7" TextWrapping="Wrap" TextAlignment="Center" />
-            <ItemsControl ItemsSource="{Binding ActiveFilterChips}" HorizontalAlignment="Center">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <WrapPanel />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Border Background="{DynamicResource SystemControlBackgroundListLowBrush}" CornerRadius="10"
-                          Padding="8,2" Margin="2">
-                    <TextBlock Text="{Binding}" FontSize="12" />
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-              <Button Content="清除过滤条件" Command="{Binding ResetFiltersCommand}" />
-              <Button Content="立即刷新" Command="{Binding RefreshRepositoriesCommand}"
-                      IsVisible="{Binding CanRefreshFromEmptyState}" />
+          <!-- 空状态提示 Card -->
+          <Border IsVisible="{Binding ShowEmptyState}"
+                  Background="{DynamicResource CkanCardBackgroundBrush}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="440" Margin="24">
+              <TextBlock Text="{Binding EmptyStateTitle}"
+                         FontSize="{DynamicResource CkanFontSizeTitle}"
+                         FontWeight="SemiBold"
+                         HorizontalAlignment="Center"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+              <TextBlock Text="{Binding EmptyStateHint}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         TextAlignment="Center" />
+              <ItemsControl ItemsSource="{Binding ActiveFilterChips}" HorizontalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                            BorderBrush="{DynamicResource CkanBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="10,3" Margin="3">
+                      <TextBlock Text="{Binding}" FontSize="12" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" Margin="0,8,0,0">
+                <Button Content="清除过滤条件" Command="{Binding ResetFiltersCommand}"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                        Padding="14,6" />
+                <Button Content="立即刷新" Command="{Binding RefreshRepositoriesCommand}"
+                        Background="{DynamicResource CkanAccentBrush}"
+                        Foreground="{DynamicResource CkanAccentTextBrush}"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                        Padding="14,6"
+                        IsVisible="{Binding CanRefreshFromEmptyState}" />
+              </StackPanel>
             </StackPanel>
-          </StackPanel>
-        </Border>
-      </Grid>
+          </Border>
+        </Grid>
+      </Border>
 
+      <!-- 拖拽分割条 -->
       <GridSplitter Grid.Column="1" Background="Transparent" ResizeDirection="Columns" />
 
-      <!-- 详情面板（03 篇 §3.1 / 06 篇 UI-03 骨架） -->
-      <Border Grid.Column="2" Padding="12" CornerRadius="6"
-              Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+      <!-- 右侧模组详情面板 Card -->
+      <Border Grid.Column="2"
+              Background="{DynamicResource CkanCardBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanCardBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              Padding="16">
         <ScrollViewer>
-          <StackPanel Spacing="6">
-            <!-- 选中历史前进/后退（F-25）：在详情面板内部走，不影响左侧导航页历史。 -->
+          <StackPanel Spacing="8">
+            <!-- 历史前进/后退小工具栏 -->
             <StackPanel Orientation="Horizontal" Spacing="4">
               <Button Content="←"
                       Command="{Binding GoBackSelectionCommand}"
                       IsEnabled="{Binding CanGoBackSelection}"
                       ToolTip.Tip="上一个选中模组"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                       Padding="8,2" MinWidth="0" FontSize="11" />
               <Button Content="→"
                       Command="{Binding GoForwardSelectionCommand}"
                       IsEnabled="{Binding CanGoForwardSelection}"
                       ToolTip.Tip="下一个选中模组"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                       Padding="8,2" MinWidth="0" FontSize="11" />
             </StackPanel>
-            <TextBlock Text="{Binding DetailName}" FontSize="18" TextWrapping="Wrap" />
-            <TextBlock Text="{Binding DetailIdentifier}" FontSize="12" Opacity="0.6" />
-            <TextBlock Text="{Binding DetailStatusText}" FontSize="12" Opacity="0.8" />
-            <Separator Margin="0,6" />
-            <TextBlock Text="{Binding DetailVersionText}" />
-            <TextBlock Text="{Binding DetailAuthor, StringFormat='作者：{0}'}" />
-            <TextBlock Text="{Binding DetailDownloadText, StringFormat='下载量：{0}'}" />
-            <TextBlock Text="{Binding DetailSizeText, StringFormat='体积：{0}'}" />
-            <TextBlock Text="{Binding DetailTagsText, StringFormat='标签：{0}'}" TextWrapping="Wrap" />
 
-            <!-- 标签组标记（F-24）：只读标记 + 三组常用标签一键切换；未接线标签服务时整块隐藏。 -->
-            <StackPanel Spacing="4" Margin="0,6,0,0" IsVisible="{Binding HasLabelService}">
+            <TextBlock Text="{Binding DetailName}"
+                       FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding DetailIdentifier}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            <TextBlock Text="{Binding DetailStatusText}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+
+            <Separator Margin="0,4" Background="{DynamicResource CkanBorderBrush}" Height="1" />
+
+            <TextBlock Text="{Binding DetailVersionText}" Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+            <TextBlock Text="{Binding DetailAuthor, StringFormat='作者：{0}'}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBlock Text="{Binding DetailDownloadText, StringFormat='下载量：{0}'}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBlock Text="{Binding DetailSizeText, StringFormat='体积：{0}'}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBlock Text="{Binding DetailTagsText, StringFormat='标签：{0}'}" Foreground="{DynamicResource CkanTextSecondaryBrush}" TextWrapping="Wrap" />
+
+            <!-- 标签组标记与快捷开关 -->
+            <StackPanel Spacing="6" Margin="0,8,0,0" IsVisible="{Binding HasLabelService}">
               <TextBlock Text="标签组" FontSize="12"
                          Foreground="{DynamicResource CkanTextSecondaryBrush}" />
               <ItemsControl ItemsSource="{Binding DetailLabels}">
@@ -282,17 +423,19 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
-                    <Border Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+                    <Border Background="{DynamicResource CkanSubtleBackgroundBrush}"
                             BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1"
-                            CornerRadius="10" Padding="8,1" Margin="0,0,4,4">
-                      <TextBlock Text="{Binding Name}" FontSize="12" ToolTip.Tip="{Binding ColorHex}" />
+                            CornerRadius="10" Padding="8,2" Margin="0,0,4,4">
+                      <TextBlock Text="{Binding Name}" FontSize="11" ToolTip.Tip="{Binding ColorHex}" />
                     </Border>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-              <TextBlock Text="{Binding DetailLabelText}" FontSize="12" Opacity="0.7" TextWrapping="Wrap"
+              <TextBlock Text="{Binding DetailLabelText}" FontSize="12"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                         TextWrapping="Wrap"
                          IsVisible="{Binding !HasDetailLabels}" />
-              <StackPanel Orientation="Horizontal" Spacing="6">
+              <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
                 <Button Classes="labelToggle"
                         Classes.active="{Binding DetailIsFavourite}"
                         Content="收藏"
@@ -310,26 +453,40 @@
                         ToolTip.Tip="加入 / 移出锁定版本标签组（不参与升级）" />
               </StackPanel>
             </StackPanel>
-            <Separator Margin="0,6" />
-            <TextBlock Text="描述、依赖树、版本列表与主页链接将在 UI-03 完整实现。" Opacity="0.6"
+
+            <Separator Margin="0,6" Background="{DynamicResource CkanBorderBrush}" Height="1" />
+
+            <TextBlock Text="描述、依赖树、版本列表与主页链接将在 UI-03 完整实现。"
+                       Foreground="{DynamicResource CkanTextTertiaryBrush}"
                        TextWrapping="Wrap" FontSize="12" />
-            <TextBlock Text="{Binding StatusText}" Opacity="0.5" FontSize="11" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding StatusText}"
+                       Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                       FontSize="11" TextWrapping="Wrap" />
           </StackPanel>
         </ScrollViewer>
       </Border>
     </Grid>
 
-    <!-- 状态栏（03 篇 §3.1） -->
-    <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,8,0,0">
-      <TextBlock Grid.Column="0" Text="{Binding CountText}" FontSize="12" VerticalAlignment="Center" />
-      <TextBlock Grid.Column="1" Text="{Binding SelectionSummary}" FontSize="12" Margin="12,0,0,0"
-                 VerticalAlignment="Center" />
-      <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="12" Opacity="0.7" Margin="12,0,0,0"
-                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+    <!-- 底部状态与操作栏 -->
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,10,0,0">
+      <TextBlock Grid.Column="0" Text="{Binding CountText}" FontSize="12"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="1" Text="{Binding SelectionSummary}" FontSize="12" Margin="14,0,0,0"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="12" Margin="14,0,0,0"
+                 Foreground="{DynamicResource CkanTextTertiaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
       <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
-        <TextBlock Text="{Binding DownloadSummary}" FontSize="12" VerticalAlignment="Center" />
-        <Button Content="预览变更" Command="{Binding PreviewChangesCommand}" FontSize="12" Padding="8,2" />
-        <Button Content="去变更集" Command="{Binding ReviewChangesCommand}" FontSize="12" Padding="8,2" />
+        <TextBlock Text="{Binding DownloadSummary}" FontSize="12"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
+        <Button Content="预览变更" Command="{Binding PreviewChangesCommand}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                FontSize="12" Padding="12,4" />
+        <Button Content="去变更集" Command="{Binding ReviewChangesCommand}"
+                Background="{DynamicResource CkanAccentBrush}"
+                Foreground="{DynamicResource CkanAccentTextBrush}"
+                FontWeight="SemiBold"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                FontSize="12" Padding="14,4" />
       </StackPanel>
     </Grid>
   </Grid>

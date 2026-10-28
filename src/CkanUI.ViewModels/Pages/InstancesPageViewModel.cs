@@ -62,7 +62,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     public IInstanceShellLauncher? ShellLauncher { get; set; }
 
     /// <summary>Steam 库探测来源。</summary>
-    public ISteamLibrarySource? SteamLibraries { get; set; }
+    public ISteamLibraryLocator? SteamLibraries { get; set; }
 
     /// <summary>
     /// 启动命令的持久化（实例级 <c>CKAN/GUIConfig.json</c>，与老 GUI 共用，见 <see cref="LaunchCommandFile"/>）；

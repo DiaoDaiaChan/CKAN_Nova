@@ -19,10 +19,10 @@ public sealed class ShellViewModelTests
     }
 
     [Test]
-    public void NavItems_HasSixteenConfiguredItems()
+    public void NavItems_HasSeventeenConfiguredItems()
     {
         var vm = new ShellViewModel();
-        Assert.That(vm.NavItems.Count, Is.EqualTo(16));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(17));
         Assert.That(vm.NavItems[0].Key, Is.EqualTo("mods"));
         Assert.That(vm.NavItems[1].Key, Is.EqualTo("content"));
         Assert.That(vm.NavItems[2].Key, Is.EqualTo("changes"));
@@ -38,7 +38,8 @@ public sealed class ShellViewModelTests
         Assert.That(vm.NavItems[12].Key, Is.EqualTo("dedup"));
         Assert.That(vm.NavItems[13].Key, Is.EqualTo("installhistory"));
         Assert.That(vm.NavItems[14].Key, Is.EqualTo("plugins"));
-        Assert.That(vm.NavItems[15].Key, Is.EqualTo("settings"));
+        Assert.That(vm.NavItems[15].Key, Is.EqualTo("modtext"));
+        Assert.That(vm.NavItems[16].Key, Is.EqualTo("settings"));
     }
 
     [Test]
@@ -55,7 +56,8 @@ public sealed class ShellViewModelTests
         Assert.That(vm.NavItems[12].Title, Is.EqualTo("T:Ui_NavRail_Dedup"));
         Assert.That(vm.NavItems[13].Title, Is.EqualTo("T:Ui_NavRail_InstallHistory"));
         Assert.That(vm.NavItems[14].Title, Is.EqualTo("T:Ui_NavRail_Plugins"));
-        Assert.That(vm.NavItems.Count, Is.EqualTo(16));
+        Assert.That(vm.NavItems[15].Title, Is.EqualTo("T:Ui_NavRail_ModText"));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(17));
     }
 
     [Test]
@@ -84,5 +86,60 @@ public sealed class ShellViewModelTests
         Assert.That(vm.CurrentPage, Is.SameAs(instancesPage));
         Assert.That(instancesPage.IsActive, Is.True);
         Assert.That(modsPage.IsActive, Is.False);
+    }
+
+    [Test]
+    public async Task SelectedNavItem_SynchronizesWithNavigation()
+    {
+        var modsPage = new ModsPageViewModel();
+        var instancesPage = new InstancesPageViewModel();
+
+        var navService = new NavigationService(key => key switch
+        {
+            "mods" => modsPage,
+            "instances" => instancesPage,
+            _ => null
+        });
+
+        var vm = new ShellViewModel(navService);
+
+        // 默认未导航时为 null
+        Assert.That(vm.SelectedNavItem, Is.Null);
+
+        // 导航到 mods 后更新 SelectedNavItem
+        await vm.NavigateCommand.ExecuteAsync("mods");
+        Assert.That(vm.SelectedNavItem?.Key, Is.EqualTo("mods"));
+
+        // 导航更新 SelectedNavItem
+        await vm.NavigateCommand.ExecuteAsync("instances");
+        Assert.That(vm.SelectedNavItem?.Key, Is.EqualTo("instances"));
+
+        // 通过更改 SelectedNavItem 触发导航
+        var modsItem = vm.NavItems.First(i => i.Key == "mods");
+        vm.SelectedNavItem = modsItem;
+        Assert.That(vm.CurrentPage, Is.SameAs(modsPage));
+        Assert.That(modsPage.IsActive, Is.True);
+
+        // 后退导航同步 SelectedNavItem
+        await navService.NavigateAsync("instances");
+        Assert.That(vm.SelectedNavItem?.Key, Is.EqualTo("instances"));
+        await vm.BackCommand.ExecuteAsync(null);
+        Assert.That(vm.SelectedNavItem?.Key, Is.EqualTo("mods"));
+    }
+
+    [Test]
+    public void InstanceService_UpdatesShellTitleOnCurrentChanged()
+    {
+        var instances = new FakeInstanceService();
+        instances.Current = new CkanUI.Services.Abstractions.Dtos.InstanceInfo("KSP 1.12", "C:\\KSP", "1.12.5", true, false, 42);
+
+        var vm = new ShellViewModel(new NavigationService(_ => null), instances: instances);
+        Assert.That(vm.Title, Is.EqualTo("CKAN UI - KSP 1.12 (1.12.5)"));
+
+        instances.RaiseCurrentChanged(new CkanUI.Services.Abstractions.Dtos.InstanceInfo("KSP RSS", "C:\\KSP_RSS", "1.12.3", false, false, 150));
+        Assert.That(vm.Title, Is.EqualTo("CKAN UI - KSP RSS (1.12.3)"));
+
+        instances.RaiseCurrentChanged(null);
+        Assert.That(vm.Title, Is.EqualTo("CKAN UI"));
     }
 }

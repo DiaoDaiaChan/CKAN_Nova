@@ -125,7 +125,7 @@ public static class UnmanagedScanner
         var normalized = new List<string>(relativePaths.Count);
         foreach (var raw in relativePaths)
         {
-            var relative = Normalize(raw);
+            var relative = NormalizeRelative(raw);
             if (relative is null)
             {
                 return OperationResult<IReadOnlyList<string>>.Fail(
@@ -236,8 +236,11 @@ public static class UnmanagedScanner
         return false;
     }
 
-    /// <summary>归一化相对路径；绝对路径、带盘符或含 <c>..</c> 的一律拒绝。</summary>
-    private static string? Normalize(string? raw)
+    /// <summary>
+    /// 归一化相对路径；绝对路径、带盘符或含 <c>..</c> 的一律拒绝（返回 <c>null</c>）。
+    /// 删除与接管共用这一套规则，避免两条路径的安全边界不一致。
+    /// </summary>
+    public static string? NormalizeRelative(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
         var trimmed = raw.Trim().Replace('\\', '/').Trim('/');

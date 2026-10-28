@@ -415,11 +415,10 @@ internal sealed class FakePluginService : IPluginService
     public IReadOnlyList<PluginInfo> Failures => FailureItems;
 
     /// <inheritdoc />
-    public event EventHandler? Changed
-    {
-        add { }
-        remove { }
-    }
+    public event EventHandler? Changed;
+
+    /// <summary>主动触发变更通知（外壳据此重建插件页签）。</summary>
+    public void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
 
     /// <inheritdoc />
     public Task<OperationResult<IReadOnlyList<PluginInfo>>> DiscoverAsync(CancellationToken ct = default)

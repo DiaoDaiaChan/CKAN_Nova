@@ -661,6 +661,7 @@ internal sealed class FakeChangeRequestSink : IChangeRequestSink
 {
     public int Calls { get; private set; }
     public IReadOnlyCollection<ChangeRequest>? Last { get; private set; }
+    public event Action? RequestsApplied { add { } remove { } }
 
     public void SetRequests(IReadOnlyCollection<ChangeRequest>? requests)
     {

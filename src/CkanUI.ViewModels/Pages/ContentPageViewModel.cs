@@ -7,7 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 namespace CkanUI.ViewModels.Pages;
 
 /// <summary>所选模组 ZIP 内容页（F-29 / UI-03）。</summary>
-public sealed partial class ContentPageViewModel : PageViewModel
+public sealed partial class ContentPageViewModel : PageViewModel, IPageProjectionTrim
 {
     private readonly IContentService _service;
     private readonly IContentTargetProvider _target;
@@ -165,10 +165,13 @@ public sealed partial class ContentPageViewModel : PageViewModel
         }
     }
 
-    protected override void OnActivated()
+    protected override async void OnActivated()
     {
         base.OnActivated();
-        if (RootNodes.Count == 0 && !IsBusy)
+        if (IsBusy) return;
+
+        var selectedId = await _target.GetSelectedIdentifierAsync().ConfigureAwait(true);
+        if (selectedId != CurrentIdentifier || RootNodes.Count == 0)
         {
             _ = PreviewAsync();
         }
@@ -178,6 +181,30 @@ public sealed partial class ContentPageViewModel : PageViewModel
     {
         base.OnDeactivated();
         _runCts?.Cancel();
+    }
+
+    /// <inheritdoc />
+    public string PageName => "内容预览";
+
+    /// <summary>
+    /// 丢掉 ZIP 目录树投影（18 篇 §3 L1）：文件条目来自缓存 ZIP 的中央目录，重进页面时会再读一次。
+    /// </summary>
+    /// <remarks>
+    /// 这里丢掉的是「条目清单 + 树的包装」两份视图，ZIP 缓存文件本身留在磁盘上，
+    /// 所以 <see cref="OnActivated"/> 里 <c>RootNodes.Count == 0</c> 的分支会把预览重新算出来。
+    /// </remarks>
+    public int TrimProjection()
+    {
+        var released = Entries.Count + RootNodes.Count;
+        if (released == 0)
+        {
+            return 0;
+        }
+
+        Entries = Array.Empty<ContentNodeViewModel>();
+        RootNodes = Array.Empty<ContentNodeViewModel>();
+        SelectedNode = null;
+        return released;
     }
 
     private bool CanRun() => !IsBusy;

@@ -4,169 +4,255 @@
              x:Class="CkanUI.App.Views.InstancesPageView"
              x:CompileBindings="False"
              KeyDown="OnRootKeyDown">
-  <!-- 实例页（03 篇 §5 V-03 / 06 篇 UI-04·UI-05·UI-32）：工具条 + 左列表 + 右详情 + 状态栏 + 遮罩/表单覆盖层。 -->
-  <Grid RowDefinitions="Auto,*,Auto" Margin="12">
+  <!-- 实例页：工具条 + 左列表 + 右详情 + 状态栏 + 遮罩/表单覆盖层。 -->
+  <Grid RowDefinitions="Auto,*,Auto" Margin="16,14,16,12">
 
-    <!-- 工具条（03 篇 §5 操作集合） -->
-    <Border Grid.Row="0" Padding="8" CornerRadius="6"
-            Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+    <!-- 顶部现代化工具栏 Card -->
+    <Border Grid.Row="0" Padding="12,10" CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            Background="{DynamicResource CkanCardBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanCardBorderBrush}"
+            BorderThickness="1">
       <StackPanel Orientation="Horizontal" Spacing="8">
         <Button Content="添加实例" Command="{Binding AddCommand}"
+                Background="{DynamicResource CkanAccentBrush}"
+                Foreground="{DynamicResource CkanAccentTextBrush}"
+                FontWeight="SemiBold"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="12,5"
                 ToolTip.Tip="选择一个 KSP 安装目录并注册为实例" />
         <Button Content="从 Steam 库导入" Command="{Binding ImportFromSteamCommand}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="10,5"
                 ToolTip.Tip="扫描 Steam 库中的 KSP 安装目录" />
-        <Button Content="刷新" Command="{Binding RefreshCommand}" ToolTip.Tip="重新扫描实例列表（F5）" />
-        <Border Width="1" Margin="4,2" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
+        <Button Content="刷新" Command="{Binding RefreshCommand}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="10,5"
+                ToolTip.Tip="重新扫描实例列表（F5）" />
+
+        <Border Width="1" Margin="4,2" Background="{DynamicResource CkanBorderBrush}" />
+
         <Button Content="设为当前" Command="{Binding SwitchCommand}" IsEnabled="{Binding CanSwitchSelected}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="10,5"
                 ToolTip.Tip="切换当前游戏实例（不可并发）" />
         <Button Content="克隆" Command="{Binding BeginCloneCommand}" IsEnabled="{Binding CanOpenSelected}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="10,5"
                 ToolTip.Tip="复制该实例的游戏目录为新实例" />
         <Button Content="重命名" Command="{Binding BeginRenameCommand}" IsEnabled="{Binding CanOpenSelected}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="10,5"
                 ToolTip.Tip="只改实例记录中的名称" />
         <Button Content="遗忘" Command="{Binding ForgetCommand}" IsEnabled="{Binding CanForgetSelected}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="10,5"
                 ToolTip.Tip="只移除实例记录，不会删除游戏文件" />
-        <Border Width="1" Margin="4,2" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
+
+        <Border Width="1" Margin="4,2" Background="{DynamicResource CkanBorderBrush}" />
+
         <Button Content="打开目录" Command="{Binding OpenFolderCommand}" IsEnabled="{Binding CanOpenSelected}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="10,5"
                 ToolTip.Tip="在文件管理器中打开游戏目录" />
         <Button Content="编辑启动命令" Command="{Binding EditCommandsCommand}" IsEnabled="{Binding CanEditCommands}"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="10,5"
                 ToolTip.Tip="编辑该实例的启动命令列表（F-06）" />
         <Button Content="启动游戏" Command="{Binding LaunchCommand}" IsEnabled="{Binding CanOpenSelected}"
+                Background="{DynamicResource CkanSuccessBrush}"
+                Foreground="{DynamicResource CkanTextInverseBrush}"
+                FontWeight="SemiBold"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="12,5"
                 ToolTip.Tip="{Binding LaunchToolTip}" />
       </StackPanel>
     </Border>
 
-    <!-- 错误条（03 篇 §8 D-03）：异常与失败统一收口到页面文本 -->
-    <Border Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Padding="12,8" CornerRadius="4"
-            Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+    <!-- 错误条：异常与失败统一收口到页面文本 -->
+    <Border Grid.Row="1" VerticalAlignment="Top" Margin="0,10,0,0" Padding="14,10"
+            CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+            Background="{DynamicResource CkanDangerBackgroundBrush}"
             BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
             IsVisible="{Binding HasError}">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Grid.Column="0" Spacing="4">
           <TextBlock Text="{Binding ErrorText}" Foreground="{DynamicResource CkanDangerBrush}" FontSize="12"
-                     TextWrapping="Wrap" />
-          <TextBlock Text="{Binding ErrorDetail}" Foreground="{DynamicResource CkanDangerBrush}" Opacity="0.7"
+                     FontWeight="SemiBold" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding ErrorDetail}" Foreground="{DynamicResource CkanDangerBrush}" Opacity="0.8"
                      FontSize="11" TextWrapping="Wrap" IsVisible="{Binding HasErrorDetail}" MaxHeight="48" />
         </StackPanel>
         <Button Grid.Column="1" Content="关闭" Command="{Binding ClearErrorCommand}" FontSize="12"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                 VerticalAlignment="Top" />
       </Grid>
     </Border>
 
-    <!-- 主体：左列表 + 右详情 -->
-    <Grid Grid.Row="1" ColumnDefinitions="*,4,360" Margin="0,8,0,0">
+    <!-- 主体：左列表 Card + 右详情 Card -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,6,380" Margin="0,10,0,0">
 
-      <Grid Grid.Column="0" RowDefinitions="Auto,*">
-        <!-- 列头（名称 / 版本 / 模组数 / 锁定 / 是否当前） -->
-        <Border Grid.Row="0" Padding="6,4" Background="{DynamicResource SystemControlBackgroundListLowBrush}">
-          <Grid ColumnDefinitions="3,*,110,90,140,90">
-            <TextBlock Grid.Column="1" Text="名称" FontSize="12" Opacity="0.7" />
-            <TextBlock Grid.Column="2" Text="游戏版本" FontSize="12" Opacity="0.7" />
-            <TextBlock Grid.Column="3" Text="模组数" FontSize="12" Opacity="0.7" />
-            <TextBlock Grid.Column="4" Text="锁定" FontSize="12" Opacity="0.7" />
-            <TextBlock Grid.Column="5" Text="状态" FontSize="12" Opacity="0.7" />
-          </Grid>
-        </Border>
+      <Border Grid.Column="0"
+              Background="{DynamicResource CkanCardBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanCardBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              ClipToBounds="True">
+        <Grid RowDefinitions="Auto,*">
+          <!-- 列头 -->
+          <Border Grid.Row="0" Padding="8,8"
+                  Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                  BorderBrush="{DynamicResource CkanBorderBrush}"
+                  BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="3,*,120,90,140,90">
+              <TextBlock Grid.Column="1" Text="名称" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Grid.Column="2" Text="游戏版本" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Grid.Column="3" Text="模组数" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Grid.Column="4" Text="锁定" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Grid.Column="5" Text="状态" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </Grid>
+          </Border>
 
-        <!-- 实例列表（虚拟化，整表替换） -->
-        <ListBox x:Name="InstancesList" Grid.Row="1"
-                 ItemsSource="{Binding Rows}"
-                 SelectionChanged="OnRowSelectionChanged"
-                 BorderThickness="0">
-          <ListBox.ItemsPanel>
-            <ItemsPanelTemplate>
-              <VirtualizingStackPanel />
-            </ItemsPanelTemplate>
-          </ListBox.ItemsPanel>
-          <ListBox.ItemTemplate>
-            <DataTemplate>
-              <Grid ColumnDefinitions="3,*,110,90,140,90" Height="28">
-                <!-- 当前实例绿色竖条 -->
-                <Border Grid.Column="0" Width="3" Margin="0,2" CornerRadius="2"
-                        Background="{DynamicResource CkanSuccessBrush}" IsVisible="{Binding IsCurrent}" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                  <Border Background="{DynamicResource CkanAccentBrush}" CornerRadius="2" Padding="4,0"
-                          IsVisible="{Binding IsDefault}">
-                    <TextBlock Text="默认" FontSize="11" Foreground="{DynamicResource CkanAccentTextBrush}" />
-                  </Border>
-                  <!-- 03 篇 §5 异常态：路径不存在时行内提示，详情面板给完整文案 -->
-                  <TextBlock Text="⚠ 目录不存在" FontSize="11" Foreground="{DynamicResource CkanDangerBrush}"
-                             VerticalAlignment="Center" IsVisible="{Binding IsPathMissing}" />
-                </StackPanel>
-                <TextBlock Grid.Column="2" Text="{Binding VersionText}" VerticalAlignment="Center" Opacity="0.85" />
-                <TextBlock Grid.Column="3" Text="{Binding ModuleCountText}" VerticalAlignment="Center" Opacity="0.85" />
-                <TextBlock Grid.Column="4" Text="{Binding LockText}" VerticalAlignment="Center" Opacity="0.85" />
-                <TextBlock Grid.Column="5" Text="{Binding CurrentText}" VerticalAlignment="Center" Opacity="0.7" />
-              </Grid>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
+          <!-- 实例列表（虚拟化，整表替换） -->
+          <ListBox x:Name="InstancesList" Grid.Row="1"
+                   ItemsSource="{Binding Rows}"
+                   SelectionChanged="OnRowSelectionChanged"
+                   Background="Transparent"
+                   BorderThickness="0">
+            <ListBox.ItemsPanel>
+              <ItemsPanelTemplate>
+                <VirtualizingStackPanel />
+              </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="3,*,120,90,140,90" Height="32">
+                  <!-- 当前实例绿色指示竖条 -->
+                  <Border Grid.Column="0" Width="3" Margin="0,4" CornerRadius="1.5"
+                          Background="{DynamicResource CkanSuccessBrush}" IsVisible="{Binding IsCurrent}" />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="6,0">
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontWeight="Medium" />
+                    <Border Background="{DynamicResource CkanAccentSubtleBrush}" BorderBrush="{DynamicResource CkanAccentBrush}" BorderThickness="1" CornerRadius="4" Padding="5,1"
+                            IsVisible="{Binding IsDefault}">
+                      <TextBlock Text="默认" FontSize="11" Foreground="{DynamicResource CkanAccentBrush}" FontWeight="SemiBold" />
+                    </Border>
+                    <!-- 异常态：目录不存在 -->
+                    <Border Background="{DynamicResource CkanDangerBackgroundBrush}" BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1" CornerRadius="4" Padding="5,1"
+                            IsVisible="{Binding IsPathMissing}">
+                      <TextBlock Text="⚠ 目录不存在" FontSize="11" Foreground="{DynamicResource CkanDangerBrush}" />
+                    </Border>
+                  </StackPanel>
+                  <TextBlock Grid.Column="2" Text="{Binding VersionText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <TextBlock Grid.Column="3" Text="{Binding ModuleCountText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <TextBlock Grid.Column="4" Text="{Binding LockText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <TextBlock Grid.Column="5" Text="{Binding CurrentText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
 
-        <!-- 空状态（03 篇 §10：还没有游戏实例 + 主按钮「添加实例」） -->
-        <Border Grid.Row="1" IsVisible="{Binding ShowEmptyState}"
-                Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
-          <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" MaxWidth="440">
-            <TextBlock Text="{Binding EmptyStateTitle}" FontSize="20" HorizontalAlignment="Center" />
-            <TextBlock Text="{Binding EmptyStateHint}" Opacity="0.7" TextWrapping="Wrap" TextAlignment="Center" />
-            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-              <Button Content="{Binding EmptyStateActionText}" Command="{Binding AddCommand}" />
-              <Button Content="自动查找（Steam 库）" Command="{Binding ImportFromSteamCommand}" />
+          <!-- 空状态 -->
+          <Border Grid.Row="1" IsVisible="{Binding ShowEmptyState}"
+                  Background="{DynamicResource CkanCardBackgroundBrush}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="440" Margin="24">
+              <TextBlock Text="{Binding EmptyStateTitle}" FontSize="{DynamicResource CkanFontSizeTitle}"
+                         FontWeight="SemiBold" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding EmptyStateHint}" Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                         TextWrapping="Wrap" TextAlignment="Center" />
+              <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" Margin="0,8,0,0">
+                <Button Content="{Binding EmptyStateActionText}" Command="{Binding AddCommand}"
+                        Background="{DynamicResource CkanAccentBrush}"
+                        Foreground="{DynamicResource CkanAccentTextBrush}"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                        Padding="14,6" />
+                <Button Content="自动查找（Steam 库）" Command="{Binding ImportFromSteamCommand}"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                        Padding="14,6" />
+              </StackPanel>
             </StackPanel>
-          </StackPanel>
-        </Border>
-      </Grid>
+          </Border>
+        </Grid>
+      </Border>
 
       <GridSplitter Grid.Column="1" Background="Transparent" ResizeDirection="Columns" />
 
-      <!-- 详情面板 -->
-      <Border Grid.Column="2" Padding="12" CornerRadius="6"
-              Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+      <!-- 详情面板 Card -->
+      <Border Grid.Column="2" Padding="16" CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              Background="{DynamicResource CkanCardBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanCardBorderBrush}"
+              BorderThickness="1">
         <ScrollViewer>
-          <StackPanel Spacing="6">
-            <TextBlock Text="{Binding SelectionTitle}" FontSize="18" TextWrapping="Wrap" />
-            <TextBlock Text="{Binding SelectionRoleText}" FontSize="12" Opacity="0.7" />
-            <Separator Margin="0,6" />
-            <TextBlock Text="{Binding SelectionVersionText, StringFormat='游戏版本：{0}'}" />
-            <TextBlock Text="{Binding SelectionModuleText, StringFormat='已装模组：{0}'}" />
-            <TextBlock Text="{Binding SelectionLockText, StringFormat='锁状态：{0}'}" TextWrapping="Wrap" />
-            <TextBlock Text="{Binding SelectionPath, StringFormat='游戏目录：{0}'}" TextWrapping="Wrap" />
+          <StackPanel Spacing="8">
+            <TextBlock Text="{Binding SelectionTitle}" FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                       FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding SelectionRoleText}" FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            <Separator Margin="0,4" Background="{DynamicResource CkanBorderBrush}" Height="1" />
+            <TextBlock Text="{Binding SelectionVersionText, StringFormat='游戏版本：{0}'}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBlock Text="{Binding SelectionModuleText, StringFormat='已装模组：{0}'}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBlock Text="{Binding SelectionLockText, StringFormat='锁状态：{0}'}" TextWrapping="Wrap" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBlock Text="{Binding SelectionPath, StringFormat='游戏目录：{0}'}" TextWrapping="Wrap" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <TextBlock Text="{Binding SelectionPathStatus}" FontSize="12" TextWrapping="Wrap"
                        Foreground="{DynamicResource CkanDangerBrush}" />
-            <Separator Margin="0,6" />
-            <StackPanel Spacing="6">
+            <Separator Margin="0,6" Background="{DynamicResource CkanBorderBrush}" Height="1" />
+            <StackPanel Spacing="8">
               <Button Content="设为当前实例" Command="{Binding SwitchCommand}"
-                      IsEnabled="{Binding CanSwitchSelected}" HorizontalAlignment="Stretch" />
+                      IsEnabled="{Binding CanSwitchSelected}" HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Center"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                      Padding="10,6" />
               <Button Content="克隆此实例" Command="{Binding BeginCloneCommand}"
-                      IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch" />
+                      IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Center"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                      Padding="10,6" />
               <Button Content="重命名此实例" Command="{Binding BeginRenameCommand}"
-                      IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch" />
+                      IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Center"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                      Padding="10,6" />
               <Button Content="打开游戏目录" Command="{Binding OpenFolderCommand}"
-                      IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch" />
+                      IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Center"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                      Padding="10,6" />
               <Button Content="编辑启动命令" Command="{Binding EditCommandsCommand}"
-                      IsEnabled="{Binding CanEditCommands}" HorizontalAlignment="Stretch" />
+                      IsEnabled="{Binding CanEditCommands}" HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Center"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                      Padding="10,6" />
               <Button Content="启动游戏" Command="{Binding LaunchCommand}"
                       IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Center"
+                      Background="{DynamicResource CkanSuccessBrush}"
+                      Foreground="{DynamicResource CkanTextInverseBrush}"
+                      FontWeight="SemiBold"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                      Padding="10,6"
                       ToolTip.Tip="{Binding LaunchToolTip}" />
               <Button Content="遗忘此实例" Command="{Binding ForgetCommand}"
-                      IsEnabled="{Binding CanForgetSelected}" HorizontalAlignment="Stretch" />
+                      IsEnabled="{Binding CanForgetSelected}" HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Center"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                      Padding="10,6" />
             </StackPanel>
-            <Separator Margin="0,6" />
-            <TextBlock Text="{Binding StatusText}" Opacity="0.6" FontSize="11" TextWrapping="Wrap" />
+            <Separator Margin="0,6" Background="{DynamicResource CkanBorderBrush}" Height="1" />
+            <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                       FontSize="11" TextWrapping="Wrap" />
           </StackPanel>
         </ScrollViewer>
       </Border>
     </Grid>
 
     <!-- 状态栏 -->
-    <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*" Margin="0,8,0,0">
-      <TextBlock Grid.Column="0" Text="{Binding CountText}" FontSize="12" VerticalAlignment="Center" />
-      <TextBlock Grid.Column="1" Text="{Binding CurrentSummary}" FontSize="12" Margin="12,0,0,0"
-                 VerticalAlignment="Center" />
-      <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="12" Opacity="0.7" Margin="12,0,0,0"
-                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*" Margin="0,10,0,0">
+      <TextBlock Grid.Column="0" Text="{Binding CountText}" FontSize="12"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="1" Text="{Binding CurrentSummary}" FontSize="12" Margin="14,0,0,0"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="12" Margin="14,0,0,0"
+                 Foreground="{DynamicResource CkanTextTertiaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
     </Grid>
 
-    <!-- 内联表单覆盖层（新增 / 克隆 / 重命名） -->
+    <!-- 内联表单覆盖层 -->
     <Border Grid.RowSpan="3" IsVisible="{Binding HasForm}" Background="{DynamicResource CkanScrimBrush}">
       <ContentControl Content="{Binding Form}" HorizontalAlignment="Center" VerticalAlignment="Center">
         <ContentControl.ContentTemplate>
@@ -177,7 +263,7 @@
       </ContentControl>
     </Border>
 
-    <!-- 启动命令编辑覆盖层（F-06）：列表 + 增 / 改 / 删 / 排序 + 重置为默认 + 接受 / 取消 -->
+    <!-- 启动命令编辑覆盖层 -->
     <Border Grid.RowSpan="3" IsVisible="{Binding HasCommandsPanel}" Background="{DynamicResource CkanScrimBrush}">
       <ContentControl Content="{Binding CommandsPanel}" HorizontalAlignment="Center" VerticalAlignment="Center">
         <ContentControl.ContentTemplate>
@@ -188,9 +274,9 @@
       </ContentControl>
     </Border>
 
-    <!-- 切换遮罩（03 篇 §5：全屏「正在切换实例…」，禁止并发操作） -->
+    <!-- 切换遮罩 -->
     <Border Grid.RowSpan="3" IsVisible="{Binding IsBusy}" Background="{DynamicResource CkanBlockingScrimBrush}">
-      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="360">
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="14" MaxWidth="360">
         <ProgressBar IsIndeterminate="True" Width="240" />
         <TextBlock Text="{Binding BusyText}" FontSize="14" HorizontalAlignment="Center"
                    Foreground="{DynamicResource CkanTextInverseBrush}" TextWrapping="Wrap"

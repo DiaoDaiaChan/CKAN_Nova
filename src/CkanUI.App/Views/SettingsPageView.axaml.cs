@@ -2,7 +2,9 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Platform;
 using CkanUI.Services.Abstractions;
 using CkanUI.ViewModels.Pages;
 using CkanUI.ViewModels.Pages.Settings;
@@ -18,10 +20,56 @@ namespace CkanUI.App.Views;
 public sealed partial class SettingsPageView : UserControl, ISettingsShellLauncher
 {
     /// <summary>初始化视图（ViewLocator 通过无参构造创建）。</summary>
+    private IPlatformSettings? _platformSettings;
+
+    /// <summary>初始化视图（ViewLocator 通过无参构造创建）。</summary>
     public SettingsPageView()
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+    }
+
+    /// <inheritdoc />
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        HookPlatformSettings();
+    }
+
+    /// <inheritdoc />
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        UnhookPlatformSettings();
+    }
+
+    /// <summary>系统配色/对比度变化时重算接管状态（用户可能在设置页开着的时候就去系统里切了高对比度）。</summary>
+    private void OnPlatformColorValuesChanged(object? sender, PlatformColorValues e) =>
+        (DataContext as SettingsPageViewModel)?.RefreshAppearanceLock();
+
+    private void HookPlatformSettings()
+    {
+        // Avalonia 12 的 TopLevel 不再暴露 PlatformSettings（只有 Application 有），故一律走应用级单例。
+        var platformSettings = Application.Current?.PlatformSettings;
+        if (platformSettings is null || ReferenceEquals(platformSettings, _platformSettings))
+        {
+            return;
+        }
+
+        UnhookPlatformSettings();
+        _platformSettings = platformSettings;
+        platformSettings.ColorValuesChanged += OnPlatformColorValuesChanged;
+    }
+
+    private void UnhookPlatformSettings()
+    {
+        if (_platformSettings is null)
+        {
+            return;
+        }
+
+        _platformSettings.ColorValuesChanged -= OnPlatformColorValuesChanged;
+        _platformSettings = null;
     }
 
     /// <inheritdoc />
@@ -54,6 +102,13 @@ public sealed partial class SettingsPageView : UserControl, ISettingsShellLaunch
         if (DataContext is SettingsPageViewModel viewModel)
         {
             viewModel.ShellLauncher ??= this;
+
+            // 强调色的对比度门禁要按「当前生效的」主题底色算：跟随系统时只有这里知道到底落在哪一档。
+            viewModel.DarkThemeProbe ??= () => ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
+
+            // 系统高对比度压过用户选择（20 篇 P-02）：这里只读平台设置，真正的切换由 ThemeHost 负责。
+            viewModel.HighContrastProbe ??= () => ThemeHost.IsSystemHighContrast(Application.Current);
+            viewModel.RefreshAppearanceLock();
         }
     }
 }

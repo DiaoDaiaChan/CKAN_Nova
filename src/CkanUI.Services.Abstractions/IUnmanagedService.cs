@@ -33,11 +33,24 @@ public interface IUnmanagedService
         InstanceInfo instance,
         CancellationToken ct = default);
 
-    /// <summary>把选中的文件接管为托管安装（写进注册表）。</summary>
-    Task<OperationResult<IReadOnlyList<string>>> AdoptAsync(
+    /// <summary>
+    /// 把选中的未管理文件接管为受管安装：写到注册表的 <c>installed_dlls</c>（标识符 → GameData 相对路径），
+    /// 语义与 Core 的「扫描未管理 DLL」一致（12 篇 F-42 / INT-09）。
+    /// </summary>
+    /// <remarks>
+    /// <para>逐项判定、批量写入：能接管的项一次写进注册表；被拒绝的项只出现在结果的 <c>Items</c> 里并带上原因，
+    /// 不会静默丢弃。只有 <c>.dll</c> 可以接管，选中目录会展开成其中的 DLL。</para>
+    /// <para><paramref name="dryRun"/> 为 <c>true</c> 时只判定、绝不写注册表；真正写入前实现方必须先生成注册表快照。</para>
+    /// </remarks>
+    Task<OperationResult<UnmanagedAdoptResult>> AdoptAsync(
         InstanceInfo instance,
         IReadOnlyCollection<string> relativePaths,
-        CancellationToken ct = default);
+        bool dryRun = false,
+        CancellationToken ct = default)
+        => Task.FromResult(OperationResult<UnmanagedAdoptResult>.Fail(
+            "当前实现未提供未管理文件接管能力。",
+            "IUnmanagedService.AdoptAsync 的默认实现（契约决策 §12 #9）。",
+            retryable: false));
 
     /// <summary>
     /// 删除 GameData 中的未托管文件/目录。破坏性操作：默认 <paramref name="dryRun"/> 为 <c>true</c>，

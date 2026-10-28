@@ -1,4 +1,5 @@
 using CkanUI.App;
+using CkanUI.Services.Abstractions;
 using CkanUI.ViewModels;
 using CkanUI.ViewModels.Pages;
 using NUnit.Framework;
@@ -39,8 +40,49 @@ public sealed class ViewLocatorTests
         Assert.That(ViewLocator.ResolveViewType(typeof(PlaceholderPageViewModel)), Is.Null);
     }
 
+    [Test]
+    public void Match_AcceptsBuiltInAndPluginPages()
+    {
+        var locator = new ViewLocator();
+
+        Assert.That(locator.Match(new PlaceholderPageViewModel()), Is.True);
+        Assert.That(locator.Match(new DemoPluginPageViewModel()), Is.True);
+        Assert.That(locator.Match(new object()), Is.False);
+        Assert.That(locator.Match(null), Is.False);
+    }
+
+    [Test]
+    public void PluginPage_ResolvesViewFromItsOwnAssembly()
+    {
+        // 插件页视图与视图模型同程序集同命名空间：默认上下文按名字查不到，只能在本程序集里找。
+        Assert.That(
+            ViewLocator.ResolveViewType(typeof(DemoPluginPageViewModel))?.FullName,
+            Is.EqualTo(typeof(DemoPluginPageView).FullName));
+    }
+
+    [Test]
+    public void PluginPage_WithoutView_ResolvesToNullSoTheLocatorFallsBack()
+    {
+        Assert.That(ViewLocator.ResolveViewType(typeof(OrphanPluginPageViewModel)), Is.Null);
+    }
+
     private sealed class PlaceholderPageViewModel : PageViewModel
     {
         public override string Title => "占位";
+    }
+
+    /// <summary>插件页视图模型替身：只实现契约层的标记接口。</summary>
+    private sealed class DemoPluginPageViewModel : IPluginPage
+    {
+    }
+
+    /// <summary>与视图模型配对的自述视图（真实插件里应是 Avalonia 控件）。</summary>
+    private sealed class DemoPluginPageView
+    {
+    }
+
+    /// <summary>没有配对视图的插件页。</summary>
+    private sealed class OrphanPluginPageViewModel : IPluginPage
+    {
     }
 }

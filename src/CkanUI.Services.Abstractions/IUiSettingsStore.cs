@@ -16,6 +16,38 @@ public sealed record UiSettings
     /// <summary>界面密度：compact / standard / comfortable（03 篇 §21、20 篇 P-08）。</summary>
     public string? Density { get; init; } = "standard";
 
+    /// <summary>强调色（20 篇 P-03）：default(跟随系统) / 预设名(blue, purple...) / #RRGGBB 十六进制。</summary>
+    public string? AccentColor { get; init; }
+
+    /// <summary>
+    /// 按实例覆盖的强调色（20 篇 P-07）：键是实例名，值是 <see cref="AccentColor"/> 的同一套取值。
+    /// 没有键表示「跟随全局」，不是「没有强调色」。
+    /// </summary>
+    public IReadOnlyDictionary<string, string> AccentByInstance { get; init; } =
+        new Dictionary<string, string>();
+
+    /// <summary>圆角缩放档位（20 篇 P-05）：none(0x) / standard(1x) / round(1.5x)。</summary>
+    public string? RadiusScale { get; init; } = "standard";
+
+    /// <summary>动效强度（20 篇 P-10）：full(完全动画) / reduced(减少动画) / none(无动画)。</summary>
+    public string? MotionIntensity { get; init; } = "auto";
+
+    /// <summary>窗口材质背景（20 篇 P-04）：auto / mica / acrylic / none。</summary>
+    public string? BackdropKind { get; init; } = "auto";
+
+    /// <summary>字号缩放（20 篇 P-09）：90 / 100 / 110 / 120 / 130（百分比），只作用于界面文案。</summary>
+    public string? FontScale { get; init; } = "100";
+
+    /// <summary>界面背景（20 篇 P-06）：纯色 / 渐变 / 本机图片，含填充、暗化、模糊、不透明度。</summary>
+    public BackgroundProfile? Background { get; init; }
+
+    /// <summary>
+    /// 按实例覆盖的背景（20 篇 P-07）：键是实例名，值是该实例专用的整份背景设置。
+    /// 没有键表示「跟随全局」，不是「没有背景」。
+    /// </summary>
+    public IReadOnlyDictionary<string, BackgroundProfile> BackgroundByInstance { get; init; } =
+        new Dictionary<string, BackgroundProfile>();
+
     /// <summary>界面语言（BCP-47）。UI 语言的唯一真源，不回写 Core 的 config.json（见工程约定 §12）。</summary>
     public string? Locale { get; init; }
 
@@ -60,6 +92,14 @@ public sealed record UiSettings
         && string.Equals(Theme, other.Theme, StringComparison.Ordinal)
         && string.Equals(Density, other.Density, StringComparison.Ordinal)
         && string.Equals(Locale, other.Locale, StringComparison.Ordinal)
+        && string.Equals(AccentColor, other.AccentColor, StringComparison.Ordinal)
+        && StringsEqual(AccentByInstance, other.AccentByInstance)
+        && string.Equals(RadiusScale, other.RadiusScale, StringComparison.Ordinal)
+        && string.Equals(MotionIntensity, other.MotionIntensity, StringComparison.Ordinal)
+        && string.Equals(BackdropKind, other.BackdropKind, StringComparison.Ordinal)
+        && string.Equals(FontScale, other.FontScale, StringComparison.Ordinal)
+        && Equals(Background, other.Background)
+        && BackgroundsEqual(BackgroundByInstance, other.BackgroundByInstance)
         && ReleaseTier == other.ReleaseTier
         && HideVersionEpoch == other.HideVersionEpoch
         && HideVersionVPrefix == other.HideVersionVPrefix
@@ -81,6 +121,12 @@ public sealed record UiSettings
         hash.Add(Theme, StringComparer.Ordinal);
         hash.Add(Density, StringComparer.Ordinal);
         hash.Add(Locale, StringComparer.Ordinal);
+        hash.Add(AccentColor, StringComparer.Ordinal);
+        hash.Add(RadiusScale, StringComparer.Ordinal);
+        hash.Add(MotionIntensity, StringComparer.Ordinal);
+        hash.Add(BackdropKind, StringComparer.Ordinal);
+        hash.Add(FontScale, StringComparer.Ordinal);
+        hash.Add(Background);
         hash.Add(ReleaseTier);
         hash.Add(HideVersionEpoch);
         hash.Add(HideVersionVPrefix);
@@ -96,8 +142,68 @@ public sealed record UiSettings
             columns ^= HashCode.Combine(pair.Key, pair.Value);
         }
 
+        foreach (var pair in BackgroundByInstance)
+        {
+            columns ^= HashCode.Combine(pair.Key, pair.Value);
+        }
+
+        foreach (var pair in AccentByInstance)
+        {
+            columns ^= HashCode.Combine(pair.Key, pair.Value, 7);
+        }
+
         hash.Add(columns);
         return hash.ToHashCode();
+    }
+
+    private static bool BackgroundsEqual(
+        IReadOnlyDictionary<string, BackgroundProfile> left,
+        IReadOnlyDictionary<string, BackgroundProfile> right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null || left.Count != right.Count)
+        {
+            return false;
+        }
+
+        foreach (var pair in left)
+        {
+            if (!right.TryGetValue(pair.Key, out var value) || !Equals(pair.Value, value))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool StringsEqual(
+        IReadOnlyDictionary<string, string> left,
+        IReadOnlyDictionary<string, string> right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null || left.Count != right.Count)
+        {
+            return false;
+        }
+
+        foreach (var pair in left)
+        {
+            if (!right.TryGetValue(pair.Key, out var value) || !string.Equals(pair.Value, value, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool ColumnWidthsEqual(

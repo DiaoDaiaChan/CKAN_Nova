@@ -19,7 +19,7 @@
                  TextWrapping="Wrap" />
     </StackPanel>
 
-    <!-- 工具条（03 篇 §2 V-07：刷新 / 全展开 / 全折叠 / 重置 / 在文件夹中显示 / 删除） -->
+    <!-- 工具条（03 篇 §2 V-07：刷新 / 全展开 / 全折叠 / 重置 / 在文件夹中显示 / 删除 / 接管为受管） -->
     <Border Grid.Row="1" Padding="{DynamicResource CkanToolbarPadding}"
             CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
             BorderBrush="{DynamicResource CkanBorderBrush}"
@@ -47,6 +47,9 @@
         <Button Content="删除" Command="{Binding DeleteSelectedCommand}"
                 IsEnabled="{Binding CanDeleteSelected}" Margin="0,0,8,0"
                 ToolTip.Tip="删除选中项（需要两次确认，无法撤销）" />
+        <Button Content="接管为受管" Command="{Binding AdoptSelectedCommand}"
+                IsEnabled="{Binding CanAdoptSelected}" Margin="0,0,8,0"
+                ToolTip.Tip="把选中的 .dll 登记进注册表 installed_dlls（写前自动生成 registry.json 快照）" />
         <Button Content="在文件夹中显示" Command="{Binding ShowInFolderCommand}"
                 IsEnabled="{Binding CanShowInFolder}"
                 ToolTip.Tip="在系统文件管理器中定位选中项" />

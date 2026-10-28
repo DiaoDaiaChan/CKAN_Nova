@@ -1,0 +1,86 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                xmlns:mods="using:CkanUI.ViewModels.Pages.Mods"
+                x:Class="CkanUI.App.Views.Mods.ModsSearchPanelView"
+                x:CompileBindings="True"
+                x:DataType="mods:ModsSearchPanelViewModel">
+  <!-- 组合搜索面板（12 篇 F-20/F-21 / UI-14，对齐上游 EditModSearchDetails）：
+       18 个字段（12 文本 + 6 三态）逐项填写，条件之间是 AND；生成的语法文本实时显示在底部。 -->
+  <Border Padding="10,8" CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+          Background="{DynamicResource CkanSubtleBackgroundBrush}"
+          BorderBrush="{DynamicResource CkanBorderBrush}"
+          BorderThickness="1">
+    <StackPanel Spacing="8">
+
+      <!-- 标题行 + 清空条件 -->
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="逐字段筛选"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     FontWeight="SemiBold"
+                     VerticalAlignment="Center"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBlock Text="多个值以空格分隔；前缀 - 表示排除；所有条件同时满足"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     VerticalAlignment="Center"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="清空条件"
+                Command="{Binding ClearAllCommand}"
+                IsEnabled="{Binding HasActiveFilters}"
+                Padding="10,4"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                ToolTip.Tip="清空面板里的全部字段" />
+      </Grid>
+
+      <!-- 18 个字段：文本 / 三态 -->
+      <ItemsControl ItemsSource="{Binding Fields}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel Orientation="Horizontal" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="mods:ModsSearchFieldViewModel">
+            <StackPanel Width="168" Margin="0,0,8,8" Spacing="3">
+              <TextBlock Text="{Binding Label}"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBox Text="{Binding Text, Mode=TwoWay}"
+                       MinHeight="30"
+                       Padding="8,4"
+                       CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                       PlaceholderText="{Binding Hint}"
+                       IsVisible="{Binding IsText}"
+                       ToolTip.Tip="{Binding Hint}" />
+              <ComboBox SelectedIndex="{Binding StateIndex, Mode=TwoWay}"
+                        MinHeight="30"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                        IsVisible="{Binding IsState}"
+                        ToolTip.Tip="{Binding Hint}">
+                <ComboBoxItem>不限</ComboBoxItem>
+                <ComboBoxItem>是</ComboBoxItem>
+                <ComboBoxItem>否</ComboBoxItem>
+              </ComboBox>
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <!-- 生成的查询文本：让用户看得见"点选条件"与"敲语法"是同一件事 -->
+      <Grid ColumnDefinitions="Auto,*">
+        <TextBlock Grid.Column="0" Text="当前条件："
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   VerticalAlignment="Center"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        <SelectableTextBlock Grid.Column="1"
+                             Text="{Binding Preview}"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             TextWrapping="Wrap"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      </Grid>
+    </StackPanel>
+  </Border>
+</UserControl>

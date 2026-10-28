@@ -121,10 +121,23 @@
 
 在后续外观个性化迭代中，`Tokens.axaml` 将作为稳定内核承接如下功能扩展：
 
-### 4.1 THM-02 强调色扩展点
-- **能力**：允许用户从 12 种预设色选择或自定义 Hex，并动态派生 6 阶色调（`AccentLight1/2/3`、`AccentDark1/2/3`）。
-- **注入方式**：通过 `ColorPaletteResources` 动态替换 `CkanAccentBrush` 与 `CkanAccentTextBrush`。
-- **对比度守卫**：强制校验 WCAG 2.2 AA 标准（正文 ≥ 4.5:1，UI 边界 ≥ 3:1），不合规色自动拒绝并提示建议色。
+### 4.1 THM-02 强调色（已落地）
+- **能力**：12 个预设（每色浅/深两版）+ 自定义 `#RRGGBB`；派生写入 4 个资源键
+  （`CkanAccentBrush` / `CkanPrimaryBrush` / `CkanAccentSubtleBrush` / `CkanNavigationSelectionBrush`，键名常量在
+  `src/CkanUI.App/Theming/AccentHost.cs`）。
+- **对比度守卫**（`src/CkanUI.ViewModels/Pages/Settings/AccentContrast.cs`）：正文阈值 `MinimumRatio = 4.5`（WCAG 2.2 AA），
+  比对的是**当前生效变体的底色**——浅色 `#FFFFFF`、深色 `#1B1F27`、高对比度 `#000000`（三个常量与 `Tokens.axaml` 的
+  `CkanSurfaceBackgroundBrush` 由 `tests/CkanUI.App.Tests/AccentContrastThemeTests.cs` 的 `SurfacePoles_MatchTokensAxaml` 锁死）。
+  主题是「跟随系统」时由视图注入的 `DarkThemeProbe` 决定比对哪一档。
+- **不合规的处理**：设置页拒绝写入并给建议色（往白/黑方向按 1% 步长混合到第一个 ≥4.5:1 的色）；
+  配置文件被手改坏时 `AccentHost` 在注入前做同样的替换并记 `Log.Warn`，界面不会落到读不清的状态。
+- **一个 hex 不可能同时满足两档**：浅色底要深色强调色、深色底要浅色强调色，所以校验必须绑定"实际生效的变体"，
+  不能对着一个固定底色算。这也是预设色板里浅色档普遍比深色档更暗的原因（`src/CkanUI.App/Theming/AccentPalettes.cs`）。
+- **按实例覆盖（P-07，已落地）**：`UiSettings.AccentByInstance`（键=实例名，值=与 `AccentColor` 同一套取值，
+  **无键或空值 = 跟随全局**，不是「没有强调色」）。`AccentHost.ResolveAccent(settings, instanceName)` 是唯一的生效值解析口，
+  `Apply()` 与实例切换（`IInstanceService.CurrentChanged` → `Refresh()`）都走它；设置页那行「强调色作用范围」
+  （`SettingsKeyNames.AccentScope`）切到全局时会把实例键删掉并把当前生效色搬回 `AccentColor`，
+  所以「切回全局」看起来是接着用当前色，而不是跳回一个没人记得的旧值。
 
 ### 4.2 THM-03 材质与透明（Mica / Acrylic）
 - **降级链路**：`Mica` (Win11 build ≥ 22000) → `AcrylicBlur` (Win10 `win10-x64` 构建) → 纯色 (`None`)。
@@ -136,17 +149,48 @@
   - 标准模式：`2 / 4 / 8`；
   - 圆润模式：`4 / 8 / 16`。
 
-### 4.4 THM-05 背景图与壁纸
-- **扩展点**：引入背景源 Token，支持用户配置壁纸、模糊度（Blur）与遮罩暗化（Dim），文字前景色根据背景暗化度自适应增强对比度。
+### 4.4 THM-05 背景图与壁纸（已落地）
+- **数据**：`src/CkanUI.Services.Abstractions/BackgroundProfile.cs`（`Kind` / `Color` / `GradientStart` / `GradientEnd` /
+  `GradientAngle` / `ImagePath` / `Fill` / `DimPercent` / `BlurRadius` / `OpacityPercent` + `Clamp()`），
+  存在 `UiSettings.Background`（全局）与 `UiSettings.BackgroundByInstance`（P-07 按实例覆盖，**无键 = 跟随全局**，不是「没背景」）。
+- **落点**：`src/CkanUI.App/Theming/BackgroundHost.cs` 按名取 `MainWindow.axaml` 里的四个控件
+  （`BackgroundLayer` / `BackgroundImage` / `BackgroundDim` / `BackgroundScrim`）后刷画笔；纯色与渐变走 `BackgroundLayer.Background`，
+  图片非平铺走 `BackgroundImage.Source` + `Stretch`，平铺走 `ImageBrush{TileMode=Tile}`。画笔算术全在
+  `src/CkanUI.App/Theming/BackgroundBrushFactory.cs`（纯函数，可单测）。
+- **表面洗白（`SurfaceWashAlpha = 0.74`）**：背景层之上再压一层「主题底色 + 74%」的 `BackgroundScrim`。
+  这是**没有**改写 `CkanSurfaceBackgroundBrush` 的原因——改写会把 `Window` 底色与所有卡片一起洗掉，正文对比度会掉到不可读；
+  压独立一层则只影响空白处，卡片保持不透明（与 §2.1 的「卡片不透明」一致）。
+- **解码预算**：`src/CkanUI.App/Theming/BackgroundImageLoader.cs` 的 `DecodeWidth = 1600`
+  （1600×900×4 ≈ 5.8 MB，落在 20 篇 §14 的「≤8 MB/张」内；2560 宽会到 14.7 MB 超预算）。缓存只留当前一张，
+  换路径时**先摘控件引用再 Dispose**（位图仍被画笔引用时 Dispose 会让渲染线程炸）。
+- **高对比度优先级**：当前变体是 `HighContrastVariant` 时整层不画（`ClearLayers` + `Log.Info`），
+  设置页那十一行也并入 `AppearanceKeys` 一起置灰并拒绝保存——否则用户会改出「改了却看不见」的设置（THM-10 同上）。
+- **与 20 篇规格的差异**（诚实记录）：① 「游戏截图」来源本版未做，折叠进「本机图片」（20 篇 §4 缺口表已记）；
+  ② 模糊放宽到 0–64px（规格 0–40）、暗化 0–100%（规格 0–80）、不透明度 0–100%（规格 20–100），
+  因为这三项的 0 都是「关闭」语义，写死下限反而让人关不掉；③ 没有「当前 + 上一张」的位图撤销缓存，
+  撤销走设置页的「放弃修改」。
+- **测试**：`tests/CkanUI.ViewModels.Tests/SettingsBackgroundTests.cs`（11 行读写、作用范围、夹取、高对比度拦截）与
+  `tests/CkanUI.App.Tests/BackgroundHostTests.cs`（画笔算术、实例覆盖解析、宿主写入/去抖/无控件不崩）。
 
 ### 4.5 THM-06 密度与字号动态缩放
 - **扩展点**：
   - 密度：切换紧凑(24px)、标准(28px)、舒适(36px) 行高，动态更新 `CkanRowHeight` 与 `CkanPagePadding`；
   - 字号：通过乘数因子 (0.9 ~ 1.3) 等比缩放四级字号，保证长文案不裁切。
 
-### 4.6 THM-07 动效强度分级
-- **扩展点**：定义 `Motion.Fast` (90ms)、`Motion.Base` (150ms)、`Motion.Page` (200ms)；当检测到系统「减少动画」或用户关闭动效时，时长归零。
+### 4.6 THM-07 动效强度分级（已落地）
+- **Token**：`CkanMotionDurationFast` (90ms)、`CkanMotionDurationBase` (150ms)、`CkanMotionDurationPage` (200ms)。
+- **落地方式**：`src/CkanUI.App/Theming/MotionHost.cs` 按设置改写这三个 token；视图里的 `Transition.Duration` 一律写
+  `{DynamicResource CkanMotionDuration*}`，**不得再出现 `Duration="0:0:0.xx"` 字面量**（`tools/verify-layout` 之外靠评审守）。
+- **档位**：`auto`（跟随系统 `SPI_GETCLIENTAREAANIMATION`）/ `full` / `reduced`（只留 90ms 快速反馈，页面切换归零）/
+  `none`（全零，状态变化只靠静态指示可感知）。算法在 `src/CkanUI.ViewModels/Pages/Settings/UiMotionScale.cs`。
+- **例外**：`CrossFade.Duration` 不是 Avalonia 属性，绑不了资源；页面切换动画由 `src/CkanUI.App/MainWindow.axaml.cs`
+  的 `ApplyPageTransition()` 读 token 后重建（时长为 0 时干脆不挂 transition）。
 
 ### 4.7 THM-08 ~ THM-10 主题包安全、导入导出与无障碍
 - **主题包格式**：纯 JSON 数据包（禁止执行任何 XAML/脚本代码），只允许对声明在白名单中的 Token 键值进行重载。
-- **高对比度优先**：由 `ThemeGuard` 兜底，检测到 Windows 高对比度开启时强行封锁任何外部主题包重载。
+- **高对比度优先（THM-10，已落地）**：`src/CkanUI.App/ThemeHost.cs` 持有系统高对比度探针
+  （`IsSystemHighContrast(Application?)` → `PlatformSettings.GetColorValues().ContrastPreference == ColorContrastPreference.High`），
+  为真时把 `RequestedThemeVariant` 强制成 `HighContrastVariant`，并通过 `ForcedStateChanged` 让
+  `src/CkanUI.App/Theming/AccentHost.cs` 调 `Refresh()`；`AccentHost.Apply` 检测到当前变体是高对比度时直接
+  `RemoveOverride` 掉四个强调色键，**不注入任何自定义颜色**。优先级因此固定为
+  `系统/无障碍 > 主题包 > 用户覆盖 > 内置默认`（20 篇 §15）。

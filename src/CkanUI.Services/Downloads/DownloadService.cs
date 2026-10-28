@@ -17,6 +17,12 @@ namespace CkanUI.Services.Downloads;
 /// <para><b>不留半截文件</b>：始终先写同目录的 `{文件名}.tmp-{guid}`，只有大小与 SHA256 都通过才
 /// `File.Move(temp, dest, overwrite: true)`（同卷改名是原子的）。任何失败/取消都在 finally 删临时文件，
 /// 既有目标文件保持原样（与 `src/CkanUI.Sfs.Cli/SfsCli.cs:299-327` 的 CLI 写法一致）。</para>
+/// <para><b>断点续传与自动重试</b>：网络类失败（<see cref="DownloadFailureClassifier.IsRetryableNetwork"/>）
+/// 由 <see cref="DownloadRetryPolicy"/> 决定再试几次，**重试复用同一个临时文件**——传输层把已有字节数
+/// 交给 Core 的 `ResumingWebClient`（`Range: bytes=N-` + `FileMode.Append`），所以第二次只补下剩余部分。
+/// 校验类（大小 / SHA256）与取消一律不重试：同一份坏数据再拉一遍只会再坏一次。</para>
+/// <para><b>续传只在一次下载之内</b>：临时文件名带 GUID，进程重启后不会认领上次的半截文件；
+/// 跨进程续传需要一份持久化的临时文件索引，不在本版范围（见 milestones §4）。</para>
 /// <para><b>不进 IOperationQueue</b>：下载由调用方持有 `IProgress` + `CancellationToken`，
 /// 生命周期与页面绑定；队列是给「后台长任务 + 全局进度条」用的，混进来会让同一份进度出现两条来源。</para>
 /// </remarks>
@@ -31,15 +37,24 @@ public sealed class DownloadService : IDownloadService
     private readonly IDownloadTransport _transport;
     private readonly IDispatcher _dispatcher;
     private readonly IErrorReporter? _errorReporter;
+    private readonly DownloadRetryPolicy _retryPolicy;
     private readonly log4net.ILog _log = LoggingSetup.GetLogger(LoggingSetup.UiLoggerName);
 
-    public DownloadService(IDownloadTransport transport, IDispatcher dispatcher, IErrorReporter? errorReporter = null)
+    /// <param name="transport">字节搬运实现（真实实现触网，测试传假实现）。</param>
+    /// <param name="dispatcher">进度封送用的 UI 线程调度器。</param>
+    /// <param name="errorReporter">可选：把失败异常同时报给全局错误面板。</param>
+    /// <param name="retryPolicy">可选：自动重试策略；默认 3 次 / 400ms → 1200ms。</param>
+    public DownloadService(IDownloadTransport transport,
+                           IDispatcher dispatcher,
+                           IErrorReporter? errorReporter = null,
+                           DownloadRetryPolicy? retryPolicy = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(dispatcher);
         _transport = transport;
         _dispatcher = dispatcher;
         _errorReporter = errorReporter;
+        _retryPolicy = retryPolicy ?? DownloadRetryPolicy.Default;
     }
 
     /// <inheritdoc />
@@ -87,28 +102,65 @@ public sealed class DownloadService : IDownloadService
         {
             ct.ThrowIfCancellationRequested();
 
+            // 重试循环：可重试的失败保留临时文件，下一次由传输层从断点续传（见类注释）。
+            // 任何一次成功、不可重试的失败、取消都会立刻离开循环。
             OperationResult<TransferOutcome> transferred;
-            try
+            for (var attempt = 1; ; attempt++)
             {
-                transferred = await _transport.TransferAsync(request, temp, reporter.TransferSink, ct)
-                                             .ConfigureAwait(false);
-            }
-            catch (OperationCanceledException ex)
-            {
-                return Cancel<DownloadTaskInfo>(ex, request);
-            }
-            catch (Exception ex)
-            {
-                return FailFromException<DownloadTaskInfo>(ex, request);
-            }
+                try
+                {
+                    transferred = await _transport.TransferAsync(request, temp, reporter.TransferSink, ct)
+                                                 .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException ex)
+                {
+                    return Cancel<DownloadTaskInfo>(ex, request);
+                }
+                catch (Exception ex)
+                {
+                    var failure = DownloadFailureClassifier.Classify(ex, request.Title, request.PrimaryUrl);
+                    if (failure.Cancelled)
+                    {
+                        return Cancel<DownloadTaskInfo>(ex, request);
+                    }
 
-            if (!transferred.IsSuccess)
-            {
-                // 传输层已经归好类（可重试 / 不可重试 / 取消），原样上报。
-                return OperationResult<DownloadTaskInfo>.Fail(
-                    transferred.Message ?? DownloadFailureClassifier.GenericMessage,
-                    transferred.Detail,
-                    transferred.Retryable);
+                    if (!_retryPolicy.ShouldRetry(failure.Retryable, attempt))
+                    {
+                        _log.Warn($"下载失败：{request.Title}", ex);
+                        _errorReporter?.Report(ex, "下载", failure.Message);
+                        return DownloadFailureClassifier.ToResult<DownloadTaskInfo>(failure);
+                    }
+
+                    _log.Info(FormattableString.Invariant(
+                        $"下载失败，准备第 {attempt + 1}/{_retryPolicy.MaxAttempts} 次尝试（{failure.Message}）：{request.Title}"));
+
+                    // 退避等待：取消时直接走取消分支（Task.Delay 抛的就是 OperationCanceledException）。
+                    await Task.Delay(_retryPolicy.DelayBefore(attempt), ct).ConfigureAwait(false);
+                    reporter.PublishRetrying(attempt + 1, _retryPolicy.MaxAttempts, failure.Message);
+                    continue;
+                }
+
+                if (transferred.IsSuccess)
+                {
+                    break;
+                }
+
+                // 传输层已经归好类（可重试 / 不可重试 / 取消）。
+                var failureMessage = transferred.Message ?? DownloadFailureClassifier.GenericMessage;
+                if (!_retryPolicy.ShouldRetry(transferred.Retryable, attempt))
+                {
+                    // 最后一次也不值得重试：原样上报分类结果。
+                    return OperationResult<DownloadTaskInfo>.Fail(
+                        failureMessage,
+                        transferred.Detail,
+                        transferred.Retryable);
+                }
+
+                _log.Info(FormattableString.Invariant(
+                    $"下载失败，准备第 {attempt + 1}/{_retryPolicy.MaxAttempts} 次尝试（{failureMessage}）：{request.Title}"));
+
+                await Task.Delay(_retryPolicy.DelayBefore(attempt), ct).ConfigureAwait(false);
+                reporter.PublishRetrying(attempt + 1, _retryPolicy.MaxAttempts, failureMessage);
             }
 
             var outcome = transferred.Value!;
@@ -309,6 +361,30 @@ public sealed class DownloadService : IDownloadService
 
         public void PublishCompleted(long bytes, long total)
             => Publish(new DownloadProgressInfo(bytes, total, _rate, 100, FormattableString.Invariant($"下载完成 {_request.Title}")), force: true);
+
+        /// <summary>重试前的提示：进度条停在原地，但文案换成「正在重试」并说明原因（05 篇 §4 的可见性要求）。</summary>
+        public void PublishRetrying(int nextAttempt, int maxAttempts, string? reason)
+        {
+            long bytes;
+            long total;
+            double rate;
+            lock (_gate)
+            {
+                bytes = _bytes;
+                total = _total;
+                rate = _rate;
+            }
+
+            var percent = total > 0 ? (int)Math.Clamp(bytes * 100 / total, 0, 100) : 0;
+            var message = FormattableString.Invariant(
+                $"正在重试 {_request.Title}（第 {nextAttempt}/{maxAttempts} 次）");
+            if (!string.IsNullOrWhiteSpace(reason))
+            {
+                message += "：" + reason;
+            }
+
+            Publish(new DownloadProgressInfo(bytes, total, rate, percent, message), force: true);
+        }
 
         private void OnTransferProgress(TransferProgress progress)
         {

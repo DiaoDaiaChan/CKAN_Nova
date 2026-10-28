@@ -21,6 +21,10 @@ internal sealed class UnmanagedFakeService : IUnmanagedService
 
     public int AdoptCount { get; private set; }
 
+    public List<UnmanagedAdoptCall> Adopts { get; } = new();
+
+    public Func<IReadOnlyCollection<string>, bool, OperationResult<UnmanagedAdoptResult>>? AdoptHandler { get; set; }
+
     public Task<OperationResult<IReadOnlyList<UnmanagedFileInfo>>> ScanAsync(
         InstanceInfo instance, CancellationToken ct = default)
     {
@@ -29,11 +33,24 @@ internal sealed class UnmanagedFakeService : IUnmanagedService
             ScanOverride ?? OperationResult<IReadOnlyList<UnmanagedFileInfo>>.Ok(Entries.ToArray()));
     }
 
-    public Task<OperationResult<IReadOnlyList<string>>> AdoptAsync(
-        InstanceInfo instance, IReadOnlyCollection<string> relativePaths, CancellationToken ct = default)
+    public Task<OperationResult<UnmanagedAdoptResult>> AdoptAsync(
+        InstanceInfo instance,
+        IReadOnlyCollection<string> relativePaths,
+        bool dryRun = false,
+        CancellationToken ct = default)
     {
         AdoptCount++;
-        return Task.FromResult(OperationResult<IReadOnlyList<string>>.Fail("尚未支持把未管理文件接管为受管安装。"));
+        Adopts.Add(new UnmanagedAdoptCall(relativePaths.ToArray(), dryRun));
+        if (AdoptHandler is { } handler)
+        {
+            return Task.FromResult(handler(relativePaths, dryRun));
+        }
+
+        var items = relativePaths
+            .Select(path => new UnmanagedAdoptItem(path, Path.GetFileNameWithoutExtension(path), UnmanagedAdoptOutcome.Adopted))
+            .ToArray();
+        return Task.FromResult(OperationResult<UnmanagedAdoptResult>.Ok(
+            new UnmanagedAdoptResult(items, Applied: !dryRun)));
     }
 
     public Task<OperationResult<IReadOnlyList<string>>> DeleteAsync(
@@ -55,6 +72,9 @@ internal sealed class UnmanagedFakeService : IUnmanagedService
 
 /// <summary>一次删除调用（含 dry-run 标记）。</summary>
 internal sealed record UnmanagedDeleteCall(IReadOnlyList<string> Paths, bool DryRun);
+
+/// <summary>一次接管调用（含 dry-run 标记）。</summary>
+internal sealed record UnmanagedAdoptCall(IReadOnlyList<string> Paths, bool DryRun);
 
 internal sealed class UnmanagedFakeInstanceService : IInstanceService
 {

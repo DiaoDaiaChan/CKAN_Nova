@@ -16,6 +16,7 @@
     <PackageReference Include="Avalonia.Fonts.Inter" />
     <!-- UI-02：虚拟化表格控件（列定义/列宽持久化需要它，ListBox 只能凑合） -->
     <PackageReference Include="Avalonia.Controls.DataGrid" />
+    <PackageReference Include="FluentAvaloniaUI" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>
 

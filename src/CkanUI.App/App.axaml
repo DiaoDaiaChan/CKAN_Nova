@@ -1,5 +1,6 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sty="using:FluentAvalonia.Styling"
              x:Class="CkanUI.App.App"
              RequestedThemeVariant="Default">
   <!-- 语义 token 先于样式合并：视图只能引用 token，不得写颜色/圆角字面量（THM-01）。 -->
@@ -12,6 +13,7 @@
   </Application.Resources>
 
   <Application.Styles>
-    <FluentTheme />
+    <sty:FluentAvaloniaTheme PreferUserAccentColor="True" />
+    <StyleInclude Source="avares://CkanUI.App/Resources/FluentStyles.axaml" />
   </Application.Styles>
 </Application>

@@ -37,6 +37,10 @@
     <!-- 只读上游 CKAN fork：本地用目录联接 external/CKAN 指向规格仓，CI 用 git submodule -->
     <CkanCoreRoot Condition="'$(CkanCoreRoot)' == ''">$(MSBuildThisFileDirectory)external/CKAN/</CkanCoreRoot>
     <CkanCoreProject>$(CkanCoreRoot)Core/CKAN-core.csproj</CkanCoreProject>
+    <!-- 通用 i18n 核心：本地用目录联接 external/UniversalI18n 或同级目录（17 篇 §5.2） -->
+    <UI18nCoreRoot Condition="'$(UI18nCoreRoot)' == '' and Exists('$(MSBuildThisFileDirectory)external/UniversalI18n/src/UI18n.Core/UI18n.Core.csproj')">$(MSBuildThisFileDirectory)external/UniversalI18n/</UI18nCoreRoot>
+    <UI18nCoreRoot Condition="'$(UI18nCoreRoot)' == '' and Exists('$(MSBuildThisFileDirectory)../UniversalI18n/src/UI18n.Core/UI18n.Core.csproj')">$(MSBuildThisFileDirectory)../UniversalI18n/</UI18nCoreRoot>
+    <UI18nCoreProject>$(UI18nCoreRoot)src/UI18n.Core/UI18n.Core.csproj</UI18nCoreProject>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'CkanUI.App'">

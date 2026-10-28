@@ -219,6 +219,26 @@ public sealed class ChangesPageViewModelTests
     }
 
     [Test]
+    public async Task ApplySuccess_FiresRequestsAppliedEventAndClearsRequests()
+    {
+        var preview = ChangesFakes.Preview(new[] { ChangesFakes.Item("a", "Alpha") }, 1_000);
+        _changeSets.NextResult = OperationResult<ChangeSetPreview>.Ok(preview);
+        _installer.Result = OperationResult<InstallReport>.Ok(ChangesFakes.SuccessReport());
+
+        var vm = Create();
+        var requestsFired = false;
+        ((IChangeRequestSink)vm).RequestsApplied += () => requestsFired = true;
+
+        vm.SetRequests(ChangesFakes.Requests("a"));
+        await vm.PendingWork;
+
+        await vm.ApplyCommand.ExecuteAsync(null);
+
+        Assert.That(requestsFired, Is.True);
+        Assert.That(vm.Requests, Is.Empty);
+    }
+
+    [Test]
     public async Task ApplyPartialFailure_ReachesFailedAndReports()
     {
         var preview = ChangesFakes.Preview(new[] { ChangesFakes.Item("a", "Alpha") }, 1_000);

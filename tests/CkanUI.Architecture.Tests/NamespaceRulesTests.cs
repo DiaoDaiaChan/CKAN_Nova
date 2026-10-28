@@ -58,6 +58,33 @@ public class NamespaceRulesTests
         Assert.That(offenders, Is.Empty, "CKAN 命名空间只允许在 Services / Localization 出现（P1 Core 唯一真相源）");
     }
 
+    [Test]
+    public void Registry_access_lives_only_in_services_platform()
+    {
+        // 01 篇 §16 + 21 篇：注册表读写只允许在 Services/Platform（只读探测）与 Services/Platform/Windows（写入）。
+        // 跨平台 TFM 下这段代码要自己守 CA1416，分散到别处就会在别人的项目上炸。
+        var projects = Directory.EnumerateDirectories(Path.Combine(RepoRoot.Path, "src"))
+            .Select(Path.GetFileName)
+            .Where(name => !string.IsNullOrEmpty(name))
+            .ToArray();
+
+        var offenders = projects
+            .SelectMany(project => EnumerateSources(project!).Select(file => new
+            {
+                File = Path.GetRelativePath(RepoRoot.Path, file),
+                Text = File.ReadAllText(file),
+            }))
+            .Where(f => f.Text.Contains("Microsoft.Win32.Registry", StringComparison.Ordinal)
+                        || f.Text.Contains("using Microsoft.Win32;", StringComparison.Ordinal))
+            .Where(f => !f.File.StartsWith(
+                Path.Combine("src", "CkanUI.Services", "Platform"),
+                StringComparison.OrdinalIgnoreCase))
+            .Select(f => f.File)
+            .ToArray();
+
+        Assert.That(offenders, Is.Empty, "注册表只允许在 src/CkanUI.Services/Platform/ 下访问");
+    }
+
     private static System.Collections.Generic.IEnumerable<string> EnumerateSources(string project)
     {
         var dir = Path.Combine(RepoRoot.Path, "src", project);

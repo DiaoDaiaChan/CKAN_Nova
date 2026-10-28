@@ -29,7 +29,7 @@ public sealed class UnmanagedServiceTests
         provider.Managed.Add("ManagedMod/ManagedMod.dll");
         provider.Managed.Add("ManagedMod/ManagedMod.version");
         provider.Managed.Add("Mixed/managed.dll");
-        var service = new UnmanagedService(provider, new RecordingErrorReporter());
+        var service = new UnmanagedService(provider, new FakeRegistrar(), new RecordingErrorReporter());
 
         var result = await service.ScanAsync(Instance(workspace.Path));
 
@@ -72,7 +72,7 @@ public sealed class UnmanagedServiceTests
         var provider = new FakeManagedProvider();
         provider.Managed.Add("ManagedMod/ManagedMod.dll");
         var reporter = new RecordingErrorReporter();
-        var service = new UnmanagedService(provider, reporter);
+        var service = new UnmanagedService(provider, new FakeRegistrar(), reporter);
 
         var result = await service.ScanAsync(Instance(workspace.Path));
 
@@ -85,7 +85,7 @@ public sealed class UnmanagedServiceTests
     public async Task ScanAsync_EmptyGameData_ReturnsEmptyList()
     {
         using var workspace = PrepareGameData("unmanaged-empty");
-        var service = new UnmanagedService(new FakeManagedProvider(), new RecordingErrorReporter());
+        var service = new UnmanagedService(new FakeManagedProvider(), new FakeRegistrar(), new RecordingErrorReporter());
 
         var result = await service.ScanAsync(Instance(workspace.Path));
 
@@ -97,7 +97,7 @@ public sealed class UnmanagedServiceTests
     public async Task ScanAsync_MissingGameData_ReturnsNonRetryableFailure()
     {
         using var workspace = new TempWorkspace("unmanaged-no-gamedata");
-        var service = new UnmanagedService(new FakeManagedProvider(), new RecordingErrorReporter());
+        var service = new UnmanagedService(new FakeManagedProvider(), new FakeRegistrar(), new RecordingErrorReporter());
 
         var result = await service.ScanAsync(Instance(workspace.Path));
 
@@ -116,7 +116,7 @@ public sealed class UnmanagedServiceTests
                 "读取注册表失败，无法判断哪些内容受管。", "registry.locked", retryable: true),
         };
         var reporter = new RecordingErrorReporter();
-        var service = new UnmanagedService(provider, reporter);
+        var service = new UnmanagedService(provider, new FakeRegistrar(), reporter);
 
         var result = await service.ScanAsync(Instance(workspace.Path));
 
@@ -133,7 +133,7 @@ public sealed class UnmanagedServiceTests
         using var workspace = PrepareGameData("unmanaged-provider-throw");
         var provider = new FakeManagedProvider { Throw = new InvalidOperationException("注册表句柄已释放") };
         var reporter = new RecordingErrorReporter();
-        var service = new UnmanagedService(provider, reporter);
+        var service = new UnmanagedService(provider, new FakeRegistrar(), reporter);
 
         var result = await service.ScanAsync(Instance(workspace.Path));
 
@@ -150,7 +150,7 @@ public sealed class UnmanagedServiceTests
         using var workspace = PrepareGameData("unmanaged-dryrun");
         Write(workspace.Path, "Leftover/old.txt", "abc");
         Write(workspace.Path, "loose.cfg", "cfg");
-        var service = new UnmanagedService(new FakeManagedProvider(), new RecordingErrorReporter());
+        var service = new UnmanagedService(new FakeManagedProvider(), new FakeRegistrar(), new RecordingErrorReporter());
 
         var result = await service.DeleteAsync(
             Instance(workspace.Path), new[] { "loose.cfg", "Leftover" }, dryRun: true);
@@ -170,7 +170,7 @@ public sealed class UnmanagedServiceTests
         Write(workspace.Path, "loose.cfg", "cfg");
         var provider = new FakeManagedProvider();
         provider.Managed.Add("Mixed/managed.dll");
-        var service = new UnmanagedService(provider, new RecordingErrorReporter());
+        var service = new UnmanagedService(provider, new FakeRegistrar(), new RecordingErrorReporter());
 
         var result = await service.DeleteAsync(
             Instance(workspace.Path), new[] { "loose.cfg", "Mixed" }, dryRun: false);
@@ -190,7 +190,7 @@ public sealed class UnmanagedServiceTests
         Write(workspace.Path, "ManagedMod/ManagedMod.dll");
         var provider = new FakeManagedProvider();
         provider.Managed.Add("ManagedMod/ManagedMod.dll");
-        var service = new UnmanagedService(provider, new RecordingErrorReporter());
+        var service = new UnmanagedService(provider, new FakeRegistrar(), new RecordingErrorReporter());
 
         var result = await service.DeleteAsync(
             Instance(workspace.Path), new[] { "ManagedMod/ManagedMod.dll" }, dryRun: false);
@@ -205,7 +205,7 @@ public sealed class UnmanagedServiceTests
         using var workspace = PrepareGameData("unmanaged-real-delete");
         Write(workspace.Path, "Leftover/old.txt", "abc");
         Write(workspace.Path, "loose.cfg", "cfg");
-        var service = new UnmanagedService(new FakeManagedProvider(), new RecordingErrorReporter());
+        var service = new UnmanagedService(new FakeManagedProvider(), new FakeRegistrar(), new RecordingErrorReporter());
         var instance = Instance(workspace.Path);
 
         var first = await service.DeleteAsync(instance, new[] { "loose.cfg", "Leftover" }, dryRun: false);
@@ -225,7 +225,7 @@ public sealed class UnmanagedServiceTests
     public async Task DeleteAsync_RejectsTraversalAndAbsolutePaths()
     {
         using var workspace = PrepareGameData("unmanaged-traversal");
-        var service = new UnmanagedService(new FakeManagedProvider(), new RecordingErrorReporter());
+        var service = new UnmanagedService(new FakeManagedProvider(), new FakeRegistrar(), new RecordingErrorReporter());
         var instance = Instance(workspace.Path);
 
         foreach (var bad in new[] { "../evil.txt", "C:/Windows/system32/drivers/etc/hosts", "Leftover/../../evil.txt" })
@@ -241,7 +241,7 @@ public sealed class UnmanagedServiceTests
     public async Task DeleteAsync_EmptySelection_Fails()
     {
         using var workspace = PrepareGameData("unmanaged-empty-selection");
-        var service = new UnmanagedService(new FakeManagedProvider(), new RecordingErrorReporter());
+        var service = new UnmanagedService(new FakeManagedProvider(), new FakeRegistrar(), new RecordingErrorReporter());
 
         var result = await service.DeleteAsync(Instance(workspace.Path), Array.Empty<string>(), dryRun: true);
 
@@ -250,16 +250,115 @@ public sealed class UnmanagedServiceTests
     }
 
     [Test]
-    public async Task AdoptAsync_ReturnsNotSupportedFailure()
+    public async Task AdoptAsync_RegistersTheDllUnderGameData()
     {
         using var workspace = PrepareGameData("unmanaged-adopt");
-        var service = new UnmanagedService(new FakeManagedProvider(), new RecordingErrorReporter());
+        Write(workspace.Path, "Stray/JunkMod.dll", "dll");
+        var registrar = new FakeRegistrar();
+        var service = new UnmanagedService(new FakeManagedProvider(), registrar, new RecordingErrorReporter());
+
+        var result = await service.AdoptAsync(Instance(workspace.Path), new[] { "Stray/JunkMod.dll" });
+
+        Assert.That(result.IsSuccess, Is.True, result.Message);
+        var outcome = result.Value!;
+        Assert.That(outcome.AdoptedCount, Is.EqualTo(1));
+        Assert.That(outcome.Applied, Is.True);
+        Assert.That(outcome.Items.Single().Identifier, Is.EqualTo("JunkMod"));
+        Assert.That(registrar.Merged, Is.Not.Null);
+        Assert.That(registrar.Merged!["JunkMod"], Is.EqualTo("GameData/Stray/JunkMod.dll"));
+    }
+
+    [Test]
+    public async Task AdoptAsync_DryRun_NeverWritesTheRegistry()
+    {
+        using var workspace = PrepareGameData("unmanaged-adopt-dry");
+        Write(workspace.Path, "Stray/JunkMod.dll", "dll");
+        var registrar = new FakeRegistrar();
+        var service = new UnmanagedService(new FakeManagedProvider(), registrar, new RecordingErrorReporter());
+
+        var result = await service.AdoptAsync(Instance(workspace.Path), new[] { "Stray/JunkMod.dll" }, dryRun: true);
+
+        Assert.That(result.IsSuccess, Is.True, result.Message);
+        Assert.That(result.Value!.AdoptedCount, Is.EqualTo(1));
+        Assert.That(result.Value!.IsPreview, Is.True);
+        Assert.That(registrar.Merged, Is.Null, "预演绝不能写注册表");
+    }
+
+    [Test]
+    public async Task AdoptAsync_NonDll_IsRefused()
+    {
+        using var workspace = PrepareGameData("unmanaged-adopt-nondll");
+        Write(workspace.Path, "loose.cfg", "cfg");
+        var registrar = new FakeRegistrar();
+        var service = new UnmanagedService(new FakeManagedProvider(), registrar, new RecordingErrorReporter());
 
         var result = await service.AdoptAsync(Instance(workspace.Path), new[] { "loose.cfg" });
 
+        Assert.That(result.IsSuccess, Is.True, result.Message);
+        Assert.That(result.Value!.RefusedCount, Is.EqualTo(1));
+        Assert.That(result.Value!.Items.Single().Reason, Does.Contain(".dll"));
+        Assert.That(registrar.Merged, Is.Null);
+    }
+
+    [Test]
+    public async Task AdoptAsync_AlreadyManaged_IsSkipped()
+    {
+        using var workspace = PrepareGameData("unmanaged-adopt-skip");
+        Write(workspace.Path, "ManagedMod/ManagedMod.dll", "dll");
+        var provider = new FakeManagedProvider();
+        provider.Managed.Add("ManagedMod/ManagedMod.dll");
+        var registrar = new FakeRegistrar();
+        var service = new UnmanagedService(provider, registrar, new RecordingErrorReporter());
+
+        var result = await service.AdoptAsync(Instance(workspace.Path), new[] { "ManagedMod/ManagedMod.dll" });
+
+        Assert.That(result.IsSuccess, Is.True, result.Message);
+        Assert.That(result.Value!.SkippedCount, Is.EqualTo(1));
+        Assert.That(registrar.Merged, Is.Null);
+    }
+
+    [Test]
+    public async Task AdoptAsync_IdentifierTakenByAnotherPath_IsRefused()
+    {
+        using var workspace = PrepareGameData("unmanaged-adopt-conflict");
+        Write(workspace.Path, "Stray/JunkMod.dll", "dll");
+        var registrar = new FakeRegistrar();
+        registrar.Installed.Add("JunkMod", "GameData/JunkMod/JunkMod.dll");
+        var service = new UnmanagedService(new FakeManagedProvider(), registrar, new RecordingErrorReporter());
+
+        var result = await service.AdoptAsync(Instance(workspace.Path), new[] { "Stray/JunkMod.dll" });
+
+        Assert.That(result.IsSuccess, Is.True, result.Message);
+        Assert.That(result.Value!.RefusedCount, Is.EqualTo(1));
+        Assert.That(result.Value!.Items.Single().Reason, Does.Contain("JunkMod"));
+        Assert.That(registrar.Merged, Is.Null);
+    }
+
+    [Test]
+    public async Task AdoptAsync_MergeFailure_IsReportedAsRetryable()
+    {
+        using var workspace = PrepareGameData("unmanaged-adopt-merge-fail");
+        Write(workspace.Path, "Stray/JunkMod.dll", "dll");
+        var registrar = new FakeRegistrar { MergeFailure = "注册表写入失败。" };
+        var service = new UnmanagedService(new FakeManagedProvider(), registrar, new RecordingErrorReporter());
+
+        var result = await service.AdoptAsync(Instance(workspace.Path), new[] { "Stray/JunkMod.dll" });
+
         Assert.That(result.IsSuccess, Is.False);
-        Assert.That(result.Message, Does.Contain("接管"));
-        Assert.That(result.Retryable, Is.False);
+        Assert.That(result.Message, Is.EqualTo("注册表写入失败。"));
+        Assert.That(result.Retryable, Is.True);
+    }
+
+    [Test]
+    public async Task AdoptAsync_WithoutSelection_Fails()
+    {
+        using var workspace = PrepareGameData("unmanaged-adopt-empty");
+        var service = new UnmanagedService(new FakeManagedProvider(), new FakeRegistrar(), new RecordingErrorReporter());
+
+        var result = await service.AdoptAsync(Instance(workspace.Path), Array.Empty<string>());
+
+        Assert.That(result.IsSuccess, Is.False);
+        Assert.That(result.Message, Does.Contain("没有选中"));
     }
 
     [Test]
@@ -307,6 +406,38 @@ public sealed class UnmanagedServiceTests
 
             return Override ?? OperationResult<IReadOnlySet<string>>.Ok(Managed);
         }
+    }
+
+    private sealed class FakeRegistrar : IManagedFileRegistrar
+    {
+        public Dictionary<string, string> Installed { get; } = new(StringComparer.Ordinal);
+
+        public IReadOnlyDictionary<string, string>? Merged { get; private set; }
+
+        public string? MergeFailure { get; init; }
+
+        public string? GetFailure { get; init; }
+
+        public OperationResult<IReadOnlyDictionary<string, string>> GetInstalledDlls(InstanceInfo instance)
+            => GetFailure is null
+                ? OperationResult<IReadOnlyDictionary<string, string>>.Ok(
+                    new Dictionary<string, string>(Installed, StringComparer.Ordinal))
+                : OperationResult<IReadOnlyDictionary<string, string>>.Fail(GetFailure, null, retryable: true);
+
+        public OperationResult<DllMergeResult> MergeDlls(
+            InstanceInfo instance, IReadOnlyDictionary<string, string> dlls, bool takeSnapshot = true)
+        {
+            if (MergeFailure is not null)
+            {
+                return OperationResult<DllMergeResult>.Fail(MergeFailure, null, retryable: true);
+            }
+
+            Merged = new Dictionary<string, string>(dlls, StringComparer.Ordinal);
+            return OperationResult<DllMergeResult>.Ok(new DllMergeResult(true, "registry.json.bak-20261028-101010"));
+        }
+
+        public string NormalizeIdentifier(string raw) =>
+            new string(raw.Trim().Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '-').ToArray()).Trim('-');
     }
 
     private sealed class RecordingErrorReporter : IErrorReporter

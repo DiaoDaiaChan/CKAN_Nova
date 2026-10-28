@@ -61,7 +61,7 @@ C:\Users\43701\Documents\github\ckan-ui\        ← 新仓库（独立 git）
 | `CkanUI.Services` | Library | net10.0 | Core, Abstractions | `Core` 的 `ProjectReference` 指向 `external/CKAN/Core/CKAN-core.csproj` |
 | `CkanUI.ViewModels` | Library | net10.0 | Services.Abstractions, CommunityToolkit.Mvvm | **不引用** Services 实现，只引用接口 |
 | `CkanUI.Controls` | Library | net10.0 | Avalonia | 虚拟化列表、徽章、进度环、Toast |
-| `CkanUI.Platform` | Library | net10.0 | Avalonia (Win32/X11/macOS) | 单实例 IPC、`ckan://`、托盘、Steam/Registry 探测补充 |
+| `CkanUI.Platform` | Library | net10.0 | Avalonia (Win32/X11/macOS) | 单实例 IPC、`ckan://`、托盘；**注册表读取不在这里**，统一落 `src/CkanUI.Services/Platform/`（Steam 库定位，见 §16） |
 | `CkanUI.Services.Abstractions` | Library | net10.0 | 无 | 全部服务接口 + DTO（保持零依赖，便于测试） |
 
 ### 3.3 NuGet 依赖（尽量少）
@@ -266,6 +266,7 @@ C:\Users\43701\Documents\github\ckan-ui\        ← 新仓库（独立 git）
 | --- | --- | --- |
 | 安装/卸载本身 | **仓库外的打包脚本**（`build/pack/*.ps1` + Velopack `vpk`） | 不进解决方案的运行时程序集；产物是 `CkanUISetup.exe`（EXE-only，不出 MSI）与便携 zip |
 | 注册表读写 | `Presentation/` 之外的 `Services/Platform/Windows/ShellIntegration.cs`（接口 `IShellIntegration`） | 协议、文件关联、`Capabilities`、`App Paths`、ARP 补充项全部只经此一处 |
+| 注册表**只读**探测 | `src/CkanUI.Services/Platform/SteamRegistryProbe.cs`（Steam 库定位） | 只读 `HKCU\Software\Valve\Steam\SteamPath`；跨平台 TFM 下用 `OperatingSystem.IsWindows()` + `[SupportedOSPlatform("windows")]` 守住 CA1416，读不到按"没装"处理 |
 | 版本与标识常量 | `CkanUI.Core/BuildInfo.cs`：`PackId = "CkanUI"`、`ProductName`、`Publisher`、`Version` | `PackId` 与版本号格式**只允许在这里出现一次** |
 | 首启向导 | `Presentation/Views/Setup/` + `ViewModels/SetupWizardViewModel` | 纯 UI，动作走 `IShellIntegration` 与 `IGameInstanceService` |
 | 依赖检测（VC++） | `Services/Platform/Windows/PrerequisiteProbe.cs` | 只读注册表判断，安装动作由安装器负责；App 侧只做"启动前自检 + 可复制诊断" |

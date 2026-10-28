@@ -18,7 +18,7 @@
 | P-04 | 磨砂（Acrylic）与 Mica 材质，三档降级（Mica → Acrylic → 纯色） | 三档在不同机器上都能显示，降级时有说明而不是静默变丑 |
 | P-05 | 圆角尺度三档（0 / 6 / 12px）作用于控件、卡片、对话框；窗口圆角尽力而为 | 切档后列表行、卡片、对话框、输入框同步变化 |
 | P-06 | 背景：纯色 / 线性渐变 / 图片（本机文件），带填充方式、暗化、模糊、透明度 | 换背景后文字仍清晰（暗化自动建议值） |
-| P-07 | 背景可按实例区分（每个 KSP 实例一套外观） | 切实例后外观跟着切，且不互相污染 |
+| P-07 | 背景与强调色可按实例区分（每个 KSP 实例一套外观） | 切实例后外观跟着切，且不互相污染 |
 | P-08 | 密度三档（紧凑 / 标准 / 舒适）影响行高、内边距、图标尺寸 | 列表首屏可见行数明显不同，且不破版 |
 | P-09 | 字号缩放 90%–130%，只影响 UI 文案（不影响 Mod 名与标识符等"数据"） | 130% 下德语/俄语长文案不裁切（接 16 篇 §7） |
 | P-10 | 动效强度：完整 / 精简 / 关闭，默认跟随系统"减少动画" | 关闭后无过渡动画，但状态变化仍可感知 |
@@ -117,8 +117,15 @@
 ### 6.3 校验（硬门禁）
 
 - 正文文本对比度 ≥ **4.5:1**、大字（≥18.66px 或 ≥14px 粗体）与 UI 边界 ≥ **3:1**（WCAG 2.2 AA）。
-- 强调色作为按钮底色时，`AccentForeground` 自动在黑白之间选对比度更高者；两者都不达标 → **拒绝该强调色**，并给出 3 个"最近的合规色"建议。
-- 校验函数是纯函数（`ContrastChecker`），单元测试覆盖 500 组随机色。
+- 强调色作为按钮底色时，`AccentForeground` 自动在黑白之间选对比度更高者；两者都不达标 → **拒绝该强调色**，并给出"最近的合规色"建议。
+- 校验函数是纯函数（`src/CkanUI.ViewModels/Pages/Settings/AccentContrast.cs`），单元测试覆盖阈值边界、上限 21:1、建议色的单调性。
+
+> **实现注记（P-03 落地）**：建议色只给 **1 个**（往白/黑方向按 1% 步长混合到第一个合规色），而不是规格里的 3 个——
+> 界面上一个"用它"就够，三选一反而要用户再做一次审美判断。对比度比对的是**当前生效变体**的底色
+> （浅 `#FFFFFF` / 深 `#1B1F27` / 高对比度 `#000000`），因此同一个 hex 在深色下合规、切到浅色可能被拒；
+> 预设色板的浅色档已按这条规则整体压暗（橙 `#C2410C`、琥珀 `#B45309`、黄绿 `#4D7C0F`、绿 `#15803D`、
+> 青 `#0F766E`、天蓝 `#0369A1`），由 `tests/CkanUI.App.Tests/AccentContrastThemeTests.cs` 守卫。
+> 500 组随机色改成"预设 12 色 × 两档 + 边界用例"的确定性覆盖：真跑随机数一旦偶发失败，排查成本远高于收益。
 
 ---
 
@@ -179,7 +186,7 @@
 
 1. **纯色**（默认，取 `Ui.Color.Surface`）；
 2. **线性渐变**：2–3 个色停 + 角度（0–360°）；
-3. **图片**：本机文件（`png/jpg/jpeg/webp/bmp`），也支持"用当前游戏截图"（`<GameDir>/Screenshots`，读最新一张，只拷贝不修改）；
+3. **图片**：本机文件（`png/jpg/jpeg/webp/bmp`），也支持"用当前游戏截图"（`<GameDir>/Screenshots`，读最新一张，只拷贝不修改）——**v2**，本版把「游戏截图」折叠进「本机图片」，见 §9.4；
 4. **按实例区分**：外观配置里 `byInstance: { "<instanceId>": {...} }`，切实例自动切外观。
 
 ### 9.2 处理参数
@@ -198,6 +205,59 @@
 - 图片路径记绝对路径；文件被删/移动 → 回退纯色 + 一条可点击的提示，不崩。
 - 不做动画 GIF/视频（非目标）。
 - 背景图**不进入**诊断包（14 篇 §5 已定"默认不含 .sfs"，此处补一条"不含用户背景图"）。
+
+### 9.4 实现注记（P-06 背景落地）
+
+- **DTO**：`src/CkanUI.Services.Abstractions/BackgroundProfile.cs`——`Kind`（`none`/`solid`/`gradient`/`image`）、`Color`、
+  `GradientStart`/`GradientEnd`/`GradientAngle`（0 向右、90 向下）、`ImagePath`、`Fill`（`fill`/`fit`/`stretch`/`tile`/`center`）、
+  `DimPercent`、`BlurRadius`、`OpacityPercent`，外加 `IsActive` 与 `Clamp()`（角度取模回正、百分比夹 0..100、模糊夹 0..64、`NaN` 归默认）。
+  整份 profile 落在 `UiSettings.Background`；按实例覆盖落在 `UiSettings.BackgroundByInstance[实例名]`。
+- **宿主**：`src/CkanUI.App/Theming/BackgroundHost.cs`（App 层——这里要碰 `Bitmap`/`ImageBrush`/`BlurEffect`，VM 层禁止引用 Avalonia）。
+  构造参数 `(IUiSettingsStore, IDispatcher, Application, Window, IInstanceService?)`；`Install()` 先刷一遍再订阅
+  `IUiSettingsStore.Changed`、`Application.ActualThemeVariantChanged`、`IInstanceService.CurrentChanged`。
+  内层用 `BuildSignature(profile)` 字符串去重：同一次保存里十一行各自触发一次刷新，只重建一次画笔。
+  控件按名字取，取不到（设计时预览、模板还没套上、名字被改）只记一条 `Log.Debug` 就返回——
+  `FindControl` 在缺名字域时会抛 `InvalidOperationException`，那属于启动早期的正常状态，不能把启动打断。
+- **表面洗白而不是改资源**：`MainWindow.axaml` 新增 `BackgroundScrim`（主题底色，`SurfaceWashAlpha = 0.74`）。
+  没走「把 `CkanSurfaceBackgroundBrush` 调成半透明」是因为那个键同时是 `Window` 底色和所有卡片的底色，
+  改它会把正文一起洗淡；压独立一层只影响空白处，卡片照旧不透明。
+- **解码**：`src/CkanUI.App/Theming/BackgroundImageLoader.cs`，`DecodeWidth = 1600`（1600×900×4 ≈ 5.8 MB ≤ §14 的 8 MB/张；
+  2560 宽会到 14.7 MB 超预算）。只缓存当前一张，换路径先摘控件引用（`image.Source = null`、`layer.Background = null`）再 `Dispose`。
+- **读不出来就回到无背景**：路径不存在 / 解码失败 → `ClearLayers`（不留黑底），并记 `Log.Warn`。
+  设置页在保存时就 `File.Exists` 拦一次（`找不到图片文件：{path}`，可重试），让用户当场知道而不是「背景坏了」。
+- **设置页十一行**（外观组，`SettingsKeyNames.Background*`）：来源 / 背景色 / 渐变起色 / 渐变止色 / 渐变角度 / 图片 /
+  填充方式 / 暗化 / 模糊 / 不透明度 / 作用范围。每行保存都会带上**整份** profile（`SaveBackground`），
+  否则改一个字段会把其余字段重置成默认值。作用范围切回「全局」时会**删掉**本实例的键并把当前生效那份写回全局
+  （`SaveBackgroundScope`）——不删的话切回去还是旧值，看上去像没生效。
+- **高对比度**：`THM-10` 优先。`BackgroundHost.Apply` 检测到当前变体是高对比度就整层不画；
+  十一行并入 `AppearanceKeys`，同时置灰并由 `SaveItemAsync` 拒绝写入（提示「系统高对比度已接管外观」）。
+- **与本文档的几个取舍**（差异都记在这里，不假装实现完全一致）：
+  1. 「游戏截图」来源未做（折叠进「本机图片」，默认 `Screenshots` 目录留到 v2）；
+  2. 模糊放宽到 0–64px（§9.2 写 0–40）、暗化 0–100%（写 0–80）、不透明度 0–100%（写 20–100）——
+     这三项的 0 都是「关闭」语义，卡死下限会让人关不掉；
+  3. 渐变只做 2 个色停（§9.1 允许 2–3），平铺按原始像素重复（`ImageBrush` 的 `DestinationRect` 取图片像素尺寸）；
+  4. 没有「当前 + 上一张」的位图撤销缓存：撤销走设置页的「放弃修改」（改回已落盘值即重画）。
+- **测试**：`tests/CkanUI.ViewModels.Tests/SettingsBackgroundTests.cs`（默认加载、落盘形状、非法色/缺图被拒、
+  载入时夹取、按实例写入与切回全局删键、无实例被拒、高对比度拦截）与
+  `tests/CkanUI.App.Tests/BackgroundHostTests.cs`（`CreateGradient` 的 90°/0° 端点、`ToStretch` 映射、`DimColor` alpha、
+  `SurfaceWashAlpha`、`ResolveProfile` 实例优先、宿主实画/去抖/高对比度/缺图/缺控件）。
+
+### 9.5 实现注记（P-07 强调色按实例落地）
+
+- **数据**：`UiSettings.AccentByInstance : IReadOnlyDictionary<string, string>`——键是实例名，值与 `AccentColor` 同一套
+  （`default` / 预设名 / `#RRGGBB`）。**没有键（或值是空白）= 跟随全局**，不是「这个实例没有强调色」；
+  `UiSettings.Equals`/`GetHashCode` 都已带上这张表，否则改了覆盖却不会触发 `Changed`。
+- **生效值解析只有一处**：`AccentHost.ResolveAccent(UiSettings, string? instanceName)`（`public static`，可单测）。
+  `Apply()` 用它取 `targetColor`，实例切换（`IInstanceService.CurrentChanged` → `Refresh()`）也走它；
+  构造参数加了可选第 4 参 `IInstanceService? instances = null`，老的三参调用（测试）不受影响。
+- **设置页两行**：`SettingsKeyNames.AccentScope`（全局 / 按实例）紧跟「自定义强调色」。切到实例时把当前生效色
+  **搬进** `AccentByInstance[当前实例]`（`SaveAccentScope`），此后改预设或自定义 Hex 都只写实例键（`SaveAccent`）；
+  切回全局时删键并把值搬回 `AccentColor`。没有当前实例时选「按实例」当场拒绝并提示「请先添加或切换实例」。
+- **和高对比度的关系**：`AccentScope` 并入 `AppearanceKeys`——高对比度下强调色整个由系统接管，作用范围也就没有意义。
+- **测试**：`tests/CkanUI.ViewModels.Tests/SettingsAccentInstanceTests.cs`（默认全局、切实例搬值、实例内编辑仍留在表里、
+  自定义 Hex 同样留在表里、载入实例色、切回全局删键搬值、无实例被拒、高对比度锁行）与
+  `tests/CkanUI.App.Tests/AccentInstanceThemeTests.cs`（`ResolveAccent` 实例优先 / 空白视为无覆盖、
+  宿主按当前实例刷资源、`Dispose` 后退订不再写资源）。
 
 ---
 
@@ -287,7 +347,7 @@
 | 组 | 控件 | 关联 |
 | --- | --- | --- |
 | 主题 | 跟随系统 / 浅色 / 深色（分段控件）+ 主题包卡片列表（内置 3 套 + 用户导入） | P-01, P-11 |
-| 颜色 | 强调色：跟随系统 / 12 预设色块 / 自定义 hex + 对比度徽标（AA/AAA/不合规） | P-03 |
+| 颜色 | 强调色：跟随系统 / 12 预设色块 / 自定义 hex + 对比度徽标（AA/AAA/不合规）；作用范围（全局 / 按实例） | P-03, P-07 |
 | 材质 | 窗口材质：自动 / 磨砂 / 纯色；本机能力说明；"当前实际：Mica/Acrylic/纯色" | P-04 |
 | 形状 | 圆角三档（0/6/12 的示意块）+ "Win10 实验性窗口圆角"开关（带风险提示） | P-05, §8.2 |
 | 版面 | 密度三档 + 字号 5 档 + 动效三档（含"跟随系统"复选） | P-08/09/10 |
@@ -316,6 +376,16 @@
 3. **不只靠颜色**：状态（已选/已装/需更新）除颜色外必须有形状/字形（沿用 14 篇 §3.4 的 `!`/`×`/`»` 前缀规则）。
 4. **减少动效**：§11 的"跟随系统"默认项即无障碍开关。
 5. **焦点可见**：`Ui.Color.Focus` 在所有材质/背景/主题包下都必须 3:1 可见；背景图上改用 2px 描边 + 1px 内描边双环保证可见性。
+
+> **实现注记（P-02 落地）**：`src/CkanUI.App/ThemeHost.cs` 收一个 `Func<bool>? highContrastProbe`，生产环境传
+> `() => ThemeHost.IsSystemHighContrast(this)`（内部读 `PlatformSettings.GetColorValues().ContrastPreference == ColorContrastPreference.High`，
+> 读不到异常时按「未开启」处理）。探针为真时 `Apply` 把 `RequestedThemeVariant` 钉在 `HighContrastVariant`，并用
+> `ForcedStateChanged` 通知 `AccentHost.Refresh()`；`AccentHost` 在高对比度下摘掉 `CkanAccentBrush`/`CkanPrimaryBrush`/
+> `CkanAccentSubtleBrush`/`CkanNavigationSelectionBrush` 四个覆盖键，界面回落到 `Tokens.axaml` 的合规色板。
+> 设置页把主题、强调色、自定义强调色三行 `IsEnabled=false` 并显示「系统已开启高对比度：主题与强调色由系统接管，
+> 这里的改动不会生效。」，`SaveItemAsync` 对这些键直接拒绝写入（`StatusText` 提示「系统高对比度已接管外观」）。
+> 系统开关在运行中变化时由 `PlatformSettings.ColorValuesChanged` 触发重算，不必等用户再保存一次设置。
+> 测试：`tests/CkanUI.ViewModels.Tests/SettingsHighContrastTests.cs`（4 例）与 `tests/CkanUI.App.Tests/HighContrastThemeTests.cs`（3 例）。
 
 ---
 

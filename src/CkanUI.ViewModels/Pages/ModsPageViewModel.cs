@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.ViewModels.Navigation;
@@ -18,7 +19,7 @@ namespace CkanUI.ViewModels.Pages;
 /// <para>构造参数全部是 Abstractions 里已注册的接口；<c>IChangeSetService</c> 尚未实现（INT-07），
 /// 声明为可选参数，缺失时退化为本地估算预览（<see cref="ModsChangePreviewBuilder"/>）。</para>
 /// </remarks>
-public sealed partial class ModsPageViewModel : PageViewModel
+public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTrim, IPluginToolHost
 {
     /// <summary>搜索防抖时长。规格 03 篇 §3.4 允许 150ms、验收要求 ≤100ms，这里取 80ms 给调度留余量。</summary>
     public const int SearchDebounceMilliseconds = 80;
@@ -69,11 +70,17 @@ public sealed partial class ModsPageViewModel : PageViewModel
     private IReadOnlyList<ModRowData> _all = Array.Empty<ModRowData>();
     private ModsQuery _query = ModsQuery.Empty;
 
+    // 组合搜索面板（F-20）：谁改的搜索文本决定要不要回填面板字段。
+    // 面板改的 → 保留用户输入原样；搜索框改的 → 面板按解析结果回填（等价上游 PopulateSearch）。
+    private bool _settingSearchTextFromPanel;
+    private bool _searchTextFromPanel;
+
     private CancellationTokenSource? _searchCts;
     private int _searchVersion;
     private CancellationTokenSource? _columnWidthsCts;
     private int _columnWidthsVersion;
     private bool _subscribed;
+    private string? _lastInstanceName;
 
     /// <summary>默认构造：仅供设计器与既有单测（<c>new ModsPageViewModel()</c>）使用，不连任何服务。</summary>
     public ModsPageViewModel()
@@ -92,7 +99,8 @@ public sealed partial class ModsPageViewModel : PageViewModel
         IChangeRequestSink? changeSink = null,
         INavigationService? navigation = null,
         IModSearchParser? searchParser = null,
-        ILabelService? labels = null)
+        ILabelService? labels = null,
+        IModSearchFormatter? searchFormatter = null)
     {
         _repositories = repositories ?? throw new ArgumentNullException(nameof(repositories));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
@@ -104,6 +112,13 @@ public sealed partial class ModsPageViewModel : PageViewModel
         _navigation = navigation;
         _searchParser = searchParser;
         _labels = labels;
+        SearchPanel = new ModsSearchPanelViewModel(searchFormatter);
+        SearchPanel.CombinedChanged += OnSearchPanelCombinedChanged;
+        _lastInstanceName = _instances.Current?.Name;
+        if (_changeSink is not null)
+        {
+            _changeSink.RequestsApplied += OnRequestsApplied;
+        }
 
         RebuildLabelFilters();
         RefreshDetail();
@@ -120,6 +135,35 @@ public sealed partial class ModsPageViewModel : PageViewModel
 
     /// <summary>最近一次防抖搜索任务（测试用 await 等待其落定）。</summary>
     public Task PendingSearch { get; private set; } = Task.CompletedTask;
+
+    /// <summary>组合搜索面板（12 篇 F-20/F-21）：18 个字段与搜索框双向同步。</summary>
+    public ModsSearchPanelViewModel SearchPanel { get; }
+
+    /// <summary>本页的工具条键，与导航键一致（12 篇 F-17 工具项）。</summary>
+    public string ToolHostKey => PluginToolCatalog.ModsPageKey;
+
+    /// <summary>工具条右侧的插件按钮（当前没有插件声明时为空）。</summary>
+    public ObservableCollection<PluginToolButtonViewModel> PluginTools { get; } = new();
+
+    /// <summary>是否有插件按钮（空时整块布局不占位）。</summary>
+    public bool HasPluginTools => PluginTools.Count > 0;
+
+    /// <inheritdoc />
+    public void SetPluginTools(IReadOnlyList<PluginToolButtonViewModel> tools)
+    {
+        ArgumentNullException.ThrowIfNull(tools);
+
+        PluginTools.Clear();
+        foreach (var tool in tools)
+        {
+            if (tool is not null)
+            {
+                PluginTools.Add(tool);
+            }
+        }
+
+        OnPropertyChanged(nameof(HasPluginTools));
+    }
 
     // ---- 可观察状态 -------------------------------------------------------
 
@@ -746,6 +790,14 @@ public sealed partial class ModsPageViewModel : PageViewModel
     /// <inheritdoc />
     protected override void OnActivated()
     {
+        var currentName = _instances.Current?.Name;
+        if (!string.Equals(_lastInstanceName, currentName, StringComparison.OrdinalIgnoreCase))
+        {
+            _lastInstanceName = currentName;
+            _selected.Clear();
+            SelectedRow = null;
+        }
+
         Subscribe();
         RestoreColumnWidths();
         ReloadFromSnapshots();
@@ -793,6 +845,18 @@ public sealed partial class ModsPageViewModel : PageViewModel
         }
 
         _subscribed = false;
+    }
+
+    private void OnRequestsApplied()
+    {
+        _selected.Clear();
+        RebuildSelectionPreview();
+        if (Rows.Count > 0)
+        {
+            Rows = Rows.Select(view => view.WithSelected(false)).ToList();
+        }
+        UpdateStatusText();
+        RefreshDerived();
     }
 
     private void OnRepositoryUpdated(RepositorySnapshot snapshot)
@@ -852,6 +916,31 @@ public sealed partial class ModsPageViewModel : PageViewModel
         }
     }
 
+    /// <inheritdoc />
+    public string PageName => "模组";
+
+    /// <summary>
+    /// 丢掉模组行投影（18 篇 §3 L1）：启动游戏前把整张表放掉，回来时 <see cref="ReloadFromSnapshots"/> 会重建。
+    /// </summary>
+    /// <remarks>
+    /// 只丢「从快照算出来的东西」。<c>_selected</c> 是用户勾出来的待变更集，是被释放对象的输入而不是缓存，
+    /// 清掉等于替用户撤销操作，所以这里绝不碰它；搜索词、标签过滤、列宽同理。
+    /// </remarks>
+    public int TrimProjection()
+    {
+        var released = Rows.Count + _all.Count;
+        if (released == 0)
+        {
+            return 0;
+        }
+
+        Rows = Array.Empty<ModsRowView>();
+        _all = Array.Empty<ModRowData>();
+        SelectedRow = null;
+        ChangePreview = ModsChangePreviewBuilder.Empty;
+        return released;
+    }
+
     // ---- 核心动作 ---------------------------------------------------------
 
     /// <summary>从当前两份快照重建全量行并重新过滤（幂等，不做 IO）。</summary>
@@ -879,9 +968,23 @@ public sealed partial class ModsPageViewModel : PageViewModel
     {
         // 语法解析委托给服务层（上游 ModSearch），本页只做条件匹配（12 篇 F-20/F-21）。
         // 没有接线解析器时不做任何过滤，但把每个词都标成"无法解析"，状态栏会如实提示。
-        _query = _searchParser is null
-            ? ModsQuery.Unparsed(SearchText)
-            : ModsQuery.FromSpec(_searchParser.Parse(SearchText));
+        ModSearchSpec? spec = null;
+        if (_searchParser is null)
+        {
+            _query = ModsQuery.Unparsed(SearchText);
+        }
+        else
+        {
+            spec = _searchParser.Parse(SearchText);
+            _query = ModsQuery.FromSpec(spec);
+        }
+
+        // 面板回填：只在"搜索框主导"时做。面板自己改的文本若被回填，
+        // 格式化会顺手规整标点（例如把 "foo bar" 连成 "foobar"），用户正在输入的词会被改写。
+        if (!_searchTextFromPanel)
+        {
+            SearchPanel.LoadFrom(spec);
+        }
 
         IReadOnlyList<ModRowData> rows;
         try
@@ -1358,8 +1461,28 @@ public sealed partial class ModsPageViewModel : PageViewModel
 
     partial void OnSearchTextChanged(string value)
     {
+        // 不是面板写进来的，就说明是用户在搜索框里编辑（或代码清空），面板要跟着解析结果走。
+        if (!_settingSearchTextFromPanel)
+        {
+            _searchTextFromPanel = false;
+        }
+
         ScheduleSearch();
         RefreshDerived();
+    }
+
+    private void OnSearchPanelCombinedChanged(string combined)
+    {
+        _settingSearchTextFromPanel = true;
+        _searchTextFromPanel = true;
+        try
+        {
+            SearchText = combined;
+        }
+        finally
+        {
+            _settingSearchTextFromPanel = false;
+        }
     }
 
     partial void OnSelectedRowChanged(ModsRowView? value)

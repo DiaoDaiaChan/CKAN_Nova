@@ -57,7 +57,7 @@ public partial class InstancesPageView : UserControl
         _viewModel.FolderPicker ??= new AvaloniaInstanceFolderPicker(this);
         _viewModel.PathProbe ??= new FileSystemPathProbe();
         _viewModel.ShellLauncher ??= new ShellInstanceLauncher();
-        _viewModel.SteamLibraries ??= new SteamLibrarySource(new FileSystemPathProbe());
+        _viewModel.SteamLibraries ??= new CkanUI.Services.Platform.SteamLibraryLocator();
         _viewModel.CommandStore ??= new LaunchCommandFile();
         _viewModel.TextPrompt ??= new AvaloniaInstanceTextPrompt(this);
 
@@ -321,83 +321,6 @@ internal sealed class ShellInstanceLauncher : IInstanceShellLauncher, IInstanceL
 
             GameExited?.Invoke(gameDir);
         });
-    }
-}
-
-/// <summary>
-/// Steam 库探测实现（03 篇 §5「自动查找」/ 06 篇 UI-32）。
-/// </summary>
-/// <remarks>
-/// 只读 <c>steamapps/libraryfolders.vdf</c>，不写任何文件；VDF 解析复用
-/// <see cref="SteamLibraryParser"/>（纯函数，已被单测覆盖），本类只负责 IO 与存在性判断。
-/// 未读注册表：契约尚未包含、且注册表访问属于平台 API，等 Core/服务层提供探测后再替换。
-/// </remarks>
-internal sealed class SteamLibrarySource : ISteamLibrarySource
-{
-    private readonly IInstancePathProbe _probe;
-
-    public SteamLibrarySource(IInstancePathProbe probe)
-    {
-        _probe = probe ?? throw new ArgumentNullException(nameof(probe));
-    }
-
-    /// <inheritdoc />
-    public Task<OperationResult<IReadOnlyList<string>>> DiscoverGameDirsAsync(CancellationToken ct = default)
-    {
-        try
-        {
-            var found = new List<string>();
-            foreach (var libraryFile in EnumerateLibraryFiles())
-            {
-                ct.ThrowIfCancellationRequested();
-                if (!File.Exists(libraryFile))
-                {
-                    continue;
-                }
-
-                var content = File.ReadAllText(libraryFile);
-                foreach (var candidate in SteamLibraryParser.CandidateGameDirs(SteamLibraryParser.ParseLibraryRoots(content)))
-                {
-                    if (_probe.DirectoryExists(candidate) && !found.Contains(candidate, StringComparer.OrdinalIgnoreCase))
-                    {
-                        found.Add(candidate);
-                    }
-                }
-            }
-
-            return Task.FromResult(OperationResult<IReadOnlyList<string>>.Ok(found));
-        }
-        catch (OperationCanceledException)
-        {
-            return Task.FromResult(OperationResult<IReadOnlyList<string>>.Fail("扫描 Steam 库已取消。"));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
-        {
-            return Task.FromResult(OperationResult<IReadOnlyList<string>>.Fail("扫描 Steam 库失败。", ex.Message));
-        }
-    }
-
-    /// <summary>枚举可能的 <c>libraryfolders.vdf</c> 位置（Steam 默认安装在 Program Files 两个变体下）。</summary>
-    private static IEnumerable<string> EnumerateLibraryFiles()
-    {
-        var steamRoots = new List<string>();
-
-        var programFilesX86 = Environment.GetEnvironmentVariable("ProgramFiles(x86)");
-        if (!string.IsNullOrWhiteSpace(programFilesX86))
-        {
-            steamRoots.Add(Path.Combine(programFilesX86, "Steam"));
-        }
-
-        var programFiles = Environment.GetEnvironmentVariable("ProgramFiles");
-        if (!string.IsNullOrWhiteSpace(programFiles))
-        {
-            steamRoots.Add(Path.Combine(programFiles, "Steam"));
-        }
-
-        foreach (var root in steamRoots)
-        {
-            yield return Path.Combine(root, "steamapps", "libraryfolders.vdf");
-        }
     }
 }
 

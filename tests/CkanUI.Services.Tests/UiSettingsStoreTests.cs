@@ -28,4 +28,30 @@ public sealed class UiSettingsStoreTests
         var settings = new UiSettingsStore(path).Load();
         Assert.That(settings, Is.EqualTo(new CkanUI.Services.Abstractions.UiSettings()));
     }
+
+    [Test]
+    public void SaveAndLoad_RoundTripsPersonalizationProperties()
+    {
+        using var temp = new TempWorkspace("ui-settings-personalization");
+        var path = temp.Combine(UiSettingsStore.FileName);
+        var store = new UiSettingsStore(path);
+        var expected = new CkanUI.Services.Abstractions.UiSettings
+        {
+            AccentColor = "lime",
+            RadiusScale = "round",
+            BackdropKind = "mica",
+            MotionIntensity = "reduced",
+            Theme = "dark",
+        };
+
+        var saveResult = store.Save(expected);
+        Assert.That(saveResult.IsSuccess, Is.True);
+
+        var loaded = store.Load();
+        Assert.That(loaded.AccentColor, Is.EqualTo("lime"));
+        Assert.That(loaded.RadiusScale, Is.EqualTo("round"));
+        Assert.That(loaded.BackdropKind, Is.EqualTo("mica"));
+        Assert.That(loaded.MotionIntensity, Is.EqualTo("reduced"));
+        Assert.That(loaded, Is.EqualTo(expected));
+    }
 }

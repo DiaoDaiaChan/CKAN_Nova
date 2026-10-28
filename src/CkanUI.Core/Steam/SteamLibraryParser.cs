@@ -1,11 +1,13 @@
-namespace CkanUI.ViewModels.Pages.Instances;
+namespace CkanUI.Core.Steam;
 
 /// <summary>
-/// <c>steamapps/libraryfolders.vdf</c> 的纯解析函数（06 篇 UI-32 Steam 导入）。
+/// Steam 的 <c>libraryfolders.vdf</c> 纯解析函数（06 篇 UI-32 Steam 导入）。
 /// </summary>
 /// <remarks>
-/// 解析与 IO 分离：本类只吃文本，任何"读磁盘"的动作留在宿主实现里，
-/// 于是 VDF 的两种格式（键值对写法与 <c>"path"</c> 行写法）都能用测试夹具覆盖。
+/// <para>解析与 IO 分离：本类只吃文本，任何「读磁盘」的动作留在实现里（<c>SteamLibraryLocator</c>），
+/// 于是 VDF 的两种格式（键值对写法与 <c>"path"</c> 行写法）都能用测试夹具覆盖。</para>
+/// <para>放在 Core 而不是视图模型层：读 vdf 的是服务层，服务层不能引用视图模型层（04 篇 §1），
+/// 而这段逻辑又是纯函数，所以下沉到两边都能引用的 Core。</para>
 /// </remarks>
 public static class SteamLibraryParser
 {
@@ -13,6 +15,7 @@ public static class SteamLibraryParser
     public const string GameFolderName = "Kerbal Space Program";
 
     /// <summary>从 VDF 文本里抽出全部库根目录（按出现顺序、已反转义、已去重）。</summary>
+    /// <param name="vdfContent">vdf 文件内容；<c>null</c>/空白返回空集合。</param>
     public static IReadOnlyList<string> ParseLibraryRoots(string? vdfContent)
     {
         if (string.IsNullOrWhiteSpace(vdfContent))
@@ -47,7 +50,8 @@ public static class SteamLibraryParser
         return roots;
     }
 
-    /// <summary>由库根目录推出候选 KSP 目录（不做存在性判断，存在性由宿主探测器决定）。</summary>
+    /// <summary>由库根目录推出候选 KSP 目录（不做存在性判断，存在性由调用方的探测器决定）。</summary>
+    /// <param name="libraryRoots">库根目录序列。</param>
     public static IReadOnlyList<string> CandidateGameDirs(IEnumerable<string>? libraryRoots)
     {
         if (libraryRoots is null)

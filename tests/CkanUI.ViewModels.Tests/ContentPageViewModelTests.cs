@@ -270,6 +270,38 @@ public sealed class ContentPageViewModelTests
     }
 
     [Test]
+    public async Task TrimProjection_丢掉目录树且能重新预览()
+    {
+        var target = new FakeContentTargetProvider { SelectedId = "TrimMod" };
+        var service = new FakeContentService();
+        var vm = new ContentPageViewModel(service, target);
+        await vm.PreviewAsync();
+
+        Assert.That(vm.RootNodes, Is.Not.Empty, "先要有投影，否则这条用例证明不了释放");
+
+        var released = vm.TrimProjection();
+
+        // 释放的是「条目清单 + 树包装」两份视图（18 篇 §3 的 L1 档）。
+        Assert.That(released, Is.GreaterThan(0));
+        Assert.That(vm.RootNodes, Is.Empty);
+        Assert.That(vm.Entries, Is.Empty);
+        Assert.That(vm.SelectedNode, Is.Null);
+        Assert.That(vm.PageName, Is.EqualTo("内容预览"));
+
+        // ZIP 缓存还在磁盘上，重算不需要下载，所以「放掉」是安全的。
+        await vm.PreviewAsync();
+        Assert.That(vm.RootNodes, Is.Not.Empty);
+    }
+
+    [Test]
+    public void TrimProjection_没有投影时_释放零条()
+    {
+        var vm = new ContentPageViewModel();
+
+        Assert.That(vm.TrimProjection(), Is.EqualTo(0));
+    }
+
+    [Test]
     public void Activate与Deactivate_幂等且取消关联任务()
     {
         var vm = new ContentPageViewModel();

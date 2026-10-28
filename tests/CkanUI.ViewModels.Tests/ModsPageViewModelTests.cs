@@ -232,6 +232,44 @@ public sealed class ModsPageViewModelTests
     }
 
     [Test]
+    public void ToggleSelection_PreservesSelectedRowAndDetail()
+    {
+        SeedThreeRows();
+        var vm = CreateViewModel();
+        vm.Activate();
+
+        vm.SelectedRow = vm.Rows.First(r => r.Identifier == "Alpha");
+        Assert.That(vm.SelectedRow, Is.Not.Null);
+        Assert.That(vm.HasSelectedRow, Is.True);
+        Assert.That(vm.DetailIdentifier, Is.EqualTo("Alpha"));
+
+        vm.ToggleSelection("Alpha");
+
+        Assert.That(vm.SelectedRow, Is.Not.Null);
+        Assert.That(vm.SelectedRow!.Identifier, Is.EqualTo("Alpha"));
+        Assert.That(vm.HasSelectedRow, Is.True);
+        Assert.That(vm.DetailIdentifier, Is.EqualTo("Alpha"));
+    }
+
+    [Test]
+    public void ClearSelection_PreservesSelectedRowAndDetail()
+    {
+        SeedThreeRows();
+        var vm = CreateViewModel();
+        vm.Activate();
+
+        vm.ToggleSelection("Alpha");
+        vm.SelectedRow = vm.Rows.First(r => r.Identifier == "Alpha");
+
+        vm.ClearSelection();
+
+        Assert.That(vm.SelectedRow, Is.Not.Null);
+        Assert.That(vm.SelectedRow!.Identifier, Is.EqualTo("Alpha"));
+        Assert.That(vm.HasSelectedRow, Is.True);
+        Assert.That(vm.DetailIdentifier, Is.EqualTo("Alpha"));
+    }
+
+    [Test]
     public void Selection_SurvivesFilterChange_AndRowShowsChecked()
     {
         SeedThreeRows();

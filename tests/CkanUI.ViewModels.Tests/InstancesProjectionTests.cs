@@ -121,22 +121,4 @@ public sealed class InstancesProjectionTests
         Assert.That(InstanceFormValidator.ValidatePath(@"D:\Games\KSP"), Is.Null);
     }
 
-    [Test]
-    public void SteamLibraryParser_支持两种VDF写法并去重()
-    {
-        const string vdf = "\"libraryfolders\"\n{\n\t\"contentstatsid\" \"1\"\n\t\"path\" \"D:\\\\SteamLibrary\"\n\t\"path\" \"D:\\\\SteamLibrary\"\n}\n";
-
-        var roots = SteamLibraryParser.ParseLibraryRoots(vdf);
-        var candidates = SteamLibraryParser.CandidateGameDirs(roots);
-
-        Assert.That(roots, Is.EqualTo(new[] { @"D:\SteamLibrary" }));
-        Assert.That(candidates, Is.EqualTo(new[] { Path.Combine(@"D:\SteamLibrary", "steamapps", "common", "Kerbal Space Program") }));
-    }
-
-    [Test]
-    public void SteamLibraryParser_空内容返回空集合()
-    {
-        Assert.That(SteamLibraryParser.ParseLibraryRoots(null), Is.Empty);
-        Assert.That(SteamLibraryParser.CandidateGameDirs(null), Is.Empty);
-    }
 }

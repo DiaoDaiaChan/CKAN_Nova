@@ -10,7 +10,7 @@
           <Grid ColumnDefinitions="*,160,Auto" Margin="4">
             <TextBlock Text="{Binding InstanceName}" VerticalAlignment="Center" />
             <TextBlock Grid.Column="1" Text="{Binding Hours}" IsVisible="{Binding !IsEditing}" VerticalAlignment="Center" />
-            <TextBox Grid.Column="1" Text="{Binding EditText}" IsVisible="{Binding IsEditing}" KeyDown="OnRowKeyDown" />
+            <TextBox Grid.Column="1" Text="{Binding EditText, Mode=TwoWay}" IsVisible="{Binding IsEditing}" KeyDown="OnRowKeyDown" />
             <Button Grid.Column="2" Content="编辑 (F2)" Command="{Binding $parent[ListBox].DataContext.BeginEditCommand}" CommandParameter="{Binding}" />
           </Grid>
         </DataTemplate></ListBox.ItemTemplate>

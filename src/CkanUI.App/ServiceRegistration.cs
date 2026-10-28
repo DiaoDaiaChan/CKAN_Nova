@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input.Platform;
 using CkanUI.App.Dialogs;
+using CkanUI.App.Lifecycle;
 using CkanUI.App.Localization;
 using CkanUI.App.Tray;
 using CkanUI.Localization;
@@ -12,6 +13,7 @@ using CkanUI.Services;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Bootstrap;
 using CkanUI.Services.Diagnostics;
+using CkanUI.Services.Lifecycle;
 using CkanUI.Services.Users;
 using CkanUI.ViewModels;
 using CkanUI.ViewModels.Navigation;
@@ -100,7 +102,8 @@ public static class ServiceRegistration
             sp.GetService<IChangeRequestSink>(),
             sp.GetService<INavigationService>(),
             sp.GetService<IModSearchParser>(),
-            sp.GetService<ILabelService>()));
+            sp.GetService<ILabelService>(),
+            sp.GetService<IModSearchFormatter>()));
         // 内容预览页要拿模组页的当前选中项（F-29）：只经 IContentTargetProvider 窄接口，不直接耦合。
         services.AddSingleton<IContentTargetProvider>(sp =>
             new ModsSelectionContentTarget(sp.GetRequiredService<ModsPageViewModel>()));
@@ -124,6 +127,22 @@ public static class ServiceRegistration
         services.AddSingleton<DedupPageViewModel>();
         services.AddSingleton<InstallHistoryPageViewModel>();
         services.AddSingleton<PluginsPageViewModel>();
+        services.AddSingleton<ModTextPageViewModel>();
+
+        // 分层资源释放的参与方（18 篇 §3）：L1 丢页面行投影，L0 放字形与背景位图。
+        // 三个页面按窄接口登记，服务层只认识 IPageProjectionTrim，不认识任何具体页面。
+        services.AddSingleton<IPageProjectionTrim>(sp => sp.GetRequiredService<ModsPageViewModel>());
+
+        // 插件工具项（12 篇 F-17）：目前只有模组管理页的工具条接收插件按钮。
+        services.AddSingleton<IPluginToolHost>(sp => sp.GetRequiredService<ModsPageViewModel>());
+        services.AddSingleton<IPageProjectionTrim>(sp => sp.GetRequiredService<ContentPageViewModel>());
+        services.AddSingleton<IPageProjectionTrim>(sp => sp.GetRequiredService<ModTextPageViewModel>());
+        services.AddSingleton<UiViewResourceParticipant>();
+        services.AddSingleton<IViewResourceParticipant>(sp => sp.GetRequiredService<UiViewResourceParticipant>());
+        services.AddSingleton<IAppCacheParticipant, PageProjectionCacheParticipant>();
+        // 本地化诊断表要在 App 侧才能登记（ILocalizer 由上面这条工厂创建）。
+        services.AddSingleton<IAppCacheParticipant, LocalizerCacheParticipant>();
+
         // 设置页的诊断区需要 CKAN 库版本（12 篇 F-55 同源）：VM 只收委托，CKAN 类型不越界。
         services.AddSingleton(sp =>
         {
@@ -193,7 +212,7 @@ public static class ServiceRegistration
     }
 
     // 页面 key ↔ 视图模型类型。新增页面时只改这张表与上方的单例登记。
-    private static readonly Dictionary<string, Type> PageTypes = new(StringComparer.Ordinal)
+    public static readonly Dictionary<string, Type> PageTypes = new(StringComparer.Ordinal)
     {
         ["mods"] = typeof(ModsPageViewModel),
         ["changes"] = typeof(ChangesPageViewModel),
@@ -210,13 +229,16 @@ public static class ServiceRegistration
         ["dedup"] = typeof(DedupPageViewModel),
         ["installhistory"] = typeof(InstallHistoryPageViewModel),
         ["plugins"] = typeof(PluginsPageViewModel),
+        ["modtext"] = typeof(ModTextPageViewModel),
         ["settings"] = typeof(SettingsPageViewModel),
     };
 
     private static Func<string, object?> CreatePageFactory(IServiceProvider services)
     {
+        // 内置页签直接查表；查不到再问插件（12 篇 F-17）：插件声明的页签由 App 层反射构造，
+        // 契约层与外壳都不需要知道插件程序集在哪。
         return key => PageTypes.TryGetValue(key, out var type)
             ? services.GetService(type)
-            : null;
+            : Plugins.PluginPageFactory.CreateFor(services, key, PageTypes.Keys);
     }
 }

@@ -64,7 +64,7 @@
                     <!-- 标签列表 -->
                     <ListBox Grid.Row="1"
                              ItemsSource="{Binding Items}"
-                             SelectedItem="{Binding SelectedItem}"
+                             SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
                              Background="Transparent">
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:LabelEditItemViewModel">
@@ -139,11 +139,11 @@
 
                             <Grid ColumnDefinitions="70,*" RowDefinitions="Auto,Auto" Margin="0,0,0,6">
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="标签名称:" VerticalAlignment="Center" FontSize="12" />
-                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name}" Margin="0,2,0,4" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name, Mode=TwoWay}" Margin="0,2,0,4" />
 
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="颜色代码:" VerticalAlignment="Center" FontSize="12" />
                                 <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto,Auto" Margin="0,2,0,4">
-                                    <TextBox Grid.Column="0" Text="{Binding ColorHex}" PlaceholderText="#RRGGBB" />
+                                    <TextBox Grid.Column="0" Text="{Binding ColorHex, Mode=TwoWay}" PlaceholderText="#RRGGBB" />
                                     <!-- 颜色预览色块 -->
                                     <Border Grid.Column="1" Width="26" Height="26" Margin="6,0,0,0"
                                             CornerRadius="3" BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1">
@@ -184,7 +184,7 @@
 
                             <!-- 实例适用范围 -->
                             <TextBlock Text="作用范围" Classes="section-header" />
-                            <CheckBox IsChecked="{Binding IsGlobal}"
+                            <CheckBox IsChecked="{Binding IsGlobal, Mode=TwoWay}"
                                       Content="全局通用标签（在所有游戏实例中均可见）" />
                             <TextBlock Text="取消勾选时，该标签仅绑定并保存在当前游戏实例。"
                                        FontSize="11" Margin="26,-2,0,4"
@@ -192,19 +192,19 @@
 
                             <!-- 过滤与提醒行为 -->
                             <TextBlock Text="行为与过滤选项" Classes="section-header" />
-                            <CheckBox IsChecked="{Binding HideFromOtherFilters}"
+                            <CheckBox IsChecked="{Binding HideFromOtherFilters, Mode=TwoWay}"
                                       Content="从其它常规筛选列表中隐藏此标签下的模组 (Hide)" />
-                            <CheckBox IsChecked="{Binding HoldVersion}"
+                            <CheckBox IsChecked="{Binding HoldVersion, Mode=TwoWay}"
                                       Content="锁定模组版本 (HoldVersion，禁止自动或批量升级)" />
-                            <CheckBox IsChecked="{Binding IgnoreMissingFiles}"
+                            <CheckBox IsChecked="{Binding IgnoreMissingFiles, Mode=TwoWay}"
                                       Content="忽略缺失的模组文件 (IgnoreMissingFiles)" />
-                            <CheckBox IsChecked="{Binding NotifyOnChanges}"
+                            <CheckBox IsChecked="{Binding NotifyOnChanges, Mode=TwoWay}"
                                       Content="模组发生更新变动时发出通知 (NotifyOnChanges)" />
-                            <CheckBox IsChecked="{Binding RemoveOnChanges}"
+                            <CheckBox IsChecked="{Binding RemoveOnChanges, Mode=TwoWay}"
                                       Content="模组更新后自动从此标签中移除 (RemoveOnChanges)" />
-                            <CheckBox IsChecked="{Binding AlertOnInstall}"
+                            <CheckBox IsChecked="{Binding AlertOnInstall, Mode=TwoWay}"
                                       Content="安装此标签下的模组时弹出警告提醒 (AlertOnInstall)" />
-                            <CheckBox IsChecked="{Binding RemoveOnInstall}"
+                            <CheckBox IsChecked="{Binding RemoveOnInstall, Mode=TwoWay}"
                                       Content="安装完成后自动从此标签中移除 (RemoveOnInstall)" />
 
                         </StackPanel>

@@ -49,6 +49,58 @@ public static class SettingsKeyNames
     /// <summary>ckan-ui.json：界面密度（compact / standard / comfortable）。</summary>
     public const string Density = "Density";
 
+    /// <summary>ckan-ui.json：强调色（20 篇 P-03）。</summary>
+    public const string AccentColor = "AccentColor";
+
+    /// <summary>设置页的「自定义强调色」输入行（20 篇 P-03）；落盘仍写 <see cref="AccentColor"/>，本身不算独立字段。</summary>
+    public const string AccentColorCustom = "AccentColorCustom";
+    public const string AccentScope = "AccentScope";
+
+    /// <summary>ckan-ui.json：圆角缩放（20 篇 P-05）。</summary>
+    public const string RadiusScale = "RadiusScale";
+
+    /// <summary>ckan-ui.json：动效强度（20 篇 P-10）。</summary>
+    public const string MotionIntensity = "MotionIntensity";
+
+    /// <summary>ckan-ui.json：窗口材质（20 篇 P-04）。</summary>
+    public const string BackdropKind = "BackdropKind";
+
+    /// <summary>ckan-ui.json：字号缩放（20 篇 P-09，百分比字符串）。</summary>
+    public const string FontScale = "FontScale";
+
+    /// <summary>设置页的「背景来源」行（20 篇 P-06）；落盘写 <c>Background.Kind</c>。</summary>
+    public const string BackgroundKind = "BackgroundKind";
+
+    /// <summary>设置页的「背景色」行；落盘写 <c>Background.Color</c>。</summary>
+    public const string BackgroundColor = "BackgroundColor";
+
+    /// <summary>设置页的「渐变起色」行；落盘写 <c>Background.GradientStart</c>。</summary>
+    public const string BackgroundGradientStart = "BackgroundGradientStart";
+
+    /// <summary>设置页的「渐变止色」行；落盘写 <c>Background.GradientEnd</c>。</summary>
+    public const string BackgroundGradientEnd = "BackgroundGradientEnd";
+
+    /// <summary>设置页的「渐变角度」行；落盘写 <c>Background.GradientAngle</c>。</summary>
+    public const string BackgroundGradientAngle = "BackgroundGradientAngle";
+
+    /// <summary>设置页的「背景图片」行；落盘写 <c>Background.ImagePath</c>。</summary>
+    public const string BackgroundImagePath = "BackgroundImagePath";
+
+    /// <summary>设置页的「填充方式」行；落盘写 <c>Background.Fill</c>。</summary>
+    public const string BackgroundFill = "BackgroundFill";
+
+    /// <summary>设置页的「暗化」行；落盘写 <c>Background.DimPercent</c>。</summary>
+    public const string BackgroundDim = "BackgroundDim";
+
+    /// <summary>设置页的「模糊半径」行；落盘写 <c>Background.BlurRadius</c>。</summary>
+    public const string BackgroundBlur = "BackgroundBlur";
+
+    /// <summary>设置页的「不透明度」行；落盘写 <c>Background.OpacityPercent</c>。</summary>
+    public const string BackgroundOpacity = "BackgroundOpacity";
+
+    /// <summary>设置页的「作用范围」行（20 篇 P-07）；global 写 <c>Background</c>，instance 写 <c>BackgroundByInstance</c>。</summary>
+    public const string BackgroundScope = "BackgroundScope";
+
     /// <summary>ckan-ui.json：版本号隐藏 epoch 前缀（F-54）。</summary>
     public const string HideVersionEpoch = "HideVersionEpoch";
 

@@ -24,6 +24,16 @@ public interface ILocalizer
     /// <summary>缺 key 统计：key → 命中次数（进程内累计，不因切语言清零）。</summary>
     IReadOnlyDictionary<string, int> MissingKeys { get; }
 
+    /// <summary>
+    /// 清空缺译与告警诊断表，返回清掉的条目数（18 篇 §3 的 L1 档）。
+    /// </summary>
+    /// <remarks>
+    /// 这两张表是进程内唯一会无界增长的本地化状态（每个没命中的 key 都留一行），
+    /// 而它们只服务于「缺译清单」这个诊断功能，清空后下一次取译文会重新累计——
+    /// 所以释放它不影响任何界面文案。默认实现不做事，便于只读的测试替身。
+    /// </remarks>
+    int ClearDiagnostics() => 0;
+
     /// <summary>取译文；解析链全未命中时返回 key 本身并记 Warn。</summary>
     string Get(string key);
 

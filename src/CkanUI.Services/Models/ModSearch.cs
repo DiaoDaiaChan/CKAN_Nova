@@ -577,7 +577,9 @@ namespace CkanUI.Services.Models;
             => string.IsNullOrWhiteSpace(Description)
                 || ShouldNegateTerm(Description, out string subDesc) ^ (
                     mod.SearchableAbstract.IndexOf(subDesc, StringComparison.InvariantCultureIgnoreCase) != -1
-                    || mod.SearchableDescription.IndexOf(subDesc, StringComparison.InvariantCultureIgnoreCase) != -1);
+                    || mod.SearchableDescription.IndexOf(subDesc, StringComparison.InvariantCultureIgnoreCase) != -1
+                    || (mod.SearchableTranslatedAbstract != null && mod.SearchableTranslatedAbstract.IndexOf(subDesc, StringComparison.InvariantCultureIgnoreCase) != -1)
+                    || (mod.SearchableTranslatedDescription != null && mod.SearchableTranslatedDescription.IndexOf(subDesc, StringComparison.InvariantCultureIgnoreCase) != -1));
 
         private bool MatchesLicenses(GUIMod mod)
         {

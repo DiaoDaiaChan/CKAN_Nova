@@ -47,7 +47,7 @@ public sealed class SettingsKeyMirrorTests
             .Select(f => (string)f.GetRawConstantValue()!)
             .ToHashSet(StringComparer.Ordinal);
 
-        foreach (var uiKey in new[] { SettingsKeyNames.Theme, SettingsKeyNames.Locale, SettingsKeyNames.Density })
+        foreach (var uiKey in new[] { SettingsKeyNames.Theme, SettingsKeyNames.Locale, SettingsKeyNames.Density, SettingsKeyNames.AccentColor, SettingsKeyNames.RadiusScale, SettingsKeyNames.MotionIntensity, SettingsKeyNames.BackdropKind })
         {
             Assert.That(coreValues.Contains(uiKey), Is.False, $"UI 自有键 {uiKey} 与 Core 键名冲突");
         }

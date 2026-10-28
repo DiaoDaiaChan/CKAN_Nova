@@ -175,6 +175,9 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
     /// <summary>能否删除选中项。</summary>
     public bool CanDeleteSelected => HasSelection && !IsBusy;
 
+    /// <summary>能否把选中项接管为受管安装（只接管 .dll，见 12 篇 F-42）。</summary>
+    public bool CanAdoptSelected => HasSelection && !IsBusy;
+
     /// <summary>能否在文件夹中显示（需要选中节点且宿主提供了委托）。</summary>
     public bool CanShowInFolder => SelectedNode is not null && ShellLauncher is not null && !IsBusy;
 
@@ -187,8 +190,9 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
             _subscribed = true;
         }
 
-        if (!_loaded)
+        if (_instance != _instances.Current || !_loaded)
         {
+            _instance = _instances.Current;
             _ = RefreshAsync();
         }
     }
@@ -347,6 +351,70 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
         await LoadCoreAsync();
         SetStatus($"已删除 {deleted} 项未管理内容。");
     }, "删除未管理文件", "正在删除…");
+
+    /// <summary>
+    /// 把选中项接管为受管安装：写进注册表 <c>installed_dlls</c>（12 篇 F-42 / INT-09）。
+    /// 只接管 <c>.dll</c>；拒绝项会带原因显示在错误条里，不会静默丢弃。
+    /// </summary>
+    [RelayCommand]
+    private Task AdoptSelectedAsync() => RunAsync(async () =>
+    {
+        if (_instance is not { } instance)
+        {
+            SetError("还没有选定游戏实例。", null);
+            return;
+        }
+
+        var paths = SelectedPaths;
+        if (paths.Count == 0)
+        {
+            SetError("没有选中要接管的内容。", null);
+            return;
+        }
+
+        var detail = string.Join(Environment.NewLine, paths.Take(10));
+        if (paths.Count > 10)
+        {
+            detail += Environment.NewLine + "…";
+        }
+
+        var confirmed = await _dialogs.ConfirmAsync(
+            "接管为受管安装",
+            $"确定把选中的 {paths.Count} 项接管为受管安装吗？",
+            "接管会把 .dll 登记进注册表（installed_dlls），写前自动生成 registry.json 快照。"
+            + Environment.NewLine
+            + "只有 .dll 可以接管；目录会展开成其中的 DLL。"
+            + Environment.NewLine
+            + detail);
+        if (!confirmed)
+        {
+            SetStatus("已取消接管。");
+            return;
+        }
+
+        var result = await _service.AdoptAsync(instance, paths, dryRun: false);
+        if (!result.IsSuccess)
+        {
+            SetError(UnmanagedErrorText.Compose(result.Message, "接管未管理文件失败。", result.Retryable), result.Detail);
+            return;
+        }
+
+        var outcome = result.Value ?? UnmanagedAdoptResult.Empty;
+        await LoadCoreAsync();
+        SetStatus($"已接管 {outcome.AdoptedCount} 个、跳过 {outcome.SkippedCount} 个、拒绝 {outcome.RefusedCount} 个。");
+
+        if (outcome.HasRefusals)
+        {
+            var refused = outcome.Items
+                .Where(item => item.Outcome == UnmanagedAdoptOutcome.Refused)
+                .Select(item => string.IsNullOrWhiteSpace(item.Reason)
+                    ? item.RelativePath
+                    : item.RelativePath + "：" + item.Reason);
+            SetError(
+                $"有 {outcome.RefusedCount} 项被拒绝接管。",
+                string.Join(Environment.NewLine, refused));
+        }
+    }, "接管未管理文件", "正在接管…");
 
     /// <summary>在系统文件管理器中定位选中项。</summary>
     [RelayCommand]
@@ -541,6 +609,7 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
         OnPropertyChanged(nameof(SelectionText));
         OnPropertyChanged(nameof(CanDeleteSelected));
         OnPropertyChanged(nameof(CanPreviewDelete));
+        OnPropertyChanged(nameof(CanAdoptSelected));
     }
 
     private static bool HasSelectedAncestor(string relativePath, HashSet<string> selected)
@@ -619,6 +688,7 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
         OnPropertyChanged(nameof(CanRefresh));
         OnPropertyChanged(nameof(CanPreviewDelete));
         OnPropertyChanged(nameof(CanDeleteSelected));
+        OnPropertyChanged(nameof(CanAdoptSelected));
         OnPropertyChanged(nameof(CanShowInFolder));
         OnPropertyChanged(nameof(ShowEmptyState));
     }
@@ -653,9 +723,10 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
             InstanceInfo instance, CancellationToken ct = default)
             => Task.FromResult(OperationResult<IReadOnlyList<UnmanagedFileInfo>>.Ok(Array.Empty<UnmanagedFileInfo>()));
 
-        public Task<OperationResult<IReadOnlyList<string>>> AdoptAsync(
-            InstanceInfo instance, IReadOnlyCollection<string> relativePaths, CancellationToken ct = default)
-            => Task.FromResult(OperationResult<IReadOnlyList<string>>.Fail("设计时未提供实现。", null, false));
+        public Task<OperationResult<UnmanagedAdoptResult>> AdoptAsync(
+            InstanceInfo instance, IReadOnlyCollection<string> relativePaths,
+            bool dryRun = false, CancellationToken ct = default)
+            => Task.FromResult(OperationResult<UnmanagedAdoptResult>.Fail("设计时未提供实现。", null, false));
 
         public Task<OperationResult<IReadOnlyList<string>>> DeleteAsync(
             InstanceInfo instance,

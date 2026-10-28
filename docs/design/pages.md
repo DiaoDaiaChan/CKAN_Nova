@@ -1,4 +1,4 @@
-﻿# 页面与对话框实现设计说明（Pages & Dialogs Architecture）
+# 页面与对话框实现设计说明（Pages & Dialogs Architecture）
 
 > 真相源与对应规格：
 > - 规格清单：`docs/plan/03-ui-spec.md`（§1 架构、§2 页面清单、§3 ModsView、§4 ChangesView、§5 InstancesView、§6 RepositoriesView、§7 SettingsView、§8 对话框、§10 空态与错误态、§13 全特性对照）
@@ -52,6 +52,7 @@
 | `ToggleRowSelectionCommand` | `IRelayCommand<string>` | 切换指定标识模组的加入/移出变更集勾选 |
 | `ApplyChangesCommand` | `IAsyncRelayCommand` | 导航至变更集页面或提交变更 |
 | `RefreshRepositoriesCommand` | `IAsyncRelayCommand` | 重新拉取所有仓库并重建可见列表 |
+| `PluginTools` / `HasPluginTools` | `ObservableCollection<PluginToolButtonViewModel>` / `bool` | 插件工具项按钮（12 篇 F-17；收集与执行见 `docs/design/plugins.md` §6.2），页面实现 `IPluginToolHost`、`ToolHostKey => "mods"` |
 
 #### 2.1.4 空状态与错误收口
 - **无实例**：状态栏提示「当前未选择有效 KSP 实例」，列表禁用，引导至实例页。
@@ -121,7 +122,7 @@
 | `CurrentInstance` | `InstanceInfo?` | 当前选中的活动实例 |
 | `IsSwitching` | `bool` | 切换中遮罩状态，为 true 时界面阻断所有操作 |
 | `SwitchInstanceCommand` | `IAsyncRelayCommand<string>` | 切换至指定实例，带完整事务回滚机制 |
-| `AutoDetectInstancesCommand` | `IAsyncRelayCommand` | 扫描 Steam 库及默认路径发现新实例并批量添加 |
+| `AutoDetectInstancesCommand` | `IAsyncRelayCommand` | 扫描 Steam 库及默认路径发现新实例并批量添加；库定位走 `ISteamLibraryLocator`（视图注入 `src/CkanUI.Services/Platform/SteamLibraryLocator.cs`，注册表 `SteamPath` 优先） |
 | `AddManualInstanceCommand` | `IAsyncRelayCommand` | 弹出目录选取器并验证 `buildID.txt` / KSP 标志结构 |
 | `CloneInstanceCommand` | `IAsyncRelayCommand<string>` | 克隆指定实例副本 |
 | `RemoveInstanceCommand` | `IAsyncRelayCommand<string>` | 移出实例登记（需确认对话框） |
@@ -134,7 +135,8 @@
 #### 2.3.5 启动后的分层资源释放（18 篇 E6）
 - **实现位置**：编排在 `src/CkanUI.Services/Lifecycle/ResourceReleaseService.cs`，时机在 `src/CkanUI.ViewModels/Pages/Instances/GameLaunchReleaseCoordinator.cs`。
 - **为什么做**：KSP 与 CKAN 同机常驻会抢内存，而 Core 没有「清缓存」API——能真正放掉的只有「仓库快照 + `RegistryManager.DisposeAll()`」，所以把它做成**可逆**的释放：`RestoreAsync` 用 `IRegistryService.OpenAsync(当前实例)` + `IRepositoryService.LoadCachedAsync()` 重新打开。
-- **五层**：L0 视图参与方（`IViewResourceParticipant`）/ L1 缓存参与方（`IAppCacheParticipant`）/ L2 注册表锁 + 仓库快照 / L3 压缩式 GC / L4 工作集归还（本版本返回 `Unsupported`，报告记 Skipped 不算失败）。
+- **五层**：L0 视图参与方（`IViewResourceParticipant` → `src/CkanUI.App/Lifecycle/UiViewResourceParticipant.cs`，清导航字形几何缓存、释放背景位图）/ L1 缓存参与方（`IAppCacheParticipant` → `src/CkanUI.App/Lifecycle/PageProjectionCacheParticipant.cs` 丢模组/内容/模组文本三页的行投影，`src/CkanUI.Services/Lifecycle/LocalizerCacheParticipant.cs` 清缺译诊断表）/ L2 注册表锁 + 仓库快照 / L3 压缩式 GC / L4 工作集归还（本版本返回 `Unsupported`，报告记 Skipped 不算失败）。
+- **L0/L1 的可逆性**：页面投影丢掉后，页面重新激活时按原流程重载（`OnActivated` → 重读快照/重新解析），模组的勾选待变更集**不清**；字形缓存与诊断表都是「下次用到再重建」的纯加速层。
 - **四档**（`UiSettings.ReleaseTier`，默认 `Balanced`）：`Off` 连计时器都不起；`Conservative` 只跑 L0+L1；`Balanced` 补 L2；`Aggressive` 补 L3/L4。
 - **时机**：启动成功即排程，T3 = 0s（保守）、T4 = +10s（均衡）、T5 = +30s（激进）；服务按「已成功的层」幂等，每层只跑一次。
 - **收口**：游戏退出（`IInstanceLaunchExitSignal.GameExited`，由 App 侧 `ShellInstanceLauncher` 保留句柄后广播）或离开页面 → 取消后续层并 `RestoreAsync`，失败走错误栏且可重试。每层独立成败，失败只记 Warn 不阻断后续层。
@@ -256,7 +258,7 @@
 - 比对要求两个不同实例；只有一个实例时按钮禁用且命令内二次拦截。
 - 导出目标已存在同名目录 → `UnauthorizedAccessException` → 转可重试文案。
 
-**已知缺口**：F-40（本地 ZIP 直接灌下载缓存）、F-41（跨实例去重）、F-42（未管理文件树）未实现。
+**已知缺口**：F-40（本地 ZIP 直接灌下载缓存）、F-41（跨实例去重）未实现。
 
 ### 2.8 启动命令编辑 (LaunchCommandsPanelViewModel)
 
@@ -296,8 +298,11 @@
 | `FilterText` | 按相对路径筛选，命中项保留祖先链（`UnmanagedTreeBuilder` 剪枝） |
 | `PreviewDeleteCommand` / `DeleteCommand` | 前者走 `dryRun:true` 只列路径；后者连弹两次 `ConfirmAsync` 才落盘 |
 | `RevealInExplorerCommand` | 经 `IUnmanagedShellLauncher`（视图 code-behind 用 `??=` 注入）打开资源管理器定位 |
+| `AdoptSelectedCommand`（按钮「接管为受管」） | 一次 `ConfirmAsync` 后调 `IUnmanagedService.AdoptAsync(dryRun:false)`：把选中的 `.dll` 登记进注册表 `installed_dlls`；成功后 `LoadCoreAsync()` 重扫，状态条报「已接管 n 个、跳过 m 个、拒绝 k 个」，被拒绝项的 `Reason` 聚合进错误条。`CanAdoptSelected` = `HasSelection && !IsBusy` |
 
-**安全语义**：整批先做安全校验，任一路径受管或「包含受管内容」→ 整批拒绝且不可重试（提示去模组页卸载），dry-run 也不放行；目标已消失 → 可重试失败。「接管为受管安装」（`AdoptAsync`）留给 INT-09。
+**安全语义**：整批先做安全校验，任一路径受管或「包含受管内容」→ 整批拒绝且不可重试（提示去模组页卸载），dry-run 也不放行；目标已消失 → 可重试失败。
+
+**接管语义（INT-09，已落地）**：只接管 `.dll`；目录递归展开；已是受管的跳过（幂等）；批内标识符重复、或标识符已登记给别的路径时**显式拒绝并给原因**（上游 `ScanUnmanagedFiles` 会静默丢掉冲突项）。写入由 `IManagedFileRegistrar` 负责——合并既有 `installed_dlls`（上游 `SetDlls` 是整体替换）、写前生成 `registry.json.bak-<时间戳>` 快照、Save 失败还原内存与磁盘。判定是纯函数 `UnmanagedAdopter.Plan`，`dryRun:true` 绝不写注册表。
 
 ---
 
@@ -352,7 +357,7 @@
 | 依赖 | `IPluginService`、`IErrorReporter`；文件选择走视图注入的 `IPluginFilePicker` |
 | 关键成员 | `ActivePlugins` / `DormantPlugins` / `PluginsDirectory` / `FailureTexts` / `RefreshCommand` / `AddNewCommand` / `ActivateCommand` / `DeactivateCommand` / `ReloadCommand` / `UnloadCommand` |
 | 语义 | 插件目录默认 `%LocalAppData%/CKAN/plugins`；扫描一律以 `activate:false` 加载进 Dormant，**必须用户显式点「激活」才执行插件 `Initialize`**；加载用可回收 `AssemblyLoadContext`，对契约程序集与 System/Avalonia 前缀返回 null（否则插件会加载出第二份 Abstractions）；用 `LoadFromStream` 而非 `LoadFromAssemblyPath`，避免长期占用 dll 句柄；同进程、不沙箱，页面页头明示 |
-| 缺口 | 插件声明的页签尚未渲染成导航项（`PageTypes` 是静态字典，需要动态 key + 按 ViewLocator 解析插件 VM 类型）；ALC 卸载尽力而为（插件持有静态引用/线程时不会真回收）；不校验签名；不递归子目录；页面拉取式刷新，不订阅 `IPluginService.Changed` |
+| 缺口 | ALC 卸载尽力而为（插件持有静态引用/线程时不会真回收）；不校验签名；不递归子目录；页面拉取式刷新，不订阅 `IPluginService.Changed`（页签与工具项的刷新由外壳的 `PluginPageCatalog` / `PluginToolItemHost` 负责，见 §6.1 / §6.2） |
 
 ### 2.14 内容预览页 (ContentPageViewModel)
 

@@ -28,8 +28,11 @@ public sealed record PluginInfo(
     PluginState State,
     string? FailureReason = null)
 {
-    /// <summary>插件声明的页签/工具项；默认空列表（不声明页签的插件是合法的）。</summary>
+    /// <summary>插件声明的页签；默认空列表（不声明页签的插件是合法的）。</summary>
     public IReadOnlyList<PluginPageDescriptor> Pages { get; init; } = Array.Empty<PluginPageDescriptor>();
+
+    /// <summary>插件声明的工具项（挂到宿主既有页面工具条上的按钮）；默认空列表。</summary>
+    public IReadOnlyList<PluginToolItemDescriptor> ToolItems { get; init; } = Array.Empty<PluginToolItemDescriptor>();
 
     /// <summary>是否已激活。</summary>
     public bool IsActive => State == PluginState.Active;

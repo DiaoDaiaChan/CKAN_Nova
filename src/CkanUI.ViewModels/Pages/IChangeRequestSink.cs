@@ -10,4 +10,7 @@ public interface IChangeRequestSink
 {
     /// <summary>用一批请求替换当前待计算集合；<c>null</c> 或空集合等价于清空。</summary>
     void SetRequests(IReadOnlyCollection<ChangeRequest>? requests);
+
+    /// <summary>当变更集已成功全部应用到游戏实例时触发，通知来源页面（如模组页）清空勾选与待决状态。</summary>
+    event Action? RequestsApplied;
 }

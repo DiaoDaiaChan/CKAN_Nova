@@ -18,6 +18,12 @@ public sealed partial class PlayTimePageViewModel : PageViewModel
     [ObservableProperty] private string? _errorText;
     public bool ShowEmptyState => Entries.Count == 0;
 
+    protected override void OnActivated()
+    {
+        base.OnActivated();
+        Refresh();
+    }
+
     [RelayCommand]
     private void Refresh()
     {

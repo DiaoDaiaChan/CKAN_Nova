@@ -404,6 +404,102 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Test]
+    public async Task LoadAsync_ReadsPersonalizationFieldsFromUiSettings()
+    {
+        var store = new FakeUiSettingsStore().With(new UiSettings
+        {
+            AccentColor = "purple",
+            RadiusScale = "round",
+            BackdropKind = "mica",
+            MotionIntensity = "reduced",
+        });
+        var page = CreatePage(new FakeSettingsService(), store);
+
+        await page.LoadAsync();
+
+        Assert.That(Item(page, SettingsKeyNames.AccentColor).EditValue, Is.EqualTo("purple"));
+        Assert.That(Item(page, SettingsKeyNames.RadiusScale).EditValue, Is.EqualTo("round"));
+        Assert.That(Item(page, SettingsKeyNames.BackdropKind).EditValue, Is.EqualTo("mica"));
+        Assert.That(Item(page, SettingsKeyNames.MotionIntensity).EditValue, Is.EqualTo("reduced"));
+    }
+
+    [Test]
+    public async Task SaveItemAsync_AccentColor_WritesUiSettingsOnly()
+    {
+        var settings = new FakeSettingsService();
+        var store = new FakeUiSettingsStore().With(new UiSettings { Theme = "dark" });
+        var page = CreatePage(settings, store);
+        await page.LoadAsync();
+        var accent = Item(page, SettingsKeyNames.AccentColor);
+        accent.SelectedChoice = accent.Choices.Single(choice => choice.Value == "lime");
+
+        await page.SaveItemAsync(accent);
+
+        Assert.That(settings.Attempts, Is.Empty);
+        Assert.That(store.Saved, Has.Count.EqualTo(1));
+        Assert.That(store.Saved[0].AccentColor, Is.EqualTo("lime"));
+        Assert.That(accent.IsDirty, Is.False);
+        Assert.That(page.StatusText, Is.EqualTo("强调色：已保存"));
+    }
+
+    [Test]
+    public async Task SaveItemAsync_RadiusScale_WritesUiSettingsOnly()
+    {
+        var settings = new FakeSettingsService();
+        var store = new FakeUiSettingsStore().With(new UiSettings { Theme = "dark" });
+        var page = CreatePage(settings, store);
+        await page.LoadAsync();
+        var radius = Item(page, SettingsKeyNames.RadiusScale);
+        radius.SelectedChoice = radius.Choices.Single(choice => choice.Value == "round");
+
+        await page.SaveItemAsync(radius);
+
+        Assert.That(settings.Attempts, Is.Empty);
+        Assert.That(store.Saved, Has.Count.EqualTo(1));
+        Assert.That(store.Saved[0].RadiusScale, Is.EqualTo("round"));
+        Assert.That(radius.IsDirty, Is.False);
+        Assert.That(page.StatusText, Is.EqualTo("圆角尺度：已保存"));
+    }
+
+    [Test]
+    public async Task SaveItemAsync_BackdropKind_WritesUiSettingsOnly()
+    {
+        var settings = new FakeSettingsService();
+        var store = new FakeUiSettingsStore().With(new UiSettings { Theme = "dark" });
+        var page = CreatePage(settings, store);
+        await page.LoadAsync();
+        var backdrop = Item(page, SettingsKeyNames.BackdropKind);
+        backdrop.SelectedChoice = backdrop.Choices.Single(choice => choice.Value == "acrylic");
+
+        await page.SaveItemAsync(backdrop);
+
+        Assert.That(settings.Attempts, Is.Empty);
+        Assert.That(store.Saved, Has.Count.EqualTo(1));
+        Assert.That(store.Saved[0].BackdropKind, Is.EqualTo("acrylic"));
+        Assert.That(backdrop.IsDirty, Is.False);
+        Assert.That(page.StatusText, Is.EqualTo("窗口材质与透明：已保存"));
+    }
+
+    [Test]
+    public async Task SaveItemAsync_MotionIntensity_WritesUiSettingsOnly()
+    {
+        var settings = new FakeSettingsService();
+        var store = new FakeUiSettingsStore().With(new UiSettings { Theme = "dark" });
+        var page = CreatePage(settings, store);
+        await page.LoadAsync();
+        var motion = Item(page, SettingsKeyNames.MotionIntensity);
+        motion.SelectedChoice = motion.Choices.Single(choice => choice.Value == "none");
+
+        await page.SaveItemAsync(motion);
+
+        Assert.That(settings.Attempts, Is.Empty);
+        Assert.That(store.Saved, Has.Count.EqualTo(1));
+        Assert.That(store.Saved[0].MotionIntensity, Is.EqualTo("none"));
+        Assert.That(motion.IsDirty, Is.False);
+        Assert.That(page.StatusText, Is.EqualTo("动效强度：已保存"));
+    }
+
+    [Test]
     public async Task LoadAsync_ReadsF54FlagsFromUiSettings()
     {
         var store = new FakeUiSettingsStore().With(new UiSettings

@@ -1,0 +1,356 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- ========================================== -->
+  <!-- 全局按钮现代化 Fluent 交互与平滑过渡动画      -->
+  <!-- ========================================== -->
+  <Style Selector="Button">
+    <Setter Property="RenderTransform" Value="none" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="Foreground" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationFast}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Button:pointerover">
+    <Setter Property="RenderTransform" Value="translateY(-1px)" />
+  </Style>
+
+  <Style Selector="Button:pressed">
+    <Setter Property="RenderTransform" Value="scale(0.97)" />
+  </Style>
+
+  <!-- 重点操作主按钮 (Accent / Primary) 现代高光 -->
+  <Style Selector="Button.CkanPrimary">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentTextBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+  </Style>
+
+  <Style Selector="Button.CkanPrimary:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanPrimaryBrush}" />
+    <Setter Property="RenderTransform" Value="translateY(-1px)" />
+  </Style>
+
+  <Style Selector="Button.CkanPrimary:pressed">
+    <Setter Property="RenderTransform" Value="scale(0.97)" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- Fluent / WinUI 3 风格卡片容器 (Cards)       -->
+  <!-- ========================================== -->
+  <Style Selector="Border.CkanCard">
+    <Setter Property="Background" Value="{DynamicResource CkanCardBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanCardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+    <Setter Property="Padding" Value="14" />
+    <Setter Property="BoxShadow" Value="0 2 10 0 #14000000" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BoxShadowsTransition Property="BoxShadow" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Border.CkanSubtleCard">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+    <Setter Property="Padding" Value="10" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Border.CkanToolbar">
+    <Setter Property="Background" Value="{DynamicResource CkanCardBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanCardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+    <Setter Property="Padding" Value="12,10" />
+    <Setter Property="BoxShadow" Value="0 1 6 0 #10000000" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BoxShadowsTransition Property="BoxShadow" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 现代轻量化筛选胶囊 (Filter Chips)            -->
+  <!-- ========================================== -->
+  <Style Selector="Button.CkanChip">
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="Padding" Value="12,4" />
+    <Setter Property="MinHeight" Value="28" />
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="RenderTransform" Value="none" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="Foreground" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationFast}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Button.CkanChip:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="RenderTransform" Value="translateY(-1px)" />
+  </Style>
+
+  <Style Selector="Button.CkanChip:pressed">
+    <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
+    <Setter Property="RenderTransform" Value="scale(0.96)" />
+  </Style>
+
+  <!-- 选中态 Chip -->
+  <Style Selector="Button.CkanChip.Active">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 现代化输入框 (TextBox & SearchBox)          -->
+  <!-- ========================================== -->
+  <Style Selector="TextBox">
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="TextBox:focus">
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <Style Selector="TextBox.CkanSearchBox">
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 下拉框 (ComboBox) 现代化圆角与过渡           -->
+  <!-- ========================================== -->
+  <Style Selector="ComboBox">
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="ComboBox:pointerover">
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 侧边栏导航列表与项目 (NavList Items)         -->
+  <!-- ========================================== -->
+  <Style Selector="ListBox#NavList">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="6,2" />
+  </Style>
+
+  <Style Selector="ListBox#NavList > ListBoxItem">
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Margin" Value="2,2" />
+    <Setter Property="Padding" Value="10,8" />
+    <Setter Property="MinHeight" Value="38" />
+    <Setter Property="RenderTransform" Value="none" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationFast}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="ListBox#NavList > ListBoxItem:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="RenderTransform" Value="translateX(3px)" />
+  </Style>
+
+  <Style Selector="ListBox#NavList > ListBoxItem:pressed">
+    <Setter Property="RenderTransform" Value="scale(0.98)" />
+  </Style>
+
+  <Style Selector="ListBox#NavList > ListBoxItem:selected">
+    <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
+    <Setter Property="RenderTransform" Value="none" />
+  </Style>
+
+  <!-- 选中项左侧蓝色指示条 -->
+  <Style Selector="ListBox#NavList > ListBoxItem Rectangle.navIndicator">
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="RenderTransform" Value="scaleY(0)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="ListBox#NavList > ListBoxItem:selected Rectangle.navIndicator">
+    <Setter Property="Opacity" Value="1" />
+    <Setter Property="RenderTransform" Value="scaleY(1)" />
+  </Style>
+
+  <!-- 图标与文字微交互与高亮 -->
+  <Style Selector="ListBox#NavList PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Foreground" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="ListBox#NavList > ListBoxItem:pointerover PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+  </Style>
+
+  <Style Selector="ListBox#NavList > ListBoxItem:selected PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <Style Selector="ListBox#NavList TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Foreground" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="ListBox#NavList > ListBoxItem:selected TextBlock">
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 表格 (DataGrid) 现代流畅微交互与视觉优化     -->
+  <!-- ========================================== -->
+  <Style Selector="DataGrid">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="GridLinesVisibility" Value="None" />
+  </Style>
+
+  <Style Selector="DataGridColumnHeader">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Padding" Value="10,7" />
+    <Setter Property="SeparatorBrush" Value="Transparent" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="DataGridRow">
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Margin" Value="2,1" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="DataGridRow:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="DataGridRow:selected">
+    <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 普通列表项 (ListBoxItem) 统一现代化平滑悬浮     -->
+  <!-- ========================================== -->
+  <Style Selector="ListBoxItem">
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Margin" Value="2,1" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationFast}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="ListBoxItem:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="ListBoxItem:selected">
+    <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 空状态容器 (Empty State)                    -->
+  <!-- ========================================== -->
+  <Style Selector="Border.CkanEmptyStateCard">
+    <Setter Property="Background" Value="{DynamicResource CkanCardBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanCardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+    <Setter Property="Padding" Value="32,24" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <!-- ========================================== -->
+  <!-- 页面级警告/通知 Banner 平滑展示               -->
+  <!-- ========================================== -->
+  <Style Selector="Border.CkanInfoBanner">
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Padding" Value="14,10" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+</Styles>

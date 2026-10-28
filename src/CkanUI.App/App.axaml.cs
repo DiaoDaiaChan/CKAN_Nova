@@ -24,6 +24,13 @@ public sealed partial class App : Application
     private LocalizationHost? _localization;
     private ThemeHost? _theme;
     private DensityHost? _density;
+    private Theming.FontScaleHost? _fonts;
+    private Theming.AccentHost? _accent;
+    private Theming.MotionHost? _motion;
+    private Theming.RadiusHost? _radius;
+    private Theming.BackdropHost? _backdrop;
+    private Theming.BackgroundHost? _background;
+    private Plugins.PluginToolItemHost? _pluginTools;
     private TrayHost? _tray;
     private bool _shutdownDone;
 
@@ -50,10 +57,12 @@ public sealed partial class App : Application
             _localization.Install();
 
             // 主题与语言一样必须在首帧前生效，否则会看到默认变体闪一下（20 篇 P-08）。
+            // 系统高对比度是最高优先级（20 篇 §15 / P-02）：探针直读平台设置，开了就压过用户选的主题与强调色。
             _theme = new ThemeHost(
                 _services.GetRequiredService<IUiSettingsStore>(),
                 _services.GetRequiredService<IDispatcher>(),
-                this);
+                this,
+                () => ThemeHost.IsSystemHighContrast(this));
             _theme.Install();
 
             // 密度与主题同理：首帧前落地，否则会看到默认行高跳一下（20 篇 P-08、THM-06）。
@@ -63,11 +72,72 @@ public sealed partial class App : Application
                 this);
             _density.Install();
 
+            // 字号缩放紧随密度（20 篇 P-09）：同样首帧前落地，避免第一帧用基准字号再跳一档。
+            _fonts = new Theming.FontScaleHost(
+                _services.GetRequiredService<IUiSettingsStore>(),
+                _services.GetRequiredService<IDispatcher>(),
+                this);
+            _fonts.Install();
+
+            // 强调色与圆角宿主：首帧前落地，初始化 12 预设强调色与圆角缩放 token（20 篇 P-03、P-05）
+            _accent = new Theming.AccentHost(
+                _services.GetRequiredService<IUiSettingsStore>(),
+                _services.GetRequiredService<IDispatcher>(),
+                this,
+                _services.GetService<IInstanceService>());
+            _accent.Install();
+
+            // 高对比度开关一变，主题变体与强调色都要重算（强调色依赖主题变体，故排在其后订阅）。
+            _theme.ForcedStateChanged += _ => _accent?.Refresh();
+
+            // 动效强度（20 篇 P-10）：页面/控件过渡时长各自落在 token 上，同样首帧前落地。
+            _motion = new Theming.MotionHost(
+                _services.GetRequiredService<IUiSettingsStore>(),
+                _services.GetRequiredService<IDispatcher>(),
+                this);
+            _motion.Install();
+
+            _radius = new Theming.RadiusHost(
+                _services.GetRequiredService<IUiSettingsStore>(),
+                _services.GetRequiredService<IDispatcher>(),
+                this);
+            _radius.Install();
+
             var shell = _services.GetRequiredService<ShellViewModel>();
             var window = new MainWindow { DataContext = shell };
             desktop.MainWindow = window;
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
             desktop.Exit += (_, _) => Shutdown();
+
+            _backdrop = new Theming.BackdropHost(
+                _services.GetRequiredService<IUiSettingsStore>(),
+                _services.GetRequiredService<IDispatcher>(),
+                desktop);
+            _backdrop.Install();
+
+            // 背景层（20 篇 P-06 / P-07）：需要窗口先建好才能按名字取 BackgroundLayer 等控件，
+            // 所以排在这里；实例切换会改变「按实例覆盖」的解析结果，故一并传实例服务。
+            _background = new Theming.BackgroundHost(
+                _services.GetRequiredService<IUiSettingsStore>(),
+                _services.GetRequiredService<IDispatcher>(),
+                this,
+                window,
+                _services.GetService<IInstanceService>());
+            _background.Install();
+
+            // 资源释放的 L0 参与方要拿到背景宿主才能放位图（18 篇 §3）：容器解析时不带窗口参数，只能回填。
+            if (_services.GetService<Lifecycle.UiViewResourceParticipant>() is { } viewParticipant)
+            {
+                viewParticipant.Background = _background;
+            }
+
+            // 插件工具项（12 篇 F-17）：插件可以往宿主既有页面的工具条插按钮。
+            // 页面实例由 DI 单例提供，外壳拿到的就是同一批实例，所以按接口收齐即可。
+            _pluginTools = new Plugins.PluginToolItemHost(
+                _services.GetRequiredService<IPluginService>(),
+                _services.GetServices<CkanUI.ViewModels.Navigation.IPluginToolHost>(),
+                _services.GetRequiredService<IDispatcher>());
+            _pluginTools.Install();
 
             // 托盘（12 篇 F-51）：窗口建好后再装图标；「最小化到托盘 / 关闭到托盘」两个开关的生效点就在这里。
             var trayMenu = _services.GetRequiredService<TrayMenuViewModel>();
@@ -141,7 +211,14 @@ public sealed partial class App : Application
         }
         finally
         {
+            _pluginTools?.Dispose();
             _tray?.Dispose();
+            _background?.Dispose();
+            _backdrop?.Dispose();
+            _radius?.Dispose();
+            _accent?.Dispose();
+            _motion?.Dispose();
+            _fonts?.Dispose();
             _density?.Dispose();
             _theme?.Dispose();
             _localization?.Dispose();

@@ -40,10 +40,18 @@ internal sealed class ProjectFile
 
         return new ProjectFile(relativePath, ReadRefs(doc, "ProjectReference"), ReadRefs(doc, "PackageReference"));
 
-        // $(CkanCoreProject) 归一成 CKAN-core，便于断言。
+        // $(CkanCoreProject) 归一成 CKAN-core，$(UI18nCoreProject) 归一成 UI18n.Core，便于断言。
         static string Normalize(string include)
-            => include.Contains("CkanCoreProject", StringComparison.Ordinal)
-                ? "CKAN-core"
-                : System.IO.Path.GetFileNameWithoutExtension(include);
+        {
+            if (include.Contains("CkanCoreProject", StringComparison.Ordinal))
+            {
+                return "CKAN-core";
+            }
+            if (include.Contains("UI18nCoreProject", StringComparison.Ordinal))
+            {
+                return "UI18n.Core";
+            }
+            return System.IO.Path.GetFileNameWithoutExtension(include);
+        }
     }
 }

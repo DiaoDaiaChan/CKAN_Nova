@@ -48,8 +48,10 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IInstanceService, InstanceService>();
         services.TryAddSingleton<IRegistryService, RegistryService>();
 
-        // 未管理文件（F-42）：受管路径集合由 Core 注册表投影，扫描/删除是纯文件系统逻辑。
+        // 未管理文件（F-42）：受管路径集合由 Core 注册表投影，扫描/删除是纯文件系统逻辑；
+        // 接管（INT-09）只通过 IManagedFileRegistrar 写 installed_dlls，写前先生成注册表快照。
         services.TryAddSingleton<IManagedPathProvider, CkanManagedPathProvider>();
+        services.TryAddSingleton<IManagedFileRegistrar, CkanManagedFileRegistrar>();
         services.TryAddSingleton<IUnmanagedService, UnmanagedService>();
 
         // 卸载残留目录清理（F-43）：候选来源可替换，删除边界（GameData 内、非符号链接、无受管文件）全在服务里。
@@ -66,6 +68,9 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IDedupLinker, NativeDedupLinker>();
         services.TryAddSingleton<IInstanceDedupService, InstanceDedupService>();
 
+        // Mod 元数据翻译服务（17 篇 E5）：纯内存查找器 + 语言包扫描与仓库联动。
+        services.TryAddSingleton<CkanUI.ModText.IModTextService, ModText.ModTextService>();
+
         // 标签组（F-24）：读写上游 ModuleLabelList，落盘交给 Core 的 Save(path)，不自写 JSON。
         services.TryAddSingleton<ILabelService>(provider => new LabelService(
             provider.GetRequiredService<GameInstanceManager>(),
@@ -73,13 +78,19 @@ public static class ServiceCollectionExtensions
 
         // 搜索语法解析：页面只认 ModSearchSpec，语法权威仍在上游 ModSearch（F-20..F-23）。
         services.TryAddSingleton<IModSearchParser, ModSearchParser>();
+        // 反向格式化（F-20）：图形化筛选面板改字段，搜索框要显示同一套语法文本。
+        services.TryAddSingleton<IModSearchFormatter, ModSearchFormatter>();
         services.TryAddSingleton<IRepositoryService, RepositoryService>();
         services.TryAddSingleton<IChangeSetPlanner, CoreChangeSetPlanner>();
         services.TryAddSingleton<IChangeSetService, ChangeSetService>();
         services.TryAddSingleton<IInstallerBackendFactory, CkanInstallerBackendFactory>();
         // 安装历史（F-44）：装饰器包住安装器，安装/卸载/升级成功后自动落一条 history。
         services.TryAddSingleton<InstallHistoryRecorder>();
-        services.TryAddSingleton<IInstallHistoryService, InstallHistoryService>();
+        services.TryAddSingleton<IInstallHistoryService>(provider => new InstallHistoryService(
+            provider.GetRequiredService<InstallHistoryRecorder>(),
+            provider.GetRequiredService<IRegistryService>(),
+            provider.GetRequiredService<IChangeSetService>(),
+            provider.GetRequiredService<IInstallerService>()));
         services.TryAddSingleton<IInstallerService>(provider => new HistoryRecordingInstaller(
             new InstallerService(
                 provider.GetRequiredService<IInstallerBackendFactory>(),
@@ -114,6 +125,9 @@ public static class ServiceCollectionExtensions
         // 下载（M2）：字节搬运在 IDownloadTransport 后面，落盘/校验/取消语义在 DownloadService。
         services.TryAddSingleton<IDownloadTransport>(provider =>
             new NetAsyncDownloaderTransport(provider.GetRequiredService<IUser>()));
+        // 重试策略显式注册：虽然 DownloadService 的构造参数有默认值，但依赖注入解析不到未注册的
+        // 具体类型时会走默认值——显式注册让「生产用 3 次 / 400ms→1200ms」成为可替换的单点。
+        services.TryAddSingleton(DownloadRetryPolicy.Default);
         services.TryAddSingleton<IDownloadService, DownloadService>();
 
         // 内容预览（F-29）：ZIP 只读中央目录；未缓存时先下到临时文件再原子 Store。

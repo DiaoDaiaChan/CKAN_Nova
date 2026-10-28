@@ -19,6 +19,7 @@ public sealed class AuditRecommendationsDialogTests
     private sealed class FakeChangeRequestSink : IChangeRequestSink
     {
         public IReadOnlyCollection<ChangeRequest>? ReceivedRequests { get; private set; }
+        public event Action? RequestsApplied { add { } remove { } }
 
         public void SetRequests(IReadOnlyCollection<ChangeRequest>? requests)
         {

@@ -84,6 +84,15 @@ public sealed class Localizer : ILocalizer
     public IReadOnlyDictionary<string, int> MissingKeys => _missing;
 
     /// <inheritdoc />
+    public int ClearDiagnostics()
+    {
+        var released = _missing.Count + _warned.Count;
+        _missing.Clear();
+        _warned.Clear();
+        return released;
+    }
+
+    /// <inheritdoc />
     public string Get(string key)
     {
         if (key is null)

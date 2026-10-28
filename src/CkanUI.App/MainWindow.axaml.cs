@@ -11,14 +11,33 @@ namespace CkanUI.App;
 /// <summary>主窗口（03 篇 §1 外壳）。导航只做命令转发，状态全部在 ShellViewModel 里。</summary>
 public sealed partial class MainWindow : Window
 {
-    public MainWindow() => InitializeComponent();
+    /// <summary>页面切换动画的时长 token（20 篇 P-10 由 MotionHost 写入）。</summary>
+    private const string PageMotionToken = "CkanMotionDurationPage";
 
-    private void OnNavSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    public MainWindow()
     {
-        if (NavList.SelectedItem is NavItem item && DataContext is ShellViewModel shell)
+        InitializeComponent();
+
+        // 动效强度变化会重写这个 token；CrossFade.Duration 是普通属性，只能在代码里跟着重建。
+        ResourcesChanged += (_, _) => ApplyPageTransition();
+        ApplyPageTransition();
+    }
+
+    /// <summary>按当前动效强度装配页面切换动画；时长归零时干脆不装（关闭档要的是「瞬时」）。</summary>
+    private void ApplyPageTransition()
+    {
+        if (PageHost is null)
         {
-            // 命令本身是异步的且自带异常收口，这里不等待；状态栏由 ShellViewModel 更新。
-            shell.NavigateCommand.Execute(item.Key);
+            return;
+        }
+
+        if (this.TryFindResource(PageMotionToken, out var value) && value is TimeSpan duration && duration > TimeSpan.Zero)
+        {
+            PageHost.PageTransition = new Avalonia.Animation.CrossFade { Duration = duration };
+        }
+        else
+        {
+            PageHost.PageTransition = null;
         }
     }
 

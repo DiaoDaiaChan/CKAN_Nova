@@ -55,6 +55,9 @@ public static class LocalizationKeys
     /// <summary>导航栏：插件（F-17）。</summary>
     public const string NavRailPlugins = "Ui_NavRail_Plugins";
 
+    /// <summary>导航栏：模组汉化/文本。</summary>
+    public const string NavRailModText = "Ui_NavRail_ModText";
+
     /// <summary>导航栏：设置。</summary>
     public const string NavRailSettings = "Ui_NavRail_Settings";
 

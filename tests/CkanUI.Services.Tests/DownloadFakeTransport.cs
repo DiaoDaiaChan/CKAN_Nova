@@ -24,8 +24,11 @@ public sealed class FakeDownloadTransport : IDownloadTransport
         _handler = handler;
     }
 
-    /// <summary>被调用次数（断言「没有地址时不触网」）。</summary>
+    /// <summary>被调用次数（断言「没有地址时不触网」「重试了几次」）。</summary>
     public int Calls { get; private set; }
+
+    /// <summary>每次调用开始时临时文件里已有多少字节（断言「重试是从断点续传」）。</summary>
+    public List<long> ObservedExistingBytes { get; } = new();
 
     /// <summary>最后一次调用收到的临时文件路径（断言清理用）。</summary>
     public string? LastTempPath { get; private set; }
@@ -41,6 +44,7 @@ public sealed class FakeDownloadTransport : IDownloadTransport
         Calls++;
         LastTempPath = tempFilePath;
         LastProgress = progress;
+        ObservedExistingBytes.Add(File.Exists(tempFilePath) ? new FileInfo(tempFilePath).Length : 0);
         return _handler(request, tempFilePath, progress, ct);
     }
 
@@ -85,6 +89,43 @@ public sealed class FakeDownloadTransport : IDownloadTransport
     /// <summary>抛网络异常（模拟 Core 把 WebException 透出）。</summary>
     public static FakeDownloadTransport Throws(Exception exception)
         => new((_, _, _, _) => Task.FromException<OperationResult<TransferOutcome>>(exception));
+
+    /// <summary>
+    /// 第一次失败（只写了前 <paramref name="partialBytes"/> 字节），重试时从断点追加剩余字节。
+    /// 模拟真实的 Range 续传语义：临时文件里已有的字节就是进度，不该重下。
+    /// </summary>
+    public static FakeDownloadTransport FailsOnceThenResumes(byte[] payload, int partialBytes)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        var calls = 0;
+        return new((_, temp, progress, _) =>
+        {
+            calls++;
+            var existing = File.Exists(temp) ? (int)new FileInfo(temp).Length : 0;
+            if (calls == 1)
+            {
+                using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    stream.Write(payload, 0, Math.Min(partialBytes, payload.Length));
+                }
+
+                progress?.Report(new TransferProgress(existing + partialBytes, payload.Length));
+                return Task.FromResult(OperationResult<TransferOutcome>.Fail(
+                    "下载失败，请检查网络连接后重试。", "SocketException: 连接被重置", retryable: true));
+            }
+
+            using (var stream = new FileStream(temp, FileMode.Append, FileAccess.Write, FileShare.None))
+            {
+                var remaining = Math.Max(0, payload.Length - existing);
+                stream.Write(payload, existing, remaining);
+            }
+
+            progress?.Report(new TransferProgress(payload.Length, payload.Length));
+            var hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(temp)));
+            return Task.FromResult(OperationResult<TransferOutcome>.Ok(
+                new TransferOutcome(temp, hash, null, payload.Length)));
+        });
+    }
 
     /// <summary>直接返回失败结果（模拟传输层已归类好的失败）。</summary>
     public static FakeDownloadTransport Fails(string message, string? detail = null, bool retryable = true)
