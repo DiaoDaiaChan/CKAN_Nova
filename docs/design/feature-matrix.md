@@ -3,7 +3,7 @@
 > 本文是 **55 项特性（F-01..F-55）** 在新 UI（ckan-ui）中的实现状态跟踪矩阵。
 > 规格来源：[12 全特性对齐清单](../plan/12-feature-parity.md) §5、[06 WBS 与里程碑](../plan/06-wbs-milestones.md)。
 > 逐条证据附件：[55 项特性验收取证](feature-matrix-verification.md)（每条给出实现 `file:line` 与覆盖测试，并记录与本文不一致的地方）。
-> 代码口径：基于 `src/` 源码实测检索，状态分为 **已实现**（基础逻辑与界面落点均落地）、**部分实现**（服务/模型或局部界面就绪，但缺关键入口或界面形态与规格不符）、**未开始**（尚未编写实现代码）。当前汇总：**已实现 54 / 部分实现 1 / 未开始 0**。
+> 代码口径：基于 `src/` 源码实测检索，状态分为 **已实现**（基础逻辑与界面落点均落地）、**部分实现**（服务/模型或局部界面就绪，但缺关键入口或界面形态与规格不符）、**未开始**（尚未编写实现代码）。当前汇总：**已实现 55 / 部分实现 0 / 未开始 0**。
 
 ---
 
@@ -40,7 +40,7 @@
 | F-27 | 元数据页（Identifier、Replaced by、Max game ver.、Author、Downloads 等） | UI-03 | `src/CkanUI.ViewModels/Dialogs/ModDetailsSnapshot.cs:12`, `src/CkanUI.ViewModels/Dialogs/ModDetailsFormatter.cs:6` | 已实现 | 视图模型单测验证元数据各字段提取、格式化展示与空状态回退 |
 | F-28 | 关系树（九色图例、反向关系、双击跳转） | UI-18 | `src/CkanUI.ViewModels/Relations/RelationLegendItem.cs:1`, `src/CkanUI.ViewModels/Relations/RelationTreeViewModel.cs:1`, `src/CkanUI.App/Views/Relations/RelationTreeView.axaml:1` | 已实现 | 9 色语义图例（Depends/Conflicts/Recommends 等）WrapPanel 展示、正向/反向依赖构建与单键切换（谁依赖了我）、循环依赖安全截断保护、双击节点跳转模组详情导航，单测覆盖（`RelationTreeViewModelTests`） |
 | F-29 | 内容页（未缓存时提示、下载、打开 ZIP 预览文件树） | UI-03 | `src/CkanUI.Services/Content/ContentService.cs:8`, `NetModuleCacheZipStore.cs:8`, `src/CkanUI.ViewModels/Pages/ContentPageViewModel.cs:10`, `src/CkanUI.App/Views/ContentPageView.axaml:55` | 已实现 | `src/CkanUI.Services/Content/{ContentService,NetModuleCacheZipStore}.cs`（中央目录建树 + 临时分卷下载后 `cache.Store(move:true,validate:true)`）、`src/CkanUI.ViewModels/Pages/ContentPageViewModel.cs`、`src/CkanUI.App/Views/ContentPageView.axaml`（TreeView）；测试 `ContentServiceTests`(11) + `ContentPageViewModelTests`(12) |
-| F-30 | 版本列表与指定版本安装（UI-09） | UI-09 | `src/CkanUI.ViewModels/Dialogs/ModDetailsViewModel.cs:340`（`Versions`）/`:636`（`InstallVersionAsync`）/`:691`, `src/CkanUI.App/Views/Dialogs/ModDetailsView.axaml:204`（版本页签） | 部分实现 | 版本页签、计数文案与「安装该版本」入口已就位（走 `new ChangeRequest(identifier, ChangeAction.Install, version.Version)` → `IChangeSetService.BuildAsync`），但**没有实现填充 `Versions`**：`src/CkanUI.ViewModels/Pages/Mods/ModDetailsSnapshotBuilder.cs` 不填该字段，`CkanUI.Services.Abstractions` 也没有版本集合来源（`RegistrySnapshot` 只有已装清单），生产环境该页签恒为空态 —— 收口需先加「模组可用版本集合」契约（取证 §2.2 与 §7） |
+| F-30 | 版本列表与指定版本安装（UI-09） | UI-09 | 契约 `src/CkanUI.Services.Abstractions/Mods/IModVersionCatalog.cs:11` + `ModVersionOption.cs:18`；实现 `src/CkanUI.Services/Mods/CkanModVersionCatalog.cs:17`/`:32`/`:83`（`Project` 纯函数投影）；DI `src/CkanUI.Services/ServiceCollectionExtensions.cs:54`、`src/CkanUI.App/ServiceRegistration.cs:145`；投影 `src/CkanUI.ViewModels/Pages/Mods/ModDetailsSnapshotBuilder.cs:56`（`BuildVersions`）、回填 `src/CkanUI.ViewModels/Dialogs/ModDetailsViewModel.cs:577`（`ApplyVersions`）、页面查询 `src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:1246`/`:1271`，安装入口 `ModDetailsViewModel.cs:636`、页签 `src/CkanUI.App/Views/Dialogs/ModDetailsView.axaml:204` | 已实现 | 版本页签数据源接通：`IRegistryQuerier.AvailableByIdentifier` 跨所有已加载仓库取同一标识符全部版本（内存对象图，不联网）→ 版本号降序 + KSP 兼容文案 + 发布时间/体积/下载链接 + 已装/不稳定标记；选中行连续变化时取消上一次查询，后发先至的结果不串台；「安装该版本」仍走 `new ChangeRequest(identifier, ChangeAction.Install, version.Version)` → `IChangeSetService.BuildAsync`。用例 `CkanModVersionCatalogTests`（13）、`ModsVersionCatalogTests`（12）、`DialogsModDetailsTabsTests`（27）（取证 §7 第三轮） |
 | F-31 | 右键动作（重装、复制标识符、复制下载地址、打开主页） | UI-02, UI-18 | `src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:1782`（`CanReinstallSelected`）/`:1785`（`CanOpenHomepage`）/`:1789`（`ReinstallSelected`） | 已实现 | 模组列表 DataGrid.ContextMenu 接入，支持重装、复制标识符、复制下载地址与系统浏览器打开主页，单测覆盖（10 例） |
 | F-32 | 全量更新（Update all）、应用（Apply） | UI-02, UI-04 | `src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:1183`（`UpdateAllCommand`）, `src/CkanUI.App/Views/ModsPageView.axaml:85` | 已实现 | 全量更新（`UpdateAllCommand`）识别并全选可更新模组，应用变更（`ApplyChangesCommand`）校验并交接 `ChangesPageViewModel` 导航（`ModsUpdateAllTests` 5 例） |
 | F-33 | 变更集页（Mod / Change / Reasons / Skip? 四列、清空、应用、游戏运行警告） | UI-04, VM-02 | `src/CkanUI.ViewModels/Pages/ChangesPageViewModel.cs:1`, `src/CkanUI.App/Views/ChangesPageView.axaml:1`, `src/CkanUI.Services/ChangeSets/CoreChangeSetPlanner.cs:1` | 已实现 | 变更集页：冲突/警告横幅、六列明细（名称/动作/版本/来源/体积/操作）、清空、单条剔除、应用与执行状态机（Idle→Computing→Ready→Applying→Done/Failed/Cancelled）、**游戏运行中横幅**（12 篇 §F-33：探测实例目录下的进程，拦下主按钮并提供「仍要执行」，见 `src/CkanUI.Services/Instances/InstanceService.cs:122` `IsGameRunning` 与 `src/CkanUI.ViewModels/Pages/ChangesPageViewModel.cs` `HasGameRunningWarning`，用例 `tests/CkanUI.Services.Tests/GameProcessProbeTests.cs`、`tests/CkanUI.ViewModels.Tests/ChangesGameRunningTests.cs`）。「跳过」仍与原因合并进明细说明文本 |
@@ -75,8 +75,8 @@
 
 | 状态 | 数量 | 占比 | 包含特性的主要范围 |
 |---|---|---|---|
-| **已实现** | **54** | 98.2% | 除 F-30 外的其余特性（F-01..F-29、F-31..F-55）：基础与导航、实例自检（删锁/注册表隔离/升级建议）、稳定性容忍度、兼容版本、首选主机、安装过滤器、实例与启动命令、组合搜索面板、Label 标签管理、元数据与关系树、详情四页签、右键菜单、全量更新与应用交接、关系树九色图例、游戏运行探测、模组对话框族、安装执行与一键重试、下载错误处置、缓存管理、ZIP 导入安装、Modpack 导入导出与编辑器、去重、未管理文件、残留清理、安装历史（含删除/清空）、下载统计、游戏时长（含自动累计）、设置与显示格式、系统托盘、自动更新（含下载—校验—替换—回滚）、关于框、插件体系、语言与本地化 |
-| **部分实现** | **1** | 1.8% | F-30（版本页签与「安装该版本」入口已就位，但缺「模组可用版本集合」的数据源，`ModDetailsSnapshotBuilder` 不填 `Versions`，页签恒空态）；逐条说明见 §1 同名列与取证 §7 |
+| **已实现** | **55** | 100.0% | 全部特性（F-01..F-55）：基础与导航、实例自检（删锁/注册表隔离/升级建议）、稳定性容忍度、兼容版本、首选主机、安装过滤器、实例与启动命令、组合搜索面板、Label 标签管理、元数据与关系树、详情四页签、右键菜单、全量更新与应用交接、关系树九色图例、游戏运行探测、模组对话框族、安装执行与一键重试、下载错误处置、缓存管理、ZIP 导入安装、Modpack 导入导出与编辑器、去重、未管理文件、残留清理、安装历史（含删除/清空）、下载统计、游戏时长（含自动累计）、设置与显示格式、系统托盘、自动更新（含下载—校验—替换—回滚）、版本目录与指定版本安装（`IModVersionCatalog` 取跨仓库全部版本）、关于框、插件体系、语言与本地化 |
+| **部分实现** | **0** | 0.0% | 无（第二轮补 F-08/F-26/F-52、第三轮补 F-30 后清零） |
 | **未开始** | **0** | 0.0% | 无 |
 | **总计** | **55** | 100.0% | 覆盖全特性清单（A 9 + B 8 + C 17 + D 14 + E 7）全部条目 |
 
@@ -88,10 +88,10 @@
 
 状态与缺口以 §1 与 [55 项特性验收取证](feature-matrix-verification.md) 为唯一口径；下面按「补齐界面落点 → 登记已知残留 → 全量复验」排序。
 
-### 第一优先级：把 1 项「部分实现」收口
-1. **F-30（版本列表与指定版本安装）**：界面侧已完成 —— 版本页签（`ModDetailsView.axaml:204`）、`Versions` 集合投影（`ModDetailsViewModel.cs:340`）与「安装该版本」（`:636`，经 `ChangeRequest(..., version.Version)` 进变更集）。缺的是**数据源**：需在 `CkanUI.Services.Abstractions` 新增「某模组可用版本集合」契约（`RegistrySnapshot`/`InstalledModuleInfo` 不含版本历史），再由 `src/CkanUI.ViewModels/Pages/Mods/ModDetailsSnapshotBuilder.cs` 填充 `Versions`。
+### 第一优先级：已无待收口的「部分实现」
+55 项全部达到「基础逻辑 + 界面落点」双条件，无部分实现项。
 
-> F-08、F-26、F-52 已在第二轮补齐并改判「已实现」，取证见 `feature-matrix-verification.md` §7。
+> F-08、F-26、F-52 在第二轮补齐，F-30 在第三轮补齐（新增 `CkanUI.Services.Abstractions/Mods/IModVersionCatalog.cs` 契约与 `src/CkanUI.Services/Mods/CkanModVersionCatalog.cs` 实现，页面经 `VersionCatalog` 注入并在选中行变化时异步查询），取证见 `feature-matrix-verification.md` §7。
 
 ### 第二优先级：已知残留（不改变状态，详见取证 §3/§4）
 1. **F-12**：自动刷新间隔只有设置项，缺后台定时器与「暂停自动刷新」开关。

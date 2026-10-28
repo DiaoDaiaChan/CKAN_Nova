@@ -569,6 +569,22 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
         Reload();
     }
 
+    /// <summary>
+    /// 回填「全部版本」页签的数据（F-30）。
+    /// 详情快照由列表行同步拼出，版本集合却要额外查一次仓库索引，所以由页面异步取到后再回填：
+    /// <paramref name="versions"/> 为 <c>null</c> 或空集合表示该模组没有版本记录（页签走空态）。
+    /// </summary>
+    public void ApplyVersions(IReadOnlyList<ModVersionItemDto>? versions)
+    {
+        if (_details is null)
+        {
+            return;
+        }
+
+        _details = _details with { Versions = versions is { Count: > 0 } ? versions : null };
+        Refresh();
+    }
+
     /// <summary>清空选中（切实例/刷新时用，避免显示上一实例的旧数据）。</summary>
     public void Clear()
     {

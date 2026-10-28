@@ -1,4 +1,5 @@
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.Services.Abstractions.Mods;
 using CkanUI.ViewModels.Dialogs;
 
 namespace CkanUI.ViewModels.Pages.Mods;
@@ -11,8 +12,8 @@ namespace CkanUI.ViewModels.Pages.Mods;
 /// 都在 <see cref="ModSearchFacts"/> 上；<see cref="ModsPageViewModel"/> 选中行变化时调这里拼快照，
 /// 视图只负责渲染，不再各自查服务。</para>
 /// <para>不做任何 IO：关系行的「已满足」按调用方给的已装标识集合判定，缺省一律判为缺失，
-/// 避免详情面板凭空显示「已满足」。版本集合与已装文件清单需要注册表侧数据，本投影暂不提供
-/// （对应页签显示空态），留待服务层补专用契约后再填。</para>
+/// 避免详情面板凭空显示「已满足」。已装文件清单仍无契约来源（页签显示空态）；
+/// 版本集合由 <see cref="BuildVersions"/> 从 <c>IModVersionCatalog</c> 的结果投影后回填（F-30）。</para>
 /// </remarks>
 public static class ModDetailsSnapshotBuilder
 {
@@ -45,6 +46,40 @@ public static class ModDetailsSnapshotBuilder
             ToRelations(facts.Recommends, ModRelationKind.Recommendation, IsSatisfied),
             ToRelations(facts.ConflictsWith, ModRelationKind.Conflict, IsSatisfied),
             data.IsCompatible);
+    }
+
+    /// <summary>
+    /// 把服务层的版本选项投影成详情面板的版本行（F-30）。
+    /// 服务契约用的是 Abstractions 的纯记录，视图模型用自己的展示 DTO，两者字段一一对应。
+    /// </summary>
+    /// <param name="options">版本目录返回的选项；<c>null</c> 或空集合返回空列表（面板走空态）。</param>
+    public static IReadOnlyList<ModVersionItemDto> BuildVersions(IEnumerable<ModVersionOption>? options)
+    {
+        if (options is null)
+        {
+            return Array.Empty<ModVersionItemDto>();
+        }
+
+        var rows = new List<ModVersionItemDto>();
+        foreach (var option in options)
+        {
+            if (option is null || string.IsNullOrWhiteSpace(option.Version))
+            {
+                continue;
+            }
+
+            rows.Add(new ModVersionItemDto(
+                option.Version,
+                option.GameCompatibility,
+                option.ReleaseDate,
+                option.DownloadSizeBytes,
+                option.DownloadUrl,
+                option.IsInstalled,
+                option.IsCompatible,
+                option.IsUnstable));
+        }
+
+        return rows;
     }
 
     /// <summary>许可证列表拼成一行（多个用顿号分隔）；没有时返回 <c>null</c> 让面板走「未知」。</summary>

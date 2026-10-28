@@ -25,6 +25,7 @@ using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Operations;
 using CkanUI.Services.Abstractions.Instances;
 using CkanUI.Services.Abstractions.Logs;
+using CkanUI.Services.Abstractions.Mods;
 using CkanUI.Services.Abstractions.Update;
 using CkanUI.ViewModels.Pages;
 using CkanUI.ViewModels.Pages.Logs;
@@ -140,6 +141,8 @@ public static class ServiceRegistration
 
             // 富字段快照由模组页在选中行变化时喂进来（ModDetailsSnapshotBuilder），这里只负责接线。
             page.Details = sp.GetRequiredService<ModDetailsViewModel>();
+            // F-30「全部版本」页签的数据源：跨仓库索引取同一标识符的全部版本（只读内存对象图）。
+            page.VersionCatalog = sp.GetService<IModVersionCatalog>();
             return page;
         });
         // 内容预览页要拿模组页的当前选中项（F-29）：只经 IContentTargetProvider 窄接口，不直接耦合。

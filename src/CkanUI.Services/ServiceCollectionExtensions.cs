@@ -49,6 +49,12 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IInstanceService, InstanceService>();
         services.TryAddSingleton<IRegistryService, RegistryService>();
 
+        // 版本目录（F-30）：详情页「全部版本」的数据源。跨所有已加载仓库取同一标识符的全部版本，
+        // 数据是内存里的 CkanModule 对象图（不联网、不读盘），因此和注册表快照一样始终在线。
+        services.TryAddSingleton<Abstractions.Mods.IModVersionCatalog>(provider => new Mods.CkanModVersionCatalog(
+            provider.GetRequiredService<GameInstanceManager>(),
+            provider.GetRequiredService<RepositoryDataManager>()));
+
         // 未管理文件（F-42）：受管路径集合由 Core 注册表投影，扫描/删除是纯文件系统逻辑；
         // 接管（INT-09）只通过 IManagedFileRegistrar 写 installed_dlls，写前先生成注册表快照。
         services.TryAddSingleton<IManagedPathProvider, CkanManagedPathProvider>();

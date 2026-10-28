@@ -60,7 +60,7 @@
 | F-27 | 元数据页（Identifier、Author、Downloads 等） | `ModDetailsViewModel.cs:172`（`MetadataItems`）、`ModDetailsSnapshot.cs:12`、`ModDetailsFormatter.cs:6`（主表写 :10，实测 class 在 :6） | DialogsModDetailsTests:15 | 强（行号漂移已校正） |
 | F-28 | 关系树（九色图例、反向关系、双击跳转） | `src/CkanUI.ViewModels/Relations/RelationTreeViewModel.cs:11`、`RelationLegendItem.cs:6`、`src/CkanUI.App/Views/.../RelationTreeView.axaml` | RelationTreeViewModelTests:13、RelationsTreeTests:12 | 强 |
 | F-29 | 内容页（未缓存提示、下载、ZIP 树预览） | `src/CkanUI.Services/Content/ContentService.cs:8`、`NetModuleCacheZipStore.cs:8`、`src/CkanUI.ViewModels/Pages/ContentPageViewModel.cs:10`、`ContentPageView.axaml:55` | ContentServiceTests:11、ContentPageViewModelTests:14 | 强（主表 @BT@ 占位符已修正，见 §2.4） |
-| F-30 | 版本列表与指定版本安装 | 界面与动作：`src/CkanUI.ViewModels/Dialogs/ModDetailsViewModel.cs:340`（`Versions` 集合）/`:375`（`HasVersions`）/`:378`（计数文案）/`:636`（`[RelayCommand(CanExecute = nameof(CanInstallVersion))]`）/`:637`（`InstallVersionAsync(ModVersionItemDto)`）/`:691`、页签 `src/CkanUI.App/Views/Dialogs/ModDetailsView.axaml:204`；数据侧 `src/CkanUI.ViewModels/Dialogs/ModDetailsSnapshot.cs` 的 `Versions` 属性 | 无（本特性无专门断言；`DialogsModDetailsTabsTests` 只覆盖空态与页签） | 部分：版本集合渲染、计数与「安装该版本」入口已通（走 `new ChangeRequest(identifier, ChangeAction.Install, version.Version)` → `IChangeSetService.BuildAsync`），但**没有任何实现填充 `Versions`** —— `src/CkanUI.ViewModels/Pages/Mods/ModDetailsSnapshotBuilder.cs` 不填该字段，`CkanUI.Services.Abstractions` 里也没有可用版本集合的来源（`RegistrySnapshot` 只有已装清单），生产环境该页签恒为空态（见 §2.2 与 §7） |
+| F-30 | 版本列表与指定版本安装 | 数据契约 `src/CkanUI.Services.Abstractions/Mods/IModVersionCatalog.cs:11`、`ModVersionOption.cs:18`；实现 `src/CkanUI.Services/Mods/CkanModVersionCatalog.cs:17`/`:32`（`GetVersionsAsync`）/`:83`（`Project`）→ `IRegistryQuerier.AvailableByIdentifier` + `GameInstance.VersionCriteria()`；DI `src/CkanUI.Services/ServiceCollectionExtensions.cs:54`、`src/CkanUI.App/ServiceRegistration.cs:145`；界面与动作 `src/CkanUI.ViewModels/Dialogs/ModDetailsViewModel.cs:340`（`Versions`）/`:375`（`HasVersions`）/`:378`（计数文案）/`:577`（`ApplyVersions`）/`:636`（`[RelayCommand(CanExecute = nameof(CanInstallVersion))]`）/`:637`（`InstallVersionAsync`）、投影 `src/CkanUI.ViewModels/Pages/Mods/ModDetailsSnapshotBuilder.cs:56`（`BuildVersions`）、页面查询 `src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:1246`（`VersionCatalog`）/`:1271`（`RefreshVersionsAsync`）、页签 `src/CkanUI.App/Views/Dialogs/ModDetailsView.axaml:204` | `CkanModVersionCatalogTests`:13、`ModsVersionCatalogTests`:12、`DialogsModDetailsTabsTests`:27 | 强：版本号降序 + KSP 兼容文案 + 发布时间/体积/下载链接 + 已装/不稳定标记全链贯通；选中行连续变化取消上一次查询（后发先至不串台）；「安装该版本」仍走 `new ChangeRequest(identifier, ChangeAction.Install, version.Version)` → `IChangeSetService.BuildAsync`（见 §7 与 §8） |
 | F-31 | 右键动作（重装、复制标识符、复制下载地址、打开主页） | `src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:1782`（`CanReinstallSelected`）、`:1785`（`CanOpenHomepage`）、`:1789`（`ReinstallSelected`）；主表 :1630 未复现 | ModsContextMenuTests:10、ModsPageViewModelTests:22 | 强（行号漂移） |
 | F-32 | 全量更新（Update all）、应用（Apply） | `ModsPageViewModel.cs:1183`（`UpdateAllCommand.NotifyCanExecuteChanged()`）、`src/CkanUI.App/Views/ModsPageView.axaml:146`（绑定 UpdateAllCommand）；主表 :1587 未复现 | ModsUpdateAllTests:5、ModsChangePreviewTests:6、ModsChangesHandoffTests:7 | 强（行号漂移） |
 | F-33 | 变更集页（四列、清空、应用、游戏运行警告） | `src/CkanUI.ViewModels/Pages/ChangesPageViewModel.cs:21`、`src/CkanUI.Core/ChangeSets/CoreChangeSetPlanner.cs:21`、`InstanceService.cs:122`（`IsGameRunning`） | ChangesPageViewModelTests:29、ChangesFormatterTests:9、ChangeSetServiceTests:17、ChangesGameRunningTests:8、GameProcessProbeTests:12 | 强 |
@@ -312,4 +312,20 @@ dotnet run --project tests/CkanUI.TestRunner --no-build -- CkanUI.App.Tests
 汇总变化：**已实现 51 → 54**、**部分实现 4 → 1**、未开始 0 → 0。
 
 > 下一轮若要收口 F-30，需要先在 `CkanUI.Services.Abstractions` 里加「某模组可用版本集合」的契约（当前 `RegistrySnapshot`/`InstalledModuleInfo` 都不含版本历史），再让 `ModDetailsSnapshotBuilder` 填充 `Versions` —— 属新接口工作量，不是界面缝补。
+
+---
+
+## 8. 第三轮补录（2026-10-29）
+
+本轮按 §7 末尾点名的方向补上 F-30 的数据源，55 项至此全部达到「基础逻辑 + 界面落点」双条件。
+
+| F-ID | 本轮补齐内容 | 关键实现证据 | 覆盖用例 | 状态变化 |
+|---|---|---|---|---|
+| F-30 | 新增「模组可用版本集合」契约与实现：`IRegistryQuerier.AvailableByIdentifier` 跨所有已加载仓库取同一标识符全部版本（内存对象图，不联网不读盘），投影成纯记录 `ModVersionOption`（版本号降序、KSP 兼容文案、发布时间、下载体积/链接、已装、兼容、不稳定）；`ModsPageViewModel` 在选中行变化时异步查询并回填详情面板，取消上一次查询，失败只记错误栏不打断浏览 | `src/CkanUI.Services.Abstractions/Mods/IModVersionCatalog.cs:11`、`ModVersionOption.cs:18`、`src/CkanUI.Services/Mods/CkanModVersionCatalog.cs:17`/\`:32`/`:83`、`src/CkanUI.ViewModels/Pages/Mods/ModDetailsSnapshotBuilder.cs:56`、`src/CkanUI.ViewModels/Dialogs/ModDetailsViewModel.cs:577`、`src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:1246`/\`:1271` | `CkanModVersionCatalogTests`（13）、`ModsVersionCatalogTests`（12） | 部分 → **已实现** |
+
+汇总变化：**已实现 54 → 55**、部分实现 1 → 0、未开始 0 → 0（母表 §1 F-30 行、§2.1 汇总与 `docs/README.md` 索引口径同步更新）。
+
+> 契约设计要点：视图模型不引用 `CKAN` 类型，服务层把 `CkanModule` 投影成纯记录 `ModVersionOption`；仓库里查不到该标识符（`ModuleNotFoundKraken`，例如只在本地装过）返回空列表而不是失败，详情页因此显示「暂无版本记录」；其余异常返回可重试的失败文案。
+
+> 仍未落地的细节（不改变状态）：版本列表没有「只看兼容版本」过滤与「强制安装不兼容版本」的二次确认；「文件与内容」页签的 `InstalledFiles` 仍无契约来源（`RegistrySnapshot` 只有已装清单，没有逐文件表），页签保持空态。
 

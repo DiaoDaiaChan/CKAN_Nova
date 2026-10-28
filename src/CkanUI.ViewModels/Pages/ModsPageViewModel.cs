@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.Services.Abstractions.Mods;
 using CkanUI.ViewModels.Dialogs;
 using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Pages.Mods;
@@ -70,6 +71,10 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     private bool _restoringSelection;
     private IReadOnlyList<ModRowData> _all = Array.Empty<ModRowData>();
     private ModDetailsViewModel? _details;
+
+    // 版本页签的异步查询状态（F-30）：每次选中变化取消上一次，并记住已填充的标识符避免重复查询。
+    private CancellationTokenSource? _versionsCts;
+    private string? _versionsIdentifier;
     private ModsQuery _query = ModsQuery.Empty;
 
     // 组合搜索面板（F-20）：谁改的搜索文本决定要不要回填面板字段。
@@ -1234,6 +1239,12 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         }
     }
 
+    /// <summary>
+    /// 可用版本目录（F-30）：由宿主在 DI 里注入。
+    /// 为 null 时「全部版本」页签保持空态（设计时构造的页面就是这样），其它页签不受影响。
+    /// </summary>
+    public IModVersionCatalog? VersionCatalog { get; set; }
+
     private void SyncDetails()
     {
         if (_details is null)
@@ -1241,9 +1252,77 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             return;
         }
 
-        _details.ShowDetails(SelectedRow is { } row
-            ? ModDetailsSnapshotBuilder.Build(row.Data, InstalledIdentifiers())
-            : null);
+        if (SelectedRow?.Data is { } data)
+        {
+            _details.ShowDetails(ModDetailsSnapshotBuilder.Build(data, InstalledIdentifiers()));
+            _ = RefreshVersionsAsync(data.Identifier);
+            return;
+        }
+
+        _details.ShowDetails(null);
+        _ = RefreshVersionsAsync(null);
+    }
+
+    /// <summary>
+    /// 异步拉取选中模组的全部版本并回填详情面板（F-30）。
+    /// 选中行连续变化时取消上一次查询：只有「最后一次选中且标识符仍然一致」的结果才会写进面板，
+    /// 避免慢查询把上一个模组的版本列表贴到当前模组上。
+    /// </summary>
+    private async Task RefreshVersionsAsync(string? identifier)
+    {
+        _versionsCts?.Cancel();
+        _versionsCts?.Dispose();
+        _versionsCts = null;
+
+        if (_details is null || string.IsNullOrWhiteSpace(identifier) || VersionCatalog is null)
+        {
+            _versionsIdentifier = null;
+            return;
+        }
+
+        if (string.Equals(_versionsIdentifier, identifier, StringComparison.Ordinal) && _details.HasVersions)
+        {
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _versionsCts = cts;
+        try
+        {
+            var result = await VersionCatalog.GetVersionsAsync(identifier, cts.Token).ConfigureAwait(true);
+            if (cts.IsCancellationRequested
+                || !string.Equals(SelectedRow?.Data.Identifier, identifier, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _versionsIdentifier = identifier;
+            if (!result.IsSuccess)
+            {
+                // 版本查询失败不该打断详情浏览：页签降级为空态，原因留给错误栏。
+                _errors.Report(new InvalidOperationException(result.Message ?? "版本查询失败"), "读取模组版本", "读取可选版本失败。");
+                _details.ApplyVersions(null);
+                return;
+            }
+
+            _details.ApplyVersions(ModDetailsSnapshotBuilder.BuildVersions(result.Value));
+        }
+        catch (OperationCanceledException)
+        {
+            // 选中行又变了：丢弃即可，不算错误。
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "读取模组版本", "读取可选版本时发生错误。");
+        }
+        finally
+        {
+            if (ReferenceEquals(_versionsCts, cts))
+            {
+                cts.Dispose();
+                _versionsCts = null;
+            }
+        }
     }
 
     private IReadOnlyList<string> InstalledIdentifiers()
