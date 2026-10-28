@@ -19,7 +19,16 @@
         <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
         <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
         <BrushTransition Property="Foreground" Duration="{DynamicResource CkanMotionDurationBase}" />
-        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationFast}" />
+        <!--
+          按压反馈走物理弹簧（MAT-01）：m=1, k=550, c=35（ζ≈0.75，微欠阻尼），
+          首帧按压缩进、松手弹回；连续点击时新目标直接接管旧动画（TransformOperationsTransition 天然可打断）。
+          时长仍取动效 token，用户关掉动效时压缩为 0，按压缩进瞬间完成、不再缓动。
+        -->
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationBase}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="550" Damping="35" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
       </Transitions>
     </Setter>
   </Style>
@@ -29,7 +38,7 @@
   </Style>
 
   <Style Selector="Button:pressed">
-    <Setter Property="RenderTransform" Value="scale(0.97)" />
+    <Setter Property="RenderTransform" Value="scale(0.96)" />
   </Style>
 
   <!-- 重点操作主按钮 (Accent / Primary) 现代高光 -->
@@ -145,6 +154,9 @@
   <!-- ========================================== -->
   <Style Selector="TextBox">
     <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <!-- 内凹材质（ELV-04）：底色比卡片更深，形成物理凹陷，边框退到 1px 低对比描边。 -->
+    <Setter Property="Background" Value="{DynamicResource CkanRecessedInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
     <Setter Property="Transitions">
       <Transitions>
         <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
@@ -169,6 +181,9 @@
   <!-- ========================================== -->
   <Style Selector="ComboBox">
     <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <!-- 与 TextBox 同款内凹材质（ELV-04）。 -->
+    <Setter Property="Background" Value="{DynamicResource CkanRecessedInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
     <Setter Property="Transitions">
       <Transitions>
         <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
@@ -598,8 +613,9 @@
   </Style>
 
   <Style Selector="Border.CkanCardInteractive:pointerover">
+    <!-- 悬停只提亮表面 + 阴影加深，不再把描边刷成强调色（降噪：全屏蓝框比不动更吵）。 -->
+    <Setter Property="Background" Value="{DynamicResource CkanElevatedCardHoverBrush}" />
     <Setter Property="BoxShadow" Value="{DynamicResource CkanElevationMedium}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
     <Setter Property="RenderTransform" Value="translateY(-2px)" />
   </Style>
 

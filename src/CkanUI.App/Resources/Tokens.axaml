@@ -10,20 +10,29 @@
 
   <ResourceDictionary.ThemeDictionaries>
     <ResourceDictionary x:Key="Light">
-      <!-- 基础表面与背景 -->
-      <SolidColorBrush x:Key="CkanSurfaceBackgroundBrush" Color="#FFFFFF" />
-      <SolidColorBrush x:Key="CkanSidebarBackgroundBrush" Color="#F3F4F6" />
-      <SolidColorBrush x:Key="CkanStatusBarBackgroundBrush" Color="#F3F4F6" />
+      <!-- 基础表面与背景：画布 → 卡片 → 内凹输入，三级明度分层（ELV-01） -->
+      <SolidColorBrush x:Key="CkanSurfaceBackgroundBrush" Color="#F4F6F9" />
+      <SolidColorBrush x:Key="CkanCanvasBackgroundBrush" Color="#F4F6F9" />
+      <SolidColorBrush x:Key="CkanSidebarBackgroundBrush" Color="#EDF0F5" />
+      <!-- FluentAvalonia 导航栏面板背景（DynamicResource 取自本字典，见 FANavigationView 模板）。 -->
+      <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="CkanSidebarBackgroundBrush" />
+      <SolidColorBrush x:Key="CkanStatusBarBackgroundBrush" Color="#EDF0F5" />
       <SolidColorBrush x:Key="CkanCardBackgroundBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="CkanElevatedCardHoverBrush" Color="#FAFBFD" />
+      <SolidColorBrush x:Key="CkanRecessedInputBrush" Color="#EFF2F6" />
       <SolidColorBrush x:Key="CkanDialogBackgroundBrush" Color="#FFFFFF" />
-      <SolidColorBrush x:Key="CkanSubtleBackgroundBrush" Color="#F0F2F5" />
+      <SolidColorBrush x:Key="CkanSubtleBackgroundBrush" Color="#EFF2F6" />
       <SolidColorBrush x:Key="CkanAccentSubtleBrush" Color="#E8F2FD" />
       <SolidColorBrush x:Key="CkanNavigationSelectionBrush" Color="#E4ECF7" />
-      <SolidColorBrush x:Key="CkanMutedBackgroundBrush" Color="#EAECEF" />
+      <SolidColorBrush x:Key="CkanMutedBackgroundBrush" Color="#E8EBF0" />
 
-      <!-- 边框与分割线 -->
-      <SolidColorBrush x:Key="CkanBorderBrush" Color="#E1E4E8" />
-      <SolidColorBrush x:Key="CkanCardBorderBrush" Color="#E5E7EB" />
+      <!-- 边框与分割线：卡片描边改用顶光渐变，替掉全屏 1px 实线（ELV-02） -->
+      <SolidColorBrush x:Key="CkanBorderBrush" Color="#DFE3E9" />
+      <LinearGradientBrush x:Key="CkanCardBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#1F000000" />
+        <GradientStop Offset="0.18" Color="#0E000000" />
+        <GradientStop Offset="1.0" Color="#07000000" />
+      </LinearGradientBrush>
 
       <!-- 文字色 -->
       <SolidColorBrush x:Key="CkanTextPrimaryBrush" Color="#11161D" />
@@ -64,20 +73,28 @@
     </ResourceDictionary>
 
     <ResourceDictionary x:Key="Dark">
-      <!-- 基础表面与背景 -->
-      <SolidColorBrush x:Key="CkanSurfaceBackgroundBrush" Color="#1B1F27" />
-      <SolidColorBrush x:Key="CkanSidebarBackgroundBrush" Color="#161920" />
-      <SolidColorBrush x:Key="CkanStatusBarBackgroundBrush" Color="#161920" />
-      <SolidColorBrush x:Key="CkanCardBackgroundBrush" Color="#222732" />
-      <SolidColorBrush x:Key="CkanDialogBackgroundBrush" Color="#20242D" />
-      <SolidColorBrush x:Key="CkanSubtleBackgroundBrush" Color="#282E3B" />
-      <SolidColorBrush x:Key="CkanAccentSubtleBrush" Color="#193251" />
-      <SolidColorBrush x:Key="CkanNavigationSelectionBrush" Color="#23354E" />
-      <SolidColorBrush x:Key="CkanMutedBackgroundBrush" Color="#2A303C" />
+      <!-- 基础表面与背景：画布 → 卡片 → 内凹输入，三级明度分层（ELV-01） -->
+      <SolidColorBrush x:Key="CkanSurfaceBackgroundBrush" Color="#0D1015" />
+      <SolidColorBrush x:Key="CkanCanvasBackgroundBrush" Color="#0D1015" />
+      <SolidColorBrush x:Key="CkanSidebarBackgroundBrush" Color="#10141B" />
+      <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="CkanSidebarBackgroundBrush" />
+      <SolidColorBrush x:Key="CkanStatusBarBackgroundBrush" Color="#10141B" />
+      <SolidColorBrush x:Key="CkanCardBackgroundBrush" Color="#151921" />
+      <SolidColorBrush x:Key="CkanElevatedCardHoverBrush" Color="#1A1F29" />
+      <SolidColorBrush x:Key="CkanRecessedInputBrush" Color="#0A0D12" />
+      <SolidColorBrush x:Key="CkanDialogBackgroundBrush" Color="#171C24" />
+      <SolidColorBrush x:Key="CkanSubtleBackgroundBrush" Color="#1B2029" />
+      <SolidColorBrush x:Key="CkanAccentSubtleBrush" Color="#16283F" />
+      <SolidColorBrush x:Key="CkanNavigationSelectionBrush" Color="#1C2C41" />
+      <SolidColorBrush x:Key="CkanMutedBackgroundBrush" Color="#1E242E" />
 
-      <!-- 边框与分割线 -->
-      <SolidColorBrush x:Key="CkanBorderBrush" Color="#2D333F" />
-      <SolidColorBrush x:Key="CkanCardBorderBrush" Color="#343C4A" />
+      <!-- 边框与分割线：卡片描边改用顶光渐变（上缘 8% 白光 → 下缘 2%）（ELV-02） -->
+      <SolidColorBrush x:Key="CkanBorderBrush" Color="#232A35" />
+      <LinearGradientBrush x:Key="CkanCardBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#16FFFFFF" />
+        <GradientStop Offset="0.15" Color="#08FFFFFF" />
+        <GradientStop Offset="1.0" Color="#05FFFFFF" />
+      </LinearGradientBrush>
 
       <!-- 文字色 -->
       <SolidColorBrush x:Key="CkanTextPrimaryBrush" Color="#E8ECF2" />
@@ -119,11 +136,15 @@
 
     <!-- 高对比度：THM-10 要求高对比度强制压过一切，只保留纯黑/纯白 + 高对比黄。 -->
     <ResourceDictionary x:Key="{x:Static app:ThemeHost.HighContrastVariant}">
-      <!-- 基础表面与背景 -->
+      <!-- 基础表面与背景：高对比度不做明度分层，层次只靠纯白描边（ELV-03） -->
       <SolidColorBrush x:Key="CkanSurfaceBackgroundBrush" Color="#000000" />
+      <SolidColorBrush x:Key="CkanCanvasBackgroundBrush" Color="#000000" />
       <SolidColorBrush x:Key="CkanSidebarBackgroundBrush" Color="#000000" />
+      <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="CkanSidebarBackgroundBrush" />
       <SolidColorBrush x:Key="CkanStatusBarBackgroundBrush" Color="#000000" />
       <SolidColorBrush x:Key="CkanCardBackgroundBrush" Color="#000000" />
+      <SolidColorBrush x:Key="CkanElevatedCardHoverBrush" Color="#000000" />
+      <SolidColorBrush x:Key="CkanRecessedInputBrush" Color="#000000" />
       <SolidColorBrush x:Key="CkanDialogBackgroundBrush" Color="#000000" />
       <SolidColorBrush x:Key="CkanSubtleBackgroundBrush" Color="#000000" />
       <SolidColorBrush x:Key="CkanAccentSubtleBrush" Color="#333300" />

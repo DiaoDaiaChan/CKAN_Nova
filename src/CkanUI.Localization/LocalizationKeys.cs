@@ -74,6 +74,18 @@ public static class LocalizationKeys
     /// <summary>导航栏：展开为完整侧栏（提示文案与无障碍名称）。</summary>
     public const string NavRailExpand = "Ui_NavRail_Expand";
 
+    /// <summary>导航分组标题：核心业务（模组、内容、仓库、整合包、实例）。</summary>
+    public const string NavGroupCore = "Ui_NavGroup_Core";
+
+    /// <summary>导航分组标题：工具与数据（时长、存档、缓存、统计、去重、历史、配置）。</summary>
+    public const string NavGroupTools = "Ui_NavGroup_Tools";
+
+    /// <summary>导航分组标题：扩展（插件页与插件贡献的页面）。</summary>
+    public const string NavGroupExtensions = "Ui_NavGroup_Extensions";
+
+    /// <summary>外壳底部提示条：当前页有未保存的改动（IUnsavedChangesAware 驱动）。</summary>
+    public const string CommonUnsavedHint = "Ui_Common_UnsavedHint";
+
     /// <summary>页面标题：模组管理。</summary>
     public const string ManageModsTitle = "Ui_ManageMods_Title";
 

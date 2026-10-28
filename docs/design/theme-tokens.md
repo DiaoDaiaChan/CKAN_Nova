@@ -277,15 +277,79 @@
   只留静态骨架块——避免为了「好看」违反无障碍设置。
 - 附加属性的 `TOwner` 必须是**非静态**类型（`public sealed class SkeletonPulse`）：静态类型作泛型参数会 `CS0718`。
 
-### 5.6 外壳：可折叠图标栏（`src/CkanUI.App/MainWindow.axaml`）
+### 5.6 外壳：FluentAvalonia 原生导航（`src/CkanUI.App/MainWindow.axaml`）
 
-- **宽度**：展开 250px ↔ 收起 68px，`Border#NavPanel` 的 `Width` 走 `DoubleTransition`（时长 `CkanMotionDurationBase`）；
-  收起时 `Classes.Collapsed` 同时隐藏 `TextBlock.NavLabel`（导航标题与「CKAN」品牌字）、
-  把底部「关于」换成 `?` 图标按钮、把页脚 `StackPanel#NavFooterActions` 转成竖排、导航项内容居中。
-- **状态**：`ShellViewModel.IsNavCollapsed` / `IsNavExpanded` / `NavToggleGlyph` / `NavToggleToolTip`（键 `Ui_NavRail_Collapse` / `Ui_NavRail_Expand`），
-  命令 `ToggleNavCollapsedCommand`。收起**只影响呈现**：`NavItems` 与 `SelectedNavItem` 都不变，收起后照样靠高亮条认出当前页。
+> 第 2 轮先做过「手写 Border#NavPanel 折叠图标栏」，第 2 阶段按 FluentAvalonia 官方标准（`external/_fa-tmp/samples/FAControlsGallery/Views/MainView.axaml:73-81`）
+> 整体换成了 `ui:FANavigationView`。手写侧栏（含它那 7 条 `Classes.Collapsed` 样式）已删除。
+
+- **控件**：`<ui:FANavigationView PaneDisplayMode="Left" PaneTitle="CKAN" SelectionChanged="OnNavSelectionChanged">`，
+  `OpenPaneLength=248` / `CompactPaneLength=52` / `AlwaysShowHeader=False` / `IsSettingsVisible=False` /
+  `IsBackButtonVisible=False` / `IsPaneToggleButtonVisible=False`（后三项关掉是因为本项目的后退在内容区顶栏、设置是普通页）。
+  收起= `PaneDisplayMode="LeftCompact"`，展开= `Left`；`MainWindow.ApplyPaneState` 切换并同步 `Classes.Collapsed`。
+- **分组**：`NavGroups`（`MainWindow.axaml.cs:33`）= 核心业务 / 工具与数据 / 扩展三组，组标题用
+  `FANavigationViewItemHeader`（**是列表里的一个元素，不是容器**）；日志与设置放 `FooterMenuItems` 常驻底部。
+  插件页（未知键）并入「扩展」组末尾。组标题键 `Ui_NavGroup_Core` / `_Tools` / `_Extensions`，取不到时用中文兜底。
+- **图标**：`NavGlyphToGeometryConverter` 把 `NavItem.Glyph` 转 `Geometry` 后包成 `FAPathIconSource`（`FANavigationViewItem.IconSource`）。
+- **PaneHeader / PaneCustomContent**：品牌块（26×26 圆角 8 的 `CkanAccentBrush` 方块 + 文字「C」+「CKAN」）与「关于 + 折叠/展开」按钮；
+  `IsNavExpanded` / `IsNavCollapsed` 决定显示文字按钮还是 `?` 图标按钮。
+- **选中同步**：视图模型仍是唯一真相源——`SelectedNavItem` 变化走 `SyncSelectedNavItem`（带 `_syncingNav` 防回环），
+  点击导航走 `OnNavSelectionChanged` 回写视图模型，导航历史不经过视图。
+- **主题接入**：三套 `ThemeDictionaries` 里各写一条
+  `<StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="CkanSidebarBackgroundBrush" />` ——
+  FluentAvalonia 模板用 `{DynamicResource NavigationViewDefaultPaneBackground}`，覆盖这个键即可让侧栏跟着主题走。
 - **键盘**：`Ctrl+B` 折叠/展开侧栏；`Alt+←` / `Alt+→` 前进后退（`Window.KeyBindings` 直接绑命令，视图模型不引用 Avalonia）。
-- **布局调整**：前进/后退从侧栏顶栏移到主工作区顶部 34px 条左侧（贴近内容、鼠标位移最短），
-  侧栏顶栏只留品牌与折叠，底部留「关于 + 折叠」；状态栏右侧常驻版本号（`MainWindow.ApplyStatusBarFacts` 取
-  `AboutInfoFactory.Create().AppVersion`，悬停提示 CKAN 核心版本与运行时版本）——报问题截图即带版本。
+- **状态栏**：右侧常驻版本号（`MainWindow.ApplyStatusBarFacts` 取 `AboutInfoFactory.Create().AppVersion`，
+  悬停提示 CKAN 核心版本与运行时版本）——报问题截图即带版本。
+
+### 5.7 设置页：FASettingsExpander + 自动保存（`src/CkanUI.App/Views/SettingsPageView.axaml`）
+
+- **分组即行**：每个设置项一个 `<ui:FASettingsExpander Header="{Binding DisplayName}" Description="{Binding Description}">`，
+  编辑器放 `FASettingsExpander.Footer`；**每行的「保存」按钮已删除**（官方样例 `SettingsPage.axaml:68-95` 就没有行内保存）。
+- **编辑器按类型选**：整数 `ui:FANumberBox`（`SpinButtonPlacementMode="Inline"`，绑 `NumericValue`/`NumericMinimum`/`NumericMaximum`）、
+  布尔 `ToggleSwitch`、枚举 `ComboBox`、短文本单行 `TextBox`、长文本多行 `TextBox`。
+- **自动保存**：`SettingItemViewModel.AutoSave`（默认开）+ `AutoSaveDelay`（默认 450ms）——停止输入后落盘；
+  连续编辑只保存最后一次（每次编辑取消上一个 `CancellationTokenSource`），非法值（`HasError`）不保存，
+  `Revert()` 与 `ApplyLoaded` 会先取消待保存，保存失败写 `FailureHint` 可重试。
+- **页面级提示**：错误条与高对比度接管提示改用 `ui:FAInfoBar`（`Severity="Error"` / `"Warning"`，`IsClosable="False"`）。
+- **约束**：`FASettingsExpander` 继承 `HeaderedItemsControl`，**没有 `HorizontalContentAlignment`**（写了报 `AVLN2000`）。
+
+### 5.8 实例页：FACommandBar + 右侧 Inspector（`src/CkanUI.App/Views/InstancesPageView.axaml`）
+
+- **顶部命令栏**：`ui:FACommandBar`（`DefaultLabelPosition="Right"`、`ItemsAlignment="Left"`、`OverflowButtonVisibility="Auto"`）。
+  主命令 = 添加 / 从 Steam 库导入 / 刷新 / 设为当前 / 启动游戏；次命令（溢出菜单）= 克隆 / 重命名 / 打开游戏目录 /
+  编辑启动命令 / 实例自检 / 遗忘此实例，分组用 `ui:FACommandBarSeparator`。窄窗时由控件自己动态溢出，不写自适应逻辑。
+- **右侧 Inspector**：主操作 `启动游戏`（`Classes="CkanPrimary"`）+ `更多操作` 按钮挂 `ui:FAMenuFlyout`（6 项 + 分隔符），
+  与命令栏绑定同一批命令，所以两处文案必须同源。
+- **约束**：`FACommandBar.PrimaryCommands` / `SecondaryCommands` 是 `IAvaloniaList<IFACommandBarElement>`（DirectProperty），
+  **不能用绑定填**，只能在 XAML 里静态声明或代码里 Add；`FACommandBarButton` 用 `Label` + `IconSource` 表达内容（`Content` 被忽略），
+  但 `Command` / `IsEnabled` / `ToolTip` 照常可用。`FAMenuFlyoutItem` 只能在 `FAMenuFlyout` 里用，放进原生 `MenuFlyout` 会失效。
+- **按钮主样式类名是 `CkanPrimary`**（`FluentStyles.axaml:45`），仓库里没有 `accent` 这个类名。
+
+### 5.9 动效原语与 Overlay（`src/CkanUI.App/Theming/MotionPrimitives.cs`、`ShakeBehavior.cs`）
+
+- **两条渲染铁律**：位移动画一律挂 `RenderTransform`（`TranslateTransform`），**绝不改 Margin/Height**；浮层（日志抽屉、
+  未保存提示条）放 `Grid` 顶层做 Overlay 而不是 `DockPanel` 的一行，位移不参与布局就不会挤压工作区。
+- **`MotionPrimitives`**：`ResolveDuration(control, key)` 读动效 token（0 或缺失 ⇒ 直接落终态，不启动动画）；
+  `SlideInAsync(control, offsetY, duration)` 用 `SpringEasing{Stiffness=420, Damping=32}`（ζ≈0.75，可中途打断）在
+  `TranslateTransform.Y` 上跑关键帧，`Opacity` 单独置位；`StaggerEntranceAsync(page, duration, maxItems=5, staggerMs=40)`
+  把页面根面板的直接子元素按序滑入（只处理可见且自带 `RenderTransform` 为空的子元素，避免覆盖页面自己的动画）。
+- **`ShakeBehavior.IsError`**（附加属性）：false → true 时抖一次 420ms、7 个衰减关键帧（±12px 起）；
+  动效 token 为 0 时不抖（无障碍优先）。挂在 `InstanceFormPanel` 的外框上，校验失败时表单轻抖，窗口不动。
+- **关键帧必须在 `TranslateTransform` 上 `RunAsync`**：transform 是 `Animatable`，在 `Control` 上跑关键帧会报「属性不属于宿主」。
+- **`TranslateTransform` 没有 `Name`**（不是 `Control`），`<TranslateTransform x:Name="..."/>` 会报 `AVLN2000`；代码里读
+  `control.RenderTransform` 即可。附加属性的 `TOwner` 同样不能是静态类型（`CS0718`），故 `ShakeBehavior` 用一个私有空类当登记宿主。
+- **未保存提示条的数据链**：页面实现 `CkanUI.ViewModels.IUnsavedChangesAware`（`SettingsPageViewModel`、`ModPackEditorPageViewModel`、
+  `ModConfigPageViewModel`、`ModsPageViewModel`）→ 外壳 `ShellViewModel.HasUnsavedChanges` 在 `OnCurrentPageChanged` 里换监听页并重算 →
+  `MainWindow` 见属性变化把 `UnsavedHintHost` 上浮 12px。文案键 `Ui_Common_UnsavedHint`。
+
+### 5.10 表面分层（第 2 阶段 P1）
+
+- **画布与卡片分家**：`CkanCanvasBackgroundBrush`（Dark `#0D1015` / Light `#F4F6F9` / HC `#000000`）只做窗口底，
+  卡片用 `CkanCardBackgroundBrush`（Dark `#151921` / Light `#FFFFFF`），面板用 `CkanSubtleBackgroundBrush`；
+  去掉了「全屏 1px 硬边框」，卡片边框改为顶光渐变（`CkanCardBorderBrush`，HC 档仍是纯白实线）。
+- **输入内凹**：`TextBox` / `ComboBox` 背景 `CkanRecessedInputBrush`（Dark `#0A0D12` / Light `#EFF2F6`），比卡片更暗才读得出凹陷。
+- **可点卡片悬停**：`Border.CkanCardInteractive:pointerover` = 抬到 `CkanElevatedCardHoverBrush` + `CkanElevationMedium` + `translateY(-2px)`；
+  **不再**把边框刷成强调色（一屏多卡时会互相抢）。
+- **对比度口径**：强调色文字绝大多数落在卡片上，所以 `AccentContrast` 的两极取**卡片表面**（Light `#FFFFFF` / Dark `#151921`），
+  不是画布；画布更深，实际对比度只会更高。`AccentContrastThemeTests.SurfacePoles_MatchTokensAxaml` 读的也是卡片刷。
 

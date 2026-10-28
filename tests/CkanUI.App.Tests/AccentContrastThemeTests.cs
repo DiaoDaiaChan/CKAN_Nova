@@ -25,7 +25,8 @@ public sealed class AccentContrastThemeTests
         var dark = ReadSurfaceBrush("Dark");
         var highContrast = ReadSurfaceBrush("{x:Static app:ThemeHost.HighContrastVariant}");
 
-        Assert.That(ToRgb(light), Is.EqualTo(AccentContrast.LightPole), "浅色主题底色变了就要同步 AccentContrast.LightPole");
+        // 强调色文字主要落在卡片上，所以对比度基准取卡片表面而不是画布（第二阶段表面分层后两者不同）。
+        Assert.That(ToRgb(light), Is.EqualTo(AccentContrast.LightPole), "浅色主题卡片底色变了就要同步 AccentContrast.LightPole");
         Assert.That(ToRgb(dark), Is.EqualTo(AccentContrast.DarkPole), "深色主题底色变了就要同步 AccentContrast.DarkPole");
         Assert.That(ToRgb(highContrast), Is.EqualTo(AccentContrast.HighContrastPole), "高对比度底色变了就要同步 AccentContrast.HighContrastPole");
     }
@@ -132,7 +133,7 @@ public sealed class AccentContrastThemeTests
 
             foreach (var brush in dictionary.Elements().Where(element => element.Name.LocalName == "SolidColorBrush"))
             {
-                if (string.Equals(brush.Attribute(xaml + "Key")?.Value, "CkanSurfaceBackgroundBrush", StringComparison.Ordinal))
+                if (string.Equals(brush.Attribute(xaml + "Key")?.Value, "CkanCardBackgroundBrush", StringComparison.Ordinal))
                 {
                     var color = brush.Attribute("Color")?.Value;
                     Assert.That(color, Is.Not.Null);
@@ -142,7 +143,7 @@ public sealed class AccentContrastThemeTests
             }
         }
 
-        Assert.Fail($"Tokens.axaml 里找不到主题 {themeKey} 的 CkanSurfaceBackgroundBrush");
+        Assert.Fail($"Tokens.axaml 里找不到主题 {themeKey} 的 CkanCardBackgroundBrush");
         return default;
     }
 

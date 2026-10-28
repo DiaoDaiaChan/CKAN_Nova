@@ -1,3 +1,4 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -108,10 +109,29 @@ public sealed partial class SettingItemViewModel : ObservableObject
     public bool IsTextKind => Kind is SettingItemKind.Text or SettingItemKind.Path or SettingItemKind.Integer or SettingItemKind.LineList;
 
     /// <summary>
-    /// 视图是否用单行文本框：只有文本类且不是列表形态才走单行；
-    /// 布尔/下拉项虽然也「不是多行」，但它们各自有复选框与下拉框，不能同时露一个空文本框。
+    /// 视图是否用单行文本框：只有文本类、不是列表形态、也不是整数（整数走数值微调器）才走单行；
+    /// 布尔/下拉项虽然也「不是多行」，但它们各自有开关与下拉框，不能同时露一个空文本框。
     /// </summary>
-    public bool IsSingleLine => IsTextKind && !IsMultiline;
+    public bool IsSingleLine => IsTextKind && !IsMultiline && !IsNumericKind;
+
+    /// <summary>整数形态：用数值微调器编辑（自带范围校验与上下步进）。</summary>
+    public bool IsNumericKind => Kind == SettingItemKind.Integer;
+
+    /// <summary>数值微调器的双向绑定入口（整数形态专用；解析失败时退回下限或 0）。</summary>
+    public double NumericValue
+    {
+        get => long.TryParse(EditValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : Min ?? 0;
+        set => EditValue = ((long)Math.Round(value, MidpointRounding.AwayFromZero))
+            .ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>数值微调器下限（没有声明下限时取 0）。</summary>
+    public double NumericMinimum => Min ?? 0;
+
+    /// <summary>数值微调器上限（没有声明上限时给一个足够大的值，避免微调器禁用）。</summary>
+    public double NumericMaximum => Max ?? 999_999_999;
 
     /// <summary>视图是否用复选框。</summary>
     public bool IsBooleanKind => Kind == SettingItemKind.Boolean;
@@ -151,6 +171,17 @@ public sealed partial class SettingItemViewModel : ObservableObject
 
     /// <summary>保存命令（由页面注入的委托执行）。</summary>
     public IAsyncRelayCommand SaveCommand { get; }
+
+    /// <summary>
+    /// 编辑停顿多久后自动落盘。设置页不再给每行一个「保存」按钮，改完就生效；
+    /// 停顿一下再写，避免文本框逐字符触发磁盘写入。
+    /// </summary>
+    public TimeSpan AutoSaveDelay { get; set; } = TimeSpan.FromMilliseconds(450);
+
+    /// <summary>是否启用自动保存（装载与批量回填期间需要临时关掉）。</summary>
+    public bool AutoSave { get; set; } = true;
+
+    private CancellationTokenSource? _autoSaveCts;
 
     /// <summary>行内辅助动作的文案（例如「打开目录」）；没有辅助动作时为 null。</summary>
     public string? AuxiliaryLabel { get; private set; }
@@ -256,6 +287,7 @@ public sealed partial class SettingItemViewModel : ObservableObject
     /// <summary>放弃未保存修改。</summary>
     public void Revert()
     {
+        CancelAutoSave();
         EditValue = SavedValue;
         ErrorText = null;
         IsRetryable = false;
@@ -287,6 +319,7 @@ public sealed partial class SettingItemViewModel : ObservableObject
     /// <param name="editValue">编辑空间的值。</param>
     public void ApplyLoaded(string editValue)
     {
+        CancelAutoSave();
         SavedValue = editValue;
         ErrorText = null;
         IsRetryable = false;
@@ -297,6 +330,7 @@ public sealed partial class SettingItemViewModel : ObservableObject
     {
         Validate();
         RaiseDerived();
+        ScheduleAutoSave();
     }
 
     partial void OnSavedValueChanged(string value) => RaiseDerived();
@@ -320,7 +354,62 @@ public sealed partial class SettingItemViewModel : ObservableObject
         OnPropertyChanged(nameof(CanSave));
         OnPropertyChanged(nameof(BooleanValue));
         OnPropertyChanged(nameof(SelectedChoice));
+        OnPropertyChanged(nameof(NumericValue));
         SaveCommand.NotifyCanExecuteChanged();
+    }
+
+    private void CancelAutoSave()
+    {
+        _autoSaveCts?.Cancel();
+        _autoSaveCts?.Dispose();
+        _autoSaveCts = null;
+    }
+
+    private void ScheduleAutoSave()
+    {
+        if (!AutoSave || _saveHandler is null || !IsDirty || HasError)
+        {
+            return;
+        }
+
+        CancelAutoSave();
+        var cts = new CancellationTokenSource();
+        _autoSaveCts = cts;
+        _ = AutoSaveAfterDelayAsync(cts);
+    }
+
+    private async Task AutoSaveAfterDelayAsync(CancellationTokenSource cts)
+    {
+        try
+        {
+            await Task.Delay(AutoSaveDelay, cts.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (cts.IsCancellationRequested || !CanSave)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(_autoSaveCts, cts))
+        {
+            _autoSaveCts = null;
+        }
+
+        cts.Dispose();
+
+        try
+        {
+            await SaveCommand.ExecuteAsync(null).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            // 保存委托内部通常已把失败写进 ErrorText；万一漏到这一层，也只在行内报错，不让异常逃逸到后台任务。
+            MarkFailed("自动保存失败", ex.Message, retryable: true);
+        }
     }
 
     private Task ExecuteSaveAsync() => _saveHandler?.Invoke(this) ?? Task.CompletedTask;

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using CkanUI.Services.Abstractions;
@@ -319,6 +320,47 @@ public sealed partial class ShellViewModel : ObservableObject
         var item = new NavItem(entry.Key, entry.Title, "Puzzle");
         _pluginNavItems[entry.Key] = item;
         return item;
+    }
+
+    /// <summary>
+    /// 当前页是否还有未落盘的改动（外壳底部提示条据此显隐）。
+    /// 判定交给页面自己（见 <see cref="IUnsavedChangesAware"/>），外壳只负责跟着页面的通知重算。
+    /// </summary>
+    public bool HasUnsavedChanges { get; private set; }
+
+    /// <summary>正在监听属性变化的那一页：换页时必须退订，否则旧页面会继续推动外壳状态。</summary>
+    private object? _dirtyWatchedPage;
+
+    /// <summary>换页后重新挂监听并立刻重算一次，避免提示条停留在上一页的状态。</summary>
+    partial void OnCurrentPageChanged(object? value)
+    {
+        if (_dirtyWatchedPage is INotifyPropertyChanged previous)
+        {
+            previous.PropertyChanged -= OnCurrentPagePropertyChanged;
+        }
+
+        _dirtyWatchedPage = value;
+
+        if (value is INotifyPropertyChanged current)
+        {
+            current.PropertyChanged += OnCurrentPagePropertyChanged;
+        }
+
+        RefreshUnsavedChanges();
+    }
+
+    private void OnCurrentPagePropertyChanged(object? sender, PropertyChangedEventArgs e) => RefreshUnsavedChanges();
+
+    private void RefreshUnsavedChanges()
+    {
+        var dirty = CurrentPage is IUnsavedChangesAware aware && aware.HasUnsavedChanges;
+        if (dirty == HasUnsavedChanges)
+        {
+            return;
+        }
+
+        HasUnsavedChanges = dirty;
+        OnPropertyChanged(nameof(HasUnsavedChanges));
     }
 
     private void OnNavigated(object? newPage, string key)

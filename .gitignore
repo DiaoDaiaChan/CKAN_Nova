@@ -23,3 +23,6 @@ local.paths.json
 # 本地开发用的目录联接（CI 走 submodule）
 /external/CKAN
 /external/UniversalI18n
+
+# FluentAvalonia 上游源码，仅本地对照官方样例用（不参与构建，也不入库）
+/external/_fa-tmp

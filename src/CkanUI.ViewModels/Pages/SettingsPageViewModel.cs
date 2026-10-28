@@ -18,7 +18,7 @@ namespace CkanUI.ViewModels.Pages;
 /// 外观走 <c>IUiSettingsStore</c>（ckan-ui.json，外观不进 Core 配置，04 篇 §17 约定③）。
 /// 构造函数只做装配、不发起任何 IO；读取发生在 <see cref="LoadAsync"/>（由 OnActivated 触发）。
 /// </summary>
-public sealed partial class SettingsPageViewModel : PageViewModel
+public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChangesAware
 {
     private const long BytesPerMebibyte = 1024L * 1024L;
 
@@ -213,6 +213,9 @@ public sealed partial class SettingsPageViewModel : PageViewModel
     /// <summary>页面上是否还有未保存的修改（任一设置项或令牌行脏）。</summary>
     [ObservableProperty]
     private bool _isDirty;
+
+    /// <summary>外壳底部「未保存」提示条：设置项或令牌行还有没落盘的值。</summary>
+    bool IUnsavedChangesAware.HasUnsavedChanges => IsDirty;
 
     /// <summary>状态栏文案。</summary>
     [ObservableProperty]

@@ -3,227 +3,219 @@
              xmlns:vm="using:CkanUI.ViewModels.Pages"
              xmlns:st="using:CkanUI.ViewModels.Pages.Settings"
              xmlns:dlg="using:CkanUI.ViewModels.Dialogs"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
              x:Class="CkanUI.App.Views.SettingsPageView"
              x:DataType="vm:SettingsPageViewModel">
 
-  <!-- 设置页：八组设置，逐项保存。
-       使用 CkanCardBackgroundBrush 和语义 token。 -->
+  <!-- 设置页：八组设置，改完即存（不再给每行一个「保存」按钮）。
+       版式沿用 FluentAvalonia 官方的 SettingsExpander 组合：
+       分组标题 + 每个设置项一个可折叠项（Header/Description 在左，编辑控件在 Footer）。 -->
   <Grid RowDefinitions="Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}">
 
     <!-- 页头：标题 + 状态 + 全局操作 -->
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Spacing="4">
-        <TextBlock Text="{Binding Title}" FontSize="{DynamicResource CkanFontSizeTitle}" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding Title}" Classes="CkanPageTitle" />
         <StackPanel Orientation="Horizontal" Spacing="12">
-          <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding StatusText}" Classes="CkanCaption" VerticalAlignment="Center" />
           <TextBlock Text="有未保存的修改" IsVisible="{Binding IsDirty}" FontWeight="SemiBold"
                      Foreground="{DynamicResource CkanDangerBrush}" />
         </StackPanel>
       </StackPanel>
 
-      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-        <Button Content="打开配置目录" Command="{Binding OpenConfigFolderCommand}"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="10,5" />
-        <Button Content="重新读取" Command="{Binding ReloadCommand}" IsEnabled="{Binding !IsLoading}"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="10,5" />
-        <Button Content="放弃修改" Command="{Binding DiscardCommand}" IsEnabled="{Binding IsDirty}"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="10,5" />
-        <Button Content="重试失败项" Command="{Binding RetryFailedCommand}" IsEnabled="{Binding HasRetryableFailures}"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="10,5" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+        <Button Content="打开配置目录" Classes="CkanGhost" Command="{Binding OpenConfigFolderCommand}" />
+        <Button Content="重新读取" Classes="CkanGhost" Command="{Binding ReloadCommand}" IsEnabled="{Binding !IsLoading}" />
+        <Button Content="放弃修改" Classes="CkanGhost" Command="{Binding DiscardCommand}" IsEnabled="{Binding IsDirty}" />
+        <Button Content="重试失败项" Classes="CkanGhost" Command="{Binding RetryFailedCommand}"
+                IsEnabled="{Binding HasRetryableFailures}" />
       </StackPanel>
     </Grid>
 
     <StackPanel Grid.Row="1" Spacing="8">
 
       <!-- 读取失败提示（不阻塞页面：其余项仍可编辑） -->
-      <Border IsVisible="{Binding HasLoadError}" Margin="0,0,0,12" Padding="14,10"
-              CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-              Background="{DynamicResource CkanDangerBackgroundBrush}"
-              BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1">
-        <TextBlock Text="{Binding LoadErrorText}" TextWrapping="Wrap"
-                   Foreground="{DynamicResource CkanDangerBrush}" />
-      </Border>
+      <ui:FAInfoBar IsOpen="{Binding HasLoadError}" Severity="Error" IsClosable="False"
+                    Title="设置读取失败" Message="{Binding LoadErrorText}" />
 
       <!-- 高对比度接管提示（20 篇 P-02）：外观行已置灰，这里说明「改了也不生效」的原因 -->
-      <Border IsVisible="{Binding HasAppearanceLockNotice}" Margin="0,0,0,12" Padding="14,10"
-              CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-              Background="{DynamicResource CkanWarningBackgroundBrush}"
-              BorderBrush="{DynamicResource CkanWarningBrush}" BorderThickness="1">
-        <TextBlock Text="{Binding AppearanceLockNotice}" TextWrapping="Wrap"
-                   Foreground="{DynamicResource CkanWarningBrush}" />
-      </Border>
+      <ui:FAInfoBar IsOpen="{Binding HasAppearanceLockNotice}" Severity="Warning" IsClosable="False"
+                    Title="外观设置已被系统接管" Message="{Binding AppearanceLockNotice}" />
 
     </StackPanel>
 
     <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Spacing="16">
+      <StackPanel Spacing="4" Margin="0,8,0,0">
 
-        <TextBlock Text="正在读取设置…" IsVisible="{Binding IsLoading}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        <TextBlock Text="正在读取设置…" IsVisible="{Binding IsLoading}" Classes="CkanCaption" Margin="0,0,0,8" />
 
         <ItemsControl ItemsSource="{Binding Groups}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="st:SettingGroupViewModel">
-              <Border Margin="0,0,0,16" Padding="16"
-                      CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-                      Background="{DynamicResource CkanCardBackgroundBrush}"
-                      BorderBrush="{DynamicResource CkanCardBorderBrush}"
-                      BorderThickness="1">
+              <StackPanel Spacing="6" Margin="0,0,0,18">
 
-                <StackPanel Spacing="10">
-                  <TextBlock Text="{Binding Title}" FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold" />
-                  <TextBlock Text="{Binding Description}" IsVisible="{Binding HasDescription}"
-                             Foreground="{DynamicResource CkanTextSecondaryBrush}" TextWrapping="Wrap" />
+                <!-- 分组标题（官方设置页用 BodyStrong 抬一级标题层级） -->
+                <TextBlock Text="{Binding Title}" Classes="CkanSectionTitle" Margin="0,0,0,2" />
+                <TextBlock Text="{Binding Description}" IsVisible="{Binding HasDescription}"
+                           Classes="CkanCaption" TextWrapping="Wrap" Margin="0,0,0,4" />
 
-                  <!-- 标量设置项 -->
-                  <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding HasItems}">
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="st:SettingItemViewModel">
-                        <Grid ColumnDefinitions="220,*,Auto" RowDefinitions="Auto,Auto" Margin="0,6" ColumnSpacing="14">
-                          <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" TextWrapping="Wrap" FontWeight="Medium" />
-
-                          <StackPanel Grid.Column="1" Spacing="4">
-                            <!-- 文本 / 路径 / 整数（单行）：行高跟着密度 token 走 -->
-                            <TextBox Text="{Binding EditValue, Mode=TwoWay}"
-                                     IsVisible="{Binding IsSingleLine}"
-                                     IsEnabled="{Binding IsEnabled}"
-                                     CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                                     MinHeight="{DynamicResource CkanRowHeight}" />
-
+                <!-- 标量设置项：一项一个可折叠项 -->
+                <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding HasItems}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="st:SettingItemViewModel">
+                      <ui:FASettingsExpander Header="{Binding DisplayName}"
+                                             Description="{Binding Description}"
+                                             IsEnabled="{Binding IsEnabled}"
+                                             HorizontalAlignment="Stretch">
+                        <ui:FASettingsExpander.Footer>
+                          <StackPanel Spacing="6" HorizontalAlignment="Right">
                             <!-- 多行列表：固定三行高，不随密度压缩（否则编辑过滤器时看不全） -->
                             <TextBox Text="{Binding EditValue, Mode=TwoWay}"
                                      IsVisible="{Binding IsMultiline}"
-                                     IsEnabled="{Binding IsEnabled}"
                                      AcceptsReturn="True"
                                      TextWrapping="Wrap"
+                                     Width="380"
                                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                                      MinHeight="{Binding EditorMinHeight}" />
 
-                            <!-- 布尔开关 -->
-                            <CheckBox Content="启用"
-                                      IsVisible="{Binding IsBooleanKind}"
-                                      IsEnabled="{Binding IsEnabled}"
-                                      IsChecked="{Binding BooleanValue, Mode=TwoWay}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                              <!-- 文本 / 路径（单行） -->
+                              <TextBox Text="{Binding EditValue, Mode=TwoWay}"
+                                       IsVisible="{Binding IsSingleLine}"
+                                       Width="280"
+                                       CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                                       MinHeight="{DynamicResource CkanRowHeight}" />
 
-                            <!-- 单选 -->
-                            <ComboBox ItemsSource="{Binding Choices}"
-                                      SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
-                                      IsVisible="{Binding IsChoiceKind}"
-                                      IsEnabled="{Binding IsEnabled}"
-                                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                                      HorizontalAlignment="Left"
-                                      MinWidth="200">
-                              <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="st:SettingChoice">
-                                  <TextBlock Text="{Binding Label}" />
-                                </DataTemplate>
-                              </ComboBox.ItemTemplate>
-                            </ComboBox>
+                              <!-- 整数：数值微调器，自带范围约束与步进 -->
+                              <ui:FANumberBox Value="{Binding NumericValue, Mode=TwoWay}"
+                                              IsVisible="{Binding IsNumericKind}"
+                                              Minimum="{Binding NumericMinimum}"
+                                              Maximum="{Binding NumericMaximum}"
+                                              SpinButtonPlacementMode="Inline"
+                                              Width="180" />
 
-                            <TextBlock Text="{Binding Description}" IsVisible="{Binding HasDescription}"
-                                       Foreground="{DynamicResource CkanTextSecondaryBrush}" TextWrapping="Wrap" FontSize="11" />
+                              <!-- 布尔开关：拨动即生效 -->
+                              <ToggleSwitch IsVisible="{Binding IsBooleanKind}"
+                                            IsChecked="{Binding BooleanValue, Mode=TwoWay}"
+                                            OnContent="已启用" OffContent="已关闭" />
+
+                              <!-- 单选 -->
+                              <ComboBox ItemsSource="{Binding Choices}"
+                                        SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
+                                        IsVisible="{Binding IsChoiceKind}"
+                                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                                        MinWidth="200">
+                                <ComboBox.ItemTemplate>
+                                  <DataTemplate x:DataType="st:SettingChoice">
+                                    <TextBlock Text="{Binding Label}" />
+                                  </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                              </ComboBox>
+
+                              <!-- 行内辅助动作（如「打开目录」） -->
+                              <Button Content="{Binding AuxiliaryLabel}"
+                                      Classes="CkanGhost"
+                                      Command="{Binding AuxiliaryCommand}"
+                                      IsVisible="{Binding HasAuxiliaryAction}" />
+
+                              <TextBlock Text="{Binding HintText}" IsVisible="{Binding HasHint}"
+                                         Classes="CkanCaption" VerticalAlignment="Center" />
+                            </StackPanel>
 
                             <!-- 行内校验/保存失败 -->
                             <TextBlock Text="{Binding ErrorText}" IsVisible="{Binding HasError}" TextWrapping="Wrap"
+                                       HorizontalAlignment="Right"
                                        Foreground="{DynamicResource CkanDangerBrush}" FontSize="12" />
                             <TextBlock Text="{Binding FailureHint}" IsVisible="{Binding HasFailureHint}"
-                                       Foreground="{DynamicResource CkanTextSecondaryBrush}" TextWrapping="Wrap" FontSize="11" />
+                                       TextWrapping="Wrap" HorizontalAlignment="Right"
+                                       Classes="CkanCaption" />
                           </StackPanel>
+                        </ui:FASettingsExpander.Footer>
+                      </ui:FASettingsExpander>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
-                          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-                            <TextBlock Text="{Binding HintText}" IsVisible="{Binding HasHint}"
-                                       Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" FontSize="12" />
-                            <Button Content="{Binding AuxiliaryLabel}"
-                                    Command="{Binding AuxiliaryCommand}"
-                                    IsVisible="{Binding HasAuxiliaryAction}"
-                                    CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="8,4" />
-                            <Button Content="保存" Command="{Binding SaveCommand}" IsEnabled="{Binding CanSave}"
-                                    CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="10,4" />
-                          </StackPanel>
+                <!-- 认证令牌组（F-11）：增删 + 脱敏显示 -->
+                <ContentControl Content="{Binding TokenEditor}" IsVisible="{Binding IsTokenGroup}">
+                  <ContentControl.ContentTemplate>
+                    <DataTemplate x:DataType="st:AuthTokenEditorViewModel">
+                      <StackPanel Spacing="8">
+
+                        <Grid ColumnDefinitions="200,*,Auto" ColumnSpacing="8">
+                          <TextBox Text="{Binding NewHost, Mode=TwoWay}" PlaceholderText="主机名（如 spacedock.info）"
+                                   CornerRadius="{DynamicResource CkanCornerRadiusSmall}" />
+                          <TextBox Grid.Column="1" Text="{Binding NewToken, Mode=TwoWay}" PasswordChar="●"
+                                   PlaceholderText="令牌（输入时不回显）"
+                                   CornerRadius="{DynamicResource CkanCornerRadiusSmall}" />
+                          <Button Grid.Column="2" Content="添加" Classes="CkanSecondary"
+                                  Command="{Binding AddCommand}" IsEnabled="{Binding CanAdd}" />
                         </Grid>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
 
-                  <!-- 认证令牌组（F-11）：增删 + 脱敏显示 -->
-                  <ContentControl Content="{Binding TokenEditor}" IsVisible="{Binding IsTokenGroup}">
-                    <ContentControl.ContentTemplate>
-                      <DataTemplate x:DataType="st:AuthTokenEditorViewModel">
-                        <StackPanel Spacing="8">
+                        <TextBlock Text="{Binding ErrorText}" IsVisible="{Binding HasError}" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource CkanDangerBrush}" FontSize="12" />
 
-                          <Grid ColumnDefinitions="200,*,Auto" ColumnSpacing="8">
-                            <TextBox Text="{Binding NewHost, Mode=TwoWay}" PlaceholderText="主机名（如 spacedock.info）"
-                                     CornerRadius="{DynamicResource CkanCornerRadiusSmall}" />
-                            <TextBox Grid.Column="1" Text="{Binding NewToken, Mode=TwoWay}" PasswordChar="●" PlaceholderText="令牌（输入时不回显）"
-                                     CornerRadius="{DynamicResource CkanCornerRadiusSmall}" />
-                            <Button Grid.Column="2" Content="添加" Command="{Binding AddCommand}" IsEnabled="{Binding CanAdd}"
-                                    CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="12,5" />
-                          </Grid>
+                        <TextBlock Text="（尚未配置令牌）" IsVisible="{Binding IsEmpty}" Classes="CkanCaption" />
 
-                          <TextBlock Text="{Binding ErrorText}" IsVisible="{Binding HasError}" TextWrapping="Wrap"
-                                     Foreground="{DynamicResource CkanDangerBrush}" FontSize="12" />
+                        <ItemsControl ItemsSource="{Binding Tokens}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="st:AuthTokenItemViewModel">
+                              <Grid ColumnDefinitions="200,*,Auto" ColumnSpacing="12" Margin="0,4">
+                                <TextBlock Text="{Binding Host}" VerticalAlignment="Center" TextWrapping="Wrap" />
 
-                          <TextBlock Text="（尚未配置令牌）" IsVisible="{Binding IsEmpty}"
-                                     Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                                <StackPanel Grid.Column="1" Spacing="4">
+                                  <TextBox Text="{Binding Token, Mode=TwoWay}" PasswordChar="●"
+                                           PlaceholderText="输入新令牌以替换"
+                                           CornerRadius="{DynamicResource CkanCornerRadiusSmall}" />
+                                  <TextBlock Text="{Binding MaskedPreview}" Classes="CkanCaption" />
+                                  <TextBlock Text="{Binding ErrorText}" IsVisible="{Binding HasError}" TextWrapping="Wrap"
+                                             Foreground="{DynamicResource CkanDangerBrush}" FontSize="12" />
+                                  <TextBlock Text="{Binding FailureHint}" IsVisible="{Binding HasFailureHint}"
+                                             TextWrapping="Wrap" Classes="CkanCaption" />
+                                </StackPanel>
 
-                          <ItemsControl ItemsSource="{Binding Tokens}">
-                            <ItemsControl.ItemTemplate>
-                              <DataTemplate x:DataType="st:AuthTokenItemViewModel">
-                                <Grid ColumnDefinitions="200,*,Auto" ColumnSpacing="12" Margin="0,4">
-                                  <TextBlock Text="{Binding Host}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+                                  <Button Content="保存" Classes="CkanSecondary"
+                                          Command="{Binding SaveCommand}" IsEnabled="{Binding CanSave}" />
+                                  <Button Content="删除" Classes="CkanGhost"
+                                          Command="{Binding RemoveCommand}" IsEnabled="{Binding !IsSaving}" />
+                                </StackPanel>
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ContentControl.ContentTemplate>
+                </ContentControl>
 
-                                  <StackPanel Grid.Column="1" Spacing="4">
-                                    <TextBox Text="{Binding Token, Mode=TwoWay}" PasswordChar="●" PlaceholderText="输入新令牌以替换"
-                                             CornerRadius="{DynamicResource CkanCornerRadiusSmall}" />
-                                    <TextBlock Text="{Binding MaskedPreview}" Foreground="{DynamicResource CkanTextSecondaryBrush}" FontSize="11" />
-                                    <TextBlock Text="{Binding ErrorText}" IsVisible="{Binding HasError}" TextWrapping="Wrap"
-                                               Foreground="{DynamicResource CkanDangerBrush}" FontSize="12" />
-                                    <TextBlock Text="{Binding FailureHint}" IsVisible="{Binding HasFailureHint}"
-                                               Foreground="{DynamicResource CkanTextSecondaryBrush}" TextWrapping="Wrap" FontSize="11" />
-                                  </StackPanel>
+                <!-- 诊断区（高级组，D-03）：只读清单 + 复制到剪贴板 -->
+                <ContentControl Content="{Binding Diagnostics}" IsVisible="{Binding IsDiagnosticsGroup}">
+                  <ContentControl.ContentTemplate>
+                    <DataTemplate x:DataType="st:SettingsDiagnosticsViewModel">
+                      <StackPanel Spacing="8">
+                        <ItemsControl ItemsSource="{Binding Rows}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="dlg:DiagnosticItem">
+                              <Grid ColumnDefinitions="160,*" ColumnSpacing="12" MinHeight="{DynamicResource CkanRowHeight}">
+                                <TextBlock Text="{Binding Name}" Classes="CkanCaption" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <SelectableTextBlock Grid.Column="1" Text="{Binding Value}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
-                                  <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-                                    <Button Content="保存" Command="{Binding SaveCommand}" IsEnabled="{Binding CanSave}"
-                                            CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="8,4" />
-                                    <Button Content="删除" Command="{Binding RemoveCommand}" IsEnabled="{Binding !IsSaving}"
-                                            CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="8,4" />
-                                  </StackPanel>
-                                </Grid>
-                              </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                          </ItemsControl>
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                          <Button Content="复制诊断信息" Classes="CkanGhost" Command="{Binding CopyCommand}" />
+                          <TextBlock Text="{Binding CopyStatusText}" IsVisible="{Binding HasCopyStatus}"
+                                     Classes="CkanCaption" VerticalAlignment="Center" />
                         </StackPanel>
-                      </DataTemplate>
-                    </ContentControl.ContentTemplate>
-                  </ContentControl>
-
-                  <!-- 诊断区（高级组，D-03）：只读清单 + 复制到剪贴板 -->
-                  <ContentControl Content="{Binding Diagnostics}" IsVisible="{Binding IsDiagnosticsGroup}">
-                    <ContentControl.ContentTemplate>
-                      <DataTemplate x:DataType="st:SettingsDiagnosticsViewModel">
-                        <StackPanel Spacing="8">
-                          <ItemsControl ItemsSource="{Binding Rows}">
-                            <ItemsControl.ItemTemplate>
-                              <DataTemplate x:DataType="dlg:DiagnosticItem">
-                                <Grid ColumnDefinitions="160,*" ColumnSpacing="12" MinHeight="{DynamicResource CkanRowHeight}">
-                                  <TextBlock Text="{Binding Name}" Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                  <SelectableTextBlock Grid.Column="1" Text="{Binding Value}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                </Grid>
-                              </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                          </ItemsControl>
-
-                          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-                            <Button Content="复制诊断信息" Command="{Binding CopyCommand}"
-                                    CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="10,5" />
-                            <TextBlock Text="{Binding CopyStatusText}" IsVisible="{Binding HasCopyStatus}"
-                                       Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
-                          </StackPanel>
-                        </StackPanel>
-                      </DataTemplate>
-                    </ContentControl.ContentTemplate>
-                  </ContentControl>
-                </StackPanel>
-              </Border>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ContentControl.ContentTemplate>
+                </ContentControl>
+              </StackPanel>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>

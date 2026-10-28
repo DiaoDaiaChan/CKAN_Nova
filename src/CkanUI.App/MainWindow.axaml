@@ -3,6 +3,7 @@
         xmlns:vm="using:CkanUI.ViewModels"
         xmlns:local="using:CkanUI.App"
         xmlns:conv="using:CkanUI.App.Converters"
+        xmlns:ui="using:FluentAvalonia.UI.Controls"
         xmlns:ops="using:CkanUI.App.Views.Operations"
         xmlns:logs="using:CkanUI.App.Views.Logs"
         xmlns:views="using:CkanUI.App.Views"
@@ -28,36 +29,25 @@
 
   <Window.Styles>
     <!--
-      侧栏收起态（宽度 250 → 68，20 篇 P-02 的「工作区优先」）：
-      宽度过渡走动效 token，关掉动效时 Duration=0 直接跳变（无障碍要求）。
+      导航栏走 FluentAvalonia 的 FANavigationView（官方标准用法）：
+      分组标题、底部固定项、单根滑动选中指示器都由它自带，外壳不再手画 ListBox。
+      展开/收起靠 PaneDisplayMode 在 Left ↔ LeftCompact 之间切换（代码里跟着 IsNavCollapsed 走）。
     -->
-    <Style Selector="Border#NavPanel">
-      <Setter Property="Width" Value="250" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Width" Duration="{DynamicResource CkanMotionDurationBase}" />
-        </Transitions>
-      </Setter>
+    <Style Selector="ui|FANavigationView">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="OpenPaneLength" Value="248" />
+      <Setter Property="CompactPaneLength" Value="52" />
+      <Setter Property="AlwaysShowHeader" Value="False" />
+      <Setter Property="IsSettingsVisible" Value="False" />
+      <Setter Property="IsBackButtonVisible" Value="False" />
+      <Setter Property="IsPaneToggleButtonVisible" Value="False" />
     </Style>
-    <Style Selector="Border#NavPanel.Collapsed">
-      <Setter Property="Width" Value="68" />
+    <!-- 折叠态下取消品牌文字与按钮文案，只留图标（宽度 52 装不下字）。 -->
+    <Style Selector="ui|FANavigationView TextBlock.BrandLabel">
+      <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="Border#NavPanel.Collapsed TextBlock.NavLabel">
+    <Style Selector="ui|FANavigationView.Collapsed TextBlock.BrandLabel">
       <Setter Property="IsVisible" Value="False" />
-    </Style>
-    <Style Selector="Border#NavPanel.Collapsed Button.CkanIcon">
-      <Setter Property="Width" Value="28" />
-      <Setter Property="Height" Value="28" />
-    </Style>
-    <Style Selector="Border#NavPanel.Collapsed StackPanel#NavFooterActions">
-      <Setter Property="Orientation" Value="Vertical" />
-      <Setter Property="HorizontalAlignment" Value="Center" />
-    </Style>
-    <Style Selector="Border#NavPanel.Collapsed ListBoxItem">
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
-    </Style>
-    <Style Selector="Border#NavPanel.Collapsed Button#AboutIconButton">
-      <Setter Property="HorizontalAlignment" Value="Center" />
     </Style>
   </Window.Styles>
 
@@ -76,177 +66,158 @@
               Background="{DynamicResource CkanSurfaceBackgroundBrush}" />
     </Panel>
 
-    <Grid ColumnDefinitions="Auto,*">
-      <!-- Fluent 侧边导航栏（可收起为图标栏） -->
-      <Border x:Name="NavPanel"
-              Grid.Column="0"
-              Classes.Collapsed="{Binding IsNavCollapsed}"
-              Background="{DynamicResource CkanSidebarBackgroundBrush}"
-              BorderBrush="{DynamicResource CkanBorderBrush}"
-              BorderThickness="0,0,1,0">
-        <DockPanel LastChildFill="True">
-          <!-- 顶栏：应用徽标（名称与折叠按钮在展开时才出现） -->
-          <Grid DockPanel.Dock="Top" x:Name="NavHeader" ColumnDefinitions="Auto,Auto" Margin="16,28,16,14">
-            <!-- 品牌图标 -->
-            <Border Width="30" Height="30"
-                    CornerRadius="8"
-                    Background="{DynamicResource CkanAccentBrush}">
+    <Grid>
+      <ui:FANavigationView x:Name="NavView"
+                           PaneDisplayMode="Left"
+                           PaneTitle="CKAN"
+                           SelectionChanged="OnNavSelectionChanged">
+        <!-- 品牌区：Fluent 折叠态会把 PaneHeader 一起收掉，正好省掉一套 Collapsed 样式。 -->
+        <ui:FANavigationView.PaneHeader>
+          <StackPanel Orientation="Horizontal" Spacing="10" Margin="4,0,0,0" VerticalAlignment="Center">
+            <Border Width="26" Height="26" CornerRadius="8" Background="{DynamicResource CkanAccentBrush}">
               <TextBlock Text="C"
                          Foreground="{DynamicResource CkanTextInverseBrush}"
                          FontWeight="Bold"
-                         FontSize="16"
+                         FontSize="14"
                          HorizontalAlignment="Center"
                          VerticalAlignment="Center" />
             </Border>
-            <TextBlock Grid.Column="1"
-                       Classes="NavLabel"
+            <TextBlock Classes="BrandLabel"
                        Text="CKAN"
-                       Margin="10,0,0,0"
                        VerticalAlignment="Center"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}"
                        FontSize="{DynamicResource CkanFontSizeTitle}"
                        FontWeight="SemiBold" />
-          </Grid>
+          </StackPanel>
+        </ui:FANavigationView.PaneHeader>
 
-          <!-- 底部：关于入口 + 侧栏折叠开关 -->
-          <Border DockPanel.Dock="Bottom" Padding="10,8,10,12">
-            <StackPanel x:Name="NavFooterActions" Orientation="Horizontal" Spacing="6">
-              <Button Content="关于"
-                      Click="OnAboutClick"
-                      IsVisible="{Binding IsNavExpanded}"
-                      HorizontalAlignment="Stretch"
-                      HorizontalContentAlignment="Center"
-                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                      Padding="10,7"
-                      FontSize="{DynamicResource CkanFontSizeCaption}" />
-              <Button x:Name="AboutIconButton"
-                      Classes="CkanIcon"
-                      Content="?"
-                      Click="OnAboutClick"
-                      IsVisible="{Binding IsNavCollapsed}"
-                      ToolTip.Tip="关于"
-                      FontSize="{DynamicResource CkanFontSizeBody}" />
-              <Button Classes="CkanIcon"
-                      Content="{Binding NavToggleGlyph}"
-                      Command="{Binding ToggleNavCollapsedCommand}"
-                      ToolTip.Tip="{Binding NavToggleToolTip}"
-                      HorizontalAlignment="Center"
-                      FontSize="{DynamicResource CkanFontSizeSubtitle}" />
-            </StackPanel>
-          </Border>
+        <!-- 底部自定义区：关于入口 + 折叠开关（与 Ctrl+B 同一个命令，两个入口不会打架）。 -->
+        <ui:FANavigationView.PaneCustomContent>
+          <StackPanel Orientation="Horizontal" Spacing="6" Margin="2,4" HorizontalAlignment="Stretch">
+            <Button Content="关于"
+                    Click="OnAboutClick"
+                    Classes="CkanGhost"
+                    IsVisible="{Binding IsNavExpanded}"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Left" />
+            <Button Classes="CkanIcon"
+                    Content="?"
+                    Click="OnAboutClick"
+                    IsVisible="{Binding IsNavCollapsed}"
+                    ToolTip.Tip="关于" />
+            <Button Classes="CkanIcon"
+                    Content="{Binding NavToggleGlyph}"
+                    Command="{Binding ToggleNavCollapsedCommand}"
+                    ToolTip.Tip="{Binding NavToggleToolTip}"
+                    HorizontalAlignment="Right" />
+          </StackPanel>
+        </ui:FANavigationView.PaneCustomContent>
 
-          <!-- 导航项列表 -->
-          <ListBox x:Name="NavList"
-                   ItemsSource="{Binding NavItems}"
-                   SelectedItem="{Binding SelectedNavItem, Mode=TwoWay}"
-                   Background="Transparent"
-                   BorderThickness="0"
-                   Margin="8,4">
-            <ListBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:NavItem">
-                <Grid ColumnDefinitions="4,24,Auto" Margin="0,2">
-                  <!-- Fluent 风格激活指示器 -->
-                  <Rectangle Grid.Column="0"
-                             Classes="navIndicator"
-                             Fill="{DynamicResource CkanAccentBrush}"
-                             RadiusX="2" RadiusY="2"
-                             Width="3" Height="18"
-                             HorizontalAlignment="Left"
-                             VerticalAlignment="Center" />
-                  <PathIcon Grid.Column="1"
-                            Data="{Binding Glyph, Converter={x:Static conv:NavGlyphToGeometryConverter.Instance}}"
-                            Width="16" Height="16"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="2"
-                             Classes="NavLabel"
-                             Text="{Binding Title}"
-                             VerticalAlignment="Center"
-                             Margin="10,0,0,0"
-                             TextTrimming="CharacterEllipsis"
-                             FontSize="{DynamicResource CkanFontSizeBody}" />
-                </Grid>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-        </DockPanel>
-      </Border>
-
-      <!-- 主工作区与状态栏 -->
-      <DockPanel Grid.Column="1" LastChildFill="True">
-        <!--
-          顶部现代一体化标题拖拽区：左侧放前进/后退（贴近内容，鼠标移动距离最短），
-          中间是窗口标题，右侧 150px 留给原生系统按钮避让。
-        -->
-        <Grid DockPanel.Dock="Top" Height="34" Background="Transparent" ColumnDefinitions="Auto,Auto,*,150">
-          <Button Grid.Column="0"
-                  Classes="CkanIcon"
-                  Content="←"
-                  Command="{Binding BackCommand}"
-                  IsEnabled="{Binding CanGoBack}"
-                  ToolTip.Tip="{Binding BackToolTip}"
-                  Width="26" Height="26" MinWidth="0" Padding="0"
-                  Margin="10,0,2,0" />
-          <Button Grid.Column="1"
-                  Classes="CkanIcon"
-                  Content="→"
-                  Command="{Binding ForwardCommand}"
-                  IsEnabled="{Binding CanGoForward}"
-                  ToolTip.Tip="{Binding ForwardToolTip}"
-                  Width="26" Height="26" MinWidth="0" Padding="0"
-                  Margin="0,0,4,0" />
-          <TextBlock Grid.Column="2"
-                     Text="{Binding Title}"
-                     Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                     FontSize="{DynamicResource CkanFontSizeCaption}"
-                     VerticalAlignment="Center"
-                     Margin="8,0,8,0"
-                     TextTrimming="CharacterEllipsis"
-                     IsHitTestVisible="False" />
-        </Grid>
-
-        <!-- 状态栏：左状态文案、右实例与版本号 -->
-        <Border DockPanel.Dock="Bottom"
-                Background="{DynamicResource CkanStatusBarBackgroundBrush}"
-                BorderBrush="{DynamicResource CkanBorderBrush}"
-                BorderThickness="0,1,0,0"
-                Padding="16,6">
-          <DockPanel LastChildFill="True">
-            <TextBlock x:Name="StatusVersionText"
-                       DockPanel.Dock="Right"
+        <!-- 主工作区与状态栏 -->
+        <DockPanel LastChildFill="True">
+          <!--
+            顶部现代一体化标题拖拽区：左侧放前进/后退（贴近内容，鼠标移动距离最短），
+            中间是窗口标题，右侧 150px 留给原生系统按钮避让。
+          -->
+          <Grid DockPanel.Dock="Top" Height="34" Background="Transparent" ColumnDefinitions="Auto,Auto,*,150">
+            <Button Grid.Column="0"
+                    Classes="CkanIcon"
+                    Content="←"
+                    Command="{Binding BackCommand}"
+                    IsEnabled="{Binding CanGoBack}"
+                    ToolTip.Tip="{Binding BackToolTip}"
+                    Width="26" Height="26" MinWidth="0" Padding="0"
+                    Margin="10,0,2,0" />
+            <Button Grid.Column="1"
+                    Classes="CkanIcon"
+                    Content="→"
+                    Command="{Binding ForwardCommand}"
+                    IsEnabled="{Binding CanGoForward}"
+                    ToolTip.Tip="{Binding ForwardToolTip}"
+                    Width="26" Height="26" MinWidth="0" Padding="0"
+                    Margin="0,0,4,0" />
+            <TextBlock Grid.Column="2"
+                       Text="{Binding Title}"
                        Foreground="{DynamicResource CkanTextTertiaryBrush}"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        VerticalAlignment="Center"
-                       Margin="12,0,0,0" />
-            <TextBlock Text="{Binding StatusText}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                       FontSize="{DynamicResource CkanFontSizeCaption}"
-                       VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis" />
-          </DockPanel>
-        </Border>
+                       Margin="8,0,8,0"
+                       TextTrimming="CharacterEllipsis"
+                       IsHitTestVisible="False" />
+          </Grid>
 
-        <!--
-          底部日志抽屉（14 篇 §4.1 / UI-LOG-01）：跨页面常驻，收起时只留一条标题条。
-          半屏高度由代码按窗口实际尺寸算（MainWindow.UpdateLogDrawerHeight）——Avalonia 绑定
-          做不了数值缩放，写死像素在高 DPI 下要么挡掉整个工作区，要么只剩一行。
-          先声明的 Dock=Bottom 贴得更低，所以抽屉落在状态栏之上。
-        -->
-        <Border x:Name="LogDrawerHost"
-                DockPanel.Dock="Bottom"
-                IsVisible="{Binding LogDrawer, Converter={x:Static ObjectConverters.IsNotNull}}">
-          <logs:LogDrawerView DataContext="{Binding LogDrawer}" />
-        </Border>
-        <!-- 页面切换动画在代码里按动效 token 装配（CrossFade.Duration 不是 Avalonia 属性，绑不了资源） -->
-        <TransitioningContentControl x:Name="PageHost" Content="{Binding CurrentPage}" />
-      </DockPanel>
+          <!-- 状态栏：左状态文案、右实例与版本号 -->
+          <Border DockPanel.Dock="Bottom"
+                  Background="{DynamicResource CkanStatusBarBackgroundBrush}"
+                  BorderBrush="{DynamicResource CkanBorderBrush}"
+                  BorderThickness="0,1,0,0"
+                  Padding="16,6">
+            <DockPanel LastChildFill="True">
+              <TextBlock x:Name="StatusVersionText"
+                         DockPanel.Dock="Right"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         VerticalAlignment="Center"
+                         Margin="12,0,0,0" />
+              <TextBlock Text="{Binding StatusText}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+          </Border>
+
+          <!-- 页面切换动画在代码里按动效 token 装配（CrossFade.Duration 不是 Avalonia 属性，绑不了资源） -->
+          <TransitioningContentControl x:Name="PageHost" Content="{Binding CurrentPage}" />
+        </DockPanel>
+      </ui:FANavigationView>
+
+      <!--
+        底部日志抽屉（14 篇 §4.1 / UI-LOG-01）：跨页常驻，收起时只留一条标题条。
+        刻意放进 Grid 顶层做 Overlay 而不是 DockPanel 的一行 —— 位移动画挂在 RenderTransform 上，
+        不参与布局就不会挤压工作区；半屏高度仍由代码按窗口实际尺寸算（UpdateLogDrawerHeight）。
+      -->
+      <Border x:Name="LogDrawerHost"
+              ZIndex="8"
+              VerticalAlignment="Bottom"
+              Margin="0,0,0,30"
+              RenderTransformOrigin="0.5,1"
+              IsVisible="{Binding LogDrawer, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <Border.RenderTransform>
+          <TranslateTransform />
+        </Border.RenderTransform>
+        <logs:LogDrawerView DataContext="{Binding LogDrawer}" />
+      </Border>
+
+      <!--
+        未保存提示条：外壳按当前页的 IUnsavedChangesAware 算 HasUnsavedChanges，只在变脏时滑入。
+        同样挂在 Grid 顶层，既不吃布局行，也不会在页面切换动画期间被裁掉。
+      -->
+      <Border x:Name="UnsavedHintHost"
+              ZIndex="9"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Bottom"
+              Margin="0,0,0,42"
+              Padding="14,7"
+              CornerRadius="{DynamicResource CkanCornerRadiusPill}"
+              Background="{DynamicResource CkanWarningBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanWarningBrush}"
+              BorderThickness="1"
+              IsHitTestVisible="False"
+              Opacity="0"
+              IsVisible="{Binding HasUnsavedChanges}">
+        <Border.RenderTransform>
+          <TranslateTransform />
+        </Border.RenderTransform>
+        <TextBlock Text="{DynamicResource Ui_Common_UnsavedHint}"
+                   FontSize="{DynamicResource CkanFontSizeCaption}" />
+      </Border>
 
       <!-- 操作队列浮层 -->
-      <Grid Grid.Column="0" Grid.ColumnSpan="2"
-            IsVisible="{Binding HasOperationQueue}"
+      <Grid IsVisible="{Binding HasOperationQueue}"
             HorizontalAlignment="Right"
             VerticalAlignment="Bottom"
-            Panel.ZIndex="10">
+            ZIndex="10">
         <ops:OperationQueueOverlayView DataContext="{Binding OperationQueue}" />
       </Grid>
 

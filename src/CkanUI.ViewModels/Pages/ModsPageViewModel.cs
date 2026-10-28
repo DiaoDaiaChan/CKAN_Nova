@@ -21,7 +21,7 @@ namespace CkanUI.ViewModels.Pages;
 /// <para>构造参数全部是 Abstractions 里已注册的接口；<c>IChangeSetService</c> 尚未实现（INT-07），
 /// 声明为可选参数，缺失时退化为本地估算预览（<see cref="ModsChangePreviewBuilder"/>）。</para>
 /// </remarks>
-public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTrim, IPluginToolHost
+public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTrim, IPluginToolHost, IUnsavedChangesAware
 {
     /// <summary>搜索防抖时长。规格 03 篇 §3.4 允许 150ms、验收要求 ≤100ms，这里取 80ms 给调度留余量。</summary>
     public const int SearchDebounceMilliseconds = 80;
@@ -311,6 +311,9 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
 
     /// <summary>是否存在待应用的变更（控制"应用变更"按钮可用性）。</summary>
     public bool HasPendingChanges => !ChangePreview.IsEmpty;
+
+    /// <summary>外壳底部「未保存」提示条：变更清单里还有没应用的改动。</summary>
+    bool IUnsavedChangesAware.HasUnsavedChanges => HasPendingChanges;
 
     /// <summary>当前生效的查询/过滤条件（空状态时以 chip 形式展示，可一键清除）。</summary>
     public IReadOnlyList<string> ActiveFilterChips

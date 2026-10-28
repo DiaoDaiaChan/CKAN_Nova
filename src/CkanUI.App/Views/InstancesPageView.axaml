@@ -1,71 +1,50 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:dialogs="using:CkanUI.App.Views.Dialogs.InstanceDialogs"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
              x:Class="CkanUI.App.Views.InstancesPageView"
              x:CompileBindings="False"
              KeyDown="OnRootKeyDown">
   <!-- 实例页：工具条 + 左列表 + 右详情 + 状态栏 + 遮罩/表单覆盖层。 -->
   <Grid RowDefinitions="Auto,*,Auto" Margin="16,14,16,12">
 
-    <!-- 顶部现代化工具栏 Card -->
-    <Border Grid.Row="0" Padding="12,10" CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+    <!-- 顶部命令栏：FluentAvalonia 官方 FACommandBar——高频操作常显，低频操作自动收进溢出菜单 -->
+    <Border Grid.Row="0" Padding="4,2" CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
             Background="{DynamicResource CkanCardBackgroundBrush}"
             BorderBrush="{DynamicResource CkanCardBorderBrush}"
             BorderThickness="1">
-      <StackPanel Orientation="Horizontal" Spacing="8">
-        <Button Content="添加实例" Command="{Binding AddCommand}"
-                Background="{DynamicResource CkanAccentBrush}"
-                Foreground="{DynamicResource CkanAccentTextBrush}"
-                FontWeight="SemiBold"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="12,5"
-                ToolTip.Tip="选择一个 KSP 安装目录并注册为实例" />
-        <Button Content="从 Steam 库导入" Command="{Binding ImportFromSteamCommand}"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="10,5"
-                ToolTip.Tip="扫描 Steam 库中的 KSP 安装目录" />
-        <Button Content="刷新" Command="{Binding RefreshCommand}"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="10,5"
-                ToolTip.Tip="重新扫描实例列表（F5）" />
-
-        <Border Width="1" Margin="4,2" Background="{DynamicResource CkanBorderBrush}" />
-
-        <Button Content="设为当前" Command="{Binding SwitchCommand}" IsEnabled="{Binding CanSwitchSelected}"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="10,5"
-                ToolTip.Tip="切换当前游戏实例（不可并发）" />
-        <Button Content="克隆" Command="{Binding BeginCloneCommand}" IsEnabled="{Binding CanOpenSelected}"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="10,5"
-                ToolTip.Tip="复制该实例的游戏目录为新实例" />
-        <Button Content="重命名" Command="{Binding BeginRenameCommand}" IsEnabled="{Binding CanOpenSelected}"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="10,5"
-                ToolTip.Tip="只改实例记录中的名称" />
-        <Button Content="遗忘" Command="{Binding ForgetCommand}" IsEnabled="{Binding CanForgetSelected}"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="10,5"
-                ToolTip.Tip="只移除实例记录，不会删除游戏文件" />
-
-        <Border Width="1" Margin="4,2" Background="{DynamicResource CkanBorderBrush}" />
-
-        <Button Content="打开目录" Command="{Binding OpenFolderCommand}" IsEnabled="{Binding CanOpenSelected}"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="10,5"
-                ToolTip.Tip="在文件管理器中打开游戏目录" />
-        <Button Content="编辑启动命令" Command="{Binding EditCommandsCommand}" IsEnabled="{Binding CanEditCommands}"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="10,5"
-                ToolTip.Tip="编辑该实例的启动命令列表（F-06）" />
-        <Button Content="启动游戏" Command="{Binding LaunchCommand}" IsEnabled="{Binding CanOpenSelected}"
-                Background="{DynamicResource CkanSuccessBrush}"
-                Foreground="{DynamicResource CkanTextInverseBrush}"
-                FontWeight="SemiBold"
-                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                Padding="12,5"
-                ToolTip.Tip="{Binding LaunchToolTip}" />
-      </StackPanel>
+      <ui:FACommandBar DefaultLabelPosition="Right" ItemsAlignment="Left" OverflowButtonVisibility="Auto"
+                       Background="Transparent" BorderThickness="0">
+        <ui:FACommandBar.PrimaryCommands>
+          <ui:FACommandBarButton IconSource="Add" Label="添加实例" Command="{Binding AddCommand}"
+                                 ToolTip.Tip="选择一个 KSP 安装目录并注册为实例" />
+          <ui:FACommandBarButton IconSource="Download" Label="从 Steam 库导入" Command="{Binding ImportFromSteamCommand}"
+                                 ToolTip.Tip="扫描 Steam 库中的 KSP 安装目录" />
+          <ui:FACommandBarButton IconSource="Refresh" Label="刷新" Command="{Binding RefreshCommand}"
+                                 ToolTip.Tip="重新扫描实例列表（F5）" />
+          <ui:FACommandBarSeparator />
+          <ui:FACommandBarButton IconSource="Accept" Label="设为当前" Command="{Binding SwitchCommand}"
+                                 IsEnabled="{Binding CanSwitchSelected}"
+                                 ToolTip.Tip="切换当前游戏实例（不可并发）" />
+          <ui:FACommandBarButton IconSource="Play" Label="启动游戏" Command="{Binding LaunchCommand}"
+                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="{Binding LaunchToolTip}" />
+        </ui:FACommandBar.PrimaryCommands>
+        <ui:FACommandBar.SecondaryCommands>
+          <ui:FACommandBarButton IconSource="Copy" Label="克隆此实例" Command="{Binding BeginCloneCommand}"
+                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="复制该实例的游戏目录为新实例" />
+          <ui:FACommandBarButton IconSource="Rename" Label="重命名" Command="{Binding BeginRenameCommand}"
+                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="只改实例记录中的名称" />
+          <ui:FACommandBarButton IconSource="OpenFolder" Label="打开游戏目录" Command="{Binding OpenFolderCommand}"
+                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="在文件管理器中打开游戏目录" />
+          <ui:FACommandBarButton IconSource="Edit" Label="编辑启动命令" Command="{Binding EditCommandsCommand}"
+                                 IsEnabled="{Binding CanEditCommands}" ToolTip.Tip="编辑该实例的启动命令列表（F-06）" />
+          <ui:FACommandBarSeparator />
+          <ui:FACommandBarButton IconSource="Repair" Label="实例自检" Command="{Binding DiagnoseCommand}"
+                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="只读检查锁、注册表与版本兼容性（F-08）" />
+          <ui:FACommandBarButton IconSource="Delete" Label="遗忘此实例" Command="{Binding ForgetCommand}"
+                                 IsEnabled="{Binding CanForgetSelected}" ToolTip.Tip="只移除实例记录，不会删除游戏文件" />
+        </ui:FACommandBar.SecondaryCommands>
+      </ui:FACommandBar>
     </Border>
 
     <!-- 错误条：异常与失败统一收口到页面文本 -->
@@ -194,45 +173,32 @@
                        Foreground="{DynamicResource CkanDangerBrush}" />
             <Separator Margin="0,6" Background="{DynamicResource CkanBorderBrush}" Height="1" />
             <StackPanel Spacing="8">
-              <Button Content="设为当前实例" Command="{Binding SwitchCommand}"
-                      IsEnabled="{Binding CanSwitchSelected}" HorizontalAlignment="Stretch"
-                      HorizontalContentAlignment="Center"
-                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                      Padding="10,6" />
-              <Button Content="克隆此实例" Command="{Binding BeginCloneCommand}"
-                      IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch"
-                      HorizontalContentAlignment="Center"
-                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                      Padding="10,6" />
-              <Button Content="重命名此实例" Command="{Binding BeginRenameCommand}"
-                      IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch"
-                      HorizontalContentAlignment="Center"
-                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                      Padding="10,6" />
-              <Button Content="打开游戏目录" Command="{Binding OpenFolderCommand}"
-                      IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch"
-                      HorizontalContentAlignment="Center"
-                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                      Padding="10,6" />
-              <Button Content="编辑启动命令" Command="{Binding EditCommandsCommand}"
-                      IsEnabled="{Binding CanEditCommands}" HorizontalAlignment="Stretch"
-                      HorizontalContentAlignment="Center"
-                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                      Padding="10,6" />
-              <Button Content="启动游戏" Command="{Binding LaunchCommand}"
-                      IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch"
-                      HorizontalContentAlignment="Center"
-                      Background="{DynamicResource CkanSuccessBrush}"
-                      Foreground="{DynamicResource CkanTextInverseBrush}"
-                      FontWeight="SemiBold"
-                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                      Padding="10,6"
-                      ToolTip.Tip="{Binding LaunchToolTip}" />
-              <Button Content="遗忘此实例" Command="{Binding ForgetCommand}"
-                      IsEnabled="{Binding CanForgetSelected}" HorizontalAlignment="Stretch"
-                      HorizontalContentAlignment="Center"
-                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                      Padding="10,6" />
+              <!-- 主操作：常显两个，其余收进官方 FAMenuFlyout -->
+              <Grid ColumnDefinitions="*,8,Auto">
+                <Button Grid.Column="0" Content="启动游戏" Command="{Binding LaunchCommand}"
+                        IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center" Classes="CkanPrimary"
+                        ToolTip.Tip="{Binding LaunchToolTip}" />
+                <Button Grid.Column="2" Content="更多操作" HorizontalContentAlignment="Center">
+                  <Button.Flyout>
+                    <ui:FAMenuFlyout Placement="Bottom">
+                      <ui:FAMenuFlyoutItem Text="设为当前实例" IconSource="Accept"
+                                          Command="{Binding SwitchCommand}" />
+                      <ui:FAMenuFlyoutItem Text="克隆此实例" IconSource="Copy"
+                                          Command="{Binding BeginCloneCommand}" />
+                      <ui:FAMenuFlyoutItem Text="重命名此实例" IconSource="Rename"
+                                          Command="{Binding BeginRenameCommand}" />
+                      <ui:FAMenuFlyoutItem Text="打开游戏目录" IconSource="OpenFolder"
+                                          Command="{Binding OpenFolderCommand}" />
+                      <ui:FAMenuFlyoutItem Text="编辑启动命令" IconSource="Edit"
+                                          Command="{Binding EditCommandsCommand}" />
+                      <ui:FAMenuFlyoutSeparator />
+                      <ui:FAMenuFlyoutItem Text="遗忘此实例" IconSource="Delete"
+                                          Command="{Binding ForgetCommand}" />
+                    </ui:FAMenuFlyout>
+                  </Button.Flyout>
+                </Button>
+              </Grid>
             </StackPanel>
             <!-- 实例自检与故障处置（F-08）：锁探测 / 强制解锁 / 坏注册表隔离 -->
             <Separator Margin="0,6" Background="{DynamicResource CkanBorderBrush}" Height="1" />

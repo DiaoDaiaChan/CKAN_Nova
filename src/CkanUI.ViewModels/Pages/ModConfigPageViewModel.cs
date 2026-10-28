@@ -18,7 +18,7 @@ namespace CkanUI.ViewModels.Pages;
 /// 两个确认位（游戏运行中、高风险字段）都用注入的 <see cref="IDialogService"/>，页面 VM 自己 new 对话框。
 /// 译文走构造注入的委托，本层不引用本地化实现（铁律 3）。
 /// </remarks>
-public sealed partial class ModConfigPageViewModel : PageViewModel
+public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChangesAware
 {
     private readonly IModConfigService _config;
     private readonly IAdapterCatalog? _catalog;
@@ -193,6 +193,9 @@ public sealed partial class ModConfigPageViewModel : PageViewModel
 
     /// <summary>是否有待保存的草稿。</summary>
     public bool HasPendingChanges => _pending.Count > 0;
+
+    /// <summary>外壳底部「未保存」提示条：还有没写盘的配置草稿。</summary>
+    bool IUnsavedChangesAware.HasUnsavedChanges => HasPendingChanges;
 
     /// <summary>底部改动条文案（"改动 N 项（待保存 M 项）"）。</summary>
     public string ModifiedBarText

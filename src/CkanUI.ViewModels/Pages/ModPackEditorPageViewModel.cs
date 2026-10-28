@@ -22,7 +22,7 @@ namespace CkanUI.ViewModels.Pages;
 /// 不引用任何 CKAN 类型（.ckan 的字段名与合法性全由服务层决定），因此可以脱离 Core 单测。
 /// 保存前一定先跑 <see cref="IModPackService.ValidateEditor"/>：有 Error 级问题就逐条列中文原因并拒绝写盘。
 /// </remarks>
-public sealed partial class ModPackEditorPageViewModel : PageViewModel
+public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsavedChangesAware
 {
     private readonly IModPackService _service;
     private bool _suppressDirty;
@@ -136,6 +136,9 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel
     /// <summary>表单是否有未保存的改动。</summary>
     [ObservableProperty]
     private bool _isDirty;
+
+    /// <summary>外壳底部「未保存」提示条：模组包表单还有没保存的改动。</summary>
+    bool IUnsavedChangesAware.HasUnsavedChanges => IsDirty;
 
     /// <summary>作者行。</summary>
     public ObservableCollection<ModPackEditorRowViewModel> Authors { get; } = new();

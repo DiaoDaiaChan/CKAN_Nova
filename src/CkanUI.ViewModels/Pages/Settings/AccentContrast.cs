@@ -42,11 +42,14 @@ public static class AccentContrast
     /// <summary>WCAG 2.2 AA 正文阈值。</summary>
     public const double MinimumRatio = 4.5;
 
-    /// <summary>浅色主题的底色（Tokens.axaml <c>CkanSurfaceBackgroundBrush</c> #FFFFFF）。</summary>
+    /// <summary>
+    /// 浅色主题的底色：取卡片表面 #FFFFFF（第二阶段表面分层后画布压到 #F4F6F9，但强调色文字
+    /// 绝大多数落在卡片上，按卡片算才是真实阅读场景）。
+    /// </summary>
     public static readonly AccentRgb LightPole = new(0xFF, 0xFF, 0xFF);
 
-    /// <summary>深色主题的底色（Tokens.axaml <c>CkanSurfaceBackgroundBrush</c> #1B1F27）。</summary>
-    public static readonly AccentRgb DarkPole = new(0x1B, 0x1F, 0x27);
+    /// <summary>深色主题的底色：取卡片表面 #151921（同上，画布 #0D1015 更深、对比度只会更高）。</summary>
+    public static readonly AccentRgb DarkPole = new(0x15, 0x19, 0x21);
 
     /// <summary>高对比度主题的底色（Tokens.axaml <c>CkanSurfaceBackgroundBrush</c> #000000）。</summary>
     public static readonly AccentRgb HighContrastPole = new(0x00, 0x00, 0x00);
