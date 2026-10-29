@@ -16,19 +16,14 @@
           HorizontalAlignment="Right"
           VerticalAlignment="Bottom"
           Margin="16"
-          Padding="12"
+          Padding="14"
           CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
           BorderThickness="1"
           Opacity="{Binding OverlayOpacity}"
           IsVisible="{Binding IsVisible}"
-          BoxShadow="0 4 12 0 #33000000">
-
-    <Border.Background>
-      <DynamicResource ResourceKey="CkanSurfaceBackgroundBrush" />
-    </Border.Background>
-    <Border.BorderBrush>
-      <DynamicResource ResourceKey="CkanBorderBrush" />
-    </Border.BorderBrush>
+          BoxShadow="{DynamicResource CkanElevationMedium}"
+          Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+          BorderBrush="{DynamicResource CkanCardBorderBrush}">
 
     <StackPanel Spacing="8">
 

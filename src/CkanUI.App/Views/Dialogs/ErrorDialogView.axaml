@@ -1,48 +1,72 @@
 <dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
-                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
-                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
-                       x:Class="CkanUI.App.Views.Dialogs.ErrorDialogView"
-                       x:DataType="vm:ErrorDialogViewModel"
-                       Title="{Binding Title}"
-                       Width="500"
-                       SizeToContent="Height">
-  <StackPanel Margin="20" Spacing="10">
-    <TextBlock Text="{Binding UserMessage}" TextWrapping="Wrap" FontWeight="SemiBold" />
-    <StackPanel Orientation="Horizontal" Spacing="10">
-      <TextBlock Text="{Binding ContextLabelText}" Opacity="0.6" FontSize="12" />
-      <TextBlock Text="{Binding ContextText}" Opacity="0.8" FontSize="12" TextWrapping="Wrap" />
-      <TextBlock Text="{Binding TimestampText}" Opacity="0.6" FontSize="12" />
-    </StackPanel>
+                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                      xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                      xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                      x:Class="CkanUI.App.Views.Dialogs.ErrorDialogView"
+                      x:DataType="vm:ErrorDialogViewModel"
+                      Title="{Binding Title}"
+                      Width="520"
+                      SizeToContent="Height">
+  <StackPanel Margin="24,20" Spacing="14">
+    <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,4">
+      <Border Width="40" Height="40" CornerRadius="20"
+              Background="{DynamicResource CkanDangerBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
+              Margin="0,0,14,0" VerticalAlignment="Top">
+        <PathIcon Width="18" Height="18"
+                  Foreground="{DynamicResource CkanDangerBrush}"
+                  Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+      </Border>
+      <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+        <TextBlock Text="{Binding UserMessage}" TextWrapping="Wrap"
+                   FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource CkanDangerBrush}" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="{Binding ContextLabelText}" Opacity="0.6" FontSize="{DynamicResource CkanFontSizeCaption}" />
+          <TextBlock Text="{Binding ContextText}" Opacity="0.85" FontSize="{DynamicResource CkanFontSizeCaption}" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding TimestampText}" Opacity="0.6" FontSize="{DynamicResource CkanFontSizeCaption}" />
+        </StackPanel>
+      </StackPanel>
+    </Grid>
+
     <Expander Header="{Binding DetailHeaderText}" IsExpanded="{Binding IsDetailExpanded}" HorizontalAlignment="Stretch">
-      <StackPanel Spacing="6">
+      <StackPanel Spacing="8" Margin="0,4">
         <SelectableTextBlock Text="{Binding Detail}"
                              IsVisible="{Binding HasDetail}"
                              TextWrapping="Wrap"
-                             FontSize="12" />
+                             FontSize="{DynamicResource CkanFontSizeCaption}" />
         <ScrollViewer MaxHeight="220" HorizontalScrollBarVisibility="Auto">
-          <SelectableTextBlock Text="{Binding ExceptionText}"
-                               IsVisible="{Binding HasException}"
-                               FontFamily="Consolas"
-                               FontSize="11"
-                               TextWrapping="NoWrap" />
+          <Border Classes="CkanSubtleCard" Padding="8">
+            <SelectableTextBlock Text="{Binding ExceptionText}"
+                                 IsVisible="{Binding HasException}"
+                                 FontFamily="Consolas"
+                                 FontSize="11"
+                                 TextWrapping="NoWrap" />
+          </Border>
         </ScrollViewer>
       </StackPanel>
     </Expander>
+
     <TextBlock Text="{Binding CopyStatus}"
                IsVisible="{Binding HasCopyStatus}"
                Opacity="0.75"
-               FontSize="12" />
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-      <Button Content="{Binding PrimaryButtonText}"
-              Command="{Binding PrimaryCommand}"
-              MinWidth="120"
-              HorizontalContentAlignment="Center" />
+               FontSize="{DynamicResource CkanFontSizeCaption}" />
+
+    <Border Height="1" Background="{DynamicResource CkanBorderBrush}" Margin="0,4" />
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
       <Button Content="{Binding SecondaryButtonText}"
               Command="{Binding SecondaryCommand}"
               IsCancel="True"
               IsVisible="{Binding HasSecondaryButton}"
-              MinWidth="80"
+              Classes="CkanSecondary"
+              MinWidth="88"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding PrimaryCommand}"
+              Classes="CkanPrimary"
+              MinWidth="120"
               HorizontalContentAlignment="Center" />
     </StackPanel>
   </StackPanel>

@@ -6,6 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- 服务契约的失败语义走 OperationResult（01 篇 §8）：接口在本项目，返回类型在 Abstractions。 -->
+    <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
     <ProjectReference Include="$(UI18nCoreProject)" />
   </ItemGroup>
 

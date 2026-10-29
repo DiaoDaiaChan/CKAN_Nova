@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -52,11 +53,11 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
             ReleaseStatus = "stable",
         });
         IsDirty = false;
-        SetStatus("填写表单后点「校验」，或直接「保存」。");
+        SetStatus(Text("填写表单后点「校验」，或直接「保存」。", LocalizationKeys.ModPackEditorStatusReady));
     }
 
     /// <inheritdoc />
-    public override string Title => ModPackEditorText.PageTitle;
+    public override string Title => Text("modpack 编辑器", LocalizationKeys.NavRailModPackEditor);
 
     /// <summary>目标 <c>.ckan</c> 文件路径。</summary>
     [ObservableProperty]
@@ -177,7 +178,7 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
     public bool HasIssues => Issues.Count > 0;
 
     /// <summary>问题数量文案。</summary>
-    public string IssueSummary => Issues.Count == 0 ? string.Empty : "共 " + Issues.Count + " 条问题";
+    public string IssueSummary => Issues.Count == 0 ? string.Empty : Text("共 {0} 条问题", LocalizationKeys.ModPackEditorIssueSummary, Issues.Count);
 
     /// <summary>发布状态下拉项。</summary>
     public IReadOnlyList<string> ReleaseStatusOptions => ModPackEditorText.ReleaseStatusOptions;
@@ -235,13 +236,13 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
             DownloadUrl = document.DownloadUrl ?? string.Empty;
 
             Authors.Clear();
-            foreach (var row in ModPackEditorRowViewModel.FromValues(document.Authors, "作者"))
+            foreach (var row in ModPackEditorRowViewModel.FromValues(document.Authors, Text("作者", LocalizationKeys.ModPackEditorLabelAuthor)))
             {
                 Authors.Add(row);
             }
 
             Licenses.Clear();
-            foreach (var row in ModPackEditorRowViewModel.FromValues(document.Licenses, "许可证"))
+            foreach (var row in ModPackEditorRowViewModel.FromValues(document.Licenses, Text("许可证", LocalizationKeys.ModPackEditorLabelLicense)))
             {
                 Licenses.Add(row);
             }
@@ -297,7 +298,7 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
             var result = await _service.LoadEditorAsync(FilePath ?? string.Empty, CancellationToken.None);
             if (!result.IsSuccess || result.Value is null)
             {
-                SetError(ModPacksErrorText.Compose(result.Message, "读取 .ckan 失败。", result.Retryable)
+                SetError(ModPacksErrorText.Compose(result.Message, Text("读取 .ckan 失败。", LocalizationKeys.ModPackEditorErrorRead), result.Retryable)
                          + (string.IsNullOrWhiteSpace(result.Detail) ? string.Empty : Environment.NewLine + result.Detail));
                 return;
             }
@@ -305,8 +306,8 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
             ApplyDocument(result.Value);
             ApplyIssues(_service.ValidateEditor(result.Value));
             IsDirty = false;
-            SetStatus("已读取：" + result.Value.FilePath);
-        }, "读取 .ckan 失败", "正在读取…");
+            SetStatus(Text("已读取：{0}", LocalizationKeys.ModPackEditorStatusRead, result.Value.FilePath));
+        }, "读取 .ckan 失败", Text("正在读取…", LocalizationKeys.ModPackEditorBusyReading));
     }
 
     /// <summary>先校验，再写盘；有 Error 级问题就拒绝并逐条列出原因。</summary>
@@ -322,22 +323,22 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
             var errors = issues.Where(issue => issue.Severity == ModPackEditorIssueSeverity.Error).ToList();
             if (errors.Count > 0)
             {
-                SetError("校验未通过，没有保存。请按下面列出的原因逐条修正。");
+                SetError(Text("校验未通过，没有保存。请按下面列出的原因逐条修正。", LocalizationKeys.ModPackEditorErrorValidationBlocked));
                 return;
             }
 
             var result = await _service.SaveEditorAsync(document, CancellationToken.None);
             if (!result.IsSuccess || string.IsNullOrWhiteSpace(result.Value))
             {
-                SetError(ModPacksErrorText.Compose(result.Message, "保存 .ckan 失败。", result.Retryable)
+                SetError(ModPacksErrorText.Compose(result.Message, Text("保存 .ckan 失败。", LocalizationKeys.ModPackEditorErrorSave), result.Retryable)
                          + (string.IsNullOrWhiteSpace(result.Detail) ? string.Empty : Environment.NewLine + result.Detail));
                 return;
             }
 
             FilePath = result.Value!;
             IsDirty = false;
-            SetStatus("已保存：" + result.Value);
-        }, "保存 .ckan 失败", "正在保存…");
+            SetStatus(Text("已保存：{0}", LocalizationKeys.ModPackEditorStatusSaved, result.Value));
+        }, "保存 .ckan 失败", Text("正在保存…", LocalizationKeys.ModPackEditorBusySaving));
     }
 
     /// <summary>只校验不保存。</summary>
@@ -348,8 +349,8 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
         ApplyIssues(issues);
         var errors = issues.Count(issue => issue.Severity == ModPackEditorIssueSeverity.Error);
         SetStatus(errors == 0
-            ? "校验通过，可以保存。"
-            : "校验发现 " + errors + " 个错误，修好后才能保存。");
+            ? Text("校验通过，可以保存。", LocalizationKeys.ModPackEditorStatusValidationPassed)
+            : Text("校验发现 {0} 个错误，修好后才能保存。", LocalizationKeys.ModPackEditorStatusValidationErrors, errors));
         if (errors == 0)
         {
             SetError(string.Empty);
@@ -368,7 +369,7 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
         });
         ApplyIssues(Array.Empty<ModPackEditorIssue>());
         SetError(string.Empty);
-        SetStatus("已清空表单，填写标识与名称后保存。");
+        SetStatus(Text("已清空表单，填写标识与名称后保存。", LocalizationKeys.ModPackEditorStatusCleared));
         IsDirty = false;
     }
 
@@ -377,7 +378,7 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
     private void AddRelation()
     {
         Relations.Add(ModPackRelationRowViewModel.CreateEmpty());
-        SetStatus("已添加一条依赖关系，填写模组标识。");
+        SetStatus(Text("已添加一条依赖关系，填写模组标识。", LocalizationKeys.ModPackEditorStatusDependencyAdded));
     }
 
     /// <summary>删除一条关系行。</summary>
@@ -403,7 +404,7 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
             return;
         }
 
-        Authors.Add(new ModPackEditorRowViewModel(value, "作者"));
+        Authors.Add(new ModPackEditorRowViewModel(value, Text("作者", LocalizationKeys.ModPackEditorLabelAuthor)));
         NewAuthor = string.Empty;
     }
 
@@ -428,7 +429,7 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
             return;
         }
 
-        Licenses.Add(new ModPackEditorRowViewModel(value, "许可证"));
+        Licenses.Add(new ModPackEditorRowViewModel(value, Text("许可证", LocalizationKeys.ModPackEditorLabelLicense)));
         NewLicense = string.Empty;
     }
 

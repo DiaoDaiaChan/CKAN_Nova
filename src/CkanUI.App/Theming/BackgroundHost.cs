@@ -5,6 +5,7 @@ using Avalonia.Media.Imaging;
 
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.Services.Settings;
 using CkanUI.ViewModels.Pages.Settings;
 
 using log4net;
@@ -133,13 +134,14 @@ public sealed class BackgroundHost : IDisposable
         }
 
         var clamped = profile.Clamp();
-        var signature = BuildSignature(clamped);
+        var imagePath = ResolveImagePath(clamped);
+        var signature = BuildSignature(clamped, imagePath);
         if (string.Equals(signature, _appliedSignature, StringComparison.Ordinal))
         {
             return;
         }
 
-        var isImage = string.Equals(clamped.Kind, BackgroundProfile.KindImage, StringComparison.OrdinalIgnoreCase);
+        var isImage = IsImageKind(clamped.Kind);
         var opacity = BackgroundBrushFactory.ToOpacity(clamped);
         var blur = BackgroundBrushFactory.CreateBlur(clamped);
         var tiled = BackgroundBrushFactory.IsTiled(clamped);
@@ -147,7 +149,7 @@ public sealed class BackgroundHost : IDisposable
         Bitmap? bitmap = null;
         if (isImage)
         {
-            bitmap = EnsureBitmap(clamped.ImagePath, layer, image);
+            bitmap = EnsureBitmap(imagePath, layer, image);
             if (bitmap is null)
             {
                 // 图读不出来（路径错、格式坏）时不要留一块黑底，直接回到无背景。
@@ -328,14 +330,57 @@ public sealed class BackgroundHost : IDisposable
         scrim.Opacity = 0;
     }
 
-    private static string BuildSignature(BackgroundProfile profile) => string.Join(
+    /// <summary>图片类来源（本机图片 / 游戏截图）共用同一条位图渲染路径。</summary>
+    private static bool IsImageKind(string? kind) =>
+        string.Equals(kind, BackgroundProfile.KindImage, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(kind, BackgroundProfile.KindScreenshot, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 把来源解析成真正要加载的图片路径：截图来源每次现取最新一张，其余直接用配置里的路径。
+    /// </summary>
+    private string? ResolveImagePath(BackgroundProfile profile) =>
+        ResolveImagePathFor(profile, SafeCurrentGameDir());
+
+    /// <summary>
+    /// <see cref="ResolveImagePath"/> 的纯函数版（可测）：把「来源 + 游戏目录」映射成图片路径。
+    /// </summary>
+    /// <remarks>
+    /// 截图来源不落盘路径，每次按游戏目录现找最新一张；因此调用方必须把返回值一起算进
+    /// 缓存签名，否则切了实例但配置没变时会命中旧签名、背景不换。
+    /// </remarks>
+    public static string? ResolveImagePathFor(BackgroundProfile? profile, string? gameDirectory)
+    {
+        if (profile is null)
+        {
+            return null;
+        }
+
+        return string.Equals(profile.Kind, BackgroundProfile.KindScreenshot, StringComparison.OrdinalIgnoreCase)
+            ? BackgroundImageLocator.FindLatestScreenshot(gameDirectory)
+            : profile.ImagePath;
+    }
+
+    /// <summary>当前实例的游戏根目录；没有实例或读取失败都返回 null。</summary>
+    private string? SafeCurrentGameDir()
+    {
+        try
+        {
+            return _instances?.Current?.GameDir;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private static string BuildSignature(BackgroundProfile profile, string? imagePath) => string.Join(
         '|',
         profile.Kind,
         profile.Color,
         profile.GradientStart,
         profile.GradientEnd,
         profile.GradientAngle.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
-        profile.ImagePath,
+        imagePath,
         profile.Fill,
         profile.DimPercent.ToString(System.Globalization.CultureInfo.InvariantCulture),
         profile.BlurRadius.ToString("R", System.Globalization.CultureInfo.InvariantCulture),

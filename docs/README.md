@@ -51,7 +51,8 @@
 | [design/mod-metadata-i18n.md](design/mod-metadata-i18n.md) | 模组元数据本地化：抽取契约、词条哈希、过期判定与已知缺口 |
 | [design/logging-and-diagnostics.md](design/logging-and-diagnostics.md) | M8 日志与 AI 排障：采集四路、环形缓冲、9 族分类、脱敏与诊断包出口校验 |
 | [design/feature-matrix-verification.md](design/feature-matrix-verification.md) | 55 项特性逐条验收取证：实现证据 file:line、覆盖测试与强度分级，附与母表不一致项与缺口 |
-| [design/mod-config-adapters.md](design/mod-config-adapters.md) | M9 Mod 配置适配层：ConfigNode 往返保真、adapter schema 与状态机、写盘安全与只读页面骨架 |
+| [design/mod-config-adapters.md](design/mod-config-adapters.md) | M9 Mod 配置适配层：ConfigNode 往返保真、adapter schema 与状态机、写盘安全与九类字段编辑器 |
+| [design/adapter-import.md](design/adapter-import.md) | ADP-04：adapter 导入（本地文件 / 远程 URL）、SHA-256 清单与 ETag 更新检查 |
 | [design/instance-repair.md](design/instance-repair.md) | F-08 实例自检与修复：锁占用三档线索、强制解锁、坏注册表隔离与升级建议 |
 | [design/app-update.md](design/app-update.md) | F-52 自动更新：资产挑选与校验、剥壳替换、失败回滚与重启提示 |
 | [design/command-palette.md](design/command-palette.md) | UI-27 命令面板与快捷键目录：模糊打分、目录快照、动作落点与键位 |

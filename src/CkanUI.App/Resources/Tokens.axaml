@@ -57,10 +57,10 @@
       <SolidColorBrush x:Key="CkanScrimBrush" Color="#99000000" />
       <SolidColorBrush x:Key="CkanBlockingScrimBrush" Color="#B3000000" />
 
-      <!-- 海拔（20 篇 P-08）：卡片低、浮层中、对话框高；统一从 token 取，禁止各页写字面量阴影 -->
-      <BoxShadows x:Key="CkanElevationLow">0 1 3 0 #12000000</BoxShadows>
-      <BoxShadows x:Key="CkanElevationMedium">0 4 14 0 #1C000000</BoxShadows>
-      <BoxShadows x:Key="CkanElevationHigh">0 12 32 0 #29000000</BoxShadows>
+      <!-- 海拔（20 篇 P-08）：双层漫射+主光阴影（低/中/高）；统一从 token 取，禁止各页写字面量阴影 -->
+      <BoxShadows x:Key="CkanElevationLow">0 1 2 0 #0C000000, 0 2 6 0 #08000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationMedium">0 3 8 0 #12000000, 0 8 20 0 #0D000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationHigh">0 6 16 0 #18000000, 0 16 36 0 #15000000</BoxShadows>
       <BoxShadows x:Key="CkanElevationNone">0 0 0 0 #00000000</BoxShadows>
 
       <!-- 焦点环、状态叠加层与骨架屏底色（键盘可达性 THM-09） -->
@@ -119,10 +119,10 @@
       <SolidColorBrush x:Key="CkanScrimBrush" Color="#99000000" />
       <SolidColorBrush x:Key="CkanBlockingScrimBrush" Color="#B3000000" />
 
-      <!-- 海拔（20 篇 P-08）：深色下阴影要靠更深的不透明度才看得出层次 -->
-      <BoxShadows x:Key="CkanElevationLow">0 1 4 0 #40000000</BoxShadows>
-      <BoxShadows x:Key="CkanElevationMedium">0 6 18 0 #59000000</BoxShadows>
-      <BoxShadows x:Key="CkanElevationHigh">0 14 36 0 #73000000</BoxShadows>
+      <!-- 海拔（20 篇 P-08）：深色下双层阴影营造层次感 -->
+      <BoxShadows x:Key="CkanElevationLow">0 1 3 0 #38000000, 0 3 8 0 #44000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationMedium">0 4 12 0 #4C000000, 0 10 24 0 #60000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationHigh">0 8 20 0 #5A000000, 0 18 42 0 #7A000000</BoxShadows>
       <BoxShadows x:Key="CkanElevationNone">0 0 0 0 #00000000</BoxShadows>
 
       <!-- 焦点环、状态叠加层与骨架屏底色 -->

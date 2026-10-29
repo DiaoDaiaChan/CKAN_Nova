@@ -103,6 +103,53 @@ public sealed class ModTextLayerTests
     }
 
     [Test]
+    public void Find_reports_stale_when_entry_hash_differs_from_current_text()
+    {
+        const string oldText = "Automated pilot (v1)";
+        const string newText = "Automated pilot (v2)";
+        var provider = ModTextProvider.FromJsonLines([], [Line(oldText, "旧译文", "human")]);
+
+        // 文本变了，h 桶必然匹配不到；但 (identifier, field) 索引能认出"还是这个字段的旧条目"，据此报过期。
+        var found = provider.Find(Identifier, Field, newText);
+
+        Assert.That(found, Is.Not.Null);
+        Assert.That(found!.Text, Is.EqualTo("旧译文"));
+        Assert.That(found.Stale, Is.True);
+        Assert.That(found.Source, Is.EqualTo(ModTextSource.Human));
+    }
+
+    [Test]
+    public void Find_does_not_report_stale_when_hash_matches()
+    {
+        var provider = ModTextProvider.FromJsonLines([], [Line(English, "人工译文", "human")]);
+
+        var found = provider.Find(Identifier, Field, English);
+
+        Assert.That(found, Is.Not.Null);
+        Assert.That(found!.Text, Is.EqualTo("人工译文"));
+        Assert.That(found.Stale, Is.False, "命中的是当前文本的同哈希条目，不算过期。");
+    }
+
+    [Test]
+    public void ExistingOnly_does_not_substitute_machine_translation_for_changed_text()
+    {
+        const string oldText = "Telemetry readout (v1)";
+        const string newText = "Telemetry readout (v2)";
+        string[] pack = [Line(oldText, "机翻旧译文", "machine")];
+
+        // ExistingOnly：文本变了就不拿机翻旧译文顶替，宁可回退英文。
+        var strict = ModTextProvider.FromJsonLines([], pack, ModTextPolicy.ExistingOnly);
+        Assert.That(strict.Find(Identifier, Field, newText), Is.Null);
+
+        // AllowMachine：允许用机翻，但必须标出这是过期译文。
+        var loose = ModTextProvider.FromJsonLines([], pack, ModTextPolicy.AllowMachine);
+        var found = loose.Find(Identifier, Field, newText);
+        Assert.That(found, Is.Not.Null);
+        Assert.That(found!.Text, Is.EqualTo("机翻旧译文"));
+        Assert.That(found.Stale, Is.True);
+    }
+
+    [Test]
     public void Blocklist_parses_both_shapes_and_degrades_on_bad_json()
     {
         Assert.That(ModTextBlocklist.TryParse("""["A"]""", out var flat, out _), Is.True);

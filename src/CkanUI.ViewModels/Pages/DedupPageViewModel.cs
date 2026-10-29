@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using CkanUI.Services.Abstractions;
@@ -53,7 +54,7 @@ public sealed partial class DedupPageViewModel : PageViewModel
     }
 
     /// <inheritdoc />
-    public override string Title => "跨实例去重";
+    public override string Title => Text("跨实例去重", LocalizationKeys.NavRailDedup);
 
     /// <summary>可参与扫描的实例（默认全选）。</summary>
     public ObservableCollection<DedupInstanceOptionViewModel> Instances { get; } = new();
@@ -154,34 +155,34 @@ public sealed partial class DedupPageViewModel : PageViewModel
     public bool ShowEmptyState => _scanned && !IsBusy && !HasError && GroupCount == 0;
 
     /// <summary>空态标题。</summary>
-    public string EmptyStateTitle => "没有发现可去重的重复内容";
+    public string EmptyStateTitle => Text("没有发现可去重的重复内容", LocalizationKeys.DedupEmptyTitle);
 
     /// <summary>空态说明。</summary>
     public string EmptyStateHint =>
-        $"只比较 {MinimumFileSizeKiB} KiB 以上、非受管、非符号链接的文件；小于这个尺寸的文件去重收益低，也更容易被用户事后编辑。";
+        Text("只比较 {0} KiB 以上、非受管、非符号链接的文件；小于这个尺寸的文件去重收益低，也更容易被用户事后编辑。", LocalizationKeys.DedupEmptyHint, MinimumFileSizeKiB);
 
     /// <summary>平台不支持时的提示。</summary>
-    public string UnsupportedHint => "当前平台不支持创建硬链接，只能查看重复内容，不能执行去重。";
+    public string UnsupportedHint => Text("当前平台不支持创建硬链接，只能查看重复内容，不能执行去重。", LocalizationKeys.DedupUnsupportedHint);
 
     /// <summary>统计条文案。</summary>
     public string StatsText =>
-        $"重复：{GroupCount} 组、{DuplicateFileCount} 个文件，可释放 {UnmanagedFormat.FormatSize(ReclaimableBytes)}；跳过 {SkippedCount} 项";
+        Text("重复：{0} 组、{1} 个文件，可释放 {2}；跳过 {3} 项", LocalizationKeys.DedupStatsText, GroupCount, DuplicateFileCount, UnmanagedFormat.FormatSize(ReclaimableBytes), SkippedCount);
 
     /// <summary>实例勾选提示。</summary>
-    public string SelectionText => $"已选 {SelectedInstanceCount} / {Instances.Count} 个实例";
+    public string SelectionText => Text("已选 {0} / {1} 个实例", LocalizationKeys.DedupSelectionText, SelectedInstanceCount, Instances.Count);
 
     /// <summary>执行按钮文案（预演与真写盘分开表述）。</summary>
-    public string ExecuteText => DryRun ? "预演去重" : "执行去重";
+    public string ExecuteText => DryRun ? Text("预演去重", LocalizationKeys.DedupExecuteDryRun) : Text("执行去重", LocalizationKeys.DedupExecuteReal);
 
     /// <summary>预演/写盘开关说明。</summary>
     public string DryRunHint => DryRun
-        ? "预演：只校验并列出将要改成硬链接的文件，不改动磁盘。"
-        : "写盘：确认后会把重复文件改成硬链接（内容不变，但多个实例将共用同一份数据）。";
+        ? Text("预演：只校验并列出将要改成硬链接的文件，不改动磁盘。", LocalizationKeys.DedupDryRunHint)
+        : Text("写盘：确认后会把重复文件改成硬链接（内容不变，但多个实例将共用同一份数据）。", LocalizationKeys.DedupWriteHint);
 
     /// <summary>执行前二次确认文案（界面直接展示，让用户先看到后果）。</summary>
     public string ConfirmHintText => DryRun
-        ? "预演不会写盘，可以直接执行。"
-        : $"将把 {DuplicateFileCount} 个文件改成硬链接，可释放 {UnmanagedFormat.FormatSize(ReclaimableBytes)}。硬链接后多个实例共用同一份数据：删除或改动任一实例的文件都会影响其它实例。";
+        ? Text("预演不会写盘，可以直接执行。", LocalizationKeys.DedupConfirmDryRunHint)
+        : Text("将把 {0} 个文件改成硬链接，可释放 {1}。硬链接后多个实例共用同一份数据：删除或改动任一实例的文件都会影响其它实例。", LocalizationKeys.DedupConfirmWriteHint, DuplicateFileCount, UnmanagedFormat.FormatSize(ReclaimableBytes));
 
     /// <summary>勾选/取消全部实例。</summary>
     [RelayCommand]
@@ -226,13 +227,13 @@ public sealed partial class DedupPageViewModel : PageViewModel
             var result = await _service.ScanAsync(request).ConfigureAwait(true);
             if (!result.IsSuccess || result.Value is null)
             {
-                SetError(UnmanagedErrorText.Compose(result.Message, "扫描失败。", result.Retryable), result.Detail);
-                StatusText = "扫描失败。";
+                SetError(UnmanagedErrorText.Compose(result.Message, Text("扫描失败。", LocalizationKeys.DedupErrorScanFailed), result.Retryable), result.Detail);
+                StatusText = Text("扫描失败。", LocalizationKeys.DedupErrorScanFailed);
                 return;
             }
 
             ApplyScan(result.Value);
-        }, "跨实例去重扫描", "正在扫描重复内容…").ConfigureAwait(true);
+        }, "跨实例去重扫描", Text("正在扫描重复内容…", LocalizationKeys.DedupBusyScanning)).ConfigureAwait(true);
     }
 
     /// <summary>执行（预演或真写盘）去重。</summary>
@@ -246,7 +247,7 @@ public sealed partial class DedupPageViewModel : PageViewModel
 
         if (!DryRun && !await ConfirmWriteAsync().ConfigureAwait(true))
         {
-            StatusText = "已取消执行，未改动磁盘。";
+            StatusText = Text("已取消执行，未改动磁盘。", LocalizationKeys.DedupStatusCancelled);
             return;
         }
 
@@ -256,13 +257,13 @@ public sealed partial class DedupPageViewModel : PageViewModel
             var result = await _service.ExecuteAsync(request).ConfigureAwait(true);
             if (!result.IsSuccess || result.Value is null)
             {
-                SetError(UnmanagedErrorText.Compose(result.Message, "去重失败。", result.Retryable), result.Detail);
-                StatusText = "去重失败。";
+                SetError(UnmanagedErrorText.Compose(result.Message, Text("去重失败。", LocalizationKeys.DedupErrorExecuteFailed), result.Retryable), result.Detail);
+                StatusText = Text("去重失败。", LocalizationKeys.DedupErrorExecuteFailed);
                 return;
             }
 
             ApplyExecute(result.Value);
-        }, "跨实例去重执行", DryRun ? "正在预演去重…" : "正在建立硬链接…").ConfigureAwait(true);
+        }, "跨实例去重执行", DryRun ? Text("正在预演去重…", LocalizationKeys.DedupBusyDryRunning) : Text("正在建立硬链接…", LocalizationKeys.DedupBusyLinking)).ConfigureAwait(true);
     }
 
     /// <inheritdoc />
@@ -293,18 +294,18 @@ public sealed partial class DedupPageViewModel : PageViewModel
     private async Task<bool> ConfirmWriteAsync()
     {
         var first = await _dialogs.ConfirmAsync(
-            "执行跨实例去重",
-            $"即将把 {DuplicateFileCount} 个文件改成硬链接，可释放 {UnmanagedFormat.FormatSize(ReclaimableBytes)}。",
-            "只会处理 GameData 内、非受管、非符号链接、同卷且至少两份内容相同的文件。").ConfigureAwait(true);
+            Text("执行跨实例去重", LocalizationKeys.DedupConfirmTitle),
+            Text("即将把 {0} 个文件改成硬链接，可释放 {1}。", LocalizationKeys.DedupConfirmBody, DuplicateFileCount, UnmanagedFormat.FormatSize(ReclaimableBytes)),
+            Text("只会处理 GameData 内、非受管、非符号链接、同卷且至少两份内容相同的文件。", LocalizationKeys.DedupConfirmHint)).ConfigureAwait(true);
         if (!first)
         {
             return false;
         }
 
         return await _dialogs.ConfirmAsync(
-            "再次确认去重",
-            "硬链接后多个实例共用同一份数据，删除或改动任一实例的文件都会影响其它实例。确定继续？",
-            "内容不会改变，但这份文件不再是独立副本；CKAN 卸载某个实例的模组时会删掉受管文件——受管路径已被排除，所以不会被本操作牵连。").ConfigureAwait(true);
+            Text("再次确认去重", LocalizationKeys.DedupSecondConfirmTitle),
+            Text("硬链接后多个实例共用同一份数据，删除或改动任一实例的文件都会影响其它实例。确定继续？", LocalizationKeys.DedupSecondConfirmBody),
+            Text("内容不会改变，但这份文件不再是独立副本；CKAN 卸载某个实例的模组时会删掉受管文件——受管路径已被排除，所以不会被本操作牵连。", LocalizationKeys.DedupSecondConfirmHint)).ConfigureAwait(true);
     }
 
     private void ApplyScan(DedupScanReport report)
@@ -320,8 +321,8 @@ public sealed partial class DedupPageViewModel : PageViewModel
         SelectedGroup = Groups.FirstOrDefault();
         Results = Array.Empty<DedupResultRowViewModel>();
         SetStatus(report.HasDuplicates
-            ? $"扫描完成：{report.InstanceNames.Count} 个实例、{GroupCount} 组重复内容，可释放 {UnmanagedFormat.FormatSize(ReclaimableBytes)}；跳过 {SkippedCount} 项。"
-            : $"扫描完成：{report.InstanceNames.Count} 个实例，没有发现重复内容。");
+            ? Text("扫描完成：{0} 个实例、{1} 组重复内容，可释放 {2}；跳过 {3} 项。", LocalizationKeys.DedupStatusScanned, report.InstanceNames.Count, GroupCount, UnmanagedFormat.FormatSize(ReclaimableBytes), SkippedCount)
+            : Text("扫描完成：{0} 个实例，没有发现重复内容。", LocalizationKeys.DedupStatusScannedClean, report.InstanceNames.Count));
         OnPropertyChanged(nameof(StatsText));
         OnPropertyChanged(nameof(SelectionText));
         OnPropertyChanged(nameof(ConfirmHintText));
@@ -336,7 +337,7 @@ public sealed partial class DedupPageViewModel : PageViewModel
         Results = report.Results.Select(DedupResultRowViewModel.From).ToArray();
         if (report.DryRun)
         {
-            SetStatus($"预演完成：将把 {report.PlannedCount} 个文件改成硬链接，可释放 {UnmanagedFormat.FormatSize(report.FreedBytes)}；跳过 {report.SkippedCount} 项。未改动磁盘。");
+            SetStatus(Text("预演完成：将把 {0} 个文件改成硬链接，可释放 {1}；跳过 {2} 项。未改动磁盘。", LocalizationKeys.DedupStatusPreviewed, report.PlannedCount, UnmanagedFormat.FormatSize(report.FreedBytes), report.SkippedCount));
         }
         else
         {
@@ -348,8 +349,8 @@ public sealed partial class DedupPageViewModel : PageViewModel
             ReclaimableBytes = 0;
             SelectedGroup = null;
             SetStatus(report.HasFailures
-                ? $"已建立 {report.LinkedCount} 个硬链接，释放 {UnmanagedFormat.FormatSize(report.FreedBytes)}；失败 {report.FailedCount} 个、回滚 {report.RolledBackCount} 个。重新扫描可查看剩余重复。"
-                : $"已建立 {report.LinkedCount} 个硬链接，释放 {UnmanagedFormat.FormatSize(report.FreedBytes)}。重新扫描可查看剩余重复。");
+                ? Text("已建立 {0} 个硬链接，释放 {1}；失败 {2} 个、回滚 {3} 个。重新扫描可查看剩余重复。", LocalizationKeys.DedupStatusLinkedWithFailures, report.LinkedCount, UnmanagedFormat.FormatSize(report.FreedBytes), report.FailedCount, report.RolledBackCount)
+                : Text("已建立 {0} 个硬链接，释放 {1}。重新扫描可查看剩余重复。", LocalizationKeys.DedupStatusLinked, report.LinkedCount, UnmanagedFormat.FormatSize(report.FreedBytes)));
         }
 
         OnPropertyChanged(nameof(HasResults));
@@ -425,7 +426,7 @@ public sealed partial class DedupPageViewModel : PageViewModel
         catch (Exception ex)
         {
             _errors.Report(ex, context);
-            SetError(UnmanagedErrorText.FromException(ex, "去重操作失败。"), ex.Message);
+            SetError(UnmanagedErrorText.FromException(ex, Text("去重操作失败。", LocalizationKeys.DedupErrorOperation)), ex.Message);
         }
         finally
         {

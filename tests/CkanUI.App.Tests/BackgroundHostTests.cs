@@ -124,6 +124,50 @@ public sealed class BackgroundHostTests
     }
 
     [Test]
+    public void ResolveImagePathFor_KeepsTheConfiguredPathForTheImageKind()
+    {
+        var profile = new BackgroundProfile { Kind = BackgroundProfile.KindImage, ImagePath = "C:/pictures/bg.png" };
+
+        Assert.That(
+            BackgroundHost.ResolveImagePathFor(profile, gameDirectory: null),
+            Is.EqualTo("C:/pictures/bg.png"));
+    }
+
+    [Test]
+    public void ResolveImagePathFor_FindsTheLatestScreenshotOfTheGameDirectory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ckanui-shot-" + Guid.NewGuid().ToString("N"));
+        var folder = Path.Combine(root, CkanUI.Services.Settings.BackgroundImageLocator.ScreenshotsFolderName);
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var older = Path.Combine(folder, "older.png");
+            var newer = Path.Combine(folder, "newer.png");
+            File.WriteAllBytes(older, new byte[] { 1 });
+            File.WriteAllBytes(newer, new byte[] { 1 });
+            File.SetLastWriteTimeUtc(older, new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            File.SetLastWriteTimeUtc(newer, new DateTime(2024, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+
+            var profile = new BackgroundProfile { Kind = BackgroundProfile.KindScreenshot };
+
+            Assert.That(BackgroundHost.ResolveImagePathFor(profile, root), Is.EqualTo(newer));
+            // 没有截图目录时退化成「无背景」，而不是抛异常或留旧图。
+            Assert.That(BackgroundHost.ResolveImagePathFor(profile, Path.Combine(root, "现在不存在")), Is.Null);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(root, recursive: true);
+            }
+            catch (IOException)
+            {
+                // 清理失败不影响断言结论。
+            }
+        }
+    }
+
+    [Test]
     public void Loader_ReportsWhyItCannotLoad()
     {
         Assert.That(BackgroundImageLoader.Load(null, out var empty), Is.Null);

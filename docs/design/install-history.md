@@ -36,6 +36,7 @@
 - 安装一律走 `IInstallerService.ApplyAsync`，不自己拼安装逻辑。重装成功后服务自己记一条 `Operation=Restore` 的历史。
 - **不重复记账**：`InstallHistoryScope`（`AsyncLocal<int>`）在 `ApplyAsync` 外层开抑制域，`HistoryRecordingInstaller` 见到抑制就直接返回——否则一次重装会落两条历史。用 `AsyncLocal` 而不是静态 bool，是为了多实例/多页面并发时不吞别人的历史。
 - 页面口径：列表按时间倒序；分组按"当前是否装着"（与旧 GUI 的 `registry.IsInstalled` 一致）；版本不同的模组留在已装分组里，状态列显示"版本不同（当前 x）"，并在重装预览里计入"换版本"。
+- **是否卸载快照之外的模组**由请求上的 `InstallHistoryRestoreRequest.RemoveExtras` 决定：置真时 `InstallHistoryService.PrepareAsync` 把"已装但不在快照里"的模组额外加成 `ChangeAction.Remove` 项，使已装集合与选中时间点完全一致；默认假（只按快照里的模组算变更，不动多装的）。页面勾选项默认关闭，勾选后重装预览文案会补一句"实际还会卸载不在该快照里的模组"，提示这是**删文件**的破坏性操作。
 - 失败文案统一 `InstallHistoryText.Compose/FromException`：`"…（可重试）"` / `"…（不可重试）"`，异常不抛给界面，同时 `IErrorReporter.Report` 上报。
 
 ## 4. 已知缺口
@@ -45,4 +46,4 @@
 3. **没有真实的 CKAN 实例集成测试**：`InstallHistoryService` 的重装编排在替身（`RecordingChangeSetService` / `RecordingInstallerService`）上验证；`Registry.json` + `GameData` 的真实往返超出单测范围。
 4. **装饰器接线由 Lead 落地**：`IInstallerService` 只有注册成 `HistoryRecordingInstaller` 才会"每次安装自动落历史"；若容器仍直接注册 `InstallerService`，历史页只能显示服务自己重装产生的记录。
 5. **旧客户端写的历史不导入**：`<GameDir>/CKAN/history/*.ckan` 不解析，两边历史互不可见。
-6. `RecordExtras`（"要不要卸载快照之外的模组"）已进契约（`RemoveExtras`）但页面未暴露开关，默认只补装不卸载。
+6. ~~`RecordExtras`（"要不要卸载快照之外的模组"）已进契约（`RemoveExtras`）但页面未暴露开关~~（已补齐）：详情区上方的工具条新增勾选项「同时卸载快照之外的模组」（默认关闭，无选中项时不可见不可用），VM 的 `RemoveExtras` 会同时带进 `PreviewRestoreAsync` 与 `RestoreAsync` 两份 `InstallHistoryRestoreRequest`，所以预览估算的数字会随勾选变化。仍未做的是「先列出将要被卸载的模组名」——服务端要到 `PrepareAsync` 之后才知道清单，界面目前只给一句风险提示。

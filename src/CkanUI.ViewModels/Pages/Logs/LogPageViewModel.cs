@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using System.Collections.ObjectModel;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Logs;
@@ -66,7 +67,7 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
     }
 
     /// <inheritdoc />
-    public override string Title => "日志";
+    public override string Title => Text("日志", LocalizationKeys.NavRailLogs);
 
     /// <summary>三段过滤条 + 搜索框。</summary>
     public LogFilterViewModel Filters { get; }
@@ -193,7 +194,7 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
 
     /// <summary>详情面板标题（序号 + 时间 + 级别 + 族）。</summary>
     public string SelectedHeader => SelectedRow is null
-        ? "未选中日志行"
+        ? Text("未选中日志行", LocalizationKeys.LogsNoSelection)
         : string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
             $"#{SelectedRow.Seq} {SelectedRow.Entry.TimeLocal:yyyy-MM-dd HH:mm:ss.fff} {SelectedRow.LevelLabel} · {SelectedRow.FamilyLabel}");
@@ -207,16 +208,14 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
         : LogObjectLinks.DetectAll(SelectedRow.Message + "\n" + (SelectedRow.Detail ?? string.Empty));
 
     /// <summary>状态条文本。</summary>
-    public string StatusText => Message ?? string.Create(
-        System.Globalization.CultureInfo.InvariantCulture,
-        $"命中 {TotalMatches} 条（显示 {Rows.Count}）· 错误 {ErrorCount} · 警告 {WarningCount}");
+    public string StatusText => Message ?? Text("命中 {0} 条（显示 {1}）· 错误 {2} · 警告 {3}", LocalizationKeys.LogsSummaryHits, TotalMatches, Rows.Count, ErrorCount, WarningCount);
 
     /// <summary>徽标文案（底部抽屉与页面共用）：有错误先报错误。</summary>
     public string BadgeText => ErrorCount > 0
-        ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"有 {ErrorCount} 个错误")
+        ? Text("有 {0} 个错误", LocalizationKeys.LogsSummaryErrors, ErrorCount)
         : WarningCount > 0
-            ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"有 {WarningCount} 个警告")
-            : "没有新的错误或警告";
+            ? Text("有 {0} 个警告", LocalizationKeys.LogsSummaryWarnings, WarningCount)
+            : Text("没有新的错误或警告", LocalizationKeys.LogsSummaryClean);
 
     /// <summary>是否显示徽标（有错误或警告才显示）。</summary>
     public bool HasBadge => ErrorCount > 0 || WarningCount > 0;
@@ -226,13 +225,13 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
 
     /// <summary>空状态文案（区分「过滤太严」与「确实没有日志」）。</summary>
     public string EmptyHint => Filters.MatchesNothing
-        ? "当前过滤条件不会命中任何日志，试试点「恢复默认」或放宽级别的勾选。"
-        : "缓冲区里还没有日志。四路采集（log4net / 用户消息 / 未捕获异常 / 子进程）任一产生日志后这里就会出现。";
+        ? Text("当前过滤条件不会命中任何日志，试试点「恢复默认」或放宽级别的勾选。", LocalizationKeys.LogsEmptyFiltered)
+        : Text("缓冲区里还没有日志。四路采集（log4net / 用户消息 / 未捕获异常 / 子进程）任一产生日志后这里就会出现。", LocalizationKeys.LogsEmptyNoLogs);
 
     /// <summary>聚合视图的提示。</summary>
     public string AggregateHint => IsAggregated
-        ? $"按「级别 + 族 + 消息骨架」折叠，取前 {TopFingerprintCount} 组"
-        : "已按事件顺序展开";
+        ? Text("按「级别 + 族 + 消息骨架」折叠，取前 {0} 组", LocalizationKeys.LogsAggregatedHint, TopFingerprintCount)
+        : Text("已按事件顺序展开", LocalizationKeys.LogsExpandedHint);
 
     /// <inheritdoc />
     protected override void OnActivated()
@@ -306,7 +305,7 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
         }
         catch (Exception ex)
         {
-            Message = "日志读取失败：" + ex.Message;
+            Message = Text("日志读取失败：{0}", LocalizationKeys.LogsErrorReadFailed, ex.Message);
             Rows.Replace(Array.Empty<LogRowViewModel>());
             Groups.Replace(Array.Empty<LogFingerprintGroupViewModel>());
             Timeline.Replace(Array.Empty<LogTimelineBarViewModel>());
@@ -327,7 +326,7 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
     public void Clear()
     {
         _store.Clear();
-        Message = "已清空缓冲区（序号不回退，旧日志里的证据行引用仍然唯一）。";
+        Message = Text("已清空缓冲区（序号不回退，旧日志里的证据行引用仍然唯一）。", LocalizationKeys.LogsStatusCleared);
         Refresh();
     }
 
@@ -336,13 +335,13 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
     {
         if (_bundle is null)
         {
-            Message = "诊断包服务未接线，请让外壳注入 ILogBundleService。";
+            Message = Text("诊断包服务未接线，请让外壳注入 ILogBundleService。", LocalizationKeys.LogsErrorNoBundleService);
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(outputPath))
         {
-            Message = "请先选择诊断包的保存位置。";
+            Message = Text("请先选择诊断包的保存位置。", LocalizationKeys.LogsErrorNoBundlePath);
             return false;
         }
 
@@ -353,15 +352,13 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
             var result = await _bundle.CreateAsync(LogBundleRequest.For(outputPath), ct).ConfigureAwait(true);
             if (!result.IsSuccess || result.Value is null)
             {
-                Message = result.Message ?? "导出诊断包失败。";
+                Message = result.Message ?? Text("导出诊断包失败。", LocalizationKeys.LogsErrorBundleFailed);
                 ExportedPath = null;
                 return false;
             }
 
             ExportedPath = result.Value.ZipPath;
-            Message = string.Create(
-                System.Globalization.CultureInfo.InvariantCulture,
-                $"已导出诊断包：{result.Value.TailLineCount} 行日志、{result.Value.ErrorLineCount} 条错误，共 {result.Value.ByteLength} 字节。");
+            Message = Text("已导出诊断包：{0} 行日志、{1} 条错误，共 {2} 字节。", LocalizationKeys.LogsStatusBundleExported, result.Value.TailLineCount, result.Value.ErrorLineCount, result.Value.ByteLength);
             return true;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -370,7 +367,7 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
         }
         catch (Exception ex)
         {
-            Message = "导出诊断包失败：" + ex.Message;
+            Message = Text("导出诊断包失败：{0}", LocalizationKeys.LogsErrorBundleDetail, ex.Message);
             return false;
         }
         finally
@@ -472,7 +469,7 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
     {
         if (ExportedPath is null)
         {
-            Message = "请先导出诊断包：AI 分析只读打包并脱敏后的内容，不会直接读本机路径。";
+            Message = Text("请先导出诊断包：AI 分析只读打包并脱敏后的内容，不会直接读本机路径。", LocalizationKeys.LogsErrorNeedBundleFirst);
             return;
         }
 

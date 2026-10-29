@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.ViewModels.Pages.Saves;
@@ -44,7 +45,7 @@ public sealed partial class SavesPageViewModel : PageViewModel
     }
 
     /// <inheritdoc />
-    public override string Title => "存档";
+    public override string Title => Text("存档", LocalizationKeys.NavRailSaves);
 
     /// <summary>外壳动作（在文件夹中显示）；未注入时按钮给出可读提示而不是崩溃。</summary>
     public ISavesShellLauncher? ShellLauncher { get; set; }
@@ -105,8 +106,8 @@ public sealed partial class SavesPageViewModel : PageViewModel
 
     /// <summary>当前实例摘要（工具条左侧）。</summary>
     public string InstanceText => _instances.Current is { } instance
-        ? $"当前实例：{instance.DisplayName}"
-        : "当前实例：未选择";
+        ? Text("当前实例：{0}", LocalizationKeys.SavesCurrentInstance, instance.DisplayName)
+        : Text("当前实例：未选择", LocalizationKeys.SavesCurrentInstanceNone);
 
     /// <summary>存档目录（空态按钮与状态栏展示）。</summary>
     public string SavesDirectoryText => _instances.Current is { } instance
@@ -126,22 +127,22 @@ public sealed partial class SavesPageViewModel : PageViewModel
     public bool ShowNoInstanceState => !HasInstance;
 
     /// <summary>列表计数文案。</summary>
-    public string CountText => $"共 {Rows.Count} 个存档";
+    public string CountText => Text("共 {0} 个存档", LocalizationKeys.SavesCountText, Rows.Count);
 
     /// <summary>空态标题（文案固定，与 03 篇 §14.2 一致）。</summary>
-    public string EmptyStateTitle => "这个实例还没有存档";
+    public string EmptyStateTitle => Text("这个实例还没有存档", LocalizationKeys.SavesEmptyTitle);
 
     /// <summary>空态说明。</summary>
-    public string EmptyStateHint => "在游戏里保存一次就会出现，或者先打开 saves/ 目录看看里面有什么。";
+    public string EmptyStateHint => Text("在游戏里保存一次就会出现，或者先打开 saves/ 目录看看里面有什么。", LocalizationKeys.SavesEmptyHint);
 
     /// <summary>空态按钮文案。</summary>
-    public string EmptyStateActionText => "打开 saves/ 目录";
+    public string EmptyStateActionText => Text("打开 saves/ 目录", LocalizationKeys.SavesEmptyAction);
 
     /// <summary>没有实例时的说明。</summary>
-    public string NoInstanceStateHint => "存档属于某个游戏实例：请先在「实例」页选择或添加一个实例。";
+    public string NoInstanceStateHint => Text("存档属于某个游戏实例：请先在「实例」页选择或添加一个实例。", LocalizationKeys.SavesNoInstanceHint);
 
     /// <summary>详情面板标题。</summary>
-    public string SelectionTitle => SelectedRow?.SlotName ?? "未选择存档";
+    public string SelectionTitle => SelectedRow?.SlotName ?? Text("未选择存档", LocalizationKeys.SavesNoSelection);
 
     /// <summary>详情面板路径。</summary>
     public string SelectionPath => SelectedRow?.FilePath ?? "—";
@@ -172,16 +173,16 @@ public sealed partial class SavesPageViewModel : PageViewModel
     public bool ShowDiagnosticsEmpty => IsValidated && !HasDiagnostics;
 
     /// <summary>校验通过时的说明文案。</summary>
-    public string DiagnosticsEmptyText => "没有发现问题：结构完整，大括号配对，缩进与换行也合规。";
+    public string DiagnosticsEmptyText => Text("没有发现问题：结构完整，大括号配对，缩进与换行也合规。", LocalizationKeys.SavesDiagnosticsEmpty);
 
     /// <summary>诊断列表标题文案。</summary>
     public string DiagnosticsHeader => !IsValidated
-        ? "尚未校验"
+        ? Text("尚未校验", LocalizationKeys.SavesNotValidated)
         : ErrorCount > 0
-            ? $"发现 {ErrorCount} 个错误 / {WarningCount} 个警告"
+            ? Text("发现 {0} 个错误 / {1} 个警告", LocalizationKeys.SavesDiagnosticsErrors, ErrorCount, WarningCount)
             : WarningCount > 0
-                ? $"校验通过，{WarningCount} 个警告"
-                : "校验通过，没有发现问题";
+                ? Text("校验通过，{0} 个警告", LocalizationKeys.SavesDiagnosticsWarnings, WarningCount)
+                : Text("校验通过，没有发现问题", LocalizationKeys.SavesDiagnosticsPassed);
 
     /// <summary>是否已校验且无错误（就地重写的前置条件）。</summary>
     public bool IsValidationClean => IsValidated && ErrorCount == 0;
@@ -245,9 +246,8 @@ public sealed partial class SavesPageViewModel : PageViewModel
         try
         {
             confirmed = await _dialogs.ConfirmAsync(
-                "就地重写存档",
-                $"会先为「{row.SlotName}」写一份写前快照，再就地重写该文件。" +
-                "内容语义（键、值、节点顺序）保持不变，只有缩进、分隔符与换行会被规范化。确定继续？",
+                Text("就地重写存档", LocalizationKeys.SavesRewriteTitle),
+                Text("会先为「{0}」写一份写前快照，再就地重写该文件。内容语义（键、值、节点顺序）保持不变，只有缩进、分隔符与换行会被规范化。确定继续？", LocalizationKeys.SavesRewriteBody, row.SlotName),
                 row.FilePath).ConfigureAwait(true);
         }
         catch (Exception ex)
@@ -258,7 +258,7 @@ public sealed partial class SavesPageViewModel : PageViewModel
 
         if (!confirmed)
         {
-            StatusText = "已取消就地重写，原文件未改动。";
+            StatusText = Text("已取消就地重写，原文件未改动。", LocalizationKeys.SavesStatusRewriteCancelled);
             return;
         }
 
@@ -278,13 +278,13 @@ public sealed partial class SavesPageViewModel : PageViewModel
 
         if (string.IsNullOrWhiteSpace(directory))
         {
-            SetError("当前没有选择游戏实例，无法打开 saves/ 目录。", null);
+            SetError(Text("当前没有选择游戏实例，无法打开 saves/ 目录。", LocalizationKeys.SavesErrorNoInstanceForDir), null);
             return;
         }
 
         if (ShellLauncher is not { } launcher)
         {
-            SetError("当前环境不支持打开文件夹（宿主未注入外壳启动器）。", directory);
+            SetError(Text("当前环境不支持打开文件夹（宿主未注入外壳启动器）。", LocalizationKeys.SavesErrorNoLauncher), directory);
             return;
         }
 
@@ -293,11 +293,11 @@ public sealed partial class SavesPageViewModel : PageViewModel
             var result = await launcher.OpenFolderAsync(directory!).ConfigureAwait(true);
             if (!result.IsSuccess)
             {
-                SetError(SavesErrorText.Compose(result.Message, "打开存档目录失败。", result.Retryable), result.Detail);
+                SetError(SavesErrorText.Compose(result.Message, Text("打开存档目录失败。", LocalizationKeys.SavesErrorOpenDir), result.Retryable), result.Detail);
                 return;
             }
 
-            StatusText = $"已在文件管理器中打开：{directory}";
+            StatusText = Text("已在文件管理器中打开：{0}", LocalizationKeys.SavesStatusDirOpened, directory);
         }
         catch (Exception ex)
         {
@@ -314,7 +314,7 @@ public sealed partial class SavesPageViewModel : PageViewModel
     {
         ErrorText = null;
         ErrorDetail = null;
-        StatusText = "就绪";
+        StatusText = Text("就绪", LocalizationKeys.SavesStatusReady);
     }
 
     // ---- 生命周期 ---------------------------------------------------------
@@ -392,12 +392,12 @@ public sealed partial class SavesPageViewModel : PageViewModel
             Rows = Array.Empty<SaveRowViewModel>();
             SelectedRow = null;
             ResetValidation();
-            StatusText = "当前没有选择游戏实例：请先在「实例」页选择或添加一个实例。";
+            StatusText = Text("当前没有选择游戏实例：请先在「实例」页选择或添加一个实例。", LocalizationKeys.SavesStatusNoInstance);
             return;
         }
 
         IsBusy = true;
-        BusyText = "正在读取存档…";
+        BusyText = Text("正在读取存档…", LocalizationKeys.SavesBusyLoading);
         try
         {
             var result = await _saves.ListSavesAsync(instance.GameDir).ConfigureAwait(true);
@@ -406,7 +406,7 @@ public sealed partial class SavesPageViewModel : PageViewModel
                 Rows = Array.Empty<SaveRowViewModel>();
                 SelectedRow = null;
                 ResetValidation();
-                SetError(SavesErrorText.Compose(result.Message, "读取存档列表失败。", result.Retryable), result.Detail);
+                SetError(SavesErrorText.Compose(result.Message, Text("读取存档列表失败。", LocalizationKeys.SavesErrorLoad), result.Retryable), result.Detail);
                 return;
             }
 
@@ -415,8 +415,8 @@ public sealed partial class SavesPageViewModel : PageViewModel
             SelectedRow = Pick(rows, preferPath);
             ResetValidation();
             StatusText = rows.Length == 0
-                ? $"「{instance.DisplayName}」的 saves/ 目录里没有存档。"
-                : $"已读取 {rows.Length} 个存档。";
+                ? Text("「{0}」的 saves/ 目录里没有存档。", LocalizationKeys.SavesStatusEmpty, instance.DisplayName)
+                : Text("已读取 {0} 个存档。", LocalizationKeys.SavesStatusLoaded, rows.Length);
         }
         catch (Exception ex)
         {
@@ -443,14 +443,14 @@ public sealed partial class SavesPageViewModel : PageViewModel
 
         ClearErrorState();
         IsBusy = true;
-        BusyText = "正在校验存档…";
+        BusyText = Text("正在校验存档…", LocalizationKeys.SavesBusyValidating);
         try
         {
             var result = await _saves.ValidateAsync(row.FilePath).ConfigureAwait(true);
             if (!result.IsSuccess || result.Value is null)
             {
                 ResetValidation();
-                SetError(SavesErrorText.Compose(result.Message, "校验存档失败。", result.Retryable), result.Detail);
+                SetError(SavesErrorText.Compose(result.Message, Text("校验存档失败。", LocalizationKeys.SavesErrorValidate), result.Retryable), result.Detail);
                 return;
             }
 
@@ -479,20 +479,20 @@ public sealed partial class SavesPageViewModel : PageViewModel
         LastOutcomeText = null;
         OnPropertyChanged(nameof(HasLastOutcome));
         IsBusy = true;
-        BusyText = mode == SaveFormatMode.Overwrite ? "正在写前快照并就地重写…" : "正在写出格式化副本…";
+        BusyText = mode == SaveFormatMode.Overwrite ? Text("正在写前快照并就地重写…", LocalizationKeys.SavesBusyRewriting) : Text("正在写出格式化副本…", LocalizationKeys.SavesBusyWritingCopy);
         try
         {
             var result = await _saves.FormatAsync(new SaveFormatRequest(row.FilePath, mode)).ConfigureAwait(true);
             if (!result.IsSuccess || result.Value is null)
             {
-                SetError(SavesErrorText.Compose(result.Message, "格式化存档失败。", result.Retryable), result.Detail);
+                SetError(SavesErrorText.Compose(result.Message, Text("格式化存档失败。", LocalizationKeys.SavesErrorFormat), result.Retryable), result.Detail);
                 return;
             }
 
             var outcome = result.Value;
             if (outcome.Refused)
             {
-                SetError(outcome.RefusalReason ?? "格式化被拒绝，原文件未改动。", outcome.Preview);
+                SetError(outcome.RefusalReason ?? Text("格式化被拒绝，原文件未改动。", LocalizationKeys.SavesErrorRefused), outcome.Preview);
                 return;
             }
 
@@ -514,29 +514,39 @@ public sealed partial class SavesPageViewModel : PageViewModel
         await RefreshCoreAsync(row.FilePath, keepOutcome: true).ConfigureAwait(true);
     }
 
-    private static string DescribeOutcome(SaveFormatOutcome outcome)
+    // 说明：这个方法要出文案，所以从 static 改成实例方法，才能走 Text(fallback, key)。
+    private string DescribeOutcome(SaveFormatOutcome outcome)
     {
-        var stats = $"重排 {outcome.Stats.ReindentedLines} 行、" +
-                    $"补分隔符 {outcome.Stats.NormalizedSeparators} 处、" +
-                    $"统一换行 {outcome.Stats.NormalizedLineEndings} 处";
+        var stats = Text(
+            "重排 {0} 行、补分隔符 {1} 处、统一换行 {2} 处",
+            LocalizationKeys.SavesFormatStats,
+            outcome.Stats.ReindentedLines,
+            outcome.Stats.NormalizedSeparators,
+            outcome.Stats.NormalizedLineEndings);
         var size = $"{SaveTimeText.FileSize(outcome.BytesBefore)} → {SaveTimeText.FileSize(outcome.BytesAfter)}";
 
         if (!outcome.WroteFile)
         {
-            return $"格式化完成但未写盘：{stats}。";
+            return Text("格式化完成但未写盘：{0}。", LocalizationKeys.SavesStatusNotWritten, stats);
         }
 
         var name = Path.GetFileName(outcome.WrittenPath ?? string.Empty);
         return outcome.BackupPath is null
-            ? $"已写出 {name}（原文件未改动，{size}，{stats}）。"
-            : $"已就地重写 {name}，写前快照：{Path.GetFileName(outcome.BackupPath)}（{size}，{stats}）。";
+            ? Text("已写出 {0}（原文件未改动，{1}，{2}）。", LocalizationKeys.SavesStatusWrittenCopy, name, size, stats)
+            : Text(
+                "已就地重写 {0}，写前快照：{1}（{2}，{3}）。",
+                LocalizationKeys.SavesStatusRewritten,
+                name,
+                Path.GetFileName(outcome.BackupPath),
+                size,
+                stats);
     }
 
     private void ApplyReport(SaveValidationReport report)
     {
         Diagnostics = report.Diagnostics.Select(SaveDiagnosticRowViewModel.From).ToArray();
         IsValidated = true;
-        SelectionStatsText = $"节点 {report.NodeCount} / 键值 {report.PairCount} / 行 {report.LineCount} / 最大深度 {report.MaxDepth}";
+        SelectionStatsText = Text("节点 {0} / 键值 {1} / 行 {2} / 最大深度 {3}", LocalizationKeys.SavesSelectionStats, report.NodeCount, report.PairCount, report.LineCount, report.MaxDepth);
     }
 
     private void KickValidate()

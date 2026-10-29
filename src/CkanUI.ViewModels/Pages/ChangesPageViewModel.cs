@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.ViewModels.Pages.Changes;
@@ -73,7 +74,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     }
 
     /// <inheritdoc />
-    public override string Title => "变更集";
+    public override string Title => Text("变更集", LocalizationKeys.ChangesetTitle);
 
     /// <summary>最近一次异步重建任务（测试用 await 等待其落定）。</summary>
     public Task PendingWork { get; private set; } = Task.CompletedTask;
@@ -154,12 +155,13 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
 
     /// <summary>冲突区标题（用文字说明冲突数量，不单靠颜色）。</summary>
     public string ConflictTitle => Preview.HasConflicts
-        ? $"存在 {Preview.Conflicts.Count} 个冲突，解决后才能开始"
+        ? Text("存在 {0} 个冲突，解决后才能开始", LocalizationKeys.ChangesConflictTitle, Preview.Conflicts.Count)
         : string.Empty;
 
     /// <summary>冲突区处理建议。</summary>
-    public string ConflictHint =>
-        "请在「模组」页取消勾选其中一个，或用右侧「移除」把冲突项移出本变更集，然后点「重新计算」。本页不会替你自动裁决。";
+    public string ConflictHint => Text(
+        "请在「模组」页取消勾选其中一个，或用右侧「移除」把冲突项移出本变更集，然后点「重新计算」。本页不会替你自动裁决。",
+        LocalizationKeys.ChangesConflictHint);
 
     /// <summary>是否有告警（不阻断执行，但要显式展示）。</summary>
     public bool HasWarnings => Preview.Warnings.Count > 0;
@@ -174,18 +176,19 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     public bool HasGameRunningWarning => _gameRunning && !_ignoreGameRunning;
 
     /// <summary>游戏运行横幅文案。</summary>
-    public string GameRunningTitle => "游戏正在运行";
+    public string GameRunningTitle => Text("游戏正在运行", LocalizationKeys.ChangesGameRunningTitle);
 
     /// <summary>"仍要执行"按钮文案。</summary>
-    public string ApplyAnywayButtonText => "仍要执行";
+    public string ApplyAnywayButtonText => Text("仍要执行", LocalizationKeys.ChangesApplyAnywayButtonText);
 
     /// <summary>游戏运行横幅说明（03 篇 §4：运行中安装会与游戏争用文件）。</summary>
-    public string GameRunningHint =>
-        "当前实例的游戏进程还在运行，安装/卸载可能与游戏争用文件并导致模组损坏。建议先完全退出游戏；确实要继续请点「仍要执行」。";
+    public string GameRunningHint => Text(
+        "当前实例的游戏进程还在运行，安装/卸载可能与游戏争用文件并导致模组损坏。建议先完全退出游戏；确实要继续请点「仍要执行」。",
+        LocalizationKeys.ChangesGameRunningHint);
 
     /// <summary>告警区标题。</summary>
     public string WarningTitle => Preview.Warnings.Count > 0
-        ? $"{Preview.Warnings.Count} 条提示（不阻断执行）"
+        ? Text("{0} 条提示（不阻断执行）", LocalizationKeys.ChangesWarningTitle, Preview.Warnings.Count)
         : string.Empty;
 
     /// <summary>状态徽章文案。</summary>
@@ -229,7 +232,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
                            && !HasGameRunningWarning;
 
     /// <summary>空状态标题（03 篇 §10）。</summary>
-    public string EmptyStateTitle => "还没有待应用的变更";
+    public string EmptyStateTitle => Text("还没有待应用的变更", LocalizationKeys.ChangesEmptyStateTitle);
 
     /// <summary>空状态说明。</summary>
     public string EmptyStateHint
@@ -238,15 +241,15 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         {
             if (Requests.Count > 0 && _changeSets is null)
             {
-                return "变更集服务尚未接入（INT-07），本页暂时无法解析依赖与冲突。";
+                return Text("变更集服务尚未接入（INT-07），本页暂时无法解析依赖与冲突。", LocalizationKeys.ChangesEmptyHintNoService);
             }
 
             if (Requests.Count > 0)
             {
-                return "变更集为空：所有请求项都已是最新状态，或被安装过滤器排除。";
+                return Text("变更集为空：所有请求项都已是最新状态，或被安装过滤器排除。", LocalizationKeys.ChangesEmptyHintEmptyPreview);
             }
 
-            return "请先在「模组」页勾选要安装或移除的模组，变更集结果会自动出现在这里。";
+            return Text("请先在「模组」页勾选要安装或移除的模组，变更集结果会自动出现在这里。", LocalizationKeys.ChangesEmptyHintNoRequests);
         }
     }
 
@@ -436,7 +439,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
             Preview = ChangesFormatter.EmptyPreview;
             ExecutionPercent = 0;
             State = ChangeExecutionState.Idle;
-            StatusText = "变更集服务尚未接入（INT-07），暂时只能看到请求数量，无法解析依赖与冲突。";
+            StatusText = Text("变更集服务尚未接入（INT-07），暂时只能看到请求数量，无法解析依赖与冲突。", LocalizationKeys.ChangesStatusNoChangeSetService);
             RefreshDerived();
             return;
         }
@@ -461,14 +464,14 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
                 ResultText = string.Empty;
                 State = ChangeExecutionState.Ready;
                 StatusText = Preview.HasConflicts
-                    ? $"变更集已算出，但有 {Preview.Conflicts.Count} 个冲突需要先解决。"
-                    : "变更集已算出，可以开始。";
+                    ? Text("变更集已算出，但有 {0} 个冲突需要先解决。", LocalizationKeys.ChangesStatusComputedWithConflicts, Preview.Conflicts.Count)
+                    : Text("变更集已算出，可以开始。", LocalizationKeys.ChangesStatusComputedReady);
             }
             else
             {
                 Preview = ChangesFormatter.EmptyPreview;
                 State = ChangeExecutionState.Failed;
-                StatusText = result.Message ?? "计算变更集失败，请查看错误栏。";
+                StatusText = result.Message ?? Text("计算变更集失败，请查看错误栏。", LocalizationKeys.ChangesErrorBuildFailed);
                 _errors.Report("计算变更集", StatusText, result.Detail);
             }
         }
@@ -481,8 +484,8 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
 
             Preview = ChangesFormatter.EmptyPreview;
             State = ChangeExecutionState.Failed;
-            StatusText = "计算变更集失败，请查看错误栏。";
-            _errors.Report(ex, "计算变更集", "计算变更集时发生错误。");
+            StatusText = Text("计算变更集失败，请查看错误栏。", LocalizationKeys.ChangesErrorBuildFailed);
+            _errors.Report(ex, "计算变更集", Text("计算变更集时发生错误。", LocalizationKeys.ChangesErrorBuildException));
         }
         finally
         {
@@ -535,7 +538,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         if (!result.IsSuccess || result.Value is not { } report)
         {
             State = ChangeExecutionState.Failed;
-            StatusText = result.Message ?? "应用变更失败，请查看错误栏。";
+            StatusText = result.Message ?? Text("应用变更失败，请查看错误栏。", LocalizationKeys.ChangesErrorApplyFailed);
             ResultText = ChangesFormatter.Lines(result.Detail is null ? null : new[] { result.Detail });
             _errors.Report("应用变更集", StatusText, result.Detail);
             return;
@@ -575,22 +578,22 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
             var choice = await dialog.ShowAsync(instance, report.ResidualDirectories).ConfigureAwait(true);
             if (choice == ResidualCleanupChoice.Delete)
             {
-                StatusText = StatusText + " 已清理残留目录。";
+                StatusText = Text("{0} 已清理残留目录。", LocalizationKeys.ChangesStatusResidualCleaned, StatusText);
             }
         }
         catch (Exception ex)
         {
             // 残留清理只是收尾动作，弹框失败不能把已成功的安装结果改写成失败。
-            _errors.Report(ex, "清理残留目录", "清理残留目录时发生错误，卸载本身已完成。");
+            _errors.Report(ex, "清理残留目录", Text("清理残留目录时发生错误，卸载本身已完成。", LocalizationKeys.ChangesErrorResidualCleanup));
         }
     }
 
-    private static List<string> BuildResultLines(InstallReport report)
+    private List<string> BuildResultLines(InstallReport report)
     {
         var lines = new List<string>(report.Installed.Count + report.Removed.Count + report.Failed.Count + 1);
         if (report.Failed.Count > 0)
         {
-            lines.Add("失败的模组：");
+            lines.Add(Text("失败的模组：", LocalizationKeys.ChangesResultFailedHeading));
             foreach (var identifier in report.Failed)
             {
                 lines.Add($"· {identifier}");
@@ -599,7 +602,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
 
         if (report.Warnings.Count > 0)
         {
-            lines.Add("提示：");
+            lines.Add(Text("提示：", LocalizationKeys.ChangesResultWarningsHeading));
             foreach (var warning in report.Warnings)
             {
                 lines.Add($"· {warning}");
@@ -608,17 +611,17 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
 
         if (report.Installed.Count > 0)
         {
-            lines.Add($"已安装：{string.Join("、", report.Installed)}");
+            lines.Add(Text("已安装：{0}", LocalizationKeys.ChangesResultInstalled, string.Join("、", report.Installed)));
         }
 
         if (report.Removed.Count > 0)
         {
-            lines.Add($"已移除：{string.Join("、", report.Removed)}");
+            lines.Add(Text("已移除：{0}", LocalizationKeys.ChangesResultRemoved, string.Join("、", report.Removed)));
         }
 
         if (lines.Count == 0)
         {
-            lines.Add("没有需要报告的变化。");
+            lines.Add(Text("没有需要报告的变化。", LocalizationKeys.ChangesResultNothing));
         }
 
         return lines;
@@ -712,7 +715,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         }
         catch (Exception ex)
         {
-            _errors.Report(ex, "探测游戏进程", "无法判断游戏是否正在运行，已按未运行处理。");
+            _errors.Report(ex, "探测游戏进程", Text("无法判断游戏是否正在运行，已按未运行处理。", LocalizationKeys.ChangesErrorGameRunningProbe));
         }
 
         if (running == _gameRunning)
@@ -736,7 +739,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
 
         if (_installer is null)
         {
-            StatusText = MissingInstallerText;
+            StatusText = Text(MissingInstallerText, LocalizationKeys.ChangesMissingInstaller);
             return;
         }
 
@@ -754,7 +757,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
                     {
                         // 若用户取消，则中止当前安装变更并给出明确状态提示
                         State = ChangeExecutionState.Ready;
-                        StatusText = "已取消推荐模组选择，未执行任何操作。";
+                        StatusText = Text("已取消推荐模组选择，未执行任何操作。", LocalizationKeys.ChangesStatusRecommendationCancelled);
                         ResultText = string.Empty;
                         RefreshDerived();
                         return;
@@ -791,14 +794,14 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         {
             State = ChangeExecutionState.Cancelled;
             StatusText = ChangesFormatter.StateText(ChangeExecutionState.Cancelled, ExecutionPercent);
-            ResultText = "本次事务已回滚，游戏目录未被改动。";
+            ResultText = Text("本次事务已回滚，游戏目录未被改动。", LocalizationKeys.ChangesResultRolledBack);
         }
         catch (Exception ex)
         {
             State = ChangeExecutionState.Failed;
-            StatusText = "应用变更时发生错误，请查看错误栏。";
+            StatusText = Text("应用变更时发生错误，请查看错误栏。", LocalizationKeys.ChangesErrorApplyExceptionStatus);
             ResultText = ex.Message;
-            _errors.Report(ex, "应用变更集", "应用变更时发生错误。");
+            _errors.Report(ex, "应用变更集", Text("应用变更时发生错误。", LocalizationKeys.ChangesErrorApplyException));
         }
         finally
         {
@@ -831,11 +834,11 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         try
         {
             _applyCts?.Cancel();
-            StatusText = "正在取消…（安装阶段的取消会触发事务回滚）";
+            StatusText = Text("正在取消…（安装阶段的取消会触发事务回滚）", LocalizationKeys.ChangesStatusCancelling);
         }
         catch (ObjectDisposedException)
         {
-            StatusText = "任务已结束，无需取消。";
+            StatusText = Text("任务已结束，无需取消。", LocalizationKeys.ChangesStatusNothingToCancel);
         }
     }
 
@@ -868,7 +871,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         State = remaining.Count == 0 ? ChangeExecutionState.Idle : ChangeExecutionState.Ready;
         StatusText = remaining.Count == 0
             ? ChangesFormatter.Summary(null)
-            : $"已从变更集移除 {row.Name}（点「重新计算」可恢复权威结果）。";
+            : Text("已从变更集移除 {0}（点「重新计算」可恢复权威结果）。", LocalizationKeys.ChangesStatusRemovedFromSet, row.Name);
         RefreshDerived();
     }
 
@@ -883,7 +886,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
 
         if (_modDialogs is null)
         {
-            StatusText = "模组对话框服务未注入，无法展示冲突详情。";
+            StatusText = Text("模组对话框服务未注入，无法展示冲突详情。", LocalizationKeys.ChangesErrorNoDialogConflict);
             return;
         }
 
@@ -892,7 +895,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
             .ToList();
 
         var request = new ConflictDetailsRequest(
-            Message: ConflictHint ?? "检测到模组冲突",
+            Message: ConflictHint ?? Text("检测到模组冲突", LocalizationKeys.ChangesConflictDialogTitle),
             Conflicts: entries,
             IsBlocking: true);
 
@@ -902,7 +905,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         }
         catch (Exception ex)
         {
-            _errors.Report(ex, "展示冲突详情", "展示冲突详情时发生错误。");
+            _errors.Report(ex, "展示冲突详情", Text("展示冲突详情时发生错误。", LocalizationKeys.ChangesErrorShowConflictDetails));
         }
     }
 
@@ -1096,7 +1099,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         }
 
         var request = new RecommendationDialogRequest(
-            Message: "检测到推荐、建议或支持项，请选择是否追加安装：",
+            Message: Text("检测到推荐、建议或支持项，请选择是否追加安装：", LocalizationKeys.ChangesRecommendationDialogMessage),
             Candidates: actualCandidates,
             SuppressRecommendations: suppressRecommendations);
 
@@ -1113,7 +1116,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         }
         catch (Exception ex)
         {
-            _errors.Report(ex, "选择推荐模组", "选择推荐模组对话框发生错误。");
+            _errors.Report(ex, "选择推荐模组", Text("选择推荐模组对话框发生错误。", LocalizationKeys.ChangesErrorRecommendationDialog));
             return null;
         }
     }
@@ -1131,7 +1134,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
 
         if (_modDialogs is null)
         {
-            StatusText = "模组对话框服务未注入，无法选择虚拟模块。";
+            StatusText = Text("模组对话框服务未注入，无法选择虚拟模块。", LocalizationKeys.ChangesErrorNoDialogVirtual);
             return null;
         }
 
@@ -1164,13 +1167,13 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
                     RefreshDerived();
                 }
 
-                StatusText = $"已选择「{choice.Name}」作为虚拟模组提供者。";
+                StatusText = Text("已选择「{0}」作为虚拟模组提供者。", LocalizationKeys.ChangesStatusVirtualModuleSelected, choice.Name);
             }
             else
             {
                 // 若用户取消，则中止当前安装变更并给出明确状态提示
                 State = ChangeExecutionState.Ready;
-                StatusText = "已取消选择虚拟模组提供者，未执行任何操作。";
+                StatusText = Text("已取消选择虚拟模组提供者，未执行任何操作。", LocalizationKeys.ChangesStatusVirtualModuleCancelled);
                 ResultText = string.Empty;
                 RefreshDerived();
             }
@@ -1179,7 +1182,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         }
         catch (Exception ex)
         {
-            _errors.Report(ex, "选择虚拟模组", "选择虚拟模组提供者时发生错误。");
+            _errors.Report(ex, "选择虚拟模组", Text("选择虚拟模组提供者时发生错误。", LocalizationKeys.ChangesErrorVirtualModuleDialog));
             return null;
         }
     }

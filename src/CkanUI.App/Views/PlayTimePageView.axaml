@@ -1,20 +1,164 @@
-<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="CkanUI.App.Views.PlayTimePageView" x:CompileBindings="False">
-  <Grid RowDefinitions="Auto,Auto,*" Margin="16" Background="{DynamicResource CkanSurfaceBackgroundBrush}">
-    <TextBlock Text="游戏时长" FontSize="{DynamicResource CkanFontSizeTitle}" Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-    <TextBlock Grid.Row="1" Text="按 F2 编辑小时数；Enter 保存，Esc 取消。" Margin="0,8" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-    <StackPanel Grid.Row="2">
-      <TextBlock Text="{Binding ErrorText}" Foreground="{DynamicResource CkanDangerBrush}" />
-      <TextBlock Text="暂无游戏时长记录" IsVisible="{Binding ShowEmptyState}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-      <ListBox x:Name="PlayTimeList" ItemsSource="{Binding Entries}" IsVisible="{Binding !ShowEmptyState}">
-        <ListBox.ItemTemplate><DataTemplate>
-          <Grid ColumnDefinitions="*,160,Auto" Margin="4">
-            <TextBlock Text="{Binding InstanceName}" VerticalAlignment="Center" />
-            <TextBlock Grid.Column="1" Text="{Binding Hours}" IsVisible="{Binding !IsEditing}" VerticalAlignment="Center" />
-            <TextBox Grid.Column="1" Text="{Binding EditText, Mode=TwoWay}" IsVisible="{Binding IsEditing}" KeyDown="OnRowKeyDown" />
-            <Button Grid.Column="2" Content="编辑 (F2)" Command="{Binding $parent[ListBox].DataContext.BeginEditCommand}" CommandParameter="{Binding}" />
-          </Grid>
-        </DataTemplate></ListBox.ItemTemplate>
-      </ListBox>
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:app="using:CkanUI.App.Theming"
+             x:Class="CkanUI.App.Views.PlayTimePageView"
+             x:CompileBindings="False">
+
+  <UserControl.Styles>
+    <Style Selector="ListBoxItem">
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+      <Setter Property="Margin" Value="0,1" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="ListBoxItem:pointerover">
+      <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    </Style>
+    <Style Selector="ListBoxItem:selected">
+      <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
+    </Style>
+
+    <Style Selector="Rectangle.SelectionBar">
+      <Setter Property="Width" Value="3" />
+      <Setter Property="RadiusX" Value="1.5" />
+      <Setter Property="RadiusY" Value="1.5" />
+      <Setter Property="Fill" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="Margin" Value="2,4" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="ListBoxItem:selected Rectangle.SelectionBar">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
+        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+
+    <!-- 页头 -->
+    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
+      <TextBlock Text="游戏时长" Classes="CkanPageTitle" />
+      <TextBlock Text="统计各游戏实例的累计运行时间。按 F2 编辑小时数；Enter 保存，Esc 取消。选中一行可以把它记的时长清零。"
+                 Classes="CkanCaption" TextWrapping="Wrap" />
     </StackPanel>
+
+    <!-- 工具栏 -->
+    <Border Grid.Row="1" Classes="CkanToolbar">
+      <WrapPanel Orientation="Horizontal">
+        <Button Content="重置时长" Command="{Binding ResetCommand}" IsEnabled="{Binding CanReset}"
+                Classes="CkanDanger"
+                ToolTip.Tip="把选中实例的累计时长清零：手动补录的与会话自动累计的一起清，重置后无法撤销" />
+      </WrapPanel>
+    </Border>
+
+    <!-- 错误横幅 -->
+    <Border Grid.Row="2" Classes="CkanInfoBanner" Margin="0,12,0,0"
+            Background="{DynamicResource CkanDangerBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
+            IsVisible="{Binding !!ErrorText}">
+      <Grid ColumnDefinitions="Auto,*">
+        <PathIcon Grid.Column="0" Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                  Width="18" Height="18" Margin="0,0,10,0"
+                  Foreground="{DynamicResource CkanDangerBrush}"
+                  VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{Binding ErrorText}"
+                   FontSize="{DynamicResource CkanFontSizeBody}"
+                   FontWeight="Medium"
+                   Foreground="{DynamicResource CkanDangerBrush}"
+                   VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <!-- 主列表区与空状态 -->
+    <Grid Grid.Row="3" Margin="0,12,0,0">
+      <!-- 数据卡片表格 -->
+      <Border Classes="CkanCard" Padding="0" IsVisible="{Binding !ShowEmptyState}">
+        <Grid RowDefinitions="Auto,*">
+          <!-- 列头 -->
+          <Border Grid.Row="0" Padding="14,9"
+                  Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                  BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="*,180,120">
+              <TextBlock Grid.Column="0" Text="实例名称" Classes="CkanCaption" FontWeight="SemiBold" />
+              <TextBlock Grid.Column="1" Text="累计时长 (小时)" Classes="CkanCaption" FontWeight="SemiBold" />
+              <TextBlock Grid.Column="2" Text="操作" Classes="CkanCaption" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,8,0" />
+            </Grid>
+          </Border>
+
+          <!-- 数据行 -->
+          <ListBox x:Name="PlayTimeList" Grid.Row="1" ItemsSource="{Binding Entries}"
+                   SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
+                   Padding="4" BorderThickness="0" Background="Transparent">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="*,180,120" MinHeight="{DynamicResource CkanRowHeight}">
+                  <Rectangle Grid.ColumnSpan="3" Classes="SelectionBar" />
+                  <TextBlock Grid.Column="0" Text="{Binding InstanceName}"
+                             VerticalAlignment="Center" FontWeight="Medium"
+                             Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                  <TextBlock Grid.Column="1" Text="{Binding Hours}"
+                             IsVisible="{Binding !IsEditing}"
+                             Classes="CkanNumeric"
+                             FontSize="{DynamicResource CkanFontSizeBody}"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                  <TextBox Grid.Column="1" Text="{Binding EditText, Mode=TwoWay}"
+                           IsVisible="{Binding IsEditing}"
+                           KeyDown="OnRowKeyDown"
+                           CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                           VerticalAlignment="Center"
+                           Padding="6,4" />
+                  <Button Grid.Column="2" Content="编辑 (F2)"
+                          Command="{Binding $parent[ListBox].DataContext.BeginEditCommand}"
+                          CommandParameter="{Binding}"
+                          Classes="CkanSecondary CkanSmall"
+                          HorizontalAlignment="Right"
+                          VerticalAlignment="Center" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+
+      <!-- 空状态 -->
+      <Border Classes="CkanEmptyStateCard" IsVisible="{Binding ShowEmptyState}"
+              HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel Spacing="14" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="440">
+          <Border Width="56" Height="56" CornerRadius="28"
+                  Background="{DynamicResource CkanAccentSubtleBrush}"
+                  HorizontalAlignment="Center">
+            <PathIcon Width="26" Height="26"
+                      Foreground="{DynamicResource CkanAccentBrush}"
+                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                      Data="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z" />
+          </Border>
+          <TextBlock Text="暂无游戏时长记录" HorizontalAlignment="Center"
+                     FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+          <TextBlock Text="当通过 CKAN 启动游戏后，时长记录会自动在此处累计显示。"
+                     TextWrapping="Wrap" TextAlignment="Center"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- 状态栏 -->
+    <TextBlock Grid.Row="4" Text="{Binding StatusText}" Margin="0,10,0,0" TextWrapping="Wrap"
+               Classes="CkanCaption"
+               IsVisible="{Binding HasStatus}" />
   </Grid>
 </UserControl>

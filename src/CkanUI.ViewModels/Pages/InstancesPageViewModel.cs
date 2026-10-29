@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.Services.Abstractions.Instances;
@@ -52,7 +53,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     }
 
     /// <inheritdoc />
-    public override string Title => "实例";
+    public override string Title => Text("实例", LocalizationKeys.InstancesTitle);
 
     // ---- 宿主注入（App 层实现，headless 测试塞假实现） --------------------
 
@@ -139,6 +140,19 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     [ObservableProperty]
     private LaunchCommandsPanelViewModel? _commandsPanel;
 
+    // ---- 启动状态机（18 篇 §4，E6） --------------------------------------
+
+    /// <summary>当前启动阶段：空闲 / 准备（先还注册表锁）/ 启动 / 运行 / 恢复。</summary>
+    [ObservableProperty]
+    private GameLaunchPhase _launchPhase;
+
+    /// <summary>
+    /// 是否处于精简模式：注册表与仓库快照已被卸载（L2），进程里只剩界面与内存中的行数据。
+    /// 游戏运行期间保持这个状态，退出或点「恢复数据」后解除。
+    /// </summary>
+    [ObservableProperty]
+    private bool _isTrimMode;
+
     // ---- 派生状态 ---------------------------------------------------------
 
     /// <summary>列表是否非空。</summary>
@@ -148,7 +162,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     public bool ShowEmptyState => !HasRows;
 
     /// <summary>列表计数文案。</summary>
-    public string CountText => $"共 {Rows.Count} 个实例";
+    public string CountText => Text("共 {0} 个实例", LocalizationKeys.InstancesCount, Rows.Count);
 
     /// <summary>是否有错误。</summary>
     public bool HasError => !string.IsNullOrEmpty(ErrorText);
@@ -162,15 +176,42 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     /// <summary>是否空闲（用于禁用工具条按钮，避免并发操作）。</summary>
     public bool IsIdle => !IsBusy;
 
+    /// <summary>启动阶段的可读文案（状态栏徽标）。</summary>
+    public string LaunchPhaseText => LaunchPhase switch
+    {
+        GameLaunchPhase.Preparing => Text("准备启动…", LocalizationKeys.InstancesPhasePreparing),
+        GameLaunchPhase.Starting => Text("启动中…", LocalizationKeys.InstancesPhaseStarting),
+        GameLaunchPhase.Running => Text("游戏运行中", LocalizationKeys.InstancesPhaseRunning),
+        GameLaunchPhase.Restoring => Text("恢复数据…", LocalizationKeys.InstancesPhaseRestoring),
+        _ => Text("就绪", LocalizationKeys.CommonStatusReady),
+    };
+
+    /// <summary>启动阶段是否不是「空闲」（状态栏徽标据此显示）。</summary>
+    public bool IsLaunchActive => LaunchPhase != GameLaunchPhase.Idle;
+
+    /// <summary>是否正在启动或恢复（禁用启动按钮、显示忙碌态）。</summary>
+    public bool IsLaunchBusy =>
+        LaunchPhase is GameLaunchPhase.Preparing or GameLaunchPhase.Starting or GameLaunchPhase.Restoring;
+
+    /// <summary>精简模式徽标文案；不在精简模式时为空串（徽标据此隐藏）。</summary>
+    public string TrimModeText => IsTrimMode ? Text("精简模式", LocalizationKeys.InstancesTrimMode) : string.Empty;
+
+    /// <summary>精简模式说明（悬停提示：为什么此刻列表不刷新、注册表不在手上）。</summary>
+    public string TrimModeHint =>
+        Text("已卸载注册表与仓库快照以让出启动资源；游戏退出或点「恢复数据」后恢复。", LocalizationKeys.InstancesTrimModeHint);
+
+    /// <summary>是否可以手动恢复数据（精简模式且没有正在进行的启动/恢复）。</summary>
+    public bool CanRestoreTrimMode => IsTrimMode && !IsLaunchBusy;
+
     /// <summary>空状态标题。</summary>
-    public string EmptyStateTitle => "还没有游戏实例";
+    public string EmptyStateTitle => Text("还没有游戏实例", LocalizationKeys.InstancesEmptyTitle);
 
     /// <summary>空状态说明。</summary>
     public string EmptyStateHint =>
-        "添加一个 KSP 安装目录即可开始：CKAN 会读取其中的版本号与已装模组数量，不会修改任何游戏文件。";
+        Text("添加一个 KSP 安装目录即可开始：CKAN 会读取其中的版本号与已装模组数量，不会修改任何游戏文件。", LocalizationKeys.InstancesEmptyHint);
 
     /// <summary>空状态主按钮文案。</summary>
-    public string EmptyStateActionText => "添加实例";
+    public string EmptyStateActionText => Text("添加实例", LocalizationKeys.InstancesEmptyAction);
 
     /// <summary>当前实例行。</summary>
     public InstanceRowViewModel? CurrentRow
@@ -190,13 +231,13 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     }
 
     /// <summary>当前实例摘要（状态栏左侧）。</summary>
-    public string CurrentSummary => CurrentRow is { } row ? $"当前实例：{row.DisplayName}" : "当前实例：未选择";
+    public string CurrentSummary => CurrentRow is { } row ? Text("当前实例：{0}", LocalizationKeys.InstancesCurrentSummary, row.DisplayName) : Text("当前实例：未选择", LocalizationKeys.InstancesCurrentNone);
 
     /// <summary>是否有选中行。</summary>
     public bool HasSelection => SelectedRow is not null;
 
     /// <summary>详情面板标题。</summary>
-    public string SelectionTitle => SelectedRow?.DisplayName ?? "未选择实例";
+    public string SelectionTitle => SelectedRow?.DisplayName ?? Text("未选择实例", LocalizationKeys.InstancesSelectionNone);
 
     /// <summary>详情面板路径。</summary>
     public string SelectionPath => SelectedRow?.GameDir ?? "—";
@@ -223,15 +264,15 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             var parts = new List<string>(2);
             if (row.IsCurrent)
             {
-                parts.Add("当前实例");
+                parts.Add(Text("当前实例", LocalizationKeys.InstancesBadgeCurrent));
             }
 
             if (row.IsDefault)
             {
-                parts.Add("默认实例");
+                parts.Add(Text("默认实例", LocalizationKeys.InstancesBadgeDefault));
             }
 
-            return parts.Count == 0 ? "普通实例" : string.Join(" · ", parts);
+            return parts.Count == 0 ? Text("普通实例", LocalizationKeys.InstancesBadgePlain) : string.Join(" · ", parts);
         }
     }
 
@@ -255,7 +296,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
     /// <summary>「启动游戏」按钮的悬浮提示。</summary>
     public string LaunchToolTip =>
-        "按该实例的启动命令启动游戏；有多条命令时会先让你选一条。";
+        Text("按该实例的启动命令启动游戏；有多条命令时会先让你选一条。", LocalizationKeys.InstancesLaunchHint);
 
     // ---- 生命周期与刷新 ---------------------------------------------------
 
@@ -329,7 +370,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
         ClearError();
         IsBusy = true;
-        BusyText = "正在扫描实例…";
+        BusyText = Text("正在扫描实例…", LocalizationKeys.InstancesBusyScanning);
         try
         {
             var result = await _instances.RefreshAsync();
@@ -339,7 +380,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             }
             else
             {
-                StatusText = "实例列表已刷新。";
+                StatusText = Text("实例列表已刷新。", LocalizationKeys.InstancesStatusRefreshed);
             }
         }
         catch (Exception ex)
@@ -368,7 +409,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         row ??= SelectedRow;
         if (row is null)
         {
-            SetError("请先选择一个实例。", null);
+            SetError(Text("请先选择一个实例。", LocalizationKeys.InstancesErrorSelectFirst), null);
             return;
         }
 
@@ -380,7 +421,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         ClearError();
         if (row.IsCurrent)
         {
-            StatusText = $"「{row.Name}」已经是当前实例。";
+            StatusText = Text("「{0}」已经是当前实例。", LocalizationKeys.InstancesStatusAlreadyCurrent, row.Name);
             return;
         }
 
@@ -388,24 +429,24 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         {
             // 锁定 = 有别的进程持有该实例的注册表锁：重试没有意义，必须让用户先关掉占用方。
             SetError(
-                $"实例「{row.Name}」被其他进程锁定（不可重试）：请先关闭占用该目录的程序，再点「刷新」后重试。",
+                Text("实例「{0}」被其他进程锁定（不可重试）：请先关闭占用该目录的程序，再点「刷新」后重试。", LocalizationKeys.InstancesErrorSwitchLocked, row.Name),
                 row.GameDir);
             return;
         }
 
         IsBusy = true;
-        BusyText = "正在切换实例…";
+        BusyText = Text("正在切换实例…", LocalizationKeys.InstancesBusySwitching);
         try
         {
             var result = await _instances.SwitchAsync(row.Name);
             if (result.IsSuccess)
             {
-                StatusText = $"已切换到「{result.Value?.Name ?? row.Name}」。";
+                StatusText = Text("已切换到「{0}」。", LocalizationKeys.InstancesStatusSwitched, result.Value?.Name ?? row.Name);
             }
             else
             {
                 SetError(InstancesErrorText.Compose(result.Message, "切换实例失败", result.Retryable), result.Detail);
-                StatusText = "切换失败，仍停留在原实例。";
+                StatusText = Text("切换失败，仍停留在原实例。", LocalizationKeys.InstancesStatusSwitchFailed);
             }
         }
         catch (Exception ex)
@@ -433,14 +474,14 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         ClearError();
         if (FolderPicker is not { } picker)
         {
-            SetError("当前环境没有可用的目录选择器，无法添加实例。", null);
+            SetError(Text("当前环境没有可用的目录选择器，无法添加实例。", LocalizationKeys.InstancesErrorNoFolderPicker), null);
             return;
         }
 
         string? picked;
         try
         {
-            picked = await picker.PickFolderAsync("选择 KSP 安装目录", CurrentRow?.GameDir);
+            picked = await picker.PickFolderAsync(Text("选择 KSP 安装目录", LocalizationKeys.InstancesPickFolderTitle), CurrentRow?.GameDir);
         }
         catch (Exception ex)
         {
@@ -450,7 +491,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
         if (string.IsNullOrWhiteSpace(picked))
         {
-            StatusText = "已取消选择目录。";
+            StatusText = Text("已取消选择目录。", LocalizationKeys.InstancesStatusFolderPickCancelled);
             return;
         }
 
@@ -465,13 +506,13 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
         if (InstancesProjection.ContainsPath(SafeSnapshot(), path))
         {
-            SetError($"该目录已经是实例列表中的实例：{path}", null);
+            SetError(Text("该目录已经是实例列表中的实例：{0}", LocalizationKeys.InstancesErrorDuplicatePath, path), null);
             return;
         }
 
         if (PathProbe is { } probe && !SafeProbe(probe, path))
         {
-            SetError($"目录不存在：{path}（不可重试）", null);
+            SetError(Text("目录不存在：{0}（不可重试）", LocalizationKeys.InstancesErrorDirectoryMissing, path), null);
             return;
         }
 
@@ -490,7 +531,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     {
         if (SelectedRow is not { } row)
         {
-            SetError("请先选择要克隆的实例。", null);
+            SetError(Text("请先选择要克隆的实例。", LocalizationKeys.InstancesErrorSelectToClone), null);
             return;
         }
 
@@ -504,7 +545,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     {
         if (SelectedRow is not { } row)
         {
-            SetError("请先选择要重命名的实例。", null);
+            SetError(Text("请先选择要重命名的实例。", LocalizationKeys.InstancesErrorSelectToRename), null);
             return;
         }
 
@@ -526,7 +567,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     public void CloseForm()
     {
         Form = null;
-        StatusText = "已取消。";
+        StatusText = Text("已取消。", LocalizationKeys.InstancesStatusCancelled);
     }
 
     /// <summary>表单提交入口：按模式分发到添加 / 克隆 / 重命名。</summary>
@@ -557,7 +598,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         var path = form.Path.Trim();
         var name = form.Name.Trim();
         IsBusy = true;
-        BusyText = "正在添加实例…";
+        BusyText = Text("正在添加实例…", LocalizationKeys.InstancesBusyAdding);
         try
         {
             var result = await _instances.AddAsync(path, name);
@@ -569,7 +610,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
             CloseForm();
             ClearError();
-            StatusText = $"已添加实例「{result.Value?.Name ?? name}」。";
+            StatusText = Text("已添加实例「{0}」。", LocalizationKeys.InstancesStatusAdded, result.Value?.Name ?? name);
         }
         catch (Exception ex)
         {
@@ -595,8 +636,8 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             try
             {
                 proceed = await _dialogs.ConfirmAsync(
-                    "目标目录已存在",
-                    $"克隆目标目录「{destination}」已经存在，继续会把源实例的文件覆盖进去。是否继续？",
+                    Text("目标目录已存在", LocalizationKeys.InstancesCloneConflictTitle),
+                    Text("克隆目标目录「{0}」已经存在，继续会把源实例的文件覆盖进去。是否继续？", LocalizationKeys.InstancesCloneConflictBody, destination),
                     destination);
             }
             catch (Exception ex)
@@ -607,13 +648,13 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
             if (!proceed)
             {
-                StatusText = "已取消克隆：目标目录已存在。";
+                StatusText = Text("已取消克隆：目标目录已存在。", LocalizationKeys.InstancesStatusCloneCancelled);
                 return;
             }
         }
 
         IsBusy = true;
-        BusyText = "正在克隆实例（可能需要几分钟）…";
+        BusyText = Text("正在克隆实例（可能需要几分钟）…", LocalizationKeys.InstancesBusyCloning);
         try
         {
             var result = await _instances.CloneAsync(sourceName, newName);
@@ -625,7 +666,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
             CloseForm();
             ClearError();
-            StatusText = $"已克隆为「{result.Value?.Name ?? newName}」。";
+            StatusText = Text("已克隆为「{0}」。", LocalizationKeys.InstancesStatusCloned, result.Value?.Name ?? newName);
         }
         catch (Exception ex)
         {
@@ -647,8 +688,8 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         try
         {
             confirmed = await _dialogs.ConfirmAsync(
-                "重命名实例",
-                $"确定把实例「{sourceName}」重命名为「{newName}」吗？只会修改实例记录，不会改名游戏目录。",
+                Text("重命名实例", LocalizationKeys.InstancesRenameTitle),
+                Text("确定把实例「{0}」重命名为「{1}」吗？只会修改实例记录，不会改名游戏目录。", LocalizationKeys.InstancesRenameBody, sourceName, newName),
                 form.SourcePath);
         }
         catch (Exception ex)
@@ -659,7 +700,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
         if (!confirmed)
         {
-            StatusText = "已取消重命名。";
+            StatusText = Text("已取消重命名。", LocalizationKeys.InstancesStatusRenameCancelled);
             return;
         }
 
@@ -683,7 +724,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         row ??= SelectedRow;
         if (row is null)
         {
-            SetError("请先选择要遗忘的实例。", null);
+            SetError(Text("请先选择要遗忘的实例。", LocalizationKeys.InstancesErrorSelectToForget), null);
             return;
         }
 
@@ -695,7 +736,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         ClearError();
         if (row.IsCurrent)
         {
-            SetError("不能遗忘当前正在使用的实例：请先切换到其他实例。", row.GameDir);
+            SetError(Text("不能遗忘当前正在使用的实例：请先切换到其他实例。", LocalizationKeys.InstancesErrorForgetCurrent), row.GameDir);
             return;
         }
 
@@ -703,8 +744,8 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         try
         {
             confirmed = await _dialogs.ConfirmAsync(
-                "遗忘实例",
-                $"确定要遗忘实例「{row.Name}」吗？只会从实例列表中移除记录，不会删除游戏目录里的任何文件。",
+                Text("遗忘实例", LocalizationKeys.InstancesForgetTitle),
+                Text("确定要遗忘实例「{0}」吗？只会从实例列表中移除记录，不会删除游戏目录里的任何文件。", LocalizationKeys.InstancesForgetBody, row.Name),
                 row.GameDir);
         }
         catch (Exception ex)
@@ -715,12 +756,12 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
         if (!confirmed)
         {
-            StatusText = "已取消遗忘。";
+            StatusText = Text("已取消遗忘。", LocalizationKeys.InstancesStatusForgetCancelled);
             return;
         }
 
         IsBusy = true;
-        BusyText = "正在遗忘实例…";
+        BusyText = Text("正在遗忘实例…", LocalizationKeys.InstancesBusyForgetting);
         try
         {
             var result = await _instances.RemoveAsync(row.Name);
@@ -730,7 +771,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
                 return;
             }
 
-            StatusText = $"已遗忘实例「{row.Name}」，游戏目录未做任何改动。";
+            StatusText = Text("已遗忘实例「{0}」，游戏目录未做任何改动。", LocalizationKeys.InstancesStatusForgotten, row.Name);
         }
         catch (Exception ex)
         {
@@ -753,14 +794,14 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         row ??= SelectedRow;
         if (row is null)
         {
-            SetError("请先选择一个实例。", null);
+            SetError(Text("请先选择一个实例。", LocalizationKeys.InstancesErrorSelectFirst), null);
             return;
         }
 
         ClearError();
         if (ShellLauncher is not { } launcher)
         {
-            SetError("当前环境没有可用的外壳启动器，无法打开目录。", null);
+            SetError(Text("当前环境没有可用的外壳启动器，无法打开目录。", LocalizationKeys.InstancesErrorNoShellLauncher), null);
             return;
         }
 
@@ -773,7 +814,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
                 return;
             }
 
-            StatusText = $"已在文件管理器中打开：{row.GameDir}";
+            StatusText = Text("已在文件管理器中打开：{0}", LocalizationKeys.InstancesStatusOpenedFolder, row.GameDir);
         }
         catch (Exception ex)
         {
@@ -798,14 +839,14 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         row ??= SelectedRow;
         if (row is null)
         {
-            SetError("请先选择一个实例。", null);
+            SetError(Text("请先选择一个实例。", LocalizationKeys.InstancesErrorSelectFirst), null);
             return;
         }
 
         ClearError();
         if (row.IsLocked)
         {
-            SetError($"实例「{row.Name}」被其他进程占用（可能游戏已在运行），不能重复启动。", row.GameDir);
+            SetError(Text("实例「{0}」被其他进程占用（可能游戏已在运行），不能重复启动。", LocalizationKeys.InstancesErrorBusyLaunching, row.Name), row.GameDir);
             return;
         }
 
@@ -819,7 +860,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         var available = commands.Value ?? Array.Empty<string>();
         if (available.Count == 0)
         {
-            SetError($"实例「{row.Name}」没有可用的启动命令，请先编辑启动命令。", row.GameDir);
+            SetError(Text("实例「{0}」没有可用的启动命令，请先编辑启动命令。", LocalizationKeys.InstancesErrorNoLaunchCommand, row.Name), row.GameDir);
             return;
         }
 
@@ -827,11 +868,11 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         if (available.Count > 1)
         {
             var index = await _dialogs
-                .SelectAsync($"启动「{row.Name}」", "该实例有多条启动命令，请选择要使用的一条：", available, 0)
+                .SelectAsync(Text("启动「{0}」", LocalizationKeys.InstancesLaunchDialogTitle, row.Name), Text("该实例有多条启动命令，请选择要使用的一条：", LocalizationKeys.InstancesLaunchDialogBody), available, 0)
                 .ConfigureAwait(true);
             if (index < 0 || index >= available.Count)
             {
-                StatusText = "已取消启动。";
+                StatusText = Text("已取消启动。", LocalizationKeys.InstancesStatusLaunchCancelled);
                 return;
             }
 
@@ -840,21 +881,31 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
         if (ShellLauncher is not { } launcher)
         {
-            // TODO(18 篇 / E6)：启动流程需要先释放注册表锁并进入精简模式，等 E6 就绪后在此接入。
-            StatusText = "启动游戏尚未接入（TODO：18 篇启动流程 / E6 资源释放）；可先用「打开目录」自行启动。";
+            // 没有外壳启动器（设计时宿主 / 受限环境）就拉不起进程：不假装「已启动」，也不动注册表锁。
+            StatusText = Text("启动游戏尚未接入（未注入外壳启动器）；可先用「打开目录」自行启动。", LocalizationKeys.InstancesErrorLauncherMissing);
             return;
         }
 
         try
         {
+            // 18 篇 §4 T0 的前置动作：先把 CKAN/registry.locked 还回去，再拉进程。
+            // 放锁必须发生在启动之前——游戏侧工具看到锁会以为 CKAN 正在改写实例。
+            LaunchPhase = GameLaunchPhase.Preparing;
+            await ReleaseRegistryLockBeforeLaunchAsync().ConfigureAwait(true);
+
+            LaunchPhase = GameLaunchPhase.Starting;
             var result = await launcher.LaunchGameAsync(row.GameDir, command).ConfigureAwait(true);
             if (!result.IsSuccess)
             {
+                // 进程没起来：立刻把刚放掉的锁收回来，别把界面停在精简模式。
+                await RollbackPreLaunchReleaseAsync().ConfigureAwait(true);
+                LaunchPhase = GameLaunchPhase.Idle;
                 SetError(InstancesErrorText.Compose(result.Message, "启动游戏失败", result.Retryable), result.Detail);
                 return;
             }
 
-            StatusText = $"已启动「{row.Name}」：{command}";
+            LaunchPhase = GameLaunchPhase.Running;
+            StatusText = Text("已启动「{0}」：{1}", LocalizationKeys.InstancesStatusLaunched, row.Name, command);
 
             // 计时必须在排程之前开始：排程会决定是否订阅退出信号，而计时依赖同一个信号结算。
             PlayTime?.BeginSession(row.Name);
@@ -862,6 +913,8 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         }
         catch (Exception ex)
         {
+            await RollbackPreLaunchReleaseAsync().ConfigureAwait(true);
+            LaunchPhase = GameLaunchPhase.Idle;
             OnException(ex, "启动游戏");
         }
     }
@@ -949,9 +1002,13 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         }
 
         _releaseSettled = true;
+        LaunchPhase = GameLaunchPhase.Restoring;
 
         if (_releaseCoordinator is not { } coordinator)
         {
+            // 没有排程也可能释放过（启动前只跑了 L2 就失败/离开页面）：照样得把锁收回来。
+            await RollbackPreLaunchReleaseAsync().ConfigureAwait(true);
+            LaunchPhase = GameLaunchPhase.Idle;
             return;
         }
 
@@ -960,21 +1017,118 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             var restore = await coordinator.EndAsync().ConfigureAwait(true);
             if (!restore.IsSuccess)
             {
+                // 恢复失败要留住精简模式并提供出口（18 篇 §6：恢复失败必须有出口，不能只剩一句报错）。
+                _releaseSettled = false;
+                LaunchPhase = GameLaunchPhase.Idle;
                 SetError(
                     InstancesErrorText.Compose(restore.Message, "恢复资源失败", restore.Retryable),
                     restore.Detail);
                 return;
             }
 
+            IsTrimMode = false;
+            LaunchPhase = GameLaunchPhase.Idle;
+
             if (coordinator.LastReport is { } report && report.ReleasedItemCount > 0)
             {
-                StatusText = $"游戏已退出，已恢复数据（本次释放 {report.ReleasedItemCount} 项）。";
+                StatusText = Text("游戏已退出，已恢复数据（本次释放 {0} 项）。", LocalizationKeys.InstancesStatusRestored, report.ReleasedItemCount);
             }
         }
         catch (Exception ex)
         {
+            // 异常同样留住精简模式：数据还在外面，不能假装恢复成功。
+            _releaseSettled = false;
+            LaunchPhase = GameLaunchPhase.Idle;
             OnException(ex, "恢复资源");
         }
+    }
+
+    /// <summary>
+    /// 18 篇 §4 T0 的前置动作：启动游戏前只跑 L2（放掉注册表锁、丢掉仓库快照），让游戏侧看到干净的实例目录。
+    /// </summary>
+    /// <remarks>
+    /// <para>成功即进入精简模式；之后的 T3/T4/T5 排程会因为「该层已执行过」自动跳过 L2。</para>
+    /// <para>失败<b>不阻断启动</b>：游戏本身能跑，只是游戏侧工具可能把 <c>registry.locked</c> 当成
+    /// 「CKAN 正在写实例」。关闭档（<see cref="ResourceReleaseTier.Off"/>）连锁都不动。</para>
+    /// </remarks>
+    private async Task ReleaseRegistryLockBeforeLaunchAsync()
+    {
+        if (ResourceRelease is not { } release)
+        {
+            return;
+        }
+
+        if ((UiSettings?.Current.ReleaseTier ?? ResourceReleaseTier.Balanced) == ResourceReleaseTier.Off)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await release.ReleaseCoreDataAsync().ConfigureAwait(true);
+            if (result.IsSuccess)
+            {
+                IsTrimMode = true;
+                return;
+            }
+
+            StatusText = Text("注册表锁未能释放（{0}），仍继续启动。", LocalizationKeys.InstancesStatusLockReleaseFailedDetail, result.Message);
+        }
+        catch (Exception ex)
+        {
+            // 服务没实现该入口（接口默认实现直接返回失败）或抛异常：都只是拿不到精简模式。
+            _errors.Report(ex, "释放注册表锁");
+            StatusText = Text("注册表锁未能释放，仍继续启动。", LocalizationKeys.InstancesStatusLockReleaseFailed);
+        }
+    }
+
+    /// <summary>把启动前放掉的注册表锁立刻收回来（进程没起来、或没排程就收尾的回滚路径）。</summary>
+    private async Task RollbackPreLaunchReleaseAsync()
+    {
+        if (!IsTrimMode)
+        {
+            return;
+        }
+
+        try
+        {
+            bool restored;
+            if (_releaseCoordinator is { } coordinator)
+            {
+                restored = (await coordinator.EndAsync().ConfigureAwait(true)).IsSuccess;
+            }
+            else if (ResourceRelease is { } release)
+            {
+                restored = (await release.RestoreAsync().ConfigureAwait(true)).IsSuccess;
+            }
+            else
+            {
+                restored = false;
+            }
+
+            if (restored)
+            {
+                IsTrimMode = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "恢复资源");
+        }
+    }
+
+    /// <summary>
+    /// 命令：手动恢复数据（精简模式下可用）。游戏还在运行也能点——恢复只是把注册表与仓库快照读回来，
+    /// 让界面回到常态内存；代价是后续排程随之取消（游戏退出时不再重复恢复）。
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanRestoreTrimMode))]
+    private async Task RestoreTrimModeAsync()
+    {
+        ClearError();
+        StatusText = Text("正在恢复数据…", LocalizationKeys.InstancesBusyRestoring);
+
+        // 复用收尾链路（取消后续排程 + RestoreAsync + 统一错误出口），避免出现第二条恢复路径。
+        await StopReleaseScheduleAsync().ConfigureAwait(true);
     }
 
     /// <summary>命令：编辑选中实例的启动命令（F-06）。</summary>
@@ -989,7 +1143,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         row ??= SelectedRow;
         if (row is null)
         {
-            SetError("请先选择要编辑启动命令的实例。", null);
+            SetError(Text("请先选择要编辑启动命令的实例。", LocalizationKeys.InstancesErrorSelectToEditCommands), null);
             return;
         }
 
@@ -1030,7 +1184,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     public void CloseCommandsPanel()
     {
         CommandsPanel = null;
-        StatusText = "已取消编辑启动命令。";
+        StatusText = Text("已取消编辑启动命令。", LocalizationKeys.InstancesStatusEditCommandsCancelled);
     }
 
     /// <summary>保存启动命令面板的编辑结果（落盘到实例的 <c>CKAN/GUIConfig.json</c>）。</summary>
@@ -1045,7 +1199,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
         if (CommandStore is not { } store)
         {
-            panel.ValidationError = "启动命令存储尚未接入，无法保存。";
+            panel.ValidationError = Text("启动命令存储尚未接入，无法保存。", LocalizationKeys.InstancesErrorCommandStoreMissing);
             return;
         }
 
@@ -1059,12 +1213,12 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             }
 
             CommandsPanel = null;
-            StatusText = $"已保存「{row.Name}」的启动命令（{commands.Count} 条）。";
+            StatusText = Text("已保存「{0}」的启动命令（{1} 条）。", LocalizationKeys.InstancesStatusCommandsSaved, row.Name, commands.Count);
         }
         catch (Exception ex)
         {
             OnException(ex, "保存启动命令");
-            panel.ValidationError = "保存启动命令时出错，详见错误栏。";
+            panel.ValidationError = Text("保存启动命令时出错，详见错误栏。", LocalizationKeys.InstancesErrorSaveCommandsFailed);
         }
     }
 
@@ -1113,12 +1267,12 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         ClearError();
         if (SteamLibraries is not { } source)
         {
-            SetError("Steam 库探测尚未接入：请使用「添加实例」手动选择目录。", null);
+            SetError(Text("Steam 库探测尚未接入：请使用「添加实例」手动选择目录。", LocalizationKeys.InstancesErrorSteamMissing), null);
             return;
         }
 
         IsBusy = true;
-        BusyText = "正在扫描 Steam 库…";
+        BusyText = Text("正在扫描 Steam 库…", LocalizationKeys.InstancesBusyScanningSteam);
         try
         {
             var found = await source.DiscoverGameDirsAsync();
@@ -1131,17 +1285,17 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             var candidates = InstancesProjection.FilterNewPaths(found.Value, SafeSnapshot());
             if (candidates.Count == 0)
             {
-                SetError("未在 Steam 库中找到新的 KSP 安装目录。", null);
+                SetError(Text("未在 Steam 库中找到新的 KSP 安装目录。", LocalizationKeys.InstancesStatusSteamNoneFound), null);
                 return;
             }
 
             var chosen = candidates[0];
             if (candidates.Count > 1)
             {
-                var index = await _dialogs.SelectAsync("从 Steam 库导入", "请选择要导入的 KSP 安装目录：", candidates, 0);
+                var index = await _dialogs.SelectAsync(Text("从 Steam 库导入", LocalizationKeys.InstancesSteamDialogTitle), Text("请选择要导入的 KSP 安装目录：", LocalizationKeys.InstancesSteamDialogBody), candidates, 0);
                 if (index < 0 || index >= candidates.Count)
                 {
-                    StatusText = "已取消导入。";
+                    StatusText = Text("已取消导入。", LocalizationKeys.InstancesStatusImportCancelled);
                     return;
                 }
 
@@ -1149,12 +1303,12 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             }
 
             var confirmed = await _dialogs.ConfirmAsync(
-                "导入实例",
-                $"要把「{chosen}」添加为游戏实例吗？不会修改该目录中的任何文件。",
+                Text("导入实例", LocalizationKeys.InstancesImportTitle),
+                Text("要把「{0}」添加为游戏实例吗？不会修改该目录中的任何文件。", LocalizationKeys.InstancesImportBody, chosen),
                 chosen);
             if (!confirmed)
             {
-                StatusText = "已取消导入。";
+                StatusText = Text("已取消导入。", LocalizationKeys.InstancesStatusImportCancelled);
                 return;
             }
 
@@ -1165,7 +1319,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
                 return;
             }
 
-            StatusText = $"已从 Steam 库导入实例「{added.Value?.Name ?? chosen}」。";
+            StatusText = Text("已从 Steam 库导入实例「{0}」。", LocalizationKeys.InstancesStatusImported, added.Value?.Name ?? chosen);
         }
         catch (Exception ex)
         {
@@ -1225,16 +1379,16 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         {
             if (Diagnosis is not { } diagnosis)
             {
-                return "尚未自检。";
+                return Text("尚未自检。", LocalizationKeys.InstancesDiagnosisNotRun);
             }
 
             if (diagnosis.IsHealthy)
             {
-                return $"实例「{diagnosis.InstanceName}」自检通过：锁与注册表都正常。";
+                return Text("实例「{0}」自检通过：锁与注册表都正常。", LocalizationKeys.InstancesDiagnosisPassed, diagnosis.InstanceName);
             }
 
-            var first = diagnosis.Issues.Count > 0 ? diagnosis.Issues[0].Title : "存在问题";
-            return $"实例「{diagnosis.InstanceName}」发现 {diagnosis.Issues.Count} 个问题：{first}。";
+            var first = diagnosis.Issues.Count > 0 ? diagnosis.Issues[0].Title : Text("存在问题", LocalizationKeys.InstancesDiagnosisIssue);
+            return Text("实例「{0}」发现 {1} 个问题：{2}。", LocalizationKeys.InstancesDiagnosisIssues, diagnosis.InstanceName, diagnosis.Issues.Count, first);
         }
     }
 
@@ -1250,7 +1404,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             return;
         }
 
-        var target = ResolveRepairTarget(row, "自检");
+        var target = ResolveRepairTarget(row, Text("自检", LocalizationKeys.InstancesActionSelfCheck));
         if (target is null)
         {
             return;
@@ -1258,7 +1412,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
         ClearError();
         IsBusy = true;
-        BusyText = "正在自检实例…";
+        BusyText = Text("正在自检实例…", LocalizationKeys.InstancesBusySelfChecking);
         try
         {
             await ApplyDiagnosisAsync(target);
@@ -1285,7 +1439,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             return;
         }
 
-        var target = ResolveRepairTarget(row, "强制解锁");
+        var target = ResolveRepairTarget(row, Text("强制解锁", LocalizationKeys.InstancesActionForceUnlock));
         if (target is null)
         {
             return;
@@ -1294,7 +1448,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         if (Diagnosis is not { } diagnosis
             || !string.Equals(diagnosis.InstanceName, target.InstanceName, StringComparison.Ordinal))
         {
-            SetError($"请先对实例「{target.InstanceName}」点一次「自检」，确认游戏没有在运行后再强制解锁。", target.GameDir);
+            SetError(Text("请先对实例「{0}」点一次「自检」，确认游戏没有在运行后再强制解锁。", LocalizationKeys.InstancesErrorSelfCheckFirstUnlock, target.InstanceName), target.GameDir);
             return;
         }
 
@@ -1302,8 +1456,8 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         {
             SetError(
                 diagnosis.IsGameRunning
-                    ? $"游戏正在运行，无法解锁实例「{diagnosis.InstanceName}」。请先退出游戏再重试。（不可重试）"
-                    : $"实例「{diagnosis.InstanceName}」当前没有被锁定，无需解锁。（不可重试）",
+                    ? Text("游戏正在运行，无法解锁实例「{0}」。请先退出游戏再重试。（不可重试）", LocalizationKeys.InstancesErrorUnlockRunning, diagnosis.InstanceName)
+                    : Text("实例「{0}」当前没有被锁定，无需解锁。（不可重试）", LocalizationKeys.InstancesErrorUnlockNotLocked, diagnosis.InstanceName),
                 diagnosis.GameDir);
             return;
         }
@@ -1311,17 +1465,17 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         try
         {
             var confirmed = await _dialogs.ConfirmAsync(
-                "强制解锁实例",
-                $"会删掉实例「{diagnosis.InstanceName}」的占用标记（CKAN/registry.locked），不会动注册表、模组或存档。要继续吗？",
+                Text("强制解锁实例", LocalizationKeys.InstancesUnlockTitle),
+                Text("会删掉实例「{0}」的占用标记（CKAN/registry.locked），不会动注册表、模组或存档。要继续吗？", LocalizationKeys.InstancesUnlockBody, diagnosis.InstanceName),
                 diagnosis.GameDir);
             if (!confirmed)
             {
-                StatusText = "已取消解锁。";
+                StatusText = Text("已取消解锁。", LocalizationKeys.InstancesStatusUnlockCancelled);
                 return;
             }
 
             IsBusy = true;
-            BusyText = "正在强制解锁…";
+            BusyText = Text("正在强制解锁…", LocalizationKeys.InstancesBusyUnlocking);
             ClearError();
 
             var result = await Repair!.ForceUnlockAsync(target, "实例页手工强制解锁");
@@ -1359,7 +1513,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             return;
         }
 
-        var target = ResolveRepairTarget(row, "隔离注册表");
+        var target = ResolveRepairTarget(row, Text("隔离注册表", LocalizationKeys.InstancesActionIsolateRegistry));
         if (target is null)
         {
             return;
@@ -1368,14 +1522,14 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         if (Diagnosis is not { } diagnosis
             || !string.Equals(diagnosis.InstanceName, target.InstanceName, StringComparison.Ordinal))
         {
-            SetError($"请先对实例「{target.InstanceName}」点一次「自检」，确认注册表已损坏后再隔离。", target.GameDir);
+            SetError(Text("请先对实例「{0}」点一次「自检」，确认注册表已损坏后再隔离。", LocalizationKeys.InstancesErrorSelfCheckFirstIsolate, target.InstanceName), target.GameDir);
             return;
         }
 
         if (!diagnosis.HasCorruptedRegistry)
         {
             SetError(
-                $"实例「{diagnosis.InstanceName}」的 registry.json 当前可以正常解析，无需隔离。（不可重试）",
+                Text("实例「{0}」的 registry.json 当前可以正常解析，无需隔离。（不可重试）", LocalizationKeys.InstancesErrorIsolateHealthy, diagnosis.InstanceName),
                 diagnosis.RegistryPath);
             return;
         }
@@ -1383,17 +1537,17 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         try
         {
             var confirmed = await _dialogs.ConfirmAsync(
-                "隔离损坏的注册表",
-                $"会把解析不了的 registry.json 改名成 registry.json.corrupt-<时间戳> 留在原目录，CKAN 下次启动会重建一个空注册表（模组文件不会被删除）。要继续吗？",
+                Text("隔离损坏的注册表", LocalizationKeys.InstancesIsolateTitle),
+                Text("会把解析不了的 registry.json 改名成 registry.json.corrupt-<时间戳> 留在原目录，CKAN 下次启动会重建一个空注册表（模组文件不会被删除）。要继续吗？", LocalizationKeys.InstancesIsolateBody),
                 diagnosis.RegistryPath);
             if (!confirmed)
             {
-                StatusText = "已取消隔离。";
+                StatusText = Text("已取消隔离。", LocalizationKeys.InstancesStatusIsolateCancelled);
                 return;
             }
 
             IsBusy = true;
-            BusyText = "正在隔离注册表…";
+            BusyText = Text("正在隔离注册表…", LocalizationKeys.InstancesBusyIsolating);
             ClearError();
 
             var result = await Repair!.QuarantineRegistryAsync(target);
@@ -1422,13 +1576,13 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     {
         if (row is null)
         {
-            SetError($"请先选择一个实例，再点「{action}」。", null);
+            SetError(Text("请先选择一个实例，再点「{0}」。", LocalizationKeys.InstancesErrorSelectFirstThenAction, action), null);
             return null;
         }
 
         if (Repair is null)
         {
-            SetError("实例自检功能尚未接线：请在容器里注册 IInstanceRepairService 后重试。", null);
+            SetError(Text("实例自检功能尚未接线：请在容器里注册 IInstanceRepairService 后重试。", LocalizationKeys.InstancesErrorRepairMissing), null);
             return null;
         }
 
@@ -1539,6 +1693,22 @@ public sealed partial class InstancesPageViewModel : PageViewModel
     private void OnCurrentChanged(InstanceInfo? info) => Reload();
 
     // ---- 派生属性通知 -----------------------------------------------------
+
+    partial void OnLaunchPhaseChanged(GameLaunchPhase value)
+    {
+        OnPropertyChanged(nameof(LaunchPhaseText));
+        OnPropertyChanged(nameof(IsLaunchActive));
+        OnPropertyChanged(nameof(IsLaunchBusy));
+        OnPropertyChanged(nameof(CanRestoreTrimMode));
+        RestoreTrimModeCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsTrimModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(TrimModeText));
+        OnPropertyChanged(nameof(CanRestoreTrimMode));
+        RestoreTrimModeCommand.NotifyCanExecuteChanged();
+    }
 
     partial void OnRowsChanged(IReadOnlyList<InstanceRowViewModel> value)
     {

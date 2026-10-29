@@ -150,7 +150,8 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
     源文件有 Error 诊断或自校验失败一律 `Refused` 且不落盘（**不猜修复**）；`*.sfs.bak` 永不覆盖；损坏存档返回 `Ok` + 诊断而不是抛异常。
     `.sfs` 的键挂在根节点 `GAME` 下（不是顶层），读头部必须"顶层键值对 + 根节点直接子键"一起看，否则 `Title`/`scene` 恒为 null。
 18. **资源释放必须可逆且分层独立**（18 篇 E6）：能真正放掉的只有「仓库快照 + `RegistryManager.DisposeAll()`」，所以 `ReleaseAsync` 之后必须能用
-    `OpenAsync(当前实例)` + `LoadCachedAsync()` 还原；每层独立成败——失败只 `Log.Warn` 并继续后续层，报告恒含五层（L4 未接入记 `Skipped` 不算失败）。
+    `OpenAsync(当前实例)` + `LoadCachedAsync()` 还原；每层独立成败——失败只 `Log.Warn` 并继续后续层，报告恒含五层（不支持该层的平台记 `Skipped` 不算失败；L4 在 Windows 走 psapi，其它平台 `Unsupported`）。
+    启动前必须先 `ReleaseCoreDataAsync()` 把注册表锁还回去（`RegistryManager.DisposeAll()`），失败**不阻断启动**、只提示；启动失败要立刻 `RestoreAsync` 回滚，别让界面停在「精简模式」而数据其实没放。
     档位落在 `UiSettings.ReleaseTier`（默认 `Balanced`），`Off` 时连计时器都不起；取消时剩余层标 Skipped、`Cancelled=true`，**仍返回 Ok**（取消不是失败）。
     退出信号由 App 侧 `ShellInstanceLauncher` 保留进程句柄后广播——`UseShellExecute=true` 直接 `Dispose()` 就永远等不到 `Exited`，E6 的 Restore 也就永远不触发。
 19. **CKAN 版本事实只能从 Services 层薄壳取**：`src/CkanUI.Services/Diagnostics/CoreVersionInfo.cs` 暴露 `Meta.ReleaseVersion`/`Meta.ProductName`；

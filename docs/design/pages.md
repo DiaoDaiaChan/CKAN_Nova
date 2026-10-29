@@ -135,7 +135,8 @@
 #### 2.3.5 启动后的分层资源释放（18 篇 E6）
 - **实现位置**：编排在 `src/CkanUI.Services/Lifecycle/ResourceReleaseService.cs`，时机在 `src/CkanUI.ViewModels/Pages/Instances/GameLaunchReleaseCoordinator.cs`。
 - **为什么做**：KSP 与 CKAN 同机常驻会抢内存，而 Core 没有「清缓存」API——能真正放掉的只有「仓库快照 + `RegistryManager.DisposeAll()`」，所以把它做成**可逆**的释放：`RestoreAsync` 用 `IRegistryService.OpenAsync(当前实例)` + `IRepositoryService.LoadCachedAsync()` 重新打开。
-- **五层**：L0 视图参与方（`IViewResourceParticipant` → `src/CkanUI.App/Lifecycle/UiViewResourceParticipant.cs`，清导航字形几何缓存、释放背景位图）/ L1 缓存参与方（`IAppCacheParticipant` → `src/CkanUI.App/Lifecycle/PageProjectionCacheParticipant.cs` 丢模组/内容/模组文本三页的行投影，`src/CkanUI.Services/Lifecycle/LocalizerCacheParticipant.cs` 清缺译诊断表）/ L2 注册表锁 + 仓库快照 / L3 压缩式 GC / L4 工作集归还（本版本返回 `Unsupported`，报告记 Skipped 不算失败）。
+- **五层**：L0 视图参与方（`IViewResourceParticipant` → `src/CkanUI.App/Lifecycle/UiViewResourceParticipant.cs`，清导航字形几何缓存、释放背景位图）/ L1 缓存参与方（`IAppCacheParticipant` → `src/CkanUI.App/Lifecycle/PageProjectionCacheParticipant.cs` 丢模组/内容/模组文本三页的行投影，`src/CkanUI.Services/Lifecycle/LocalizerCacheParticipant.cs` 清缺译诊断表）/ L2 注册表锁 + 仓库快照 / L3 压缩式 GC / L4 工作集归还（`src/CkanUI.Services/Lifecycle/PlatformMemory.cs` 走 `[LibraryImport("psapi.dll")] EmptyWorkingSet`，用回收前后 `Process.WorkingSet64` 差值报数；非 Windows 仍返回 `Unsupported` 记 Skipped 不算失败，Win32 失败只 Warn 不抛）。
+- **L2 的启动前专项**（E6 补口）：`IResourceReleaseService.ReleaseCoreDataAsync()` 在**启动进程之前**只放 Core 数据层（`RegistryManager.DisposeAll()` + 丢仓库快照），因为注册表锁必须在使用它的那一秒还回去；随后 T3/T4/T5 排程遇到 CoreData 层按「已完成」跳过。放锁成功后页面进入**精简模式**（状态栏徽标），启动失败立刻 `RestoreAsync` 回滚，游戏退出或点「恢复数据」再走 `RestoreAsync` 退出精简模式。
 - **L0/L1 的可逆性**：页面投影丢掉后，页面重新激活时按原流程重载（`OnActivated` → 重读快照/重新解析），模组的勾选待变更集**不清**；字形缓存与诊断表都是「下次用到再重建」的纯加速层。
 - **四档**（`UiSettings.ReleaseTier`，默认 `Balanced`）：`Off` 连计时器都不起；`Conservative` 只跑 L0+L1；`Balanced` 补 L2；`Aggressive` 补 L3/L4。
 - **时机**：启动成功即排程，T3 = 0s（保守）、T4 = +10s（均衡）、T5 = +30s（激进）；服务按「已成功的层」幂等，每层只跑一次。
@@ -279,7 +280,7 @@
 
 **宿主能力**：文本输入走页面级 `IInstanceTextPrompt`（`IDialogService` 尚无通用文本输入）；启动走 `IInstanceShellLauncher.LaunchGameAsync(gameDir, command)`。
 
-**已知缺口**：老 GUI 的「不兼容 mod 启动确认」（`Main.cs:985`）未复刻；E6 `DisposeAll` 与精简模式状态机仍未接。
+**已知缺口**：老 GUI 的「不兼容 mod 启动确认」（`Main.cs:985`）未复刻。E6 的「启动前还锁 → 精简模式 → 退出/手动恢复」状态机已接（见 2.3.5 与 `GameLaunchPhase`），只有启动监视器（`19` 篇 RLS-02 的主窗口轮询与 500ms 探针）仍是后续项。
 
 ---
 

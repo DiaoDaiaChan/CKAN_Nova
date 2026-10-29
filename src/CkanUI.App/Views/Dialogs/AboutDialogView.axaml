@@ -1,42 +1,66 @@
 <dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
-                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
-                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
-                       x:Class="CkanUI.App.Views.Dialogs.AboutDialogView"
-                       x:DataType="vm:AboutDialogViewModel"
-                       Title="{Binding Title}"
-                       Width="460"
-                       SizeToContent="Height">
-  <StackPanel Margin="20" Spacing="12">
-    <TextBlock Text="{Binding Info.AppName}"
-               FontSize="{DynamicResource CkanFontSizeTitle}"
-               FontWeight="SemiBold"
-               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                      xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                      xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                      x:Class="CkanUI.App.Views.Dialogs.AboutDialogView"
+                      x:DataType="vm:AboutDialogViewModel"
+                      Title="{Binding Title}"
+                      Width="500"
+                      SizeToContent="Height">
+  <StackPanel Margin="24,20" Spacing="16">
+    <!-- Header with Rocket Icon, Title, and Badge -->
+    <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,4">
+      <Border Width="48" Height="48" CornerRadius="24"
+              Background="{DynamicResource CkanAccentBrush}"
+              Margin="0,0,16,0" VerticalAlignment="Center">
+        <PathIcon Width="24" Height="24"
+                  Foreground="{DynamicResource CkanAccentTextBrush}"
+                  Data="M12 2.5c0 0-4.5 5.5-4.5 10.5 0 2.5 1.5 4.5 4.5 4.5s4.5-2 4.5-4.5c0-5-4.5-10.5-4.5-10.5z M9 18l-2 3.5h10L15 18" />
+      </Border>
+      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <TextBlock Text="{Binding Info.AppName}"
+                     FontSize="{DynamicResource CkanFontSizeTitle}"
+                     FontWeight="Bold"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+          <Border Classes="CkanBadge Accent" VerticalAlignment="Center">
+            <TextBlock Text="GUI" />
+          </Border>
+        </StackPanel>
+        <TextBlock Text="The Comprehensive Kerbal Archive Network"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+      </StackPanel>
+    </Grid>
 
-    <!-- 版本矩阵：标签与值都用 token，不写字面量颜色。 -->
-    <ItemsControl ItemsSource="{Binding Fields}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:AboutField">
-          <Grid ColumnDefinitions="120,*" Margin="0,1">
-            <TextBlock Grid.Column="0"
-                       Text="{Binding Label}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Grid.Column="1"
-                       Text="{Binding Value}"
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-          </Grid>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
-
-    <Separator Margin="0,4" />
+    <!-- 版本矩阵：卡片包装，更加整齐 -->
+    <Border Classes="CkanSubtleCard" Padding="14,10">
+      <ItemsControl ItemsSource="{Binding Fields}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:AboutField">
+            <Grid ColumnDefinitions="120,*" Margin="0,3">
+              <TextBlock Grid.Column="0"
+                         Text="{Binding Label}"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Grid.Column="1"
+                         Text="{Binding Value}"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         FontWeight="Medium"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </Border>
 
     <TextBlock Text="{Binding LicenseText}"
                TextWrapping="Wrap"
                FontSize="{DynamicResource CkanFontSizeCaption}"
                Foreground="{DynamicResource CkanTextSecondaryBrush}" />
 
+    <!-- 链接列表：现代化按键药丸外观 -->
     <ItemsControl ItemsSource="{Binding Links}">
       <ItemsControl.ItemsPanel>
         <ItemsPanelTemplate>
@@ -48,8 +72,9 @@
           <Button Content="{Binding Title}"
                   Command="{Binding $parent[ItemsControl].((vm:AboutDialogViewModel)DataContext).OpenLinkCommand}"
                   CommandParameter="{Binding}"
+                  Classes="CkanSecondary"
                   Margin="0,0,6,6"
-                  Padding="8,2"
+                  Padding="10,4"
                   FontSize="{DynamicResource CkanFontSizeCaption}" />
         </DataTemplate>
       </ItemsControl.ItemTemplate>
@@ -61,11 +86,14 @@
                FontSize="{DynamicResource CkanFontSizeCaption}"
                Foreground="{DynamicResource CkanDangerBrush}" />
 
+    <Border Height="1" Background="{DynamicResource CkanBorderBrush}" Margin="0,2" />
+
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
       <Button Content="{Binding PrimaryButtonText}"
               Command="{Binding PrimaryCommand}"
+              Classes="CkanPrimary"
               IsDefault="True"
-              MinWidth="92"
+              MinWidth="96"
               HorizontalContentAlignment="Center" />
     </StackPanel>
   </StackPanel>

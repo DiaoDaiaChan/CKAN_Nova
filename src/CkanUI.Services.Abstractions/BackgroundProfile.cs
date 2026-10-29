@@ -22,6 +22,15 @@ public sealed record BackgroundProfile
     /// <summary>本机图片。</summary>
     public const string KindImage = "image";
 
+    /// <summary>
+    /// 当前实例的游戏截图：取 <c>&lt;GameDir&gt;/Screenshots</c> 里最新的一张（20 篇 §9.1）。
+    /// </summary>
+    /// <remarks>
+    /// 只存来源类型、不存路径：截图文件由游戏每次按时间命名，把路径落盘会立刻过期。
+    /// 真正去找文件的是 Services 层的 <c>BackgroundImageLocator</c>（纯文件系统，可 headless 测）。
+    /// </remarks>
+    public const string KindScreenshot = "screenshot";
+
     /// <summary>填充（等比铺满，可能裁切）。</summary>
     public const string FillFill = "fill";
 

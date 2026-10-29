@@ -75,41 +75,60 @@
         <ui:FANavigationView.PaneHeader>
           <StackPanel Orientation="Horizontal"
                       Spacing="10"
-                      Margin="4,0,0,0"
+                      Margin="6,4,0,4"
                       VerticalAlignment="Center"
                       Background="Transparent"
                       PointerPressed="OnTitleBarPointerPressed">
-            <Border Width="26" Height="26" CornerRadius="8" Background="{DynamicResource CkanAccentBrush}">
-              <TextBlock Text="C"
-                         Foreground="{DynamicResource CkanTextInverseBrush}"
-                         FontWeight="Bold"
-                         FontSize="14"
-                         HorizontalAlignment="Center"
-                         VerticalAlignment="Center" />
+            <Border Width="28" Height="28"
+                    CornerRadius="8"
+                    Background="{DynamicResource CkanAccentBrush}"
+                    BoxShadow="{DynamicResource CkanElevationLow}">
+              <PathIcon Data="M13.13 2.87a9.984 9.984 0 0 0-4.04 4.05L4.54 11.47a1.5 1.5 0 0 0-.25.43L2.09 17.5a.75.75 0 0 0 .91.91l5.6-2.2a1.5 1.5 0 0 0 .43-.25l4.55-4.55a9.984 9.984 0 0 0 4.05-4.04l.43-.86a.75.75 0 0 0-.8-.99l-2.45.35-.41-.41.35-2.45a.75.75 0 0 0-.99-.8l-.86.43zm-1.8 7.39l-4.14 4.14-3.56 1.4 1.4-3.56 4.14-4.14a8.47 8.47 0 0 1 2.16 2.16z"
+                        Foreground="{DynamicResource CkanTextInverseBrush}"
+                        Width="15" Height="15"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center" />
             </Border>
-            <TextBlock Classes="BrandLabel"
-                       Text="CKAN"
-                       VerticalAlignment="Center"
-                       Foreground="{DynamicResource CkanTextPrimaryBrush}"
-                       FontSize="{DynamicResource CkanFontSizeTitle}"
-                       FontWeight="SemiBold" />
+            <StackPanel VerticalAlignment="Center" Spacing="-2">
+              <TextBlock Classes="BrandLabel"
+                         Text="CKAN"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                         FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                         FontWeight="Bold"
+                         LetterSpacing="0.5" />
+              <TextBlock Classes="BrandLabel"
+                         Text="MOD MANAGER"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                         FontSize="9"
+                         FontWeight="SemiBold"
+                         LetterSpacing="1" />
+            </StackPanel>
           </StackPanel>
         </ui:FANavigationView.PaneHeader>
 
         <!-- 底部自定义区：关于入口 + 折叠开关（与 Ctrl+B 同一个命令，两个入口不会打架）。 -->
         <ui:FANavigationView.PaneCustomContent>
-          <StackPanel Orientation="Horizontal" Spacing="6" Margin="2,4" HorizontalAlignment="Stretch">
-            <Button Content="关于"
-                    Click="OnAboutClick"
+          <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,6" HorizontalAlignment="Stretch">
+            <Button Click="OnAboutClick"
                     Classes="CkanGhost"
                     IsVisible="{Binding IsNavExpanded}"
                     HorizontalAlignment="Stretch"
-                    HorizontalContentAlignment="Left" />
+                    HorizontalContentAlignment="Left">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <PathIcon Data="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"
+                          Width="13" Height="13"
+                          Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Text="关于" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
             <Button Classes="CkanIcon"
-                    Content="?"
                     Click="OnAboutClick"
                     IsVisible="{Binding IsNavCollapsed}"
-                    ToolTip.Tip="关于" />
+                    ToolTip.Tip="关于">
+              <PathIcon Data="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"
+                        Width="13" Height="13"
+                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </Button>
             <Button Classes="CkanIcon"
                     Content="{Binding NavToggleGlyph}"
                     Command="{Binding ToggleNavCollapsedCommand}"
@@ -138,20 +157,22 @@
                   PointerPressed="OnTitleBarPointerPressed">
               <Button Grid.Column="0"
                       Classes="CkanIcon"
-                      Content="←"
                       Command="{Binding BackCommand}"
                       IsEnabled="{Binding CanGoBack}"
                       ToolTip.Tip="{Binding BackToolTip}"
                       Width="26" Height="26" MinWidth="0" Padding="0"
-                      Margin="10,0,2,0" />
+                      Margin="10,0,2,0">
+                <PathIcon Data="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" Width="11" Height="11" />
+              </Button>
               <Button Grid.Column="1"
                       Classes="CkanIcon"
-                      Content="→"
                       Command="{Binding ForwardCommand}"
                       IsEnabled="{Binding CanGoForward}"
                       ToolTip.Tip="{Binding ForwardToolTip}"
                       Width="26" Height="26" MinWidth="0" Padding="0"
-                      Margin="0,0,4,0" />
+                      Margin="0,0,4,0">
+                <PathIcon Data="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" Width="11" Height="11" />
+              </Button>
               <TextBlock Grid.Column="2"
                          Text="{Binding Title}"
                          Foreground="{DynamicResource CkanTextTertiaryBrush}"
@@ -226,30 +247,46 @@
                   BorderThickness="0,1,0,0"
                   Padding="12,0">
             <Grid ColumnDefinitions="Auto,*,Auto">
-              <TextBlock Grid.Column="0"
-                         Text="{Binding StatusText}"
-                         Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                         FontSize="{DynamicResource CkanFontSizeCaption}"
-                         VerticalAlignment="Center"
-                         TextTrimming="CharacterEllipsis" />
+              <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                <Ellipse Width="6" Height="6" Fill="{DynamicResource CkanSuccessBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding StatusText}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+              </StackPanel>
               <Button Grid.Column="1"
                       Classes="CkanGhost"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center"
                       Padding="8,2"
                       MinHeight="0"
+                      CornerRadius="{DynamicResource CkanCornerRadiusPill}"
                       Command="{Binding ToggleLogDrawerCommand}"
                       ToolTip.Tip="{Binding LogStatusText}">
-                <TextBlock Text="{Binding LogStatusText}"
-                           FontSize="{DynamicResource CkanFontSizeCaption}"
-                           TextTrimming="CharacterEllipsis" />
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                  <PathIcon Data="M20 8h-2.81c-.45-.78-1.07-1.45-1.82-1.96L17 4.41 15.59 3l-2.17 2.17C12.96 5.06 12.49 5 12 5c-.49 0-.96.06-1.41.17L8.41 3 7 4.41l1.62 1.63C7.88 6.55 7.26 7.22 6.81 8H4v2h2.09c-.05.33-.09.66-.09 1v1H4v2h2v1c0 .34.04.67.09 1H4v2h2.81c1.04 1.79 2.97 3 5.19 3s4.15-1.21 5.19-3H20v-2h-2.09c.05-.33.09-.66.09-1v-1h2v-2h-2v-1c0-.34-.04-.67-.09-1H20V8zm-6 8h-4v-2h4v2zm0-4h-4v-2h4v2z"
+                            Width="10" Height="10"
+                            Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                            VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding LogStatusText}"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis" />
+                </StackPanel>
               </Button>
-              <TextBlock Grid.Column="2"
-                         x:Name="StatusVersionText"
-                         Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                         FontSize="{DynamicResource CkanFontSizeCaption}"
-                         VerticalAlignment="Center"
-                         Margin="12,0,0,0" />
+              <Border Grid.Column="2"
+                      Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                      CornerRadius="4"
+                      Padding="6,1"
+                      VerticalAlignment="Center"
+                      Margin="12,0,0,0">
+                <TextBlock x:Name="StatusVersionText"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                           FontSize="11"
+                           FontFamily="{DynamicResource CkanUiFontFamily}"
+                           VerticalAlignment="Center" />
+              </Border>
             </Grid>
           </Border>
         </Grid>

@@ -82,32 +82,78 @@ public sealed class PlayTimeService : IPlayTimeService, IPlayTimeTracker
             var total = Math.Round(hours, 0, MidpointRounding.AwayFromZero);
             var autoHours = _sessions.TotalsByInstance().TryGetValue(instanceName, out var accumulated) ? accumulated : 0d;
             totals[instanceName] = Math.Max(0d, total - autoHours);
+            return WriteBaselines(totals);
+        }
+    }
 
-            var directory = Path.GetDirectoryName(_path);
-            if (string.IsNullOrEmpty(directory)) return false;
-            var temp = _path + ".tmp-" + Guid.NewGuid().ToString("N");
-            try
+    /// <inheritdoc />
+    /// <remarks>
+    /// 「重置」对用户就是一个动作，底下却是两份文件：会话账本（自动累计）与 play-time.json（手工基线），
+    /// 所以本方法先清账本、再把基线写成 0，两步各自原子替换，任何一步失败都返回失败结果而不是抛异常。
+    /// 基线写 0（而不是删掉这一条）是刻意的：列表里那一行继续在，用户能直接看到「已经归零」；
+    /// 正在计时的会话从「现在」重新开始（见 <see cref="PlayTimeSessionLedger.ResetInstance"/>）。
+    /// </remarks>
+    public Task<OperationResult> ResetAsync(string instanceName, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(instanceName))
+        {
+            return Task.FromResult(OperationResult.Fail("要重置的实例名不能为空。"));
+        }
+
+        if (ct.IsCancellationRequested)
+        {
+            return Task.FromResult(OperationResult.Fail("已取消重置，没有写入任何文件。"));
+        }
+
+        lock (_gate)
+        {
+            if (!_sessions.ResetInstance(instanceName))
             {
-                Directory.CreateDirectory(directory);
-                var values = totals
-                    .OrderBy(pair => pair.Key, StringComparer.Ordinal)
-                    .Select(pair => new PlayTimeEntry(pair.Key, pair.Value));
-                File.WriteAllText(temp, JsonSerializer.Serialize(values));
-                File.Move(temp, _path, overwrite: true);
-                return true;
+                return Task.FromResult(OperationResult.Fail(
+                    "清除「" + instanceName + "」的自动累计失败，请检查游戏时长文件的写权限后重试。",
+                    retryable: true));
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+
+            var totals = ReadBaselines();
+            totals[instanceName] = 0d;
+            if (!WriteBaselines(totals))
             {
-                return false;
+                return Task.FromResult(OperationResult.Fail(
+                    "清除「" + instanceName + "」的手动时长失败，请检查游戏时长文件的写权限后重试。",
+                    retryable: true));
             }
-            finally
+
+            return Task.FromResult(OperationResult.Ok());
+        }
+    }
+
+    /// <summary>把「手工基线表」原子写盘（写唯一 .tmp 再覆盖移动）；失败返回假，不抛异常。</summary>
+    private bool WriteBaselines(Dictionary<string, double> totals)
+    {
+        var directory = Path.GetDirectoryName(_path);
+        if (string.IsNullOrEmpty(directory)) return false;
+        var temp = _path + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var values = totals
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(pair => new PlayTimeEntry(pair.Key, pair.Value));
+            File.WriteAllText(temp, JsonSerializer.Serialize(values));
+            File.Move(temp, _path, overwrite: true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+        finally
+        {
+            if (File.Exists(temp))
             {
-                if (File.Exists(temp))
-                {
-                    try { File.Delete(temp); }
-                    catch (IOException) { /* 临时文件清理失败不改变原子替换结果。 */ }
-                    catch (UnauthorizedAccessException) { /* 临时文件清理失败不改变原子替换结果。 */ }
-                }
+                try { File.Delete(temp); }
+                catch (IOException) { /* 临时文件清理失败不改变原子替换结果。 */ }
+                catch (UnauthorizedAccessException) { /* 临时文件清理失败不改变原子替换结果。 */ }
             }
         }
     }

@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -48,7 +49,7 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
     }
 
     /// <inheritdoc />
-    public override string Title => "模组翻译";
+    public override string Title => Text("模组翻译", LocalizationKeys.ModTextTitle);
 
     /// <summary>基础存储路径。</summary>
     [ObservableProperty]
@@ -144,7 +145,7 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
     }
 
     /// <inheritdoc />
-    public string PageName => "模组文本";
+    public string PageName => Text("模组文本", LocalizationKeys.ModTextPageName);
 
     /// <summary>
     /// 丢掉词条投影（18 篇 §3 L1）：词条是从语言包文件解析出来的，<see cref="LoadAsync"/> 会重新解析。
@@ -205,7 +206,7 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
     public async Task LoadAsync(CancellationToken ct = default)
     {
         IsLoading = true;
-        StatusMessage = "正在载入翻译词库...";
+        StatusMessage = Text("正在载入翻译词库...", LocalizationKeys.ModTextBusyLoading);
         try
         {
             await _service.ReloadPacksAsync(SelectedLanguage, ct);
@@ -213,12 +214,12 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
             SelectedLanguage = _service.CurrentLanguage;
             PackFiles = _service.GetPackFiles(SelectedLanguage);
             await RefreshEntriesAsync();
-            StatusMessage = $"载入完成，共 {_allEntries.Count} 条词条。";
+            StatusMessage = Text("载入完成，共 {0} 条词条。", LocalizationKeys.ModTextStatusLoaded, _allEntries.Count);
         }
         catch (Exception ex)
         {
-            _errors.Report(ex, "ModTextPage.Load", "载入模组翻译包失败");
-            StatusMessage = $"载入失败: {ex.Message}";
+            _errors.Report(ex, "ModTextPage.Load", Text("载入模组翻译包失败", LocalizationKeys.ModTextErrorLoad));
+            StatusMessage = Text("载入失败: {0}", LocalizationKeys.ModTextStatusLoadFailed, ex.Message);
         }
         finally
         {
@@ -229,18 +230,18 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
     private async Task SwitchLanguageAsync(string lang)
     {
         IsLoading = true;
-        StatusMessage = $"正在切换至语言: {lang}...";
+        StatusMessage = Text("正在切换至语言: {0}...", LocalizationKeys.ModTextBusySwitching, lang);
         try
         {
             await _service.ReloadPacksAsync(lang);
             PackFiles = _service.GetPackFiles(lang);
             await RefreshEntriesAsync();
-            StatusMessage = $"已切换至 {lang}，载入 {_allEntries.Count} 条词条。";
+            StatusMessage = Text("已切换至 {0}，载入 {1} 条词条。", LocalizationKeys.ModTextStatusSwitched, lang, _allEntries.Count);
         }
         catch (Exception ex)
         {
-            _errors.Report(ex, "ModTextPage.SwitchLanguage", $"切换语言 '{lang}' 失败");
-            StatusMessage = $"切换失败: {ex.Message}";
+            _errors.Report(ex, "ModTextPage.SwitchLanguage", Text("切换语言 '{0}' 失败", LocalizationKeys.ModTextErrorSwitchLanguage, lang));
+            StatusMessage = Text("切换失败: {0}", LocalizationKeys.ModTextStatusSwitchFailed, ex.Message);
         }
         finally
         {
@@ -289,7 +290,7 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
 
         var result = query.ToList();
         Entries = result;
-        SummaryText = $"已显示 {result.Count} / {_allEntries.Count} 条条目";
+        SummaryText = Text("已显示 {0} / {1} 条条目", LocalizationKeys.ModTextSummaryShown, result.Count, _allEntries.Count);
     }
 
     private async Task ExecuteSaveOverrideAsync()
@@ -297,16 +298,16 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
         if (!CanSaveOverride) return;
 
         IsLoading = true;
-        StatusMessage = $"正在保存 '{EditIdentifier}' 的人工覆盖翻译...";
+        StatusMessage = Text("正在保存 '{0}' 的人工覆盖翻译...", LocalizationKeys.ModTextBusySavingOverride, EditIdentifier);
         try
         {
             await _service.PutOverrideAsync(EditIdentifier.Trim(), EditField.Trim(), EditSource, EditTranslation);
-            StatusMessage = $"保存成功！已热更新至 overrides.jsonl 并生效。";
+            StatusMessage = Text("保存成功！已热更新至 overrides.jsonl 并生效。", LocalizationKeys.ModTextStatusOverrideSaved);
         }
         catch (Exception ex)
         {
-            _errors.Report(ex, "ModTextPage.SaveOverride", "保存人工覆盖翻译失败");
-            StatusMessage = $"保存失败: {ex.Message}";
+            _errors.Report(ex, "ModTextPage.SaveOverride", Text("保存人工覆盖翻译失败", LocalizationKeys.ModTextErrorSaveOverride));
+            StatusMessage = Text("保存失败: {0}", LocalizationKeys.ModTextStatusSaveFailed, ex.Message);
         }
         finally
         {
@@ -319,16 +320,16 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
         if (!CanDeleteOverride) return;
 
         IsLoading = true;
-        StatusMessage = $"正在删除 '{EditIdentifier}' 的人工覆盖翻译...";
+        StatusMessage = Text("正在删除 '{0}' 的人工覆盖翻译...", LocalizationKeys.ModTextBusyDeletingOverride, EditIdentifier);
         try
         {
             await _service.DeleteOverrideAsync(EditIdentifier.Trim(), EditField.Trim(), EditSource);
-            StatusMessage = $"已成功从 overrides.jsonl 删除覆盖项并生效。";
+            StatusMessage = Text("已成功从 overrides.jsonl 删除覆盖项并生效。", LocalizationKeys.ModTextStatusOverrideDeleted);
         }
         catch (Exception ex)
         {
-            _errors.Report(ex, "ModTextPage.DeleteOverride", "删除人工覆盖翻译失败");
-            StatusMessage = $"删除失败: {ex.Message}";
+            _errors.Report(ex, "ModTextPage.DeleteOverride", Text("删除人工覆盖翻译失败", LocalizationKeys.ModTextErrorDeleteOverride));
+            StatusMessage = Text("删除失败: {0}", LocalizationKeys.ModTextStatusDeleteFailed, ex.Message);
         }
         finally
         {
@@ -339,16 +340,27 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
     private async Task ExecuteSyncFromUniversalI18nAsync()
     {
         IsLoading = true;
-        StatusMessage = "正在从 UniversalI18n 仓库同步翻译词库...";
+        StatusMessage = Text("正在从 UniversalI18n 仓库同步翻译词库...", LocalizationKeys.ModTextBusySyncing);
         try
         {
-            int count = await _service.SyncFromUniversalI18nAsync();
-            StatusMessage = $"同步成功！已同步 {count} 个词库文件并实时重载。";
+            // 服务层不再抛异常表达失败（01 篇 §8）：失败结果走既有错误出口（错误中心 + 状态栏）。
+            OperationResult<int> result = await _service.SyncFromUniversalI18nAsync();
+            if (!result.IsSuccess)
+            {
+                _errors.Report(
+                    "ModTextPage.SyncUniversalI18n",
+                    result.Message ?? Text("同步 UniversalI18n 失败", LocalizationKeys.ModTextErrorSync),
+                    result.Detail);
+                StatusMessage = Text("同步失败: {0}", LocalizationKeys.ModTextStatusSyncFailed, result.Message);
+                return;
+            }
+
+            StatusMessage = Text("同步成功！已同步 {0} 个词库文件并实时重载。", LocalizationKeys.ModTextStatusSynced, result.Value);
         }
         catch (Exception ex)
         {
-            _errors.Report(ex, "ModTextPage.SyncUniversalI18n", "同步 UniversalI18n 失败");
-            StatusMessage = $"同步失败: {ex.Message}";
+            _errors.Report(ex, "ModTextPage.SyncUniversalI18n", Text("同步 UniversalI18n 失败", LocalizationKeys.ModTextErrorSync));
+            StatusMessage = Text("同步失败: {0}", LocalizationKeys.ModTextStatusSyncFailed, ex.Message);
         }
         finally
         {
@@ -375,7 +387,7 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
         }
         catch (Exception ex)
         {
-            _errors.Report(ex, "ModTextPage.OpenFolder", "打开翻译文件目录失败");
+            _errors.Report(ex, "ModTextPage.OpenFolder", Text("打开翻译文件目录失败", LocalizationKeys.ModTextErrorOpenFolder));
         }
     }
 
@@ -396,8 +408,11 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
         public Task PutOverrideAsync(string identifier, string field, string sourceText, string translation, CancellationToken ct = default) => Task.CompletedTask;
         public Task DeleteOverrideAsync(string identifier, string field, string sourceText, CancellationToken ct = default) => Task.CompletedTask;
         public Task ImportJsonlAsync(string targetFileName, string content, string? language = null, CancellationToken ct = default) => Task.CompletedTask;
-        public Task<string> ExportJsonlAsync(string relativePath, CancellationToken ct = default) => Task.FromResult(string.Empty);
-        public Task<int> SyncFromUniversalI18nAsync(string? sourceDir = null, CancellationToken ct = default) => Task.FromResult(0);
+        public Task<OperationResult<string>> ExportJsonlAsync(string relativePath, CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<string>.Ok(string.Empty));
+
+        public Task<OperationResult<int>> SyncFromUniversalI18nAsync(string? sourceDir = null, CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<int>.Ok(0));
     }
 
     private sealed class EmptyModTextProvider : IModTextProvider

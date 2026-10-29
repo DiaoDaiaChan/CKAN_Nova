@@ -11,14 +11,12 @@
   <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}">
 
     <!-- 摘要区（03 篇 §4 摘要块）：数量统计 + 预计下载体积 + 状态徽章 -->
-    <Border Grid.Row="0" Padding="{DynamicResource CkanToolbarPadding}"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-            Background="{DynamicResource CkanSurfaceBackgroundBrush}"
-            BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1">
+    <Border Grid.Row="0" Classes="CkanCard" Padding="{DynamicResource CkanToolbarPadding}">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
           <TextBlock Text="{Binding SummaryText}"
                      FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                     FontWeight="SemiBold"
                      Foreground="{DynamicResource CkanTextPrimaryBrush}"
                      TextWrapping="Wrap" />
           <TextBlock Text="{Binding DownloadText}"
@@ -26,11 +24,8 @@
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <Border Background="{DynamicResource CkanAccentBrush}"
-                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="6,1">
-            <TextBlock Text="{Binding StateBadgeText}"
-                       FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanAccentTextBrush}" />
+          <Border Classes="CkanBadge Accent" Padding="8,3">
+            <TextBlock Text="{Binding StateBadgeText}" />
           </Border>
         </StackPanel>
       </Grid>
@@ -215,33 +210,21 @@
               </StackPanel>
               <!-- 来源徽章：用户 / 依赖 / 推荐 / 自动，四者只显示其一，文字始终可见 -->
               <Grid Grid.Column="4" VerticalAlignment="Center">
-                <Border Background="{DynamicResource CkanAccentBrush}"
-                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="5,0"
+                <Border Classes="CkanBadge Accent"
                         HorizontalAlignment="Left" IsVisible="{Binding ShowUserBadge}">
-                  <TextBlock Text="{Binding OriginBadgeText}"
-                             FontSize="{DynamicResource CkanFontSizeCaption}"
-                             Foreground="{DynamicResource CkanAccentTextBrush}" />
+                  <TextBlock Text="{Binding OriginBadgeText}" />
                 </Border>
-                <Border Background="{DynamicResource CkanSuccessBrush}"
-                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="5,0"
+                <Border Classes="CkanBadge Success"
                         HorizontalAlignment="Left" IsVisible="{Binding ShowDependencyBadge}">
-                  <TextBlock Text="{Binding OriginBadgeText}"
-                             FontSize="{DynamicResource CkanFontSizeCaption}"
-                             Foreground="{DynamicResource CkanAccentTextBrush}" />
+                  <TextBlock Text="{Binding OriginBadgeText}" />
                 </Border>
-                <Border Background="{DynamicResource CkanWarningBrush}"
-                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="5,0"
+                <Border Classes="CkanBadge Warning"
                         HorizontalAlignment="Left" IsVisible="{Binding ShowRecommendationBadge}">
-                  <TextBlock Text="{Binding OriginBadgeText}"
-                             FontSize="{DynamicResource CkanFontSizeCaption}"
-                             Foreground="{DynamicResource CkanAccentTextBrush}" />
+                  <TextBlock Text="{Binding OriginBadgeText}" />
                 </Border>
-                <Border Background="{DynamicResource CkanTextSecondaryBrush}"
-                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="5,0"
+                <Border Classes="CkanBadge"
                         HorizontalAlignment="Left" IsVisible="{Binding ShowAutoBadge}">
-                  <TextBlock Text="{Binding OriginBadgeText}"
-                             FontSize="{DynamicResource CkanFontSizeCaption}"
-                             Foreground="{DynamicResource CkanTextInverseBrush}" />
+                  <TextBlock Text="{Binding OriginBadgeText}" />
                 </Border>
               </Grid>
               <TextBlock Grid.Column="5" Text="{Binding SizeText}"
@@ -260,19 +243,25 @@
       </ListBox>
 
       <!-- 空状态（03 篇 §10） -->
-      <Border Grid.Row="1" IsVisible="{Binding ShowEmptyState}"
-              Background="{DynamicResource CkanSurfaceBackgroundBrush}">
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="460">
+      <Border Grid.Row="1" Classes="CkanEmptyStateCard" Margin="16" IsVisible="{Binding ShowEmptyState}">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="460">
+          <Border Width="56" Height="56" CornerRadius="28" HorizontalAlignment="Center"
+                  Background="{DynamicResource CkanAccentSubtleBrush}">
+            <PathIcon Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center"
+                      Foreground="{DynamicResource CkanAccentBrush}"
+                      Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+          </Border>
           <TextBlock Text="{Binding EmptyStateTitle}"
-                     FontSize="{DynamicResource CkanFontSizeTitle}"
+                     FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                     FontWeight="SemiBold"
                      Foreground="{DynamicResource CkanTextPrimaryBrush}"
                      HorizontalAlignment="Center" />
           <TextBlock Text="{Binding EmptyStateHint}"
-                     FontSize="{DynamicResource CkanFontSizeBody}"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                     Classes="CkanCaption"
                      TextWrapping="Wrap" TextAlignment="Center" />
           <Button Content="{Binding RecomputeButtonText}" Command="{Binding RecomputeCommand}"
-                  HorizontalAlignment="Center" />
+                  Classes="CkanSecondary"
+                  HorizontalAlignment="Center" Margin="0,8,0,0" />
         </StackPanel>
       </Border>
     </Grid>
@@ -298,18 +287,22 @@
                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
         <Button Grid.Column="3" Content="{Binding RecomputeButtonText}"
                 Command="{Binding RecomputeCommand}"
+                Classes="CkanSecondary"
                 IsEnabled="{Binding IsBusy, Converter={x:Static BoolConverters.Not}}"
                 ToolTip.Tip="{Binding CancelHint}" />
         <Button Grid.Column="4" Margin="6,0,0,0" Content="{Binding CancelButtonText}"
                 Command="{Binding CancelCommand}"
+                Classes="CkanDanger"
                 IsVisible="{Binding IsApplying}" />
         <!-- 重试：执行失败且具备执行前提时显示（06 篇 F-37） -->
         <Button Grid.Column="5" Margin="6,0,0,0" Content="{Binding RetryButtonText}"
                 Command="{Binding RetryCommand}"
+                Classes="CkanSecondary"
                 IsVisible="{Binding CanRetry}" />
         <!-- 开始：Command 的 CanExecute=CanApply，冲突时自动禁用（06 篇 UI-04 门禁） -->
         <Button Grid.Column="6" Margin="6,0,0,0" Content="{Binding ApplyButtonText}"
                 Command="{Binding ApplyCommand}"
+                Classes="CkanPrimary"
                 IsVisible="{Binding IsApplying, Converter={x:Static BoolConverters.Not}}"
                 ToolTip.Tip="{Binding CancelHint}" />
       </Grid>

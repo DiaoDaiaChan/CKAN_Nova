@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.ViewModels.Pages.Plugins;
@@ -42,7 +43,7 @@ public sealed partial class PluginsPageViewModel : PageViewModel
     }
 
     /// <inheritdoc />
-    public override string Title => "插件";
+    public override string Title => Text("插件", LocalizationKeys.NavRailPlugins);
 
     /// <summary>宿主注入的 dll 选择器；为 <c>null</c> 时「新增」会给出中文错误。</summary>
     public IPluginFilePicker? FilePicker { get; set; }
@@ -122,10 +123,10 @@ public sealed partial class PluginsPageViewModel : PageViewModel
     public bool HasNoDormant => DormantPlugins.Count == 0;
 
     /// <summary>左栏摘要。</summary>
-    public string ActiveSummary => ActivePlugins.Count == 0 ? "没有激活的插件" : "已激活 " + ActivePlugins.Count + " 个";
+    public string ActiveSummary => ActivePlugins.Count == 0 ? Text("没有激活的插件", LocalizationKeys.PluginsActiveNone) : Text("已激活 {0} 个", LocalizationKeys.PluginsActiveCount, ActivePlugins.Count);
 
     /// <summary>右栏摘要。</summary>
-    public string DormantSummary => DormantPlugins.Count == 0 ? "没有待激活的插件" : "未激活 " + DormantPlugins.Count + " 个";
+    public string DormantSummary => DormantPlugins.Count == 0 ? Text("没有待激活的插件", LocalizationKeys.PluginsDormantNone) : Text("未激活 {0} 个", LocalizationKeys.PluginsDormantCount, DormantPlugins.Count);
 
     /// <summary>当前选中项（两栏互斥，先看左栏）。</summary>
     public PluginRowViewModel? CurrentSelection => SelectedActive ?? SelectedDormant;
@@ -165,14 +166,14 @@ public sealed partial class PluginsPageViewModel : PageViewModel
             ApplyState();
             if (!result.IsSuccess)
             {
-                SetError(result.Message ?? "扫描插件目录失败。", result.Detail);
+                SetError(result.Message ?? Text("扫描插件目录失败。", LocalizationKeys.PluginsErrorScanFailed), result.Detail);
                 return;
             }
 
-            SetStatus("已扫描插件目录：激活 " + ActivePlugins.Count + " 个，未激活 " + DormantPlugins.Count + " 个。");
+            SetStatus(Text("已扫描插件目录：激活 {0} 个，未激活 {1} 个。", LocalizationKeys.PluginsStatusScanned, ActivePlugins.Count, DormantPlugins.Count));
         },
         "扫描插件目录",
-        "正在扫描插件目录…");
+        Text("正在扫描插件目录…", LocalizationKeys.PluginsBusyScanning));
 
     /// <summary>新增插件（选 dll → 复制进插件目录 → 加载为未激活）。</summary>
     [RelayCommand(CanExecute = nameof(CanAddNewCore))]
@@ -182,7 +183,7 @@ public sealed partial class PluginsPageViewModel : PageViewModel
             var picker = FilePicker;
             if (picker is null)
             {
-                SetError("当前视图没有提供文件选择器，无法新增插件。", null);
+                SetError(Text("当前视图没有提供文件选择器，无法新增插件。", LocalizationKeys.PluginsErrorNoFilePicker), null);
                 return;
             }
 
@@ -194,10 +195,15 @@ public sealed partial class PluginsPageViewModel : PageViewModel
 
             var result = await _service.AddFromPathAsync(path).ConfigureAwait(true);
             ApplyState();
-            ReportLoadResult(result, "已新增插件");
+            ReportLoadResult(
+                result,
+                "已新增插件「{0}」。",
+                LocalizationKeys.PluginsAdded,
+                "已新增插件失败。",
+                LocalizationKeys.PluginsAddedFailed);
         },
         "新增插件",
-        "正在新增插件…");
+        Text("正在新增插件…", LocalizationKeys.PluginsBusyAdding));
 
     /// <summary>激活右栏选中的插件。</summary>
     [RelayCommand(CanExecute = nameof(CanActivateCore))]
@@ -209,10 +215,15 @@ public sealed partial class PluginsPageViewModel : PageViewModel
 
             var result = await _service.ActivateAsync(row.Id).ConfigureAwait(true);
             ApplyState();
-            ReportLoadResult(result, "已激活插件");
+            ReportLoadResult(
+                result,
+                "已激活插件「{0}」。",
+                LocalizationKeys.PluginsActivated,
+                "已激活插件失败。",
+                LocalizationKeys.PluginsActivateFailed);
         },
         "激活插件",
-        "正在激活插件…");
+        Text("正在激活插件…", LocalizationKeys.PluginsBusyActivating));
 
     /// <summary>停用左栏选中的插件。</summary>
     [RelayCommand(CanExecute = nameof(CanDeactivateCore))]
@@ -226,15 +237,15 @@ public sealed partial class PluginsPageViewModel : PageViewModel
             ApplyState();
             if (result.IsSuccess)
             {
-                SetStatus("已停用插件「" + row.DisplayName + "」。");
+                SetStatus(Text("已停用插件「{0}」。", LocalizationKeys.PluginsStatusDeactivated, row.DisplayName));
             }
             else
             {
-                SetError(result.Message ?? "停用插件失败。", result.Detail);
+                SetError(result.Message ?? Text("停用插件失败。", LocalizationKeys.PluginsErrorDeactivateFailed), result.Detail);
             }
         },
         "停用插件",
-        "正在停用插件…");
+        Text("正在停用插件…", LocalizationKeys.PluginsBusyDeactivating));
 
     /// <summary>重载选中插件（先卸旧再装新，保持原激活状态）。</summary>
     [RelayCommand(CanExecute = nameof(CanReloadCore))]
@@ -246,10 +257,15 @@ public sealed partial class PluginsPageViewModel : PageViewModel
 
             var result = await _service.ReloadAsync(row.Id).ConfigureAwait(true);
             ApplyState();
-            ReportLoadResult(result, "已重载插件");
+            ReportLoadResult(
+                result,
+                "已重载插件「{0}」。",
+                LocalizationKeys.PluginsReloaded,
+                "已重载插件失败。",
+                LocalizationKeys.PluginsReloadFailed);
         },
         "重载插件",
-        "正在重载插件…");
+        Text("正在重载插件…", LocalizationKeys.PluginsBusyReloading));
 
     /// <summary>卸载选中插件（dll 留在插件目录里，下次扫描会重新出现）。</summary>
     [RelayCommand(CanExecute = nameof(CanUnloadCore))]
@@ -263,15 +279,15 @@ public sealed partial class PluginsPageViewModel : PageViewModel
             ApplyState();
             if (result.IsSuccess)
             {
-                SetStatus("已卸载插件「" + row.DisplayName + "」。dll 仍在插件目录里，下次扫描会重新出现。");
+                SetStatus(Text("已卸载插件「{0}」。dll 仍在插件目录里，下次扫描会重新出现。", LocalizationKeys.PluginsStatusUninstalled, row.DisplayName));
             }
             else
             {
-                SetError(result.Message ?? "卸载插件失败。", result.Detail);
+                SetError(result.Message ?? Text("卸载插件失败。", LocalizationKeys.PluginsErrorUninstallFailed), result.Detail);
             }
         },
         "卸载插件",
-        "正在卸载插件…");
+        Text("正在卸载插件…", LocalizationKeys.PluginsBusyUninstalling));
 
     /// <summary>关闭错误条。</summary>
     [RelayCommand]
@@ -298,7 +314,7 @@ public sealed partial class PluginsPageViewModel : PageViewModel
         ActivePlugins = _service.Active.Select(info => new PluginRowViewModel(info)).ToArray();
         DormantPlugins = _service.Dormant.Select(info => new PluginRowViewModel(info)).ToArray();
         FailureTexts = _service.Failures
-            .Select(info => info.Name + "：" + (info.FailureReason ?? "加载失败"))
+            .Select(info => info.Name + "：" + (info.FailureReason ?? Text("加载失败", LocalizationKeys.PluginsLoadFailedLabel)))
             .ToArray();
         PluginsDirectory = _service.PluginsDirectory;
         SelectedActive = null;
@@ -314,15 +330,17 @@ public sealed partial class PluginsPageViewModel : PageViewModel
         OnPropertyChanged(nameof(CanUnload));
     }
 
-    private void ReportLoadResult(PluginLoadResult result, string successPrefix)
+    /// <summary>把插件操作结果写进状态栏或错误栏：成功、失败各用一句整句文案（占位符 {0} 是插件名）。</summary>
+    private void ReportLoadResult(PluginLoadResult result, string okFallback, string okKey, string failFallback, string failKey)
     {
         if (result.IsSuccess)
         {
-            SetStatus(result.Message ?? (successPrefix + "「" + (result.Plugin?.DisplayName ?? "插件") + "」。"));
+            var name = result.Plugin?.DisplayName ?? Text("插件", LocalizationKeys.PluginsFallbackName);
+            SetStatus(result.Message ?? Text(okFallback, okKey, name));
             return;
         }
 
-        SetError(result.Message ?? (successPrefix + "失败。"), result.Detail);
+        SetError(result.Message ?? Text(failFallback, failKey), result.Detail);
     }
 
     private async Task RunAsync(Func<Task> action, string context, string busyText)

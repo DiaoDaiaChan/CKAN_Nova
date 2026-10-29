@@ -110,5 +110,5 @@ runner 只发现 `tests/<proj>/bin/<cfg>/net10.0/<proj>.dll`，**不会自动重
 | 项 | 结果 |
 | --- | --- |
 | `dotnet build ckan-ui.sln` | 0 警告 0 错误（~2 分钟首次，之后增量） |
-| TestRunner 全量 | 1841 用例，0 失败 0 跳过（App 156 / Architecture 10 / Core 3 / Localization 44 / ModText 3 / Services 543 / Sfs 93 / ViewModels 989） |
+| TestRunner 全量 | 3107 用例，0 失败 0 跳过（App 163 / Architecture 18 / Core 3 / Localization 76 / ModText 19 / Services 1205 / Sfs 93 / ViewModels 1530） |
 | `verify-layout --all` | 阻断 0 警告 0，结论绿 |

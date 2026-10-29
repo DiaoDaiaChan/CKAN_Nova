@@ -1,190 +1,174 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="using:CkanUI.App.Converters"
              x:Class="CkanUI.App.Views.ModConfigPageView"
              x:CompileBindings="False">
-  <!-- Mod 配置页（M9 / UI-CFG-01 骨架 + CFG-04 编辑与写盘，15 篇 §5、§6）：
-       左侧是"有适配器的 mod"卡片，右侧是选中 mod 的字段行（按注释标题分组）。
-       bool/int/float/enum/string/path/list 就地编辑，底部动作条负责保存（Ctrl+S）/放弃/恢复快照；
-       color/keybinding 只读，并在行内写明"本版只读"的原因（不做静默禁用）。
-       写盘一律走服务层 IAdapterWriter（写前快照 + 写后自校验），视图不碰文件。
-       颜色/圆角/字号一律走 Tokens.axaml 的语义 token，不硬编码色值。 -->
-  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="16"
+  <UserControl.Resources>
+    <!-- 取色字段的色块预览：十六进制文本 → 画刷（解析不了就是透明，行内有文字说明兜底）。 -->
+    <conv:HexColorToBrushConverter x:Key="HexColorToBrush" />
+  </UserControl.Resources>
+
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
         Background="{DynamicResource CkanSurfaceBackgroundBrush}">
 
     <!-- 页头 -->
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Grid.Column="0" Spacing="4">
-        <TextBlock Text="Mod 配置"
-                   FontSize="{DynamicResource CkanFontSizeTitle}"
-                   FontWeight="SemiBold"
-                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+        <TextBlock Text="Mod 配置" Classes="CkanPageTitle" />
         <TextBlock Text="适配器驱动的图形化配置：改值只碰目标那一行，保存时逐文件写盘（写前快照、写后重新解析自校验）；颜色与按键组合本版只读。"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                   TextWrapping="Wrap" />
+                   Classes="CkanCaption" TextWrapping="Wrap" />
       </StackPanel>
-      <TextBlock Grid.Column="1" Text="{Binding InstanceSummaryText}"
-                 VerticalAlignment="Center"
-                 MaxWidth="380" TextWrapping="Wrap"
-                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+      <Border Grid.Column="1" Classes="CkanBadge" VerticalAlignment="Center" Margin="12,0,0,0">
+        <TextBlock Text="{Binding InstanceSummaryText}" TextWrapping="Wrap" MaxWidth="380" />
+      </Border>
     </Grid>
 
     <!-- KSP 运行中警示（15 篇 §5：运行时只警示 + 写盘二次确认，不粗暴禁写） -->
     <Border Grid.Row="1" IsVisible="{Binding ShowGameRunningWarning}"
-            Margin="0,0,0,8" Padding="10,6"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-            Background="{DynamicResource CkanWarningBackgroundBrush}"
-            BorderBrush="{DynamicResource CkanWarningBrush}"
-            BorderThickness="1">
+            Classes="CkanInfoBanner Warning"
+            Margin="0,0,0,8">
       <TextBlock Text="{Binding GameRunningWarningText}"
                  TextWrapping="Wrap"
-                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Classes="CkanCaption"
                  Foreground="{DynamicResource CkanTextPrimaryBrush}" />
     </Border>
 
     <!-- 错误提示区（保存失败、读盘失败都落在这里） -->
     <Border Grid.Row="2" IsVisible="{Binding HasError}"
-            Margin="0,0,0,8" Padding="10,6"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-            Background="{DynamicResource CkanDangerBackgroundBrush}"
-            BorderBrush="{DynamicResource CkanDangerBrush}"
-            BorderThickness="1">
+            Classes="CkanInfoBanner Danger"
+            Margin="0,0,0,8">
       <TextBlock Text="{Binding ErrorText}"
                  TextWrapping="Wrap"
-                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Classes="CkanCaption"
                  Foreground="{DynamicResource CkanDangerBrush}" />
     </Border>
 
     <!-- 工具条：搜索 + 仅看已改 + 刷新 -->
-    <Border Grid.Row="3" Padding="{DynamicResource CkanToolbarPadding}"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-            BorderBrush="{DynamicResource CkanBorderBrush}"
-            BorderThickness="1">
+    <Border Grid.Row="3" Classes="CkanToolbar">
       <WrapPanel Orientation="Horizontal">
         <TextBox Text="{Binding SearchText, Mode=TwoWay}"
+                 Classes="CkanSearchBox"
                  Width="240" Margin="0,0,8,0"
                  PlaceholderText="{Binding SearchPlaceholder}"
                  ToolTip.Tip="按键名、显示名、注释三路匹配" />
-        <Button Content="清空" Command="{Binding ClearSearchCommand}" Margin="0,0,12,0" />
+        <Button Content="清空" Command="{Binding ClearSearchCommand}" Classes="CkanGhost" Margin="0,0,12,0" />
         <CheckBox Content="仅看已改" IsChecked="{Binding OnlyModified, Mode=TwoWay}" Margin="0,0,12,0"
                   ToolTip.Tip="只显示与适配器声明默认值不同的字段" />
         <Button Content="刷新" Command="{Binding LoadCommand}"
-                IsEnabled="{Binding CanLoad}" Margin="0,0,8,0"
+                IsEnabled="{Binding CanLoad}" Classes="CkanSecondary" Margin="0,0,8,0"
                 ToolTip.Tip="重新读取当前实例的 mod 配置文件（未保存的输入会保留）" />
-        <Button Content="重新加载适配器" Command="{Binding ReloadAdaptersCommand}" Margin="0,0,12,0"
+        <Button Content="重新加载适配器" Command="{Binding ReloadAdaptersCommand}" Classes="CkanSecondary" Margin="0,0,8,0"
                 ToolTip.Tip="用户目录里新增 adapter.json 后不用重启程序" />
+        <Button Content="导入 adapter…" Command="{Binding ImportAdapterCommand}"
+                IsVisible="{Binding CanImportAdapter}" Classes="CkanPrimary" Margin="0,0,12,0"
+                ToolTip.Tip="从本地 .json 或 .zip 包安装第三方适配器（包内有 sha256 校验清单），装完自动重扫目录" />
         <TextBlock Text="{Binding VisibleCountText}" VerticalAlignment="Center" Margin="0,0,12,0"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                   Classes="CkanCaption" />
         <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"
                    MaxWidth="520" TextWrapping="Wrap"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                   Classes="CkanCaption" />
       </WrapPanel>
     </Border>
 
     <!-- 左：mod 卡片列表；右：字段行 -->
-    <Grid Grid.Row="4" ColumnDefinitions="340,*" Margin="0,10,0,0">
+    <Grid Grid.Row="4" ColumnDefinitions="340,*" Margin="0,12,0,0">
 
-      <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto">
-        <Border Grid.Row="0" Padding="8,4"
-                BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Grid.Column="0" Text="Mod（有适配器的）"
-                       FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Grid.Column="1" Text="{Binding ModCountText}"
-                       FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          </Grid>
-        </Border>
+      <Border Grid.Column="0" Classes="CkanCard" Padding="4">
+        <Grid RowDefinitions="Auto,*,Auto">
+          <Border Grid.Row="0" Padding="10,8"
+                  BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="Mod（有适配器的）"
+                         FontWeight="SemiBold"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Grid.Column="1" Text="{Binding ModCountText}"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            </Grid>
+          </Border>
 
-        <ListBox Grid.Row="1" ItemsSource="{Binding Mods}"
-                 SelectedItem="{Binding SelectedMod, Mode=TwoWay}"
-                 BorderThickness="0" Background="Transparent"
-                 IsVisible="{Binding HasMods}">
-          <ListBox.ItemsPanel>
-            <ItemsPanelTemplate>
-              <VirtualizingStackPanel />
-            </ItemsPanelTemplate>
-          </ListBox.ItemsPanel>
-          <ListBox.ItemTemplate>
-            <DataTemplate>
-              <Grid ColumnDefinitions="*,Auto" Margin="0,4">
-                <StackPanel Grid.Column="0" Spacing="2">
-                  <TextBlock Text="{Binding Name}"
-                             FontWeight="SemiBold"
-                             Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                  <TextBlock Text="{Binding VersionText}"
-                             FontSize="{DynamicResource CkanFontSizeCaption}"
-                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                  <TextBlock Text="{Binding WarningText}"
-                             IsVisible="{Binding HasWarning}"
-                             TextWrapping="Wrap"
-                             FontSize="{DynamicResource CkanFontSizeCaption}"
-                             Foreground="{DynamicResource CkanWarningBrush}" />
-                </StackPanel>
-                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                  <Border Padding="6,2"
-                          CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                          Background="{DynamicResource CkanAccentSubtleBrush}">
-                    <TextBlock Text="{Binding BadgeText}"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Foreground="{DynamicResource CkanAccentTextBrush}" />
-                  </Border>
-                  <TextBlock Text="{Binding ModifiedText}"
-                             IsVisible="{Binding HasModified}"
-                             HorizontalAlignment="Right"
-                             FontSize="{DynamicResource CkanFontSizeCaption}"
-                             Foreground="{DynamicResource CkanWarningBrush}" />
-                </StackPanel>
-              </Grid>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
-
-        <TextBlock Grid.Row="1" Text="{Binding NoSelectionHintText}"
-                   IsVisible="{Binding ShowEmptyState}"
-                   TextWrapping="Wrap" Margin="8"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-
-        <!-- 底部：无适配器的 mod 计数 + 已加载适配器清单 -->
-        <Border Grid.Row="2" Padding="8,6"
-                BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,1,0,0">
-          <StackPanel Spacing="4">
-            <TextBlock Text="{Binding AdapterlessText}"
-                       IsVisible="{Binding HasAdapterless}"
-                       TextWrapping="Wrap"
-                       FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Text="{Binding AdapterListTitle}"
-                       IsVisible="{Binding HasAdapters}"
-                       FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-            <ItemsControl ItemsSource="{Binding Adapters}" IsVisible="{Binding HasAdapters}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Grid ColumnDefinitions="*,Auto" Margin="0,1">
-                    <TextBlock Grid.Column="0" Text="{Binding Name}"
-                               TextTrimming="CharacterEllipsis"
+          <ListBox Grid.Row="1" ItemsSource="{Binding Mods}"
+                   SelectedItem="{Binding SelectedMod, Mode=TwoWay}"
+                   BorderThickness="0" Background="Transparent"
+                   IsVisible="{Binding HasMods}">
+            <ListBox.ItemsPanel>
+              <ItemsPanelTemplate>
+                <VirtualizingStackPanel />
+              </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="*,Auto" Margin="4,4">
+                  <StackPanel Grid.Column="0" Spacing="2">
+                    <TextBlock Text="{Binding Name}"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                    <TextBlock Text="{Binding VersionText}"
                                FontSize="{DynamicResource CkanFontSizeCaption}"
                                Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                    <TextBlock Grid.Column="1" Text="{Binding SourceText}"
+                    <TextBlock Text="{Binding WarningText}"
+                               IsVisible="{Binding HasWarning}"
+                               TextWrapping="Wrap"
                                FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                  </Grid>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </StackPanel>
-        </Border>
-      </Grid>
+                               Foreground="{DynamicResource CkanWarningBrush}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                    <Border Classes="CkanBadge Accent">
+                      <TextBlock Text="{Binding BadgeText}"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+                    </Border>
+                    <TextBlock Text="{Binding ModifiedText}"
+                               IsVisible="{Binding HasModified}"
+                               HorizontalAlignment="Right"
+                               FontSize="{DynamicResource CkanFontSizeCaption}"
+                               Foreground="{DynamicResource CkanWarningBrush}" />
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <TextBlock Grid.Row="1" Text="{Binding NoSelectionHintText}"
+                     IsVisible="{Binding ShowEmptyState}"
+                     TextWrapping="Wrap" Margin="12"
+                     Classes="CkanCaption" />
+
+          <!-- 底部：无适配器的 mod 计数 + 已加载适配器清单 -->
+          <Border Grid.Row="2" Padding="10,8"
+                  BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,1,0,0">
+            <StackPanel Spacing="4">
+              <TextBlock Text="{Binding AdapterlessText}"
+                         IsVisible="{Binding HasAdapterless}"
+                         TextWrapping="Wrap"
+                         Classes="CkanCaption" />
+              <TextBlock Text="{Binding AdapterListTitle}"
+                         IsVisible="{Binding HasAdapters}"
+                         FontWeight="SemiBold"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              <ItemsControl ItemsSource="{Binding Adapters}" IsVisible="{Binding HasAdapters}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                      <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                 TextTrimming="CharacterEllipsis"
+                                 Classes="CkanCaption" />
+                      <TextBlock Grid.Column="1" Text="{Binding SourceText}"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Border>
 
       <!-- 右：选中 mod 的字段 -->
-      <Grid Grid.Column="1" RowDefinitions="Auto,*" Margin="12,0,0,0">
-        <Border Grid.Row="0" Padding="0,0,0,8"
+      <Grid Grid.Column="1" RowDefinitions="Auto,*" Margin="16,0,0,0">
+        <Border Grid.Row="0" Padding="0,0,0,10"
                 BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
           <StackPanel Spacing="4">
             <TextBlock Text="{Binding HeaderTitleText}"
@@ -193,8 +177,7 @@
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
             <TextBlock Text="{Binding HeaderStateText}"
                        IsVisible="{Binding HasSelection}"
-                       FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                       Classes="CkanCaption" />
             <TextBlock Text="{Binding SelectedWarningText}"
                        IsVisible="{Binding HasSelectedWarning}"
                        TextWrapping="Wrap"
@@ -203,42 +186,38 @@
           </StackPanel>
         </Border>
 
-        <ScrollViewer Grid.Row="1" Margin="0,8,0,0">
+        <ScrollViewer Grid.Row="1" Margin="0,10,0,0">
           <StackPanel Spacing="12">
             <TextBlock Text="{Binding NoSelectionHintText}"
                        IsVisible="{Binding IsSelectionEmpty}"
                        TextWrapping="Wrap"
-                       FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                       Classes="CkanCaption" />
 
             <!-- 字段分组：标题来自 // #### 分节注释（无标题的组不画表头） -->
             <ItemsControl ItemsSource="{Binding FieldGroups}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                  <StackPanel Spacing="6" Margin="0,0,0,10">
+                  <StackPanel Spacing="6" Margin="0,0,0,12">
                     <TextBlock Text="{Binding Title}"
                                IsVisible="{Binding HasTitle}"
                                FontWeight="SemiBold"
-                               Margin="0,4,0,0"
-                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                               Classes="CkanSectionTitle"
+                               Margin="0,4,0,0" />
                     <ItemsControl ItemsSource="{Binding Rows}">
                       <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                          <Border Padding="8,6" Margin="0,2"
-                                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                                  Background="{DynamicResource CkanCardBackgroundBrush}"
-                                  BorderBrush="{DynamicResource CkanCardBorderBrush}"
-                                  BorderThickness="1">
+                          <Border Padding="10,8" Margin="0,3"
+                                  Classes="CkanCard">
                             <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
                               <StackPanel Grid.Column="0" Grid.Row="0" Spacing="2">
                                 <TextBlock Text="{Binding Label}"
                                            TextWrapping="Wrap"
+                                           FontWeight="Medium"
                                            Foreground="{DynamicResource CkanTextPrimaryBrush}" />
                                 <TextBlock Text="{Binding CommentText}"
                                            IsVisible="{Binding HasComment}"
                                            TextWrapping="Wrap"
-                                           FontSize="{DynamicResource CkanFontSizeCaption}"
-                                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                                           Classes="CkanCaption" />
                               </StackPanel>
 
                               <!-- 右上：风险/重启标记 + 编辑控件（按 EditorKind 选一个显示） -->
@@ -269,6 +248,33 @@
                                          MinWidth="200" MaxWidth="320"
                                          TextWrapping="Wrap"
                                          PlaceholderText="未设置" />
+                                <!-- 路径字段的「浏览…」：挑到目录就填进草稿，取消保留原值。 -->
+                                <Button Classes="CkanGhost CkanSmall"
+                                        Content="浏览…"
+                                        Command="{Binding BrowseCommand}"
+                                        IsVisible="{Binding CanBrowse}"
+                                        ToolTip.Tip="选择一个目录，填进这个路径字段" />
+                                <!-- 取色字段：色块预览 + 十六进制文本（写法不受限，识别不了仍按原文写入）。 -->
+                                <StackPanel Orientation="Horizontal" Spacing="6"
+                                            IsVisible="{Binding ShowColorEditor}">
+                                  <Border Width="24" Height="24"
+                                          CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                                          BorderThickness="1"
+                                          BorderBrush="{DynamicResource CkanBorderBrush}"
+                                          Background="{Binding ColorPreviewHex, Converter={StaticResource HexColorToBrush}}"
+                                          ToolTip.Tip="{Binding ColorPreviewHex}" />
+                                  <TextBox Text="{Binding EditValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                           KeyDown="OnEditorKeyDown"
+                                           MinWidth="140" MaxWidth="200"
+                                           PlaceholderText="#RRGGBB" />
+                                </StackPanel>
+                                <!-- 按键字段：可直接输入键名，也可按住 Ctrl/Alt 再按键捕获。 -->
+                                <TextBox IsVisible="{Binding ShowKeyCapture}"
+                                         Text="{Binding EditValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         KeyDown="OnKeyCaptureKeyDown"
+                                         MinWidth="160" MaxWidth="220"
+                                         PlaceholderText="Ctrl+K"
+                                         ToolTip.Tip="直接输入键名，或按住 Ctrl/Alt 再按键捕获；Esc 清空" />
                                 <TextBlock Text="{Binding ValueText}"
                                            IsVisible="{Binding ShowReadOnlyValue}"
                                            FontWeight="SemiBold"
@@ -277,7 +283,7 @@
                                            Foreground="{DynamicResource CkanTextPrimaryBrush}" />
                               </StackPanel>
 
-                              <!-- 只读原因（"本版只读：…"）：不做静默禁用 -->
+                              <!-- 说明行（只读原因 / 颜色写法 / 按键捕获提示）：三块互斥，同一时刻最多一块可见。 -->
                               <TextBlock Grid.Column="1" Grid.Row="1"
                                          Text="{Binding ReadOnlyNote}"
                                          IsVisible="{Binding HasReadOnlyNote}"
@@ -285,9 +291,23 @@
                                          MaxWidth="360" TextWrapping="Wrap"
                                          FontSize="{DynamicResource CkanFontSizeCaption}"
                                          Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                              <TextBlock Grid.Column="1" Grid.Row="1"
+                                         Text="{Binding ColorNote}"
+                                         IsVisible="{Binding HasColorNote}"
+                                         HorizontalAlignment="Right"
+                                         MaxWidth="360" TextWrapping="Wrap"
+                                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                                         Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                              <TextBlock Grid.Column="1" Grid.Row="1"
+                                         Text="{Binding KeyCaptureHint}"
+                                         IsVisible="{Binding HasKeyCaptureHint}"
+                                         HorizontalAlignment="Right"
+                                         MaxWidth="360" TextWrapping="Wrap"
+                                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                                         Foreground="{DynamicResource CkanTextTertiaryBrush}" />
 
                               <StackPanel Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2"
-                                          Orientation="Horizontal" Spacing="12" Margin="0,2,0,0">
+                                          Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
                                 <TextBlock Text="{Binding Key}"
                                            FontSize="{DynamicResource CkanFontSizeCaption}"
                                            Foreground="{DynamicResource CkanTextTertiaryBrush}" />
@@ -321,33 +341,28 @@
 
     <!-- 底部动作条：改动计数 + 保存/放弃/恢复快照 + 逐文件失败说明 -->
     <Border Grid.Row="5" IsVisible="{Binding ShowActionBar}"
-            Margin="0,10,0,0" Padding="10,8"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-            Background="{DynamicResource CkanMutedBackgroundBrush}"
-            BorderBrush="{DynamicResource CkanBorderBrush}"
-            BorderThickness="1">
-      <StackPanel Spacing="6">
+            Classes="CkanCard"
+            Margin="0,12,0,0" Padding="12,10">
+      <StackPanel Spacing="8">
         <WrapPanel Orientation="Horizontal">
           <TextBlock Text="{Binding ModifiedBarText}" FontWeight="SemiBold"
-                     VerticalAlignment="Center" Margin="0,0,12,0"
+                     VerticalAlignment="Center" Margin="0,0,16,0"
                      Foreground="{DynamicResource CkanTextPrimaryBrush}" />
           <Button Content="{Binding SaveButtonText}" Command="{Binding SaveCommand}"
-                  IsEnabled="{Binding CanSave}" Margin="0,0,8,0"
+                  IsEnabled="{Binding CanSave}" Classes="CkanPrimary" Margin="0,0,8,0"
                   ToolTip.Tip="Ctrl+S：把页面上所有待保存的改动逐文件写盘" />
           <Button Content="放弃未保存的改动" Command="{Binding DiscardPendingCommand}"
-                  IsEnabled="{Binding CanDiscardPending}" Margin="0,0,8,0" />
+                  IsEnabled="{Binding CanDiscardPending}" Classes="CkanDanger" Margin="0,0,8,0" />
           <Button Content="{Binding RestoreButtonText}" Command="{Binding RestoreBackupsCommand}"
-                  IsEnabled="{Binding CanRestoreBackups}"
+                  IsEnabled="{Binding CanRestoreBackups}" Classes="CkanSecondary"
                   ToolTip.Tip="把上一次写盘前的 .bak 快照恢复回去" />
         </WrapPanel>
         <TextBlock Text="{Binding BackupHintText}" IsVisible="{Binding HasBackups}"
                    TextWrapping="Wrap"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                   Classes="CkanCaption" />
         <TextBlock Text="{Binding WriteNoteText}"
                    VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="760"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                   Classes="CkanCaption" />
         <StackPanel IsVisible="{Binding HasSaveFailures}" Spacing="2" Margin="0,2,0,0">
           <TextBlock Text="{Binding SaveFailureTitle}"
                      FontSize="{DynamicResource CkanFontSizeCaption}"

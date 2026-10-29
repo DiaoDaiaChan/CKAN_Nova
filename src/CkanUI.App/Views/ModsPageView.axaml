@@ -33,9 +33,14 @@
                    PlaceholderText="搜索模组：名称 / @作者 / tag: / is:installed / -否定"
                    KeyDown="OnSearchKeyDown" />
 
-          <Button Content="清空" Command="{Binding ClearSearchTextCommand}"
+          <Button Command="{Binding ClearSearchTextCommand}"
                   Classes="CkanGhost" Margin="0,0,8,0"
-                  ToolTip.Tip="清空搜索（Esc）" />
+                  ToolTip.Tip="清空搜索（Esc）">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <PathIcon Width="11" Height="11" Data="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+              <TextBlock Text="清空" FontSize="{DynamicResource CkanFontSizeCaption}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
 
           <!-- 组合搜索面板开关（F-20/F-21）：逐字段填写，生成同一套搜索语法 -->
           <Button Content="{Binding SearchPanel.SummaryText}"
@@ -73,22 +78,42 @@
             <ComboBoxItem>已装状态</ComboBoxItem>
           </ComboBox>
 
-          <Button Content="↑↓" Command="{Binding ToggleSortCommand}"
+          <Button Command="{Binding ToggleSortCommand}"
                   Classes="CkanGhost" Margin="0,0,8,0"
-                  ToolTip.Tip="切换升序 / 降序" />
+                  ToolTip.Tip="切换升序 / 降序">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <PathIcon Width="12" Height="12" Data="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z" />
+              <TextBlock Text="排序" FontSize="{DynamicResource CkanFontSizeCaption}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
 
-          <Button Content="刷新仓库" Command="{Binding RefreshRepositoriesCommand}"
+          <Button Command="{Binding RefreshRepositoriesCommand}"
                   Classes="CkanSecondary" Margin="0,0,8,0"
-                  ToolTip.Tip="联网刷新仓库索引（Ctrl+R）" />
+                  ToolTip.Tip="联网刷新仓库索引（Ctrl+R）">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Width="12" Height="12" Data="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+              <TextBlock Text="刷新仓库" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
 
-          <Button Content="全量更新" Command="{Binding UpdateAllCommand}"
+          <Button Command="{Binding UpdateAllCommand}"
                   Classes="CkanSecondary" Margin="0,0,8,0"
-                  ToolTip.Tip="勾选所有可更新模组（F-32）" />
+                  ToolTip.Tip="勾选所有可更新模组（F-32）">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Width="12" Height="12" Data="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z" />
+              <TextBlock Text="全量更新" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
 
           <!-- 主操作按钮：强调色 -->
-          <Button Content="应用变更" Command="{Binding ApplyChangesCommand}"
+          <Button Command="{Binding ApplyChangesCommand}"
                   Classes="CkanPrimary" Margin="0,0,8,0"
-                  ToolTip.Tip="审查并应用当前变更集（F-32）" />
+                  ToolTip.Tip="审查并应用当前变更集（F-32）">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Width="12" Height="12" Foreground="{DynamicResource CkanAccentTextBrush}" Data="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
+              <TextBlock Text="应用变更" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
 
           <!-- 插件工具项（12 篇 F-17）：没有插件声明时整块不占位 -->
           <ItemsControl VerticalAlignment="Center" Margin="0,0,8,0"
@@ -278,16 +303,20 @@
       <Border Grid.Column="2" Classes="CkanCard">
         <DockPanel>
           <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" ItemSpacing="4" LineSpacing="4" Margin="0,0,0,6">
-            <Button Content="←"
-                    Command="{Binding GoBackSelectionCommand}"
+            <Button Command="{Binding GoBackSelectionCommand}"
                     IsEnabled="{Binding CanGoBackSelection}"
                     Classes="CkanSmall"
-                    ToolTip.Tip="上一个选中模组" />
-            <Button Content="→"
-                    Command="{Binding GoForwardSelectionCommand}"
+                    Padding="8,4"
+                    ToolTip.Tip="上一个选中模组">
+              <PathIcon Width="11" Height="11" Data="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+            </Button>
+            <Button Command="{Binding GoForwardSelectionCommand}"
                     IsEnabled="{Binding CanGoForwardSelection}"
                     Classes="CkanSmall"
-                    ToolTip.Tip="下一个选中模组" />
+                    Padding="8,4"
+                    ToolTip.Tip="下一个选中模组">
+              <PathIcon Width="11" Height="11" Data="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            </Button>
             <Button Classes="CkanChip"
                     Classes.Active="{Binding DetailIsFavourite}"
                     Content="收藏"

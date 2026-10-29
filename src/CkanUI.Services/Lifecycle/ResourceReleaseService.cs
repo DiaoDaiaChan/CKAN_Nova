@@ -202,6 +202,35 @@ public sealed class ResourceReleaseService : IResourceReleaseService
         }
     }
 
+    /// <inheritdoc />
+    public async Task<OperationResult> ReleaseCoreDataAsync(CancellationToken ct = default)
+    {
+        if (AlreadyCompleted(ResourceReleaseLayer.CoreData))
+        {
+            return OperationResult.Ok();
+        }
+
+        var report = await ExecuteLayerAsync(ResourceReleaseLayer.CoreData, ct).ConfigureAwait(false);
+        if (!report.Attempted)
+        {
+            // 取消：既不算成功也不算失败。调用方据此决定要不要进精简模式（锁可能没还回去）。
+            return OperationResult.Fail("启动前释放注册表锁被取消。", report.Detail, retryable: true);
+        }
+
+        if (!report.Succeeded)
+        {
+            Log.Warn($"启动前卸载 Core 数据失败：{report.Detail}");
+            return OperationResult.Fail("启动前释放注册表锁失败。", report.Detail, retryable: true);
+        }
+
+        lock (_gate)
+        {
+            _completed.Add(ResourceReleaseLayer.CoreData);
+        }
+
+        return OperationResult.Ok();
+    }
+
     private async Task<ResourceReleaseLayerReport> ExecuteLayerAsync(ResourceReleaseLayer layer, CancellationToken ct)
     {
         var watch = Stopwatch.StartNew();
@@ -211,7 +240,7 @@ public sealed class ResourceReleaseService : IResourceReleaseService
             {
                 ResourceReleaseLayer.View => TrimViewResources(watch),
                 ResourceReleaseLayer.Caches => TrimAppCaches(watch),
-                ResourceReleaseLayer.CoreData => await ReleaseCoreDataAsync(watch, ct).ConfigureAwait(false),
+                ResourceReleaseLayer.CoreData => await ReleaseCoreDataLayerAsync(watch, ct).ConfigureAwait(false),
                 ResourceReleaseLayer.ManagedHeap => CollectManagedHeap(watch),
                 ResourceReleaseLayer.OsMemory => TrimWorkingSet(watch),
                 _ => ResourceReleaseLayerReport.Skipped(layer, "未知层。"),
@@ -276,7 +305,7 @@ public sealed class ResourceReleaseService : IResourceReleaseService
             ResourceReleaseLayer.Caches, Attempted: true, Succeeded: failure is null, items, watch.Elapsed, failure);
     }
 
-    private async Task<ResourceReleaseLayerReport> ReleaseCoreDataAsync(Stopwatch watch, CancellationToken ct)
+    private async Task<ResourceReleaseLayerReport> ReleaseCoreDataLayerAsync(Stopwatch watch, CancellationToken ct)
     {
         var instance = _instances.Current;
         if (instance is null)

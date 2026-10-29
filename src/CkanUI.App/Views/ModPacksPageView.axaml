@@ -10,26 +10,17 @@
     <!-- 页头 -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Grid.Column="0" Spacing="4">
-        <TextBlock Text="导入导出"
-                   FontSize="{DynamicResource CkanFontSizeTitle}"
-                   FontWeight="SemiBold"
-                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+        <TextBlock Text="导入导出" Classes="CkanPageTitle" />
         <TextBlock Text="把当前实例的模组列表导出成 .ckan，或者先预览再导入别人的列表；对比只读取，不改动任何实例。"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                   TextWrapping="Wrap" />
+                   Classes="CkanCaption" TextWrapping="Wrap" />
       </StackPanel>
-      <TextBlock Grid.Column="1" Text="{Binding InstanceTitleText}"
-                 VerticalAlignment="Center"
-                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+      <Border Grid.Column="1" Classes="CkanBadge" VerticalAlignment="Center">
+        <TextBlock Text="{Binding InstanceTitleText}" />
+      </Border>
     </Grid>
 
     <!-- 导出卡片 -->
-    <Border Grid.Row="1" Padding="{DynamicResource CkanToolbarPadding}"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-            BorderBrush="{DynamicResource CkanBorderBrush}"
-            BorderThickness="1">
+    <Border Grid.Row="1" Classes="CkanCard" Padding="{DynamicResource CkanToolbarPadding}">
       <StackPanel Spacing="8">
         <TextBlock Text="导出当前实例的模组列表"
                    FontSize="{DynamicResource CkanFontSizeSubtitle}"
@@ -68,6 +59,7 @@
         </WrapPanel>
         <StackPanel Orientation="Horizontal" Spacing="8">
           <Button Content="导出" Command="{Binding ExportCommand}"
+                  Classes="CkanPrimary"
                   IsEnabled="{Binding CanExport}"
                   ToolTip.Tip="把当前实例的已安装模组导出为指定格式文件" />
           <TextBlock Text="{Binding ExportResultText}" IsVisible="{Binding HasExportResult}"
@@ -77,7 +69,8 @@
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
         </StackPanel>
         <StackPanel Spacing="4" IsVisible="{Binding HasProgress}">
-          <ProgressBar Value="{Binding ProgressPercent}" Maximum="100" Height="4" />
+          <ProgressBar Value="{Binding ProgressPercent}" Maximum="100" Height="4"
+                       CornerRadius="{DynamicResource CkanCornerRadiusPill}" />
           <TextBlock Text="{Binding ProgressText}"
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
@@ -92,10 +85,7 @@
       <TabItem Header="导入 .ckan">
         <Grid RowDefinitions="Auto,Auto,*" Margin="0,8,0,0">
 
-          <Border Grid.Row="0" Padding="12"
-                  CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-                  BorderBrush="{DynamicResource CkanBorderBrush}"
-                  BorderThickness="1">
+          <Border Grid.Row="0" Classes="CkanCard" Padding="12">
             <StackPanel Spacing="8">
               <TextBlock Text="要导入的 .ckan 文件（每行一个，也接受分号分隔）"
                          FontSize="{DynamicResource CkanFontSizeCaption}"
@@ -106,14 +96,18 @@
                        PlaceholderText="例如：D:\CKAN\我的模组列表.ckan" />
               <WrapPanel Orientation="Horizontal">
                 <Button Content="预览导入" Command="{Binding PreviewImportCommand}"
+                        Classes="CkanSecondary"
                         IsEnabled="{Binding IsIdle}" Margin="0,0,8,0"
                         ToolTip.Tip="只解析 .ckan 并算清会装 / 会升 / 会冲突 / 找不到，不安装任何东西" />
                 <Button Content="执行导入" Command="{Binding ImportCommand}"
+                        Classes="CkanPrimary"
                         IsEnabled="{Binding CanImport}" Margin="0,0,8,0"
                         ToolTip.Tip="只安装勾选的条目，走与「变更」页相同的安装流水线" />
                 <Button Content="全选" Command="{Binding SelectAllEntriesCommand}"
+                        Classes="CkanSecondary CkanSmall"
                         IsEnabled="{Binding HasPreviewRows}" Margin="0,0,4,0" />
                 <Button Content="清空勾选" Command="{Binding ClearSelectionCommand}"
+                        Classes="CkanGhost CkanSmall"
                         IsEnabled="{Binding HasPreviewRows}" Margin="0,0,16,0" />
                 <TextBlock Text="{Binding PreviewCountText}" VerticalAlignment="Center" Margin="0,0,12,0"
                            FontSize="{DynamicResource CkanFontSizeCaption}"
@@ -194,7 +188,7 @@
               </ListBox.ItemTemplate>
             </ListBox>
 
-            <Border Grid.Row="1" IsVisible="{Binding ShowPreviewEmptyState}" Padding="16">
+            <Border Grid.Row="1" IsVisible="{Binding ShowPreviewEmptyState}" Classes="CkanEmptyStateCard" Padding="16">
               <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="480">
                 <TextBlock Text="{Binding PreviewEmptyStateTitle}"
                            HorizontalAlignment="Center"
@@ -204,6 +198,7 @@
                            FontSize="{DynamicResource CkanFontSizeBody}"
                            Foreground="{DynamicResource CkanTextSecondaryBrush}" />
                 <Button Content="预览导入" Command="{Binding PreviewImportCommand}"
+                        Classes="CkanSecondary"
                         IsEnabled="{Binding IsIdle}" HorizontalAlignment="Center" />
               </StackPanel>
             </Border>
@@ -215,10 +210,7 @@
       <TabItem Header="实例对比">
         <Grid RowDefinitions="Auto,Auto,*" Margin="0,8,0,0">
 
-          <Border Grid.Row="0" Padding="12"
-                  CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-                  BorderBrush="{DynamicResource CkanBorderBrush}"
-                  BorderThickness="1">
+          <Border Grid.Row="0" Classes="CkanCard" Padding="12">
             <StackPanel Spacing="8">
               <WrapPanel Orientation="Horizontal">
                 <StackPanel Spacing="4" Margin="0,0,16,0" MinWidth="200">
@@ -237,9 +229,11 @@
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Bottom">
                   <Button Content="开始对比" Command="{Binding CompareCommand}"
+                          Classes="CkanPrimary"
                           IsEnabled="{Binding CanCompare}"
                           ToolTip.Tip="比较两个实例的已安装模组：仅左侧有 / 仅右侧有 / 版本不同" />
                   <Button Content="重新读取实例" Command="{Binding RefreshInstancesCommand}"
+                          Classes="CkanSecondary"
                           IsEnabled="{Binding IsIdle}" />
                 </StackPanel>
               </WrapPanel>
@@ -289,7 +283,7 @@
               </ListBox.ItemTemplate>
             </ListBox>
 
-            <Border Grid.Row="1" IsVisible="{Binding ShowDiffEmptyState}" Padding="16">
+            <Border Grid.Row="1" IsVisible="{Binding ShowDiffEmptyState}" Classes="CkanEmptyStateCard" Padding="16">
               <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="480">
                 <TextBlock Text="{Binding DiffEmptyStateTitle}"
                            HorizontalAlignment="Center"
@@ -310,9 +304,7 @@
 
     <!-- 错误条 + 状态栏 -->
     <StackPanel Grid.Row="3" Spacing="8" Margin="0,8,0,0">
-      <Border Padding="12,8"
-              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-              BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
+      <Border Classes="CkanInfoBanner Danger" Padding="12,8"
               IsVisible="{Binding HasError}">
         <Grid ColumnDefinitions="*,Auto">
           <StackPanel Grid.Column="0" Spacing="4">
@@ -325,8 +317,8 @@
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
           </StackPanel>
           <Button Grid.Column="1" Content="关闭" Command="{Binding ClearErrorCommand}"
-                  VerticalAlignment="Top" Margin="8,0,0,0"
-                  FontSize="{DynamicResource CkanFontSizeCaption}" />
+                  Classes="CkanGhost CkanSmall"
+                  VerticalAlignment="Top" Margin="8,0,0,0" />
         </Grid>
       </Border>
       <TextBlock Text="{Binding StatusText}"

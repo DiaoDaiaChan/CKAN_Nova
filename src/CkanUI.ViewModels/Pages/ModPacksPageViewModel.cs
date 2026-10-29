@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using System.ComponentModel;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
@@ -51,19 +52,19 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
         _importProgress = new InlineProgress<OperationProgress>(OnImportProgress);
         ExportForm = new ExportFormViewModel();
         ApplyInstances();
-        SetStatus("选择 .ckan 文件预览导入，或把当前实例的模组列表导出成 .ckan。");
+        SetStatus(Text("选择 .ckan 文件预览导入，或把当前实例的模组列表导出成 .ckan。", LocalizationKeys.ModPacksStatusReady));
     }
 
     /// <inheritdoc />
-    public override string Title => "导入导出";
+    public override string Title => Text("导入导出", LocalizationKeys.NavRailModPacks);
 
     /// <summary>导出表单。</summary>
     public ExportFormViewModel ExportForm { get; }
 
     /// <summary>当前实例的说明文案。</summary>
     public string InstanceTitleText => _modPacks.InstanceName is { Length: > 0 } name
-        ? "当前实例：" + name
-        : "当前没有选中的游戏实例，导出与导入预览都不可用。";
+        ? Text("当前实例：{0}", LocalizationKeys.ModPacksCurrentInstance, name)
+        : Text("当前没有选中的游戏实例，导出与导入预览都不可用。", LocalizationKeys.ModPacksNoInstanceHint);
 
     // ---- 导出 --------------------------------------------------------------
 
@@ -115,10 +116,10 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
     public int SelectedCount => PreviewRows.Count(row => row.CanSelect && row.IsSelected);
 
     /// <summary>预览条数与可导入条数。</summary>
-    public string PreviewCountText => "共 " + PreviewRows.Count + " 条，可导入 " + SelectableCount + " 条";
+    public string PreviewCountText => Text("共 {0} 条，可导入 {1} 条", LocalizationKeys.ModPacksPreviewCount, PreviewRows.Count, SelectableCount);
 
     /// <summary>勾选情况文案。</summary>
-    public string SelectionText => "已勾选 " + SelectedCount + " 条";
+    public string SelectionText => Text("已勾选 {0} 条", LocalizationKeys.ModPacksSelectionCount, SelectedCount);
 
     /// <summary>是否有选中的预览行。</summary>
     public bool HasSelection => SelectedPreviewRow is not null;
@@ -130,10 +131,10 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
     public bool HasImportResult => ImportResultText.Length > 0;
 
     /// <summary>预览空状态标题。</summary>
-    public string PreviewEmptyStateTitle => "还没有导入预览";
+    public string PreviewEmptyStateTitle => Text("还没有导入预览", LocalizationKeys.ModPacksPreviewEmptyTitle);
 
     /// <summary>预览空状态提示。</summary>
-    public string PreviewEmptyStateHint => "在上面的路径框里每行填一个 .ckan 文件路径，然后点「预览导入」。预览只读取，不会安装任何东西。";
+    public string PreviewEmptyStateHint => Text("在上面的路径框里每行填一个 .ckan 文件路径，然后点「预览导入」。预览只读取，不会安装任何东西。", LocalizationKeys.ModPacksPreviewEmptyHint);
 
     // ---- 比对 --------------------------------------------------------------
 
@@ -162,7 +163,7 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
     public bool HasDiffSummary => DiffSummaryText.Length > 0;
 
     /// <summary>差异条数文案。</summary>
-    public string DiffCountText => DiffRows.Count == 0 ? "两个实例的模组列表一致。" : "共 " + DiffRows.Count + " 处差异";
+    public string DiffCountText => DiffRows.Count == 0 ? Text("两个实例的模组列表一致。", LocalizationKeys.ModPacksDiffIdentical) : Text("共 {0} 处差异", LocalizationKeys.ModPacksDiffCount, DiffRows.Count);
 
     /// <summary>是否可以开始对比（两个不同实例且不忙）。</summary>
     public bool CanCompare => !IsBusy
@@ -172,10 +173,10 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
         && !string.Equals(LeftInstance, RightInstance, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>对比空状态标题。</summary>
-    public string DiffEmptyStateTitle => "还没有对比结果";
+    public string DiffEmptyStateTitle => Text("还没有对比结果", LocalizationKeys.ModPacksDiffEmptyTitle);
 
     /// <summary>对比空状态提示。</summary>
-    public string DiffEmptyStateHint => "选择左右两个实例后点「开始对比」，只会读取两个实例的已装列表，不会改动任何文件。";
+    public string DiffEmptyStateHint => Text("选择左右两个实例后点「开始对比」，只会读取两个实例的已装列表，不会改动任何文件。", LocalizationKeys.ModPacksDiffEmptyHint);
 
     // ---- 公共状态 ----------------------------------------------------------
 
@@ -250,35 +251,35 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
         {
             if (!_modPacks.HasActiveInstance)
             {
-                SetError("当前没有选中的游戏实例，请先选择一个实例。", null);
+                SetError(Text("当前没有选中的游戏实例，请先选择一个实例。", LocalizationKeys.ModPacksErrorNoInstance), null);
                 return;
             }
 
             if (ExportForm.IsEmpty)
             {
-                ExportForm.ValidationText = "请填写导出文件的目标路径。";
-                SetError("请填写导出文件的目标路径。", null);
+                ExportForm.ValidationText = Text("请填写导出文件的目标路径。", LocalizationKeys.ModPacksErrorExportPathRequired);
+                SetError(Text("请填写导出文件的目标路径。", LocalizationKeys.ModPacksErrorExportPathRequired), null);
                 return;
             }
 
             ExportResultText = string.Empty;
             ProgressPercent = 0;
-            ProgressText = "正在导出模组列表…";
+            ProgressText = Text("正在导出模组列表…", LocalizationKeys.ModPacksBusyExporting);
             var result = await _modPacks.ExportAsync(ExportForm.ToRequest(), _exportProgress);
             if (result.IsSuccess && result.Value is { } exported)
             {
                 ProgressPercent = 100;
-                ProgressText = "导出完成。";
+                ProgressText = Text("导出完成。", LocalizationKeys.ModPacksStatusExportDone);
                 ExportResultText = DescribeExport(exported);
-                SetStatus("已导出 " + exported.ModuleCount + " 个模组。");
+                SetStatus(Text("已导出 {0} 个模组。", LocalizationKeys.ModPacksStatusExported, exported.ModuleCount));
                 return;
             }
 
             ProgressText = string.Empty;
-            SetError(ModPacksErrorText.Compose(result.Message, "导出模组列表失败。", result.Retryable), result.Detail);
+            SetError(ModPacksErrorText.Compose(result.Message, Text("导出模组列表失败。", LocalizationKeys.ModPacksErrorExportFailed), result.Retryable), result.Detail);
         },
         ExportContext,
-        "正在导出模组列表…");
+        Text("正在导出模组列表…", LocalizationKeys.ModPacksBusyExporting));
 
     /// <summary>预览要导入的 .ckan 文件（只读取，不安装）。</summary>
     [RelayCommand]
@@ -288,7 +289,7 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
             var paths = ParsePaths(ImportPathText);
             if (paths.Count == 0)
             {
-                SetError("请填写至少一个 .ckan 文件路径（每行一个）。", null);
+                SetError(Text("请填写至少一个 .ckan 文件路径（每行一个）。", LocalizationKeys.ModPacksErrorNoPaths), null);
                 return;
             }
 
@@ -300,15 +301,15 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
             var result = await _modPacks.PreviewImportAsync(paths);
             if (!result.IsSuccess || result.Value is not { } preview)
             {
-                SetError(ModPacksErrorText.Compose(result.Message, "导入预览失败。", result.Retryable), result.Detail);
+                SetError(ModPacksErrorText.Compose(result.Message, Text("导入预览失败。", LocalizationKeys.ModPacksErrorPreviewFailed), result.Retryable), result.Detail);
                 return;
             }
 
             ApplyPreview(preview);
-            SetStatus(preview.Entries.Count == 0 ? "预览完成：没有可导入的条目。" : "预览完成：共 " + preview.Entries.Count + " 条。");
+            SetStatus(preview.Entries.Count == 0 ? Text("预览完成：没有可导入的条目。", LocalizationKeys.ModPacksStatusPreviewEmpty) : Text("预览完成：共 {0} 条。", LocalizationKeys.ModPacksStatusPreviewCount, preview.Entries.Count));
         },
         PreviewContext,
-        "正在解析 .ckan 文件…");
+        Text("正在解析 .ckan 文件…", LocalizationKeys.ModPacksBusyParsing));
 
     /// <summary>按勾选执行导入（复用安装流水线）。</summary>
     [RelayCommand]
@@ -317,7 +318,7 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
         {
             if (_preview is not { } preview)
             {
-                SetError("请先预览要导入的 .ckan 文件。", null);
+                SetError(Text("请先预览要导入的 .ckan 文件。", LocalizationKeys.ModPacksErrorPreviewRequired), null);
                 return;
             }
 
@@ -327,30 +328,30 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
                 .ToArray();
             if (selected.Length == 0)
             {
-                SetError("请至少勾选一条可导入的条目。", null);
+                SetError(Text("请至少勾选一条可导入的条目。", LocalizationKeys.ModPacksErrorNoSelection), null);
                 return;
             }
 
             ImportResultText = string.Empty;
             ProgressPercent = 0;
-            ProgressText = "正在导入模组…";
+            ProgressText = Text("正在导入模组…", LocalizationKeys.ModPacksBusyImporting);
             var result = await _modPacks.ImportAsync(preview, selected, _importProgress);
             if (!result.IsSuccess || result.Value is not { } report)
             {
                 ProgressText = string.Empty;
-                SetError(ModPacksErrorText.Compose(result.Message, "导入失败。", result.Retryable), result.Detail);
+                SetError(ModPacksErrorText.Compose(result.Message, Text("导入失败。", LocalizationKeys.ModPacksErrorImportFailed), result.Retryable), result.Detail);
                 return;
             }
 
             ProgressPercent = 100;
-            ProgressText = "导入结束。";
+            ProgressText = Text("导入结束。", LocalizationKeys.ModPacksStatusImportDone);
             ImportResultText = DescribeImport(report);
             SetStatus(report.IsFullSuccess
-                ? "导入完成：" + report.Installed.Count + " 个模组已安装。"
-                : "导入结束：成功 " + report.Installed.Count + " 个，失败 " + report.Failed.Count + " 个。");
+                ? Text("导入完成：{0} 个模组已安装。", LocalizationKeys.ModPacksStatusImported, report.Installed.Count)
+                : Text("导入结束：成功 {0} 个，失败 {1} 个。", LocalizationKeys.ModPacksStatusImportedPartial, report.Installed.Count, report.Failed.Count));
         },
         ImportContext,
-        "正在导入模组…");
+        Text("正在导入模组…", LocalizationKeys.ModPacksBusyImporting));
 
     /// <summary>全选可导入的条目。</summary>
     [RelayCommand]
@@ -386,13 +387,13 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
         {
             if (string.IsNullOrWhiteSpace(LeftInstance) || string.IsNullOrWhiteSpace(RightInstance))
             {
-                SetError("请选择要对比的两个实例。", null);
+                SetError(Text("请选择要对比的两个实例。", LocalizationKeys.ModPacksErrorCompareNeedTwo), null);
                 return;
             }
 
             if (string.Equals(LeftInstance, RightInstance, StringComparison.OrdinalIgnoreCase))
             {
-                SetError("请选择两个不同的实例进行对比。", null);
+                SetError(Text("请选择两个不同的实例进行对比。", LocalizationKeys.ModPacksErrorCompareSame), null);
                 return;
             }
 
@@ -401,17 +402,17 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
             var result = await _modPacks.CompareAsync(LeftInstance!, RightInstance!);
             if (!result.IsSuccess || result.Value is not { } comparison)
             {
-                SetError(ModPacksErrorText.Compose(result.Message, "实例对比失败。", result.Retryable), result.Detail);
+                SetError(ModPacksErrorText.Compose(result.Message, Text("实例对比失败。", LocalizationKeys.ModPacksErrorCompareFailed), result.Retryable), result.Detail);
                 return;
             }
 
             ApplyComparison(comparison);
             SetStatus(comparison.IsIdentical
-                ? "对比完成：两个实例的模组列表一致。"
-                : "对比完成：共 " + comparison.Items.Count + " 处差异。");
+                ? Text("对比完成：两个实例的模组列表一致。", LocalizationKeys.ModPacksStatusCompareIdentical)
+                : Text("对比完成：共 {0} 处差异。", LocalizationKeys.ModPacksStatusCompareDiff, comparison.Items.Count));
         },
         CompareContext,
-        "正在对比两个实例…");
+        Text("正在对比两个实例…", LocalizationKeys.ModPacksBusyComparing));
 
     /// <summary>重新读取实例列表（切实例后刷新左右候选）。</summary>
     [RelayCommand]
@@ -422,14 +423,14 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
             ApplyInstances();
             if (!result.IsSuccess)
             {
-                SetError(ModPacksErrorText.Compose(result.Message, "读取实例列表失败。", result.Retryable), result.Detail);
+                SetError(ModPacksErrorText.Compose(result.Message, Text("读取实例列表失败。", LocalizationKeys.ModPacksErrorInstancesFailed), result.Retryable), result.Detail);
                 return;
             }
 
-            SetStatus("已读取 " + InstanceNames.Count + " 个实例。");
+            SetStatus(Text("已读取 {0} 个实例。", LocalizationKeys.ModPacksStatusInstances, InstanceNames.Count));
         },
         InstancesContext,
-        "正在读取实例列表…");
+        Text("正在读取实例列表…", LocalizationKeys.ModPacksBusyInstances));
 
     /// <summary>关闭页面级错误条。</summary>
     [RelayCommand]

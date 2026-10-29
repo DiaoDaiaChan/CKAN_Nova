@@ -9,48 +9,50 @@
 
     <!-- 页头 -->
     <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
-      <TextBlock Text="未管理文件"
-                 FontSize="{DynamicResource CkanFontSizeTitle}"
-                 FontWeight="SemiBold"
-                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+      <TextBlock Text="未管理文件" Classes="CkanPageTitle" />
       <TextBlock Text="GameData 里没有被注册表登记为受管的目录与文件；删除前请确认它们确实可以丢弃。"
-                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                 TextWrapping="Wrap" />
+                 Classes="CkanCaption" TextWrapping="Wrap" />
     </StackPanel>
 
     <!-- 工具条（03 篇 §2 V-07：刷新 / 全展开 / 全折叠 / 重置 / 在文件夹中显示 / 删除 / 接管为受管） -->
-    <Border Grid.Row="1" Padding="{DynamicResource CkanToolbarPadding}"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-            BorderBrush="{DynamicResource CkanBorderBrush}"
-            BorderThickness="1">
+    <Border Grid.Row="1" Classes="CkanToolbar">
       <WrapPanel Orientation="Horizontal">
         <TextBox Text="{Binding FilterText, Mode=TwoWay}"
+                 Classes="CkanSearchBox"
                  MinWidth="200" Margin="0,0,8,0"
                  PlaceholderText="筛选路径…"
                  ToolTip.Tip="按相对路径筛选（不区分大小写）" />
         <Button Content="刷新" Command="{Binding RefreshCommand}"
+                Classes="CkanPrimary"
                 IsEnabled="{Binding CanRefresh}" Margin="0,0,8,0"
                 ToolTip.Tip="重新扫描 GameData" />
-        <Button Content="全展开" Command="{Binding ExpandAllCommand}" Margin="0,0,8,0"
+        <Button Content="全展开" Command="{Binding ExpandAllCommand}"
+                Classes="CkanSecondary" Margin="0,0,8,0"
                 ToolTip.Tip="展开所有目录" />
-        <Button Content="全折叠" Command="{Binding CollapseAllCommand}" Margin="0,0,8,0"
+        <Button Content="全折叠" Command="{Binding CollapseAllCommand}"
+                Classes="CkanSecondary" Margin="0,0,8,0"
                 ToolTip.Tip="折叠所有目录" />
-        <Button Content="重置筛选" Command="{Binding ResetFilterCommand}" Margin="0,0,8,0"
+        <Button Content="重置筛选" Command="{Binding ResetFilterCommand}"
+                Classes="CkanGhost" Margin="0,0,8,0"
                 ToolTip.Tip="清空筛选关键字并显示全部内容" />
         <Button Content="全选/取消" Command="{Binding ToggleSelectAllCommand}"
+                Classes="CkanSecondary"
                 IsEnabled="{Binding HasNodes}" Margin="0,0,8,0"
                 ToolTip.Tip="选中或取消选中所有可见项" />
         <Button Content="预演删除" Command="{Binding PreviewDeleteCommand}"
+                Classes="CkanSecondary"
                 IsEnabled="{Binding CanPreviewDelete}" Margin="0,0,8,0"
                 ToolTip.Tip="只校验会被删除哪些内容，不落盘" />
         <Button Content="删除" Command="{Binding DeleteSelectedCommand}"
+                Classes="CkanDanger"
                 IsEnabled="{Binding CanDeleteSelected}" Margin="0,0,8,0"
                 ToolTip.Tip="删除选中项（需要两次确认，无法撤销）" />
         <Button Content="接管为受管" Command="{Binding AdoptSelectedCommand}"
+                Classes="CkanSecondary"
                 IsEnabled="{Binding CanAdoptSelected}" Margin="0,0,8,0"
                 ToolTip.Tip="把选中的 .dll 登记进注册表 installed_dlls（写前自动生成 registry.json 快照）" />
         <Button Content="在文件夹中显示" Command="{Binding ShowInFolderCommand}"
+                Classes="CkanGhost"
                 IsEnabled="{Binding CanShowInFolder}"
                 ToolTip.Tip="在系统文件管理器中定位选中项" />
       </WrapPanel>
@@ -58,8 +60,7 @@
 
     <!-- 页面级错误条（03 篇 §8 D-03 / §10） -->
     <Border Grid.Row="2" Margin="0,8,0,0" Padding="12,8"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-            BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
+            Classes="CkanInfoBanner Danger"
             IsVisible="{Binding HasError}">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Grid.Column="0" Spacing="4">
@@ -72,15 +73,14 @@
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
         </StackPanel>
         <Button Grid.Column="1" Content="关闭" Command="{Binding ClearErrorCommand}"
-                VerticalAlignment="Top" Margin="8,0,0,0"
-                FontSize="{DynamicResource CkanFontSizeCaption}" />
+                Classes="CkanGhost CkanSmall"
+                VerticalAlignment="Top" Margin="8,0,0,0" />
       </Grid>
     </Border>
 
     <!-- 统计条（03 篇 §2 V-07：总览 + 选中合计） -->
     <Border Grid.Row="3" Margin="0,8,0,0" Padding="12,4"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-            BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1"
+            Classes="CkanCard"
             IsVisible="{Binding HasInstance}">
       <Grid ColumnDefinitions="*,Auto">
         <TextBlock Grid.Column="0" Text="{Binding StatsText}"

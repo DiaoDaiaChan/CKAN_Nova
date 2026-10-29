@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows.Input;
+using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.ModConfig;
 using CkanUI.ViewModels.Pages.ModConfig;
@@ -17,7 +18,7 @@ namespace CkanUI.ViewModels.Pages;
 /// 页面只负责把草稿收集成 <see cref="ModConfigFieldChange"/> 并按文件投递，这样"写坏配置"的风险被限制在
 /// 服务层的校验/快照/自校验里（工程约定 §7）。.bak 回滚另走 <see cref="IModConfigBackupRestorer"/>。
 /// 两个确认位（游戏运行中、高风险字段）都用注入的 <see cref="IDialogService"/>，页面 VM 自己 new 对话框。
-/// 译文走构造注入的委托，本层不引用本地化实现（铁律 3）。
+/// 译文统一走 Text(fallback, key) 文案层；构造注入的翻译委托作为「外部译文优先」的兼容入口保留，本层不引用本地化实现（铁律 3）。
 /// </remarks>
 public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChangesAware
 {
@@ -36,6 +37,12 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     private IReadOnlyList<string> _backups = [];
 
     private ModConfigInstanceModel? _model;
+
+    /// <summary>adapter 导入端口（ADP-04，可空：宿主没注册就没有导入入口）。</summary>
+    private IAdapterInstaller? _adapterInstaller;
+
+    /// <summary>adapter 包选择器（可空：视图没接选择器就不显示导入按钮）。</summary>
+    private Func<Task<string?>>? _adapterPicker;
 
     /// <summary>无参构造：供设计时预览与视图定位器反射使用（依赖是空实现）。</summary>
     public ModConfigPageViewModel()
@@ -67,11 +74,11 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         _writer = writer;
         _dialogs = dialogs;
         _restorer = restorer ?? new ModConfigBackupRestorer();
-        StatusText = T("选择左侧的 mod 查看可配置项；没有适配器的 mod 只提供原始只读视图。");
+        StatusText = T("选择左侧的 mod 查看可配置项；没有适配器的 mod 只提供原始只读视图。", LocalizationKeys.ModConfigStatusHint);
     }
 
     /// <inheritdoc />
-    public override string Title => T("Mod 配置");
+    public override string Title => T("Mod 配置", LocalizationKeys.ModConfigPageTitle);
 
     // ---- 状态 --------------------------------------------------------------
 
@@ -149,7 +156,9 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     public bool HasError => !string.IsNullOrEmpty(ErrorText);
 
     /// <summary>卡片数量文案。</summary>
-    public string ModCountText => Mods.Count == 0 ? "暂无已适配的 mod" : "共 " + Mods.Count + " 个已适配 mod";
+    public string ModCountText => Mods.Count == 0 ?
+            T("暂无已适配的 mod", LocalizationKeys.ModConfigModCountEmpty)
+            : T("共 {0} 个已适配 mod", LocalizationKeys.ModConfigModCount, Mods.Count);
 
     /// <summary>无适配器提示（底部"⊘ N 个 mod 无适配器"）。</summary>
     public string AdapterlessText => _model is { AdapterlessModCount: > 0 } model
@@ -161,14 +170,14 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
 
     /// <summary>KSP 运行中的顶部警示文案。</summary>
     public string GameRunningWarningText => IsGameRunning
-        ? T("KSP 正在运行：写入配置需要重启 KSP 才生效，写盘前会再确认一次。")
+        ? T("KSP 正在运行：写入配置需要重启 KSP 才生效，写盘前会再确认一次。", LocalizationKeys.ModConfigKspRunningHint)
         : string.Empty;
 
     /// <summary>是否显示运行中警示。</summary>
     public bool ShowGameRunningWarning => IsGameRunning;
 
     /// <summary>右侧标题："KSP Community Fixes v1.31.0"。</summary>
-    public string HeaderTitleText => SelectedMod is { } card ? card.HeaderText : T("未选择 mod");
+    public string HeaderTitleText => SelectedMod is { } card ? card.HeaderText : T("未选择 mod", LocalizationKeys.ModConfigNoModSelected);
 
     /// <summary>右侧副标题（状态 + 支持区间）。</summary>
     public string HeaderStateText => SelectedMod is { } card
@@ -176,7 +185,8 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         : string.Empty;
 
     /// <summary>搜索框占位文案（含字段总数）。</summary>
-    public string SearchPlaceholder => "搜索 " + FieldTotal + " 项…";
+    public string SearchPlaceholder =>
+        T("搜索 {0} 项…", LocalizationKeys.ModConfigSearchPlaceholder, FieldTotal);
 
     /// <summary>选中 mod 的字段总数。</summary>
     public int FieldTotal => SelectedMod?.Snapshot.FieldCount ?? 0;
@@ -187,7 +197,8 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     /// <summary>筛选后条数文案。</summary>
     public string VisibleCountText => SelectedMod is null
         ? string.Empty
-        : "显示 " + VisibleFieldCount + " / " + FieldTotal + " 项";
+        :
+          T("显示 {0} / {1} 项", LocalizationKeys.ModConfigVisibleCount, VisibleFieldCount, FieldTotal);
 
     /// <summary>待保存的草稿条数（跨 mod 累计）。</summary>
     public int PendingChangeCount => _pending.Count;
@@ -210,9 +221,11 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         get
         {
             var modified = SelectedMod is { HasModified: true } card
-                ? "改动 " + card.Snapshot.ModifiedCount + " 项"
+                ? T("改动 {0} 项", LocalizationKeys.ModConfigModifiedCount, card.Snapshot.ModifiedCount)
                 : string.Empty;
-            var pending = HasPendingChanges ? "待保存 " + PendingChangeCount + " 项" : string.Empty;
+            var pending = HasPendingChanges
+                ? T("待保存 {0} 项", LocalizationKeys.ModConfigPendingCount, PendingChangeCount)
+                : string.Empty;
             if (modified.Length == 0)
             {
                 return pending;
@@ -226,10 +239,10 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     public bool HasChanges => HasPendingChanges || SelectedMod is { HasModified: true };
 
     /// <summary>保存按钮文案（"保存 N 项改动"）。</summary>
-    public string SaveButtonText => PendingChangeCount == 0 ? T("保存改动") : "保存 " + PendingChangeCount + " 项改动";
+    public string SaveButtonText => PendingChangeCount == 0 ? T("保存改动", LocalizationKeys.ModConfigSaveButton) : T("保存 {0} 项改动", LocalizationKeys.ModConfigSaveButtonPending, PendingChangeCount);
 
     /// <summary>底部写盘说明（写前快照 + 写后自校验 + 部分失败不丢输入）。</summary>
-    public string WriteNoteText => T("保存时逐文件写盘：写前快照、写后重新解析自校验；某个文件失败时只报它，其余改动与输入都保留。");
+    public string WriteNoteText => T("保存时逐文件写盘：写前快照、写后重新解析自校验；某个文件失败时只报它，其余改动与输入都保留。", LocalizationKeys.ModConfigWriteNote);
 
     /// <summary>是否显示底部动作条（有改动、有快照或上次保存失败时都要显示）。</summary>
     public bool ShowActionBar => HasChanges || HasBackups || HasSaveFailures;
@@ -239,19 +252,20 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
 
     /// <summary>回滚按钮文案（"恢复上次快照（N 个文件）"）。</summary>
     public string RestoreButtonText => HasBackups
-        ? "恢复上次快照（" + _backups.Count + " 个文件）"
-        : T("恢复上次快照");
+        ? T("恢复上次快照（{0} 个文件）", LocalizationKeys.ModConfigRestoreButtonWithCount, _backups.Count)
+        : T("恢复上次快照", LocalizationKeys.ModConfigRestoreLastSnapshot);
 
     /// <summary>快照说明（没有快照时为空串）。</summary>
     public string BackupHintText => HasBackups
-        ? "上一次写盘前的快照：" + string.Join("、", _backups.Select(Path.GetFileName))
+        ? T("上一次写盘前的快照：{0}", LocalizationKeys.ModConfigBackupHint,
+              string.Join("、", _backups.Select(Path.GetFileName)))
         : string.Empty;
 
     /// <summary>是否有保存/回滚的逐文件失败说明。</summary>
     public bool HasSaveFailures => SaveFailures.Count > 0;
 
     /// <summary>失败列表标题。</summary>
-    public string SaveFailureTitle => T("以下文件没有写成，改动已保留在页面上：");
+    public string SaveFailureTitle => T("以下文件没有写成，改动已保留在页面上：", LocalizationKeys.ModConfigSaveFailureTitle);
 
     /// <summary>选中卡片最需要提示的一条告警。</summary>
     public string SelectedWarningText => SelectedMod?.WarningText ?? string.Empty;
@@ -260,13 +274,14 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     public bool HasSelectedWarning => SelectedWarningText.Length > 0;
 
     /// <summary>未选中时的提示文案。</summary>
-    public string NoSelectionHintText => T("左侧选择一个 mod 查看它的可配置项。");
+    public string NoSelectionHintText => T("左侧选择一个 mod 查看它的可配置项。", LocalizationKeys.ModConfigNoSelectionHint);
 
     /// <summary>是否有适配器清单。</summary>
     public bool HasAdapters => Adapters.Count > 0;
 
     /// <summary>适配器清单标题。</summary>
-    public string AdapterListTitle => "已加载 " + Adapters.Count + " 个适配器";
+    public string AdapterListTitle =>
+        T("已加载 {0} 个适配器", LocalizationKeys.ModConfigAdapterListTitle, Adapters.Count);
 
     /// <summary>是否可用筛选（有选中 mod 才需要）。</summary>
     public bool CanFilter => HasSelection;
@@ -283,7 +298,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         }
 
         IsBusy = true;
-        BusyText = T("正在读取 mod 配置文件…");
+        BusyText = T("正在读取 mod 配置文件…", LocalizationKeys.ModConfigBusyLoading);
         ErrorText = null;
         try
         {
@@ -292,7 +307,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
             if (!result.IsSuccess || result.Value is not { } model)
             {
                 ApplyModelCore(null, null);
-                SetError(result.Message ?? T("读取 mod 配置失败。"), result.Detail);
+                SetError(result.Message ?? T("读取 mod 配置失败。", LocalizationKeys.ModConfigErrorLoad), result.Detail);
                 return;
             }
 
@@ -302,7 +317,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         {
             ApplyModelCore(null, null);
             // 页面是最后一道防线：服务层约定返回 OperationResult，这里兜住意外异常，别让异常穿到 UI 线程外。
-            SetError(T("读取 mod 配置失败：") + ex.Message, ex.GetType().Name);
+            SetError(T("读取 mod 配置失败：{0}", LocalizationKeys.ModConfigErrorLoadDetail, ex.Message), ex.GetType().Name);
         }
         finally
         {
@@ -331,7 +346,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     {
         if (row is null || !row.HasPendingChange)
         {
-            SetStatus(T("这一行没有需要保存的改动。"));
+            SetStatus(T("这一行没有需要保存的改动。", LocalizationKeys.ModConfigStatusRowNoChanges));
             return;
         }
 
@@ -351,7 +366,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         _pending.Clear();
         SetSaveFailures([]);
         NotifyEditState();
-        SetStatus("已放弃 " + count + " 项未保存的改动。");
+        SetStatus(T("已放弃 {0} 项未保存的改动。", LocalizationKeys.ModConfigStatusDiscarded, count));
     }
 
     /// <summary>是否有可放弃的草稿。</summary>
@@ -363,16 +378,17 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     {
         if (!HasBackups)
         {
-            SetStatus(T("没有可恢复的快照：只有保存过一次之后才有 .bak 快照。"));
+            SetStatus(T("没有可恢复的快照：只有保存过一次之后才有 .bak 快照。", LocalizationKeys.ModConfigStatusNoSnapshot));
             return;
         }
 
         if (!await ConfirmAsync(
-                T("恢复上次快照"),
-                "将把 " + _backups.Count + " 个配置文件回滚到上一次写盘前的 .bak 快照，页面上还没保存的输入会被丢弃。继续吗？")
+                T("恢复上次快照", LocalizationKeys.ModConfigRestoreLastSnapshot),
+                T("将把 {0} 个配置文件回滚到上一次写盘前的 .bak 快照，页面上还没保存的输入会被丢弃。继续吗？",
+                    LocalizationKeys.ModConfigRestoreConfirmBody, _backups.Count))
             .ConfigureAwait(true))
         {
-            SetStatus(T("已取消恢复快照。"));
+            SetStatus(T("已取消恢复快照。", LocalizationKeys.ModConfigStatusRestoreCancelled));
             return;
         }
 
@@ -382,7 +398,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
             var result = await _restorer.RestoreAsync(_backups).ConfigureAwait(true);
             if (!result.IsSuccess || result.Value is not { } value)
             {
-                SetError(result.Message ?? T("恢复快照失败。"), result.Detail);
+                SetError(result.Message ?? T("恢复快照失败。", LocalizationKeys.ModConfigErrorRestore), result.Detail);
                 return;
             }
 
@@ -392,16 +408,20 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
             await RefreshModelAsync().ConfigureAwait(true);
             if (value.Failures.Count > 0)
             {
-                SetError("已恢复 " + value.RestoredPaths.Count + " 个文件，但还有 " + value.Failures.Count + " 个没有恢复。", null);
+                SetError(
+                    T("已恢复 {0} 个文件，但还有 {1} 个没有恢复。", LocalizationKeys.ModConfigErrorRestorePartial,
+                        value.RestoredPaths.Count, value.Failures.Count),
+                    null);
             }
             else
             {
-                SetStatus("已恢复 " + value.RestoredPaths.Count + " 个文件到上一次写盘前的快照。");
+                SetStatus(T("已恢复 {0} 个文件到上一次写盘前的快照。", LocalizationKeys.ModConfigStatusRestored,
+                value.RestoredPaths.Count));
             }
         }
         catch (Exception ex)
         {
-            SetError(T("恢复快照失败：") + ex.Message, ex.GetType().Name);
+            SetError(T("恢复快照失败：{0}", LocalizationKeys.ModConfigErrorRestoreDetail, ex.Message), ex.GetType().Name);
         }
         finally
         {
@@ -419,8 +439,70 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         _catalog?.Reload();
         LoadAdapters();
         SetStatus(_catalog is null
-            ? T("没有配置适配器目录，适配器清单为空。")
-            : "已重新加载 " + Adapters.Count + " 个适配器。");
+            ? T("没有配置适配器目录，适配器清单为空。", LocalizationKeys.ModConfigEmptyNoAdapterDir)
+            : T("已重新加载 {0} 个适配器。", LocalizationKeys.ModConfigStatusAdaptersReloaded, Adapters.Count));
+    }
+
+    /// <summary>
+    /// 导入一个 adapter 包（本地 .json / .zip）：安装器做校验 + 原子替换 + 写 installed.json 清单，
+    /// 成功后热重扫适配器目录并刷新页面（新 adapter 立刻可用，不用重启）。
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanImportAdapter))]
+    private async Task ImportAdapterAsync()
+    {
+        if (_adapterInstaller is not { } installer || _adapterPicker is not { } picker || IsBusy)
+        {
+            return;
+        }
+
+        string? picked;
+        try
+        {
+            picked = await picker().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            SetError(T("选择 adapter 包时出错：{0}", LocalizationKeys.ModConfigErrorPickAdapter, ex.Message), null);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(picked))
+        {
+            return;
+        }
+
+        IsBusy = true;
+        BusyText = T("正在导入 adapter…", LocalizationKeys.ModConfigBusyImporting);
+        ErrorText = null;
+        try
+        {
+            var result = await installer.InstallAsync(AdapterPackageSource.FromFile(picked)).ConfigureAwait(true);
+            if (!result.IsSuccess || result.Value is not { } installed)
+            {
+                SetError(result.Message ?? T("导入 adapter 失败。", LocalizationKeys.ModConfigErrorImport), result.Detail);
+                return;
+            }
+
+            _catalog?.Reload();
+            LoadAdapters();
+            SetStatus(installed.ReplacedExisting
+                ? T("已更新 adapter「{0}」（sha256 {1}）。", LocalizationKeys.ModConfigStatusAdapterReplaced,
+                    installed.Manifest.Name, installed.Hash.ShortSha256)
+                : T("已导入 adapter「{0}」（sha256 {1}）。", LocalizationKeys.ModConfigStatusAdapterImported,
+                    installed.Manifest.Name, installed.Hash.ShortSha256));
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus(T("已取消导入。", LocalizationKeys.ModConfigStatusImportCancelled));
+        }
+        catch (Exception ex)
+        {
+            SetError(T("导入 adapter 失败：{0}", LocalizationKeys.ModConfigErrorImportDetail, ex.Message), null);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     /// <summary>清空搜索。</summary>
@@ -437,6 +519,58 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     public void SelectMod(ModConfigModCardViewModel? card) => SelectedMod = card;
 
     // ---- 数据装配 ----------------------------------------------------------
+
+    /// <summary>路径字段的「浏览…」通道（视图层接到系统的目录选择器；为空时按钮不出现）。</summary>
+    /// <remarks>
+    /// 用委托而不是接口，是为了让 ViewModels 层不依赖任何平台类型（Avalonia 的 StorageProvider 在 App 层）。
+    /// 注入时机早于首次 Load，所以行对象构造时就能拿到；运行期换实现只需重建分组（RebuildGroups）。
+    /// </remarks>
+    public Func<ModConfigFieldRowViewModel, Task<string?>>? PathPicker { get; set; }
+
+    /// <summary>
+    /// adapter 导入端口（ADP-04）；为 null 时页面不提供「导入 adapter…」入口。
+    /// </summary>
+    /// <remarks>
+    /// 只依赖 Abstractions 里的 <see cref="IAdapterInstaller"/>，不碰 Services 实现，所以本层仍可单测；
+    /// 装完必须 <see cref="IAdapterCatalog.Reload"/>，否则新 adapter 要等下次启动才认。
+    /// </remarks>
+    public IAdapterInstaller? AdapterInstaller
+    {
+        get => _adapterInstaller;
+        set
+        {
+            if (ReferenceEquals(_adapterInstaller, value))
+            {
+                return;
+            }
+
+            _adapterInstaller = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanImportAdapter));
+            ImportAdapterCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    /// <summary>adapter 包选择器（视图层接系统文件选择器：.json 或 .zip）；为 null 时按钮不出现。</summary>
+    public Func<Task<string?>>? AdapterPackagePicker
+    {
+        get => _adapterPicker;
+        set
+        {
+            if (ReferenceEquals(_adapterPicker, value))
+            {
+                return;
+            }
+
+            _adapterPicker = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanImportAdapter));
+            ImportAdapterCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    /// <summary>是否显示「导入 adapter…」入口（端口与选择器都就位才算）。</summary>
+    public bool CanImportAdapter => _adapterInstaller is not null && _adapterPicker is not null;
 
     /// <summary>把服务层模型装进页面（null 表示没有模型/加载失败）。</summary>
     /// <param name="model">实例模型。</param>
@@ -457,7 +591,10 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         {
             foreach (var field in file.Fields)
             {
-                var row = new ModConfigFieldRowViewModel(field, _renderers.Resolve(field.Type), file.IsWritable, file.FilePath, file.ReadonlyReason);
+                var row = new ModConfigFieldRowViewModel(field, _renderers.Resolve(field.Type), file.IsWritable, file.FilePath, file.ReadonlyReason)
+                {
+                    PathPicker = PathPicker,
+                };
                 if (!row.Matches(SearchText))
                 {
                     continue;
@@ -504,8 +641,9 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         Mods = cards;
         IsGameRunning = model.IsGameRunning;
         InstanceSummaryText = model.InstanceName.Length > 0
-            ? "实例：" + model.InstanceName + "｜游戏目录：" + model.GameDir
-            : "游戏目录：" + model.GameDir;
+            ? T("实例：{0}｜游戏目录：{1}", LocalizationKeys.ModConfigInstanceSummary,
+                model.InstanceName, model.GameDir)
+            : T("游戏目录：{0}", LocalizationKeys.ModConfigGameDirSummary, model.GameDir);
 
         // 刷新时优先停在原来那张卡上（用户刚在这页改过东西）；首次加载按"可编辑且有改动 → 可编辑 → 第一张"。
         var preferred = preferredAdapterId is null
@@ -517,8 +655,8 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
             ?? cards.FirstOrDefault();
 
         SetStatus(model.Mods.Count == 0
-            ? T("这个实例里没有已适配的 mod：可以把 adapter.json 放进用户目录后重试。")
-            : "读取完成：" + ModCountText + "。");
+            ? T("这个实例里没有已适配的 mod：可以把 adapter.json 放进用户目录后重试。", LocalizationKeys.ModConfigEmptyNoAdaptedMod)
+            : T("读取完成：{0}。", LocalizationKeys.ModConfigStatusLoaded, ModCountText));
         NotifyModelState();
     }
 
@@ -542,26 +680,26 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         SetSaveFailures([]);
         if (edits.Count == 0)
         {
-            SetStatus(T("没有需要保存的改动。"));
+            SetStatus(T("没有需要保存的改动。", LocalizationKeys.ModConfigStatusNoChanges));
             return;
         }
 
         if (_writer is not { } writer)
         {
-            SetError(T("当前环境没有写盘入口（IAdapterWriter），已取消保存。"), null);
+            SetError(T("当前环境没有写盘入口（IAdapterWriter），已取消保存。", LocalizationKeys.ModConfigErrorNoWriter), null);
             return;
         }
 
         if (_model is not { } model)
         {
-            SetError(T("还没有读到实例模型，已取消保存。"), null);
+            SetError(T("还没有读到实例模型，已取消保存。", LocalizationKeys.ModConfigErrorNoModel), null);
             return;
         }
 
         var groups = GroupByFile(edits);
         if (groups.Count == 0)
         {
-            SetError(T("这些改动找不到所属的 mod，已取消保存。"), string.Join("、", edits.Select(edit => edit.Key).Distinct(StringComparer.Ordinal)));
+            SetError(T("这些改动找不到所属的 mod，已取消保存。", LocalizationKeys.ModConfigErrorOrphanEdits), string.Join("、", edits.Select(edit => edit.Key).Distinct(StringComparer.Ordinal)));
             return;
         }
 
@@ -570,11 +708,12 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         if (IsGameRunning)
         {
             if (!await ConfirmAsync(
-                    T("KSP 正在运行"),
-                    "KSP 正在运行：现在写入的配置要等游戏重启后才会生效，运行中的游戏还可能覆盖这次写入。仍然保存吗？")
+                    T("KSP 正在运行", LocalizationKeys.ModConfigKspRunningTitle),
+                    T("KSP 正在运行：现在写入的配置要等游戏重启后才会生效，运行中的游戏还可能覆盖这次写入。仍然保存吗？",
+                        LocalizationKeys.ModConfigKspRunningConfirmBody))
                 .ConfigureAwait(true))
             {
-                SetStatus(T("已取消保存：KSP 正在运行时的写盘需要确认。"));
+                SetStatus(T("已取消保存：KSP 正在运行时的写盘需要确认。", LocalizationKeys.ModConfigStatusCancelKsp));
                 return;
             }
 
@@ -591,12 +730,12 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         if (riskyKeys.Length > 0)
         {
             if (!await ConfirmAsync(
-                    T("确认修改高风险字段"),
-                    "这些字段被适配器标记为高风险，改错可能让 mod 行为异常甚至进不了游戏：" +
-                    string.Join("、", riskyKeys) + "。确认写入吗？")
+                    T("确认修改高风险字段", LocalizationKeys.ModConfigConfirmHighRiskTitle),
+                    T("这些字段被适配器标记为高风险，改错可能让 mod 行为异常甚至进不了游戏：{0}。确认写入吗？",
+                        LocalizationKeys.ModConfigConfirmHighRiskBody, string.Join("、", riskyKeys)))
                 .ConfigureAwait(true))
             {
-                SetStatus(T("已取消保存：高风险字段的改动需要二次确认。"));
+                SetStatus(T("已取消保存：高风险字段的改动需要二次确认。", LocalizationKeys.ModConfigStatusCancelHighRisk));
                 return;
             }
 
@@ -628,12 +767,12 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
                 catch (Exception ex)
                 {
                     // 写盘器约定返回 OperationResult；这里兜住意外异常，别让一个文件的异常打断其余文件。
-                    result = OperationResult<AdapterWriteResult>.Fail(T("写入配置失败：") + ex.Message, ex.GetType().Name);
+                    result = OperationResult<AdapterWriteResult>.Fail(T("写入配置失败：{0}", LocalizationKeys.ModConfigErrorWriteDetail, ex.Message), ex.GetType().Name);
                 }
 
                 if (!result.IsSuccess)
                 {
-                    failures.Add(RelativeName(group.FilePath) + "：" + (result.Message ?? T("写入失败。"))
+                    failures.Add(RelativeName(group.FilePath) + "：" + (result.Message ?? T("写入失败。", LocalizationKeys.ModConfigErrorWrite))
                         + (string.IsNullOrWhiteSpace(result.Detail) ? string.Empty : "（" + result.Detail + "）"));
                     continue;
                 }
@@ -678,7 +817,8 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
 
         if (failures.Count == 0)
         {
-            var summary = "已保存 " + writtenChanges + " 项改动（" + writtenFiles.Count + " 个文件）";
+            var summary = T("已保存 {0} 项改动（{1} 个文件）", LocalizationKeys.ModConfigStatusSaved,
+                writtenChanges, writtenFiles.Count);
             if (restartCount > 0)
             {
                 summary += "；" + restartCount + " 项需要重启 KSP 后生效";
@@ -691,8 +831,9 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         {
             SetError(
                 writtenFiles.Count == 0
-                    ? T("保存失败：这次没有任何文件写成，改动已保留。")
-                    : "部分文件保存失败：" + failures.Count + " / " + (writtenFiles.Count + failures.Count) + " 个文件没写成，改动已保留。",
+                    ? T("保存失败：这次没有任何文件写成，改动已保留。", LocalizationKeys.ModConfigErrorSaveNothing)
+                    : T("部分文件保存失败：{0} / {1} 个文件没写成，改动已保留。", LocalizationKeys.ModConfigErrorSavePartial,
+                        failures.Count, writtenFiles.Count + failures.Count),
                 null);
         }
     }
@@ -742,12 +883,12 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
             }
             else
             {
-                SetError(result.Message ?? T("重读 mod 配置失败。"), result.Detail);
+                SetError(result.Message ?? T("重读 mod 配置失败。", LocalizationKeys.ModConfigErrorReload), result.Detail);
             }
         }
         catch (Exception ex)
         {
-            SetError(T("重读 mod 配置失败：") + ex.Message, ex.GetType().Name);
+            SetError(T("重读 mod 配置失败：{0}", LocalizationKeys.ModConfigErrorReloadDetail, ex.Message), ex.GetType().Name);
         }
     }
 
@@ -794,7 +935,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         if (_dialogs is not { } dialogs)
         {
             // 没有对话框服务时宁可不动磁盘：写盘是不可逆操作，不能靠"默认同意"蒙混过去。
-            SetError(T("当前环境没有确认对话框，已取消这次写盘。"), "IDialogService");
+            SetError(T("当前环境没有确认对话框，已取消这次写盘。", LocalizationKeys.ModConfigErrorNoDialog), "IDialogService");
             return false;
         }
 
@@ -809,7 +950,20 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         StatusText = ErrorText ?? message;
     }
 
-    private string T(string chinese) => _translate is null ? chinese : _translate(chinese);
+    /// <summary>
+    /// 本页唯一的文案出口：构造注入的外部译文优先（仍按中文原文调用，保持旧参数的兼容），
+    /// 否则交给统一的 Text(fallback, key) 文案层。
+    /// </summary>
+    private string T(string fallback, string key, params object?[] args)
+    {
+        if (_translate is not null)
+        {
+            var translated = _translate(fallback);
+            return args.Length == 0 ? translated : string.Format(translated, args);
+        }
+
+        return args.Length == 0 ? Text(fallback, key) : Text(fallback, key, args);
+    }
 
     private void NotifyModelState()
     {

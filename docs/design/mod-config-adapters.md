@@ -2,7 +2,7 @@
 
 > 规格来源：`docs/plan/15-mod-config-adapters.md`（下称"15 篇"）。
 > 本文记录**已实现的事实**：为什么这么切、哪些地方与规格不同、哪些还没做、以及实测出来的坑。
-> 状态：CFG-01 / CFG-02 / CFG-03 / CFG-05 服务层完成；UI-CFG-01 页面骨架完成；**CFG-04 编辑控件与写盘入口完成**（color / keybinding 两类按本段范围只读展示，行内写明原因）。
+> 状态：CFG-01 / CFG-02 / CFG-03 / CFG-05 服务层完成；UI-CFG-01 页面骨架完成；**CFG-04 编辑控件与写盘入口完成，九类字段全部可编辑**（bool/int/float/enum/string/list 走文本框与下拉，path 带「浏览…」，color 带色块预览 + 十六进制输入，keybinding 支持按键捕获）；ADP-04 导入/哈希/更新检查的机制见 [adapter-import.md](adapter-import.md)。
 
 ## 1. 目标与边界
 
@@ -20,7 +20,7 @@
 2. **宁缺勿错**。没取证过的键不写进 adapter。写了错键名 = 静默写坏用户配置，比"少一个可改项"严重得多（15 篇 §7 Q4）。
 3. **写盘只有一个入口** `IAdapterWriter`。页面、命令、将来的 CLI 都走它，校验/快照/自校验/回滚只实现一次。
 
-明确不做（本段不涉及）：远程 adapter 导入与哈希展示、颜色选择器与按键捕获控件（CFG-04 里这两类仍是只读展示）、MemGraph 等 mod 的具体 adapter、配置项搜索跨 mod 聚合。
+明确不做（本段不涉及）：导入界面的页面编排（ADP-04 只交付服务层机制，见 [adapter-import.md](adapter-import.md)）、MemGraph 等 mod 的具体 adapter、配置项搜索跨 mod 聚合。
 
 ## 2. 分层与依赖方向
 
@@ -246,7 +246,7 @@ public interface IModConfigFieldRenderer
 
 `ModConfigEditorKind` 是**编辑器形态**（`Toggle / NumberField / Dropdown / TextField / PathPicker / ColorPicker / KeyCapture / ListEditor / ReadOnlyText`），视图按形态选模板，不按字段类型写 switch。新增一种字段类型 = 加一个 renderer + 注册，不动页面。
 
-默认注册表已覆盖 9 种字段类型（顺序固定：Bool / Int / Float / Enum / String / Path / List / Color / Keybinding）：`BoolFieldRenderer`（开/关 → `Toggle`）、`IntFieldRenderer` / `FloatFieldRenderer`（数字 + 单位，非法数字老实显示原文 → `NumberField`）、`EnumFieldRenderer`（下拉，白名单来自 adapter → `Dropdown`）、`StringFieldRenderer` / `PathFieldRenderer`（文本框 → `TextField` / `PathPicker`）、`ListFieldRenderer`（逐行文本 → `ListEditor`）、`ColorFieldRenderer` / `KeybindingFieldRenderer`（只读展示 → `ColorPicker` / `KeyCapture`）。`ReadOnly` 类型与任何未注册类型退回 `UnsupportedFieldRenderer`（只读原值 → `ReadOnlyText`）。
+默认注册表已覆盖 9 种字段类型（顺序固定：Bool / Int / Float / Enum / String / Path / List / Color / Keybinding）：`BoolFieldRenderer`（开/关 → `Toggle`）、`IntFieldRenderer` / `FloatFieldRenderer`（数字 + 单位，非法数字老实显示原文 → `NumberField`）、`EnumFieldRenderer`（下拉，白名单来自 adapter → `Dropdown`）、`StringFieldRenderer` / `PathFieldRenderer`（文本框 → `TextField` / `PathPicker`）、`ListFieldRenderer`（逐行文本 → `ListEditor`）、`ColorFieldRenderer` / `KeybindingFieldRenderer`（色块预览 + 按键捕获 → `ColorPicker` / `KeyCapture`）。`ReadOnly` 类型与任何未注册类型退回 `UnsupportedFieldRenderer`（只读原值 → `ReadOnlyText`）。
 
 筛选与分组：搜索三路匹配（键名 / 显示名 / 注释），"仅看已改"按 `value != default` 过滤，分组标题来自 adapter 声明的 `// #### 分节注释`（无标题的组不画表头）。**筛选只重建行对象，草稿保存在页面 VM 的 `_pending` 字典里**，所以来回筛选/切换 mod 再切回来，未保存的输入仍在（行对象会被换成新实例，草稿按 `文件路径 + 键名` 铺回）。
 
@@ -260,11 +260,12 @@ public interface IModConfigFieldRenderer
 | int / float | `TextBox` | 视图侧不格式化，写盘前由服务层 `ModConfigDetector` 校验数字与范围 |
 | enum | `ComboBox` | `Choices` 来自 adapter 白名单；**当前值不在白名单时补到首位**，避免"显示空白 + 一保存就变值" |
 | string | `TextBox` | 单行 |
-| path | `TextBox` | **本版用文本框直接改**；"浏览…"按钮（`PathPicker` 形态）留待后续，不假装有 |
+| path | `TextBox` + 「浏览…」按钮 | 按钮只在宿主注入了 `PathPicker` 委托时出现（`CanBrowse`）；挑目录后把绝对路径写回文本框，取消则保留草稿 |
 | list | 多行 `TextBox` | 逐行编辑，写盘时按 `", "` 拼成**单行**——服务层的校验明确拒绝含换行的值（配置文件一行一键），所以多行只能停在 UI 层 |
-| color / keybinding | 只读 `TextBlock` + 行内说明 | 见下 |
+| color | 22×22 色块 + `TextBox` | 色块走 `ColorPreviewHex` + `HexColorToBrushConverter`（识别失败即透明）；文本原样写盘，**不替用户改写写法**（配置由 mod 自己解析），`ModConfigColorText.Describe` 给一句可见提示 |
+| keybinding | `TextBox` + 按键捕获 | 直接输入键名，或按住 Ctrl/Alt/Meta 再按键由 `OnKeyCaptureKeyDown` 捕获成 `Ctrl+Shift+K` 形式（`KeyGestureText.Format` 固定顺序）；Esc 清空，Shift+字母仍是正常输入 |
 
-**只读不是静默禁用**：每行都能拿到一句可见原因（`ReadOnlyNote`，绑定到 `HasReadOnlyNote`）。文件不可写 → "只读：<adapter 声明的 readonlyReason>" 或"只读：所在配置文件当前不可写。"；`ReadOnly` 字段类型 → "只读字段：值由 mod 自己维护，页面不提供修改。"；color → "本版只读：颜色值请在配置文件里手工调整。"；keybinding → "本版只读：按键组合请在配置文件里手工调整。"；其它未覆盖形态 → "本版只读：这类字段还没有编辑控件。"
+**只读不是静默禁用**：每行都能拿到一句可见原因（`ReadOnlyNote`，绑定到 `HasReadOnlyNote`）。文件不可写 → "只读：<adapter 声明的 readonlyReason>" 或"只读：所在配置文件当前不可写。"；`ReadOnly` 字段类型 → "只读字段：值由 mod 自己维护，页面不提供修改。"；其它未覆盖形态 → "本版只读：这类字段还没有编辑控件。"
 
 **脏标记**：`HasPendingChange`（行）= 行可编辑且 `WireValue.Trim()` 与基线（当前磁盘值或最近一次保存后的值）逐字符不等（`Ordinal`，只 trim 两端）；页面侧 `_pending` 以 `文件路径 + \0 + 键名` 为键累积草稿，底部动作条的 `ModifiedBarText` 实时给出"改动 N 项（待保存 M 项）"这类组合文案。**行内编辑只更新 `_pending` 与计数，绝不重建字段行**——一重建焦点就没了。
 
@@ -290,8 +291,8 @@ public interface IModConfigFieldRenderer
 
 ### 7.3 本段刻意没做
 
-- 没有颜色选择器与按键捕获控件：这两类字段只读展示，并在行内写明"本版只读"的原因（不静默禁用）。
-- 没有路径"浏览…"按钮：path 用文本框编辑，选择器留待后续。
+- 没有弹出式取色面板：颜色字段用"十六进制文本框 + 色块预览"就地编辑，够用且不引入额外依赖；真要拖色轮再加。
+- 没有配置项搜索跨 mod 聚合：搜索只匹配当前 adapter 声明过的 label 与配置文件注释。
 - 没有本地化：页面文案是中文原文，经 `Func<string,string>` 委托转出，键由 Lead 统一登记。
 
 ## 8. 首批 adapter 与取证状态
@@ -342,9 +343,9 @@ dotnet run --project tools/verify-layout
 
 ## 11. 已知限制与后续
 
-1. **颜色 / 按键两类字段仍只读**：本段只做"值可见 + 行内写明只读原因"，没有取色器与按键捕获控件。路径字段用文本框编辑，没有"浏览…"按钮。`ModConfigEditorKind` 里的 `ColorPicker`/`KeyCapture`/`PathPicker` 三个形态已经就位，补控件时不需要改页面 VM。
+1. **颜色 / 按键 / 路径三类控件已补齐**：color 走色块预览 + 十六进制文本（`ModConfigColorText` 归一化只用于预览与提示，写盘仍是原文）；keybinding 走 `OnKeyCaptureKeyDown` 捕获（含 Ctrl/Alt/Meta 才算组合键）；path 走「浏览…」按钮（宿主未注入 `PathPicker` 时不显示，不假装有）。三者的判定逻辑都在 ViewModels 层，可单测。
 2. **没有实例选择器**：页面固定读 `IInstanceService.Current`，切实例靠上层页面。
 3. **回滚只回滚到"上一次写盘前"**：`IAdapterWriter` 每次写盘都新建带时间戳的快照（不覆盖旧快照），但页面只跟踪本会话最近一次保存返回的那批 `.bak`；历史快照需要手工在磁盘上找。服务层没有"从快照恢复"的公共方法，所以恢复逻辑放在 ViewModels 层的 `ModConfigBackupRestorer`（做 IO 在本仓库有先例：`StabilityToleranceFile` / `LaunchCommandFile`），没有改 Services 层。
-4. **adapter 导入/远程更新**未做（15 篇 §4.4 的信任模型只实现到"内置 + 用户目录"）。
+4. **adapter 导入/远程更新只到服务层**：ADP-04 已交付 `IAdapterInstaller`（本地 json/zip、远程 URL、SHA-256 清单、ETag 更新检查、原子替换与回滚），细节见 [adapter-import.md](adapter-import.md)；页面还没有「导入 adapter…」入口，15 篇 §4.4 的信任模型仍只到"内置 + 用户目录 + 手动放入"。
 5. **配置项关键词的本地化**：搜索只匹配 adapter 声明的中英文 label 与注释，不做中文同义词。
 6. **Avalonia 视图未截图验证**：本段只能保证编译 0 警告、绑定名与 VM 属性一致（`IsSelectionEmpty` 这类取反属性已补进 VM 而不是在 XAML 里做转换）。

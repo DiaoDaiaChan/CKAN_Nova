@@ -9,12 +9,12 @@
 
 | 层 | 文件 | 职责 |
 | --- | --- | --- |
-| 契约 | `src/CkanUI.Services.Abstractions/IPlayTimeService.cs` | `Load()` / `Save(instanceName, hours)`，两个成员都是 DIM，既有替身零改动 |
+| 契约 | `src/CkanUI.Services.Abstractions/IPlayTimeService.cs` | `Load()` / `Save(instanceName, hours)` / `ResetAsync(instanceName, ct)`，三个成员都是 DIM，既有替身零改动 |
 | 契约 | `src/CkanUI.Services.Abstractions/Dtos/PlayTimeEntry.cs` | `record PlayTimeEntry(string InstanceName, double Hours)` |
 | 服务 | `src/CkanUI.Services/PlayTime/PlayTimeService.cs` | 原子 JSON 文件读写；默认 `%LocalAppData%/CKAN/play-time.json`，另有可注入路径的 ctor |
-| VM | `src/CkanUI.ViewModels/Pages/PlayTimePageViewModel.cs` + `Pages/PlayTime/` | 列表、行编辑（F2/Enter/Esc）、空状态与错误栏 |
+| VM | `src/CkanUI.ViewModels/Pages/PlayTimePageViewModel.cs` + `Pages/PlayTime/` | 列表、行编辑（F2/Enter/Esc）、选中项与「重置时长」命令、空状态、错误栏与状态栏 |
 | VM | `src/CkanUI.ViewModels/Pages/Settings/VersionDisplayFormat.cs` | 版本号剥离的纯函数，两个开关独立 |
-| 视图 | `src/CkanUI.App/Views/PlayTimePageView.axaml` | 行内 TextBox 编辑；命令经 `$parent[ListBox].DataContext` 上溯 |
+| 视图 | `src/CkanUI.App/Views/PlayTimePageView.axaml` | 行内 TextBox 编辑；命令经 `$parent[ListBox].DataContext` 上溯；选中行后「重置时长」按钮可用 |
 | 设置 | `src/CkanUI.ViewModels/Pages/SettingsPageViewModel.cs` | 「高级与诊断」组四项布尔设置（见 §4） |
 
 ## 2. 游戏时长存储
@@ -36,6 +36,15 @@
 - 上一条进程若崩在游戏里，会留下一个未闭合会话；下次启动同一个实例时先丢弃它（不做「按开机时长补算」的猜测，宁可少记也不凭空多记）。
 - 读取时 `PlayTimeService.Load` 返回「手动基线 + 自动累计」；页面手工保存 `Save(name, hours)` 把入参当**总量**，写盘前换算基线 `max(0, 总量 − 自动累计)`，所以反复保存不会把自动时长叠加两次。
 - 接线：`InstancesPageViewModel` 的 `PlayTime`（`IPlayTimeTracker`）在启动成功后 `BeginSession`、在 `GameExited` 信号上 `EndSession`；没注入该依赖时行为与改造前完全一致（测试用假对象覆盖了「启动失败不记」「离开页面后退出仍要结算」等路径）。
+
+### 2.2.2 重置单个实例的时长
+
+页面选中一行后点「重置时长」把该实例的累计时长清零；确认对话框写明实例名与「无法撤销」，取消则一个字节都不动。
+
+- 契约：`IPlayTimeService.ResetAsync(string instanceName, CancellationToken ct = default)`，带默认实现（返回「当前游戏时长服务不支持重置。」），所以既有测试替身不必改动。
+- 实现（`PlayTimeService.ResetAsync`）分两步：先 `PlayTimeSessionLedger.ResetInstance` 删掉该实例的按日分桶（若正在给它计时，未闭合会话从「现在」重新开始，重置之前的时长不回算、之后照常累计），再把 `play-time.json` 里该实例的手工基线写成 `0`。两步各自原子替换（`WriteBaselines` 与账本的写盘共用同一套 `.tmp` + `File.Move` 口径），任一步失败都返回可重试的 `OperationResult.Fail`，不抛异常。
+- 基线写 `0` 而不是删掉这一条是刻意的：列表里那一行继续在，用户能直接看到「已经归零」。
+- 页面侧：`CanReset` 同时要求「有选中项」与「宿主提供了 `IDialogService`」——没有确认对话框就不给入口，绝不静默清零；成功后 `Refresh()` 重建列表并按实例名接回选中项，状态栏显示「已重置「X」的时长。」，失败沿用本类既有的错误栏（`ErrorText`）。
 
 ### 2.3 取值与输入
 
@@ -73,5 +82,5 @@ DI：`src/CkanUI.Services/ServiceCollectionExtensions.cs` 注册 `IPlayTimeServi
 
 - ~~**计时来源未接**~~（已补齐）：实例启动/退出现在通过 `IPlayTimeTracker`（`BeginSession`/`EndSession`）写会话账本，`PlayTimeService` 同时实现 `IPlayTimeService` 与 `IPlayTimeTracker`，读取时把自动累计并入显示值（机制见 §2.2.1）。残留：只在 `InstancesPageViewModel` 这条启动路径上记账，其他入口（命令行 `ckan://` 唤起、托盘「启动游戏」）若绕开该页面则不计时；也没有「先启动游戏再打开界面」时的补记。
 - 写入按整小时取整（中点 away-from-zero），不足一小时的会话记 0；如需精度应改为存分钟并只在显示时取整。
-- 未做「清空/重置单个实例时长」的界面入口。
+- ~~未做「清空/重置单个实例时长」的界面入口~~（已补齐）：选中行后「重置时长」把该实例的累计时长清零，口径见 §2.2.2。仍未做的是「清空全部实例时长」的批量入口。
 - 无真实实例集成测试：服务测试用注入路径的临时目录，页面测试用 `FakePlayTimeService`。

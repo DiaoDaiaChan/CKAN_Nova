@@ -12,7 +12,7 @@
 | 实现 | `src/CkanUI.Localization/CoreResourceStringSource.cs` | 上游 `CKAN.Properties.Resources` 反射层，只应答 `Core.` 前缀键 |
 | 实现 | `src/CkanUI.Localization/PseudoLocalization.cs` | 伪本地化变形（`qps-ploc`） |
 | 装配 | `src/CkanUI.Localization/LocalizerFactory.cs` | 内嵌包 / 内嵌+磁盘包两种装配；`CKAN_UI_PSEUDO_LOCALE` 环境变量开关 |
-| 数据 | `i18n/packs/zh-CN.json`、`i18n/packs/en-US.json` | 各 35 键，键集完全相同，并由 `ShippedPacksTests` + `LocalizationKeyDriftTests` 双向校验 |
+| 数据 | `i18n/packs/zh-CN.json`、`i18n/packs/en-US.json` | 各 930 键（76 条界面键 + 854 条页面 VM 运行期文案键），键集完全相同，并由 `ShippedPacksTests` + `LocalizationKeyDriftTests` 双向校验 |
 
 ## 解析链（一次 `Get` 的完整路径）
 
@@ -59,6 +59,33 @@
 | 只设 `CurrentUICulture`，改语言要重启（`SettingsDialog.cs:795`） | `SetCulture` 立即生效，`LanguageChanged` 驱动绑定重算 |
 | 13 项语言、es-ES 有文件但不可选 | 并集 13 项，es-ES 可选（16 篇 Q1/Q4） |
 
+## 页面 VM 文案层
+
+视图层的文案走 `{DynamicResource}`（上面的键表），但页面**运行时**生成的文案——状态栏、空态提示、对话框标题与正文、命令执行反馈——在 XAML 里没有位置，只能由 ViewModel 拼字符串。缺口 ⑧ 收口后，这部分统一走 `PageViewModel` 的文案层，不再硬编码中文：
+
+| 成员 | 位置 | 语义 |
+| --- | --- | --- |
+| `TextResolver`（`Func<string, string>?`） | `src/CkanUI.ViewModels/PageViewModel.cs:20` | 键 → 译文；为 null 时页面吐中文原文 |
+| `TextFormatter`（`Func<string, object?[], string>?`） | `src/CkanUI.ViewModels/PageViewModel.cs:23` | （键, 实参）→ 译文；为 null 时用 `string.Format(CurrentCulture, 中文模板, 实参)` |
+| `protected string Text(fallback, key)` | `src/CkanUI.ViewModels/PageViewModel.cs:28-29` | 无占位符文案：`TextResolver is null ? fallback : TextResolver(key)` |
+| `protected string Text(fallback, key, args)` | `src/CkanUI.ViewModels/PageViewModel.cs:35-56` | 带 `{0}` 占位符文案；`FormatException` 时回落 fallback 原文 |
+
+页面里的写法：
+
+```csharp
+public override string Title => Text("模组", LocalizationKeys.NavRailManageMods);
+StatusText = Text("已启动「{0}」", LocalizationKeys.InstancesStatusLaunched, name);
+```
+
+- **解析器由导航统一挂**：`NavigationService.NavigateCore`（`src/CkanUI.ViewModels/Navigation/NavigationService.cs:153-157`）在页面被工厂解析出来之后执行 `page.TextResolver ??= _translate; page.TextFormatter ??= _format;`，其中 `_translate`/`_format` 由宿主注入（通常是 `ILocalizer.Get` / `ILocalizer.Format`）。页面因此不依赖任何本地化实现；`??=` 又允许页面或测试钉住自己的解析器。
+- **null 即中文原文兜底**：两个解析器都为 null 时 `Text(...)` 直接返回源码里的中文 fallback（带占位符的自己 `string.Format`），所以既有断言中文的用例天然保持绿。只挂 `TextResolver` 不挂 `TextFormatter` 时，带占位符的文案仍按中文模板格式化——这条由 `tests/CkanUI.ViewModels.Tests/PageTextLocalizationTests.cs` 里 `ProbePage_ResolverOnly_StillFormatsChineseTemplate` 钉住，也是宿主必须同时注册 `Get` 与 `Format` 的原因。
+- **键必须成套**：每处 `Text(...)` 的键既要在 `LocalizationKeys` 里有常量，也要在两套 `i18n/packs/*.json` 里都有译文；漏一边 `ShippedPacksTests`/`LocalizationKeyDriftTests` 会红。运行期若回退到键本身（`missing` 层），说明有人漏了译文。
+- **整句一个键**：带占位符的长句（如「已选 {0} · 变更 +{1}/-{2}」）整体作为一个键，不拆成多段再拼接——别的语言语序不同，拼接会碎成沙拉句。
+- **不搬的东西**：开发者异常消息（`throw new ArgumentException(...)`）、`IErrorReporter.Report(ex, "上下文")` 的上下文串、日志文案、诊断码、字段名、文件名、单位符号都不进文案层——它们不是给用户读的。XAML 里的文案仍走 `DynamicResource`。
+- **覆盖范围**：17 个页面 ViewModel 的正文与标题已全部迁完，共 **852 处** `Text(...)`：Settings 197、Instances 105、Mods 71、InstallHistory 62、Unmanaged 55、Cache 51、Changes 43、ModPacks 42、Repos 38、Saves 38、Dedup 32、ModText 26、Plugins 20、Log 18、ModPackEditor 18、Content 15、PlayTime 12、DownloadStats 9。`ModConfigPageViewModel` 自带的旧式「中文即键」适配器已统一成 `T(fallback, key, args)`（内部转调 `Text`）。
+- **尚未覆盖**（子 VM / 静态格式化器，它们不是 `PageViewModel`、拿不到 `protected Text()`）：`Pages/Changes/ChangesFormatter.cs`（39 处）、`ChangesLabels.cs`（19）、`Pages/ModPacks/ModPackEditorText.cs`（39）、`Pages/Mods/ModsSearchPanelViewModel.cs`（30）、`Pages/Logs/LogGlyphs.cs`（24）、`Pages/Settings/SettingsDiagnosticsViewModel.cs`（14）、`StabilityToleranceFile.cs`（14）、`Pages/InstallHistory/InstallHistoryText.cs`（17）、`SettingValidator.cs`（10）、`SaveRowViewModel.cs`（10）等。收口办法是给它们加可选 `Func<string,string>`/`Func<string,string,string>` 参数、由页面把方法组传下去；这层改造会影响它们的构造点（`SettingItemViewModel` 有 30 处），因此留作单独一轮。
+- **错误栏消息**：`_errors.Report(ex, ctx, msg)` 的第三个参数（用户可见消息）已迁；第二个参数（上下文串）与 `InstancesErrorText.Compose(..., "xxx失败")` 的兜底句按 §10.3 的规矩保留中文。
+
 ## 已知缺口
 
 1. **`{loc:T}` 标记扩展未实现**（`src/CkanUI.App/Localization/` 下只有 `LocalizationHost`/`Log4NetLocalizationLog`）：当前靠 `DynamicResource` 整表替换实现热切换，效果等价但每次切换重建 ResourceDictionary；16 篇 §4.3 的 `IObservable<string>` 方案需要在 App 层新增 `MarkupExtension`，不在本任务写作用域。
@@ -66,3 +93,4 @@
 3. **构建期 `missing.<locale>.txt` 未实现**：运行期已有 `MissingKeys`，构建期报表需要新增 MSBuild 目标。
 4. **设置页语言下拉尚未接 `AvailableLocales`**：`IUiSettingsStore.Locale` 是真源（conventions §12.1），接线在 Lead 手里。
 5. **Core 资源层依赖反射**：上游 `external/CKAN/Core/CKAN-core.csproj:91-93` 用 `UseOurResourceManager` 目标把 `Resources.Designer.cs` 的 internal 改写成 public，直接引用会与上游构建脚本强绑死，故取反射；上游若改名，该层退化为「只记一次警告 + 回退 key」。
+6. **页面 VM 文案层还剩子 VM 与静态格式化器**：17 个页面 ViewModel 已覆盖（852 处），但 `ChangesFormatter`、`ChangesLabels`、`ModPackEditorText`、`LogGlyphs`、`InstallHistoryText`、`SaveRowViewModel`、`SettingValidator` 等子 VM / 静态合成器仍在硬编码中文——它们不是 `PageViewModel`，需要先接一个 `Func<string,string,…>` 适配器，见上面「尚未覆盖」清单。

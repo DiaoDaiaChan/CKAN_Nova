@@ -329,3 +329,126 @@ dotnet run --project tests/CkanUI.TestRunner --no-build -- CkanUI.App.Tests
 
 > 仍未落地的细节（不改变状态）：版本列表没有「只看兼容版本」过滤与「强制安装不兼容版本」的二次确认；「文件与内容」页签的 `InstalledFiles` 仍无契约来源（`RegistrySnapshot` 只有已装清单，没有逐文件表），页签保持空态。
 
+
+---
+
+## 9. 第四轮补录（2026-10-29，功能缺口九项）
+
+本轮不新增特性编号，专收 §6 与盘点里剩下的九条功能缺口。判定口径不变（服务实现 + 界面落点双条件），逐条证据：
+
+| # | 缺口 | 本轮补齐内容 | 关键实现证据 | 覆盖用例 |
+|---|---|---|---|---|
+| ① | 启动流程缺 E6 状态机（未还注册表锁、无精简模式） | 点「启动」先只放 Core 数据层（`RegistryManager.DisposeAll()` + 丢仓库快照）再拉进程，锁不必等 10 秒后的均衡档；放锁成功进「精简模式」（状态栏徽标 + 「恢复数据」按钮），启动失败立刻回滚，游戏退出或手动恢复退出精简模式；放锁失败不阻断启动。页面状态 `Idle/Preparing/Starting/Running/Restoring` 线性推进 | `src/CkanUI.Services.Abstractions/IResourceReleaseService.cs:38`（DIM `ReleaseCoreDataAsync`，默认返回失败以免替身假装放锁）、`src/CkanUI.Services/Lifecycle/ResourceReleaseService.cs:206`/`:308`、`src/CkanUI.ViewModels/Pages/Instances/GameLaunchPhase.cs`、`src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:146`/`:179`/`:893`/`:1053`/`:1085`/`:1124`、`src/CkanUI.App/Views/InstancesPageView.axaml:292`/`:296`/`:299` | `InstancesLaunchReleaseTests`（套件 16 例，本轮 +8：先还锁再启动 / 关闭档不动锁 / 放锁失败照常启动 / 启动失败回滚 / 退出清精简模式 / 手动恢复 / 恢复失败可重试 / 阶段文案） |
+| ② | L4 工作集归还未接 psapi | Windows 上 `EmptyWorkingSet` 真回收，用前后 `Process.WorkingSet64` 差值报数；非 Windows 与 Win32 失败都安全降级（0 项 + Warn，不抛） | `src/CkanUI.Services/Lifecycle/PlatformMemory.cs:52`/`:72`/`:92`/`:106`、`src/CkanUI.Services/CkanUI.Services.csproj:6`（`AllowUnsafeBlocks`，源生成 P/Invoke 硬要求） | `PlatformMemoryTests`（3；平台差异就地分支，不用 `Assert.Ignore` 以免汇总变 Warning） |
+| ③ | Mod 配置缺取色器 / 按键捕获 / 路径浏览 | 颜色字段 22×22 色块预览 + 十六进制输入（认不出的写法按原文写盘）；按键字段按住修饰键即捕获成 `Ctrl+Alt+Shift+Win+Key`；路径字段「浏览…」选目录填草稿 | `src/CkanUI.ViewModels/Pages/ModConfig/ModConfigColorText.cs:21`/`:86`、`KeyGestureText.cs:20`、`ModConfigFieldRowViewModel.cs:154`/`:174`/`:177`/`:188`/`:251`、`src/CkanUI.App/Converters/HexColorToBrushConverter.cs:17`、`src/CkanUI.App/Views/ModConfigPageView.axaml:281`/`:294`/`:304`、`ModConfigPageView.axaml.cs:90`/`:159` | `ModConfigFieldEditingTests`（改写 9 例）、`ModConfigColorAndGestureTests`（9 例） |
+| ④ | adapter 覆盖窄、无导入 / 哈希 / 更新 | 「Mod 配置」页可从本地 `.json`/`.zip` 装第三方 adapter：SHA-256 清单校验、zip-slip 整包拒绝、原子落盘 + 失败回滚、装完热重扫；远程 URL 与 ETag 条件请求（304 = 无更新）在服务层就绪 | `src/CkanUI.Services.Abstractions/ModConfig/AdapterPackageModels.cs`、`IAdapterPackagePorts.cs`、`src/CkanUI.Services/ModConfig/{AdapterInstaller,AdapterPackageInstaller,AdapterPackageReader,AdapterManifestFile,HttpAdapterPackageFetcher}.cs`、`AdapterImportServiceCollectionExtensions.cs:18`、`src/CkanUI.ViewModels/Pages/ModConfigPageViewModel.cs:436`、`src/CkanUI.App/Views/ModConfigPageView.axaml:83`、`docs/design/adapter-import.md` | `AdapterInstallerTests`（29）、`ModConfigAdapterImportTests`（9） |
+| ⑤ | ModText 抛异常而非结果对象、`Stale` 结构性不可达 | 导出 / 同步改 `OperationResult`（同步的显式目录不存在直接失败，不静默回落主目录）；新增 `(identifier, field)` 二级索引，机翻条目在原文变化后判 `Stale` 并可回退人工译文 | `src/CkanUI.ModText/IModTextService.cs:78`/`:84`、`src/CkanUI.Services/ModText/ModTextService.cs:415`/`:446`、`src/CkanUI.ModText/ModTextProvider.cs:21`/`:58`/`:136`/`:188`/`:224`、`src/CkanUI.ViewModels/Pages/ModTextPageViewModel.cs:349` | ModText +3、Services +3、ViewModels +2 |
+| ⑥ | 安装历史「卸载快照之外的模组」无界面开关 | 工具条加勾选（默认关闭），仅勾选时预览多一句风险说明；请求随勾选带 `RemoveExtras` | `src/CkanUI.ViewModels/Pages/InstallHistoryPageViewModel.cs:148`/`:170`/`:194`/`:361`/`:393`/`:602`、`src/CkanUI.App/Views/InstallHistoryPageView.axaml:77` | ViewModels 安装历史 +2、Services +4 |
+| ⑦ | 时长页没有重置入口 | 按实例「重置」：二次确认（含实例名与「无法撤销」），先清会话账本再把基线写 0 | `src/CkanUI.Services.Abstractions/IPlayTimeService.cs:24`、`src/CkanUI.Services/PlayTime/PlayTimeService.cs:96`/`:131`、`src/CkanUI.Services/PlayTime/PlayTimeSessionLedger.cs:125`、`src/CkanUI.ViewModels/Pages/PlayTimePageViewModel.cs:47`/`:70`、`src/CkanUI.App/Views/PlayTimePageView.axaml:7` | ViewModels 时长 +5、Services +4 |
+
+③④ 的接线：`AddCkanAdapterImport()` 挂在 `AddCkanModConfig()` 之后（安装器要拿 `IAdapterCatalog` 才能在装完热重扫）；`ModConfigPageViewModel` 的导入端口与路径选择器是**可写属性**，由视图挂载时补（构造参数已 7 个，再加会让 DI 注册与设计时构造都变脆）。
+
+⑨ 三条已知取舍里，**背景「游戏截图」来源本轮补齐**（不是取舍，是缺口）：设置页「背景来源」新增「游戏截图（最新一张）」，
+`src/CkanUI.Services/Settings/BackgroundImageLocator.cs` 取 `<GameDir>/Screenshots` 里最新一张，
+`src/CkanUI.App/Theming/BackgroundHost.cs:334`(`IsImageKind`)/`:341`(`ResolveImagePath`)/`:351`(`ResolveImagePathFor` 纯函数可测)/`:376`(`BuildSignature` 收 imagePath) 接入，
+解析出的路径进缓存签名；用例 `tests/CkanUI.Services.Tests/Settings/BackgroundImageLocatorTests.cs`（11）+ `tests/CkanUI.App.Tests/BackgroundHostTests.cs` 新增 2 例。
+另两条仍按取舍处理，只在 `docs/design/milestones.md` §4 标注性质：实例重命名不搬目录与上游语义一致（第 2 条）、插件页签视图必须自带是设计约束（第 5 条）。
+
+> 九项里只剩 ⑧（页面 VM 运行期文案 i18n）是横切债，另见 §10。
+## 10. 页面 VM 运行期文案的本地化（缺口 ⑧）
+
+### 10.1 机制
+
+XAML 侧文案本来就是 `DynamicResource` 走词包，缺的是页面 ViewModel 里拼出来的运行期文案（标题、状态栏、校验反馈、确认提示）。
+现在由 `src/CkanUI.ViewModels/PageViewModel.cs` 提供两个可写解析器与两个受保护方法：
+
+- `public Func<string, string>? TextResolver { get; set; }`、`public Func<string, object?[], string>? TextFormatter { get; set; }`；
+- `protected string Text(string fallback, string key)` 与 `protected string Text(string fallback, string key, params object?[] args)`：
+  有解析器时取译文（带占位符的走 formatter），没有解析器时返回 fallback；formatter 抛 `FormatException` 也回落 fallback，绝不让一条坏译文把页面打崩。
+
+解析器由 `src/CkanUI.ViewModels/Navigation/NavigationService.cs` 在导航时用 `??=` 挂上（页面自己设过就不覆盖），
+具体值来自 `src/CkanUI.App/ServiceRegistration.cs:275` 的 `ILocalizer.Get` / `ILocalizer.Format`。
+
+**为什么绕这一层**：① 页面 VM 不许引用本地化实现（04 篇分层铁律，也便于设计时构造与单测替身）；
+② 既有 1500+ 用例断言的是中文原文，只要不给解析器就退回中文，用例天然继续绿；
+③ 给解析器就能在一条用例里验证「键→译文」而不必真的加载语言包。
+
+### 10.2 覆盖与数字（第一轮）
+
+| 项 | 数字 |
+| --- | --- |
+| `LocalizationKeys` 常量 | 76 → **242**（新增 166，每键带中文 `<summary>` 说明用在哪） |
+| 两套语言包 | zh-CN 242 / en-US 242，与常量严格双向一致（`ShippedPacksTests` + `LocalizationKeyDriftTests`；脚本核 missing 0 / dead 0） |
+| 代码 fallback 与 zh-CN 译文一致性 | 175 处 `Text(fallback, key)` 逐字比对，mismatch 0 |
+| `Text(...)` 转换点 | **192**：Mods 正文 71、Instances 正文 104、16 个页面 `Title` + Instances 锁定错误文案 1 |
+
+已覆盖的页：`ModsPageViewModel`、`InstancesPageViewModel` 整页正文；其余 16 个页面 ViewModel（Content / DownloadStats / InstallHistory / Dedup / Changes / Plugins / Cache / PlayTime / ModText / Unmanaged / Repos / Settings / ModPacks / Saves / ModPackEditor / Logs）本轮只接标题。
+
+用例：`tests/CkanUI.ViewModels.Tests/PageTextLocalizationTests.cs` 12 例——无解析器回中文原文、假 resolver（键→`EN:键`）取到映射值、带 `{0}` 无 formatter 按中文模板格式化、有 formatter 走映射、只挂 resolver 时仍格式化中文模板、坏模板回落原文、Mods 与 Instances 真实页面两例、`NavigationService` 导航后自动挂解析器且 `??=` 不覆盖页面自带的三例。
+
+### 10.3 刻意不本地化的东西
+
+`_errors.Report(ex, 上下文串, 用户消息)` 的**上下文串**、日志文案、`OperationResult.Detail` 里的诊断码、字段名、单位符号、异常原文一律不搬进词包。
+理由：这些是排障线索而不是界面文案——诊断码要被 grep、上下文串要和日志对得上，翻译过来只会让「用户截图 + 日志」两头对不上。
+
+### 10.4 已知剩余
+
+- 其余页面的正文仍是中文常量（按中文串量排序：Settings 约 193、ModPacks 66、InstallHistory 64、Unmanaged 58、Cache 56、Saves 55、Changes 45、Repos 42，其余 8–36 条不等）；
+- 子 VM 与格式器（`ModsSearchPanelViewModel`、`ChangesFormatter`、`ChangesLabels`、`ModPackEditorText`、`LogGlyphs`、`InstallHistoryText`、`SaveRowViewModel`、`ModConfigFieldRowViewModel` 的中文提示）未动；
+- `ModConfigPageViewModel` 自带旧式「中文即键」的 `private string T(string chinese)`（约 :932），需要统一到 `Text(fallback, key)`，混用两套解析器会打架；
+- 错误栏消息（`InstancesErrorText.Compose(..., "xxx失败")` 的兜底句）未进文案层。
+
+> 上面这一节是**第一轮**的现场记录。第二轮（12 页）与第三轮（4 页）已把它逐条关掉，最终账见 §11。
+
+## 11. 页面 VM 运行期文案的本地化收尾（缺口 ⑧ · 第二、三轮）
+
+### 11.1 最终覆盖
+
+17 个页面 ViewModel 的标题与正文全部迁完，共 **852 处** `Text(...)`：
+
+| 页面 | 站点 | 页面 | 站点 |
+| --- | --- | --- | --- |
+| `SettingsPageViewModel` | 197 | `ModPacksPageViewModel` | 42 |
+| `InstancesPageViewModel` | 105 | `ReposPageViewModel` | 38 |
+| `ModsPageViewModel` | 71 | `SavesPageViewModel` | 38 |
+| `InstallHistoryPageViewModel` | 62 | `DedupPageViewModel` | 32 |
+| `UnmanagedPageViewModel` | 55 | `ModTextPageViewModel` | 26 |
+| `CachePageViewModel` | 51 | `PluginsPageViewModel` | 20 |
+| `ChangesPageViewModel` | 43 | `LogPageViewModel` | 18 |
+| | | `ModPackEditorPageViewModel` | 18 |
+| | | `ContentPageViewModel` | 15 |
+| | | `PlayTimePageViewModel` | 12 |
+| | | `DownloadStatsPageViewModel` | 9 |
+
+`ModConfigPageViewModel` 不在上表：它自带旧式「中文即键」的 `T(...)`，本轮把适配器统一成 `T(fallback, key, args)`（内部转调 `Text`，`_translate` 委托仍以中文原文为入参，`TranslateDelegate_IsUsedForFixedTexts` 保持绿），页面侧 62 处 `T(...)` 沿用该适配器。
+
+### 11.2 数字
+
+| 项 | 数字 |
+| --- | --- |
+| `LocalizationKeys` 常量 | 76 → **930**（每键带中文 `<summary>`） |
+| 两套语言包 | zh-CN 930 / en-US 930，键集与 `{n}` 占位符完全一致（`ShippedPacksTests` + `LocalizationKeyDriftTests`），en-US 无汉字、zh 与 en 逐条相同仅 1 条（`Ui_InstallHistory_Selection_Title` 只有分隔符 `｜`） |
+| 代码 fallback 与 zh-CN 译文 | 930 键全覆盖，mismatch **0** |
+| `Text(...)` 站点 | **852**（19 个文件：17 页 + `PageViewModel` 自身 + `ModConfig` 适配器见上） |
+
+### 11.3 纪律：哪些中文仍然保留
+
+| 类别 | 例子 | 理由 |
+| --- | --- | --- |
+| `_errors.Report(ex, ctx, msg)` 的**第 2 参上下文串** | `"读取模组版本"` | 要和日志对得上、要能 grep |
+| 日志文案 / `OperationResult.Detail` 诊断码 | `adapter-zip-slip` | 排障线索，翻译只会让截图与日志两头对不上 |
+| 字段名、单位符号、文件名 | `version`、`MB` | 数据而非文案 |
+| design-time 桩 | `"设计时未提供实现。"` | 只在设计器里出现，且早于页面构造拿不到 `Text()` |
+
+### 11.4 守护用例
+
+`tests/CkanUI.Architecture.Tests/PageTextLocalizationTests.cs`（新增，3 例）：
+
+1. `EveryPageTextFallbackMatchesTheChinesePack` —— 正则扫 `src/CkanUI.ViewModels/Pages/**/*.cs` 里所有 `Text("…", LocalizationKeys.X)`，逐条断言 fallback 与 `i18n/packs/zh-CN.json` 中该键的译文**逐字相同**；键不存在或常量名与键值对不上直接判红。这条把「子 agent 用脚本核一致性」变成门禁。
+2. `PageTextCoverageStaysAboveTheBaseline` —— 断言 `Text(...)` 站点总数 ≥ 852、覆盖文件数 ≥ 17，防止有人把已迁移的文案改回硬编码。
+3. `NoPageUsesStringInterpolatedTextCalls` —— 断言源码里不出现 `$Text(`／`Text($"` 这类把插值串当 fallback 的写法（插值会让 fallback 在运行期才成形，译文无法核对）。
+
+### 11.5 仍未覆盖（明确的下一轮清单）
+
+子 VM 与静态格式化器拿不到 `PageViewModel.Text()`，本轮按「收益/风险」判据选择放弃，清单与改造办法见 `docs/design/i18n-runtime.md` 的「尚未覆盖」：`ChangesFormatter`（39）、`ModPackEditorText`（39）、`ModsSearchPanelViewModel`（30）、`LogGlyphs`（24）、`ChangesLabels`（19）、`LaunchCommandsPanelViewModel`（19）、`InstallHistoryText`（17）、`SettingsDiagnosticsViewModel`（14）、`StabilityToleranceFile`（14）、`ModConfigModCardViewModel`（13）、`ModConfigFieldRowViewModel`（12）、`ModPackStateText`（11）、`SaveRowViewModel`（10）、`SettingValidator`（10）等。改法：给它们加可选 `Func<string,string>` / `Func<string,string,string>` 参数，页面构造时把 `Text` 方法组传下去，缺省回落中文原文——这样既有构造点与用例都不用改，但要逐个改构造签名，故留作单独一轮。
+

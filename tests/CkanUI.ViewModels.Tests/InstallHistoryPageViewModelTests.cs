@@ -226,6 +226,44 @@ public sealed class InstallHistoryPageViewModelTests
         Assert.That(vm.HasRestorePreview, Is.True);
     }
 
+    // ---- 「同时卸载快照之外的模组」开关 ------------------------------------
+
+    /// <summary>开关默认关闭，且默认值要原样带进预览与执行两份请求（不能被误置成 true）。</summary>
+    [Test]
+    public async Task RemoveExtras_DefaultsToFalseAndIsCarriedAsFalse()
+    {
+        var vm = CreateViewModel(Entry(1, modules: new[] { Missing("A", "1.0") }));
+        await vm.LoadCommand.ExecuteAsync(null);
+        _history.PreviewResult = OperationResult<InstallHistoryRestorePlan>.Ok(Plan(Item("A", ChangeAction.Install, null, "1.0")));
+
+        Assert.That(vm.RemoveExtras, Is.False, "默认不动快照之外的模组");
+
+        await vm.RestoreCommand.ExecuteAsync(null);
+
+        Assert.That(_history.LastPreviewRequest, Is.Not.Null);
+        Assert.That(_history.LastPreviewRequest?.RemoveExtras, Is.False);
+        Assert.That(_history.LastRequest?.RemoveExtras, Is.False);
+    }
+
+    /// <summary>勾选后预览与执行都带 RemoveExtras=true，文案也要提示会真的删文件。</summary>
+    [Test]
+    public async Task RemoveExtras_CheckedIsCarriedIntoPreviewAndRestore()
+    {
+        var vm = CreateViewModel(Entry(1, modules: new[] { Missing("A", "1.0") }));
+        await vm.LoadCommand.ExecuteAsync(null);
+        _history.PreviewResult = OperationResult<InstallHistoryRestorePlan>.Ok(Plan(Item("A", ChangeAction.Install, null, "1.0")));
+
+        vm.RemoveExtras = true;
+
+        Assert.That(vm.RestoreHintText, Does.Contain("并卸载快照之外的模组"));
+        Assert.That(vm.RestorePreviewText, Does.Contain("同时卸载快照之外的模组"));
+
+        await vm.RestoreCommand.ExecuteAsync(null);
+
+        Assert.That(_history.LastPreviewRequest?.RemoveExtras, Is.True);
+        Assert.That(_history.LastRequest?.RemoveExtras, Is.True);
+    }
+
     // ---- 重装流程 ----------------------------------------------------------
 
     [Test]
@@ -366,6 +404,7 @@ public sealed class InstallHistoryPageViewModelTests
         public Exception? ThrowOnPreview { get; set; }
         public int RestoreCalls { get; private set; }
         public InstallHistoryRestoreRequest? LastRequest { get; private set; }
+        public InstallHistoryRestoreRequest? LastPreviewRequest { get; private set; }
 
         public bool HasActiveInstance { get; set; } = true;
         public string? InstanceName { get; set; } = "测试实例";
@@ -379,6 +418,7 @@ public sealed class InstallHistoryPageViewModelTests
             InstallHistoryRestoreRequest request,
             CancellationToken ct = default)
         {
+            LastPreviewRequest = request;
             if (ThrowOnPreview is { } exception)
             {
                 throw exception;

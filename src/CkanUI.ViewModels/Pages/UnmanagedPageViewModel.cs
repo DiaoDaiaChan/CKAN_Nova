@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using System.ComponentModel;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
@@ -53,7 +54,7 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
     }
 
     /// <inheritdoc />
-    public override string Title => "未管理文件";
+    public override string Title => Text("未管理文件", LocalizationKeys.NavRailUnmanaged);
 
     /// <summary>宿主注入的「在文件夹中显示」能力（App 侧实现，ViewModels 不碰进程）。</summary>
     public IUnmanagedShellLauncher? ShellLauncher { get; set; }
@@ -131,25 +132,33 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
     public bool ShowEmptyState => _loaded && _instance is not null && !HasNodes && !IsBusy && !HasError;
 
     /// <summary>空态标题。</summary>
-    public string EmptyStateTitle => "GameData 里没有未管理的内容";
+    public string EmptyStateTitle => Text("GameData 里没有未管理的内容", LocalizationKeys.UnmanagedEmptyTitle);
 
     /// <summary>空态说明。</summary>
-    public string EmptyStateHint => "所有文件都已被注册表登记为受管，没有需要清理的残留。";
+    public string EmptyStateHint => Text("所有文件都已被注册表登记为受管，没有需要清理的残留。", LocalizationKeys.UnmanagedEmptyHint);
 
     /// <summary>无实例时的标题。</summary>
-    public string NoInstanceTitle => "还没有选定游戏实例";
+    public string NoInstanceTitle => Text("还没有选定游戏实例", LocalizationKeys.UnmanagedNoInstanceTitle);
 
     /// <summary>无实例时的说明。</summary>
-    public string NoInstanceHint => "未管理文件页要读取实例的 GameData，请先到实例页自动查找或手动添加一个 KSP 实例。";
+    public string NoInstanceHint => Text("未管理文件页要读取实例的 GameData，请先到实例页自动查找或手动添加一个 KSP 实例。", LocalizationKeys.UnmanagedNoInstanceHint);
 
     /// <summary>统计条文案。</summary>
-    public string StatsText =>
-        $"未管理：{FileCount} 个文件、{DirectoryCount} 个目录，合计 {UnmanagedFormat.FormatSize(TotalSizeBytes)}";
+    public string StatsText => Text(
+        "未管理：{0} 个文件、{1} 个目录，合计 {2}",
+        LocalizationKeys.UnmanagedStats,
+        FileCount,
+        DirectoryCount,
+        UnmanagedFormat.FormatSize(TotalSizeBytes));
 
     /// <summary>选中统计文案。</summary>
     public string SelectionText => SelectedCount == 0
-        ? "未选中任何项"
-        : $"已选中 {SelectedCount} 项，合计 {UnmanagedFormat.FormatSize(SelectedSizeBytes)}";
+        ? Text("未选中任何项", LocalizationKeys.UnmanagedSelectionNone)
+        : Text(
+            "已选中 {0} 项，合计 {1}",
+            LocalizationKeys.UnmanagedSelectionSummary,
+            SelectedCount,
+            UnmanagedFormat.FormatSize(SelectedSizeBytes));
 
     /// <summary>是否有选中项。</summary>
     public bool HasSelection => SelectedCount > 0;
@@ -211,7 +220,7 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
 
     /// <summary>刷新：重新扫描 GameData。</summary>
     [RelayCommand]
-    private Task RefreshAsync() => RunAsync(LoadCoreAsync, "扫描未管理文件", "正在扫描 GameData…");
+    private Task RefreshAsync() => RunAsync(LoadCoreAsync, "扫描未管理文件", Text("正在扫描 GameData…", LocalizationKeys.UnmanagedBusyScan));
 
     /// <summary>全展开。</summary>
     [RelayCommand]
@@ -222,7 +231,12 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
             node.ExpandAll();
         }
 
-        SetStatus(DirectoryCount == 0 ? "没有可展开的目录。" : $"已展开全部目录（共 {DirectoryCount} 个）。");
+        SetStatus(DirectoryCount == 0
+            ? Text("没有可展开的目录。", LocalizationKeys.UnmanagedStatusNoExpandable)
+            : Text(
+            "已展开全部目录（共 {0} 个）。",
+            LocalizationKeys.UnmanagedStatusExpandedAll,
+            DirectoryCount));
     }
 
     /// <summary>全折叠。</summary>
@@ -234,7 +248,12 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
             node.CollapseAll();
         }
 
-        SetStatus(DirectoryCount == 0 ? "没有可折叠的目录。" : $"已折叠全部目录（共 {DirectoryCount} 个）。");
+        SetStatus(DirectoryCount == 0
+            ? Text("没有可折叠的目录。", LocalizationKeys.UnmanagedStatusNoCollapsible)
+            : Text(
+            "已折叠全部目录（共 {0} 个）。",
+            LocalizationKeys.UnmanagedStatusCollapsedAll,
+            DirectoryCount));
     }
 
     /// <summary>重置筛选。</summary>
@@ -242,7 +261,7 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
     private void ResetFilter()
     {
         FilterText = string.Empty;
-        SetStatus("已重置筛选。");
+        SetStatus(Text("已重置筛选。", LocalizationKeys.UnmanagedStatusFilterReset));
     }
 
     /// <summary>全选 / 取消全选。</summary>
@@ -264,7 +283,12 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
         }
 
         RefreshSelectionState();
-        SetStatus(select ? $"已选中 {SelectedCount} 项。" : "已取消全部选中。");
+        SetStatus(select
+            ? Text(
+            "已选中 {0} 项。",
+            LocalizationKeys.UnmanagedStatusSelectAll,
+            SelectedCount)
+            : Text("已取消全部选中。", LocalizationKeys.UnmanagedStatusSelectNone));
     }
 
     /// <summary>预演删除（dry-run，只校验不落盘）。</summary>
@@ -273,27 +297,30 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
     {
         if (_instance is not { } instance)
         {
-            SetError("还没有选定游戏实例。", null);
+            SetError(Text("还没有选定游戏实例。", LocalizationKeys.UnmanagedErrorNoInstance), null);
             return;
         }
 
         var paths = SelectedPaths;
         if (paths.Count == 0)
         {
-            SetError("没有选中要删除的内容。", null);
+            SetError(Text("没有选中要删除的内容。", LocalizationKeys.UnmanagedErrorNoDeleteSelection), null);
             return;
         }
 
         var preview = await _service.DeleteAsync(instance, paths, dryRun: true);
         if (!preview.IsSuccess)
         {
-            SetError(UnmanagedErrorText.Compose(preview.Message, "预演删除失败。", preview.Retryable), preview.Detail);
+            SetError(UnmanagedErrorText.Compose(preview.Message, Text("预演删除失败。", LocalizationKeys.UnmanagedErrorPreviewFailed), preview.Retryable), preview.Detail);
             return;
         }
 
         PreviewPaths = preview.Value ?? Array.Empty<string>();
-        SetStatus($"预演：将删除 {PreviewPaths.Count} 项（未落盘）。");
-    }, "预演删除未管理文件", "正在预演删除…");
+        SetStatus(Text(
+            "预演：将删除 {0} 项（未落盘）。",
+            LocalizationKeys.UnmanagedStatusPreview,
+            PreviewPaths.Count));
+    }, "预演删除未管理文件", Text("正在预演删除…", LocalizationKeys.UnmanagedBusyPreview));
 
     /// <summary>删除选中项：两次确认后真正落盘。</summary>
     [RelayCommand]
@@ -301,14 +328,14 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
     {
         if (_instance is not { } instance)
         {
-            SetError("还没有选定游戏实例。", null);
+            SetError(Text("还没有选定游戏实例。", LocalizationKeys.UnmanagedErrorNoInstance), null);
             return;
         }
 
         var paths = SelectedPaths;
         if (paths.Count == 0)
         {
-            SetError("没有选中要删除的内容。", null);
+            SetError(Text("没有选中要删除的内容。", LocalizationKeys.UnmanagedErrorNoDeleteSelection), null);
             return;
         }
 
@@ -320,37 +347,48 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
         }
 
         var first = await _dialogs.ConfirmAsync(
-            "删除未管理文件",
-            $"确定要删除选中的 {paths.Count} 项（{total}）吗？",
-            "删除会直接从磁盘移除文件，无法撤销。" + Environment.NewLine + detail);
+            Text("删除未管理文件", LocalizationKeys.UnmanagedConfirmDeleteTitle),
+            Text(
+            "确定要删除选中的 {0} 项（{1}）吗？",
+            LocalizationKeys.UnmanagedConfirmDeleteMessage,
+            paths.Count,
+            total),
+            Text("删除会直接从磁盘移除文件，无法撤销。", LocalizationKeys.UnmanagedConfirmDeleteDetail) + Environment.NewLine + detail);
         if (!first)
         {
-            SetStatus("已取消删除。");
+            SetStatus(Text("已取消删除。", LocalizationKeys.UnmanagedStatusDeleteCancelled));
             return;
         }
 
         var second = await _dialogs.ConfirmAsync(
-            "再次确认删除",
-            $"删除后无法恢复：{paths.Count} 项，{total}。要继续吗？",
-            "受管文件不在本页删除范围；含受管内容的目录会被服务拒绝。");
+            Text("再次确认删除", LocalizationKeys.UnmanagedConfirmDeleteAgainTitle),
+            Text(
+            "删除后无法恢复：{0} 项，{1}。要继续吗？",
+            LocalizationKeys.UnmanagedConfirmDeleteAgainMessage,
+            paths.Count,
+            total),
+            Text("受管文件不在本页删除范围；含受管内容的目录会被服务拒绝。", LocalizationKeys.UnmanagedConfirmDeleteAgainDetail));
         if (!second)
         {
-            SetStatus("已取消删除。");
+            SetStatus(Text("已取消删除。", LocalizationKeys.UnmanagedStatusDeleteCancelled));
             return;
         }
 
         var result = await _service.DeleteAsync(instance, paths, dryRun: false);
         if (!result.IsSuccess)
         {
-            SetError(UnmanagedErrorText.Compose(result.Message, "删除未管理文件失败。", result.Retryable), result.Detail);
+            SetError(UnmanagedErrorText.Compose(result.Message, Text("删除未管理文件失败。", LocalizationKeys.UnmanagedErrorDeleteFailed), result.Retryable), result.Detail);
             return;
         }
 
         var deleted = result.Value?.Count ?? paths.Count;
         PreviewPaths = Array.Empty<string>();
         await LoadCoreAsync();
-        SetStatus($"已删除 {deleted} 项未管理内容。");
-    }, "删除未管理文件", "正在删除…");
+        SetStatus(Text(
+            "已删除 {0} 项未管理内容。",
+            LocalizationKeys.UnmanagedStatusDeleted,
+            deleted));
+    }, "删除未管理文件", Text("正在删除…", LocalizationKeys.UnmanagedBusyDelete));
 
     /// <summary>
     /// 把选中项接管为受管安装：写进注册表 <c>installed_dlls</c>（12 篇 F-42 / INT-09）。
@@ -361,14 +399,14 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
     {
         if (_instance is not { } instance)
         {
-            SetError("还没有选定游戏实例。", null);
+            SetError(Text("还没有选定游戏实例。", LocalizationKeys.UnmanagedErrorNoInstance), null);
             return;
         }
 
         var paths = SelectedPaths;
         if (paths.Count == 0)
         {
-            SetError("没有选中要接管的内容。", null);
+            SetError(Text("没有选中要接管的内容。", LocalizationKeys.UnmanagedErrorNoAdoptSelection), null);
             return;
         }
 
@@ -379,29 +417,37 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
         }
 
         var confirmed = await _dialogs.ConfirmAsync(
-            "接管为受管安装",
-            $"确定把选中的 {paths.Count} 项接管为受管安装吗？",
-            "接管会把 .dll 登记进注册表（installed_dlls），写前自动生成 registry.json 快照。"
+            Text("接管为受管安装", LocalizationKeys.UnmanagedConfirmAdoptTitle),
+            Text(
+            "确定把选中的 {0} 项接管为受管安装吗？",
+            LocalizationKeys.UnmanagedConfirmAdoptMessage,
+            paths.Count),
+            Text("接管会把 .dll 登记进注册表（installed_dlls），写前自动生成 registry.json 快照。", LocalizationKeys.UnmanagedConfirmAdoptDetailRegistry)
             + Environment.NewLine
-            + "只有 .dll 可以接管；目录会展开成其中的 DLL。"
+            + Text("只有 .dll 可以接管；目录会展开成其中的 DLL。", LocalizationKeys.UnmanagedConfirmAdoptDetailDllOnly)
             + Environment.NewLine
             + detail);
         if (!confirmed)
         {
-            SetStatus("已取消接管。");
+            SetStatus(Text("已取消接管。", LocalizationKeys.UnmanagedStatusAdoptCancelled));
             return;
         }
 
         var result = await _service.AdoptAsync(instance, paths, dryRun: false);
         if (!result.IsSuccess)
         {
-            SetError(UnmanagedErrorText.Compose(result.Message, "接管未管理文件失败。", result.Retryable), result.Detail);
+            SetError(UnmanagedErrorText.Compose(result.Message, Text("接管未管理文件失败。", LocalizationKeys.UnmanagedErrorAdoptFailed), result.Retryable), result.Detail);
             return;
         }
 
         var outcome = result.Value ?? UnmanagedAdoptResult.Empty;
         await LoadCoreAsync();
-        SetStatus($"已接管 {outcome.AdoptedCount} 个、跳过 {outcome.SkippedCount} 个、拒绝 {outcome.RefusedCount} 个。");
+        SetStatus(Text(
+            "已接管 {0} 个、跳过 {1} 个、拒绝 {2} 个。",
+            LocalizationKeys.UnmanagedStatusAdopted,
+            outcome.AdoptedCount,
+            outcome.SkippedCount,
+            outcome.RefusedCount));
 
         if (outcome.HasRefusals)
         {
@@ -411,10 +457,13 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
                     ? item.RelativePath
                     : item.RelativePath + "：" + item.Reason);
             SetError(
-                $"有 {outcome.RefusedCount} 项被拒绝接管。",
+                Text(
+            "有 {0} 项被拒绝接管。",
+            LocalizationKeys.UnmanagedErrorAdoptRefused,
+            outcome.RefusedCount),
                 string.Join(Environment.NewLine, refused));
         }
-    }, "接管未管理文件", "正在接管…");
+    }, "接管未管理文件", Text("正在接管…", LocalizationKeys.UnmanagedBusyAdopt));
 
     /// <summary>在系统文件管理器中定位选中项。</summary>
     [RelayCommand]
@@ -422,19 +471,19 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
     {
         if (SelectedNode is not { } node)
         {
-            SetError("请先选中一个文件或目录。", null);
+            SetError(Text("请先选中一个文件或目录。", LocalizationKeys.UnmanagedErrorNoRevealSelection), null);
             return;
         }
 
         if (_instance is not { } instance)
         {
-            SetError("还没有选定游戏实例。", null);
+            SetError(Text("还没有选定游戏实例。", LocalizationKeys.UnmanagedErrorNoInstance), null);
             return;
         }
 
         if (ShellLauncher is not { } launcher)
         {
-            SetError("当前宿主没有提供「在文件夹中显示」能力。", null);
+            SetError(Text("当前宿主没有提供「在文件夹中显示」能力。", LocalizationKeys.UnmanagedErrorNoRevealChannel), null);
             return;
         }
 
@@ -446,11 +495,14 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
         var result = await launcher.ShowInFolderAsync(absolute);
         if (!result.IsSuccess)
         {
-            SetError(UnmanagedErrorText.Compose(result.Message, "打开文件夹失败。", result.Retryable), result.Detail);
+            SetError(UnmanagedErrorText.Compose(result.Message, Text("打开文件夹失败。", LocalizationKeys.UnmanagedErrorRevealFailed), result.Retryable), result.Detail);
             return;
         }
 
-        SetStatus($"已在文件管理器中定位：{node.RelativePath}");
+        SetStatus(Text(
+            "已在文件管理器中定位：{0}",
+            LocalizationKeys.UnmanagedStatusRevealed,
+            node.RelativePath));
     }
 
     /// <summary>关闭错误条。</summary>
@@ -466,7 +518,7 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
         if (_instances.Current is not { } instance)
         {
             ApplyEntries(null, Array.Empty<UnmanagedFileInfo>());
-            SetStatus("还没有选定游戏实例。");
+            SetStatus(Text("还没有选定游戏实例。", LocalizationKeys.UnmanagedErrorNoInstance));
             return;
         }
 
@@ -474,15 +526,19 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
         if (!result.IsSuccess)
         {
             ApplyEntries(instance, Array.Empty<UnmanagedFileInfo>());
-            SetError(UnmanagedErrorText.Compose(result.Message, "扫描未管理文件失败。", result.Retryable), result.Detail);
+            SetError(UnmanagedErrorText.Compose(result.Message, Text("扫描未管理文件失败。", LocalizationKeys.UnmanagedErrorScanFailed), result.Retryable), result.Detail);
             return;
         }
 
         var entries = result.Value ?? Array.Empty<UnmanagedFileInfo>();
         ApplyEntries(instance, entries);
         SetStatus(entries.Count == 0
-            ? "GameData 里没有未管理的内容。"
-            : $"已扫描到 {FileCount} 个未管理文件、{DirectoryCount} 个目录。");
+            ? Text("GameData 里没有未管理的内容。", LocalizationKeys.UnmanagedStatusEmptyScan)
+            : Text(
+            "已扫描到 {0} 个未管理文件、{1} 个目录。",
+            LocalizationKeys.UnmanagedStatusScanned,
+            FileCount,
+            DirectoryCount));
     }
 
     private void ApplyEntries(InstanceInfo? instance, IReadOnlyList<UnmanagedFileInfo> entries)
@@ -643,7 +699,7 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
         catch (Exception ex)
         {
             _errors.Report(ex, context);
-            SetError(UnmanagedErrorText.FromException(ex, "未管理文件操作失败。"), ex.Message);
+            SetError(UnmanagedErrorText.FromException(ex, Text("未管理文件操作失败。", LocalizationKeys.UnmanagedErrorOperationFailed)), ex.Message);
         }
         finally
         {

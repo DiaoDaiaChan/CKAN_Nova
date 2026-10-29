@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using System.Collections.ObjectModel;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
@@ -35,7 +36,7 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
     }
 
     /// <inheritdoc />
-    public override string Title => "下载统计";
+    public override string Title => Text("下载统计", LocalizationKeys.NavRailDownloadStats);
 
     /// <summary>饼图图例。</summary>
     public ObservableCollection<DownloadStatsSliceViewModel> Slices { get; } = new();
@@ -69,15 +70,15 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
     public bool HasError => !string.IsNullOrEmpty(ErrorText);
 
     /// <summary>状态文本（有错误显错误，否则显总计摘要）。</summary>
-    public string StatusText => ErrorText ?? $"共 {ModuleCount} 个模组，{TotalDownloadsText} 次下载";
+    public string StatusText => ErrorText ?? Text("共 {0} 个模组，{1} 次下载", LocalizationKeys.DownloadStatsStatusSummary, ModuleCount, TotalDownloadsText);
 
     /// <summary>当前分组维度的中文展示名。</summary>
     public string DimensionLabel => Dimension switch
     {
-        DownloadStatsDimension.Tags => "标签",
-        DownloadStatsDimension.Installed => "安装状态",
-        DownloadStatsDimension.Repositories => "仓库",
-        _ => "模组",
+        DownloadStatsDimension.Tags => Text("标签", LocalizationKeys.DownloadStatsDimensionTags),
+        DownloadStatsDimension.Installed => Text("安装状态", LocalizationKeys.DownloadStatsDimensionInstalled),
+        DownloadStatsDimension.Repositories => Text("仓库", LocalizationKeys.DownloadStatsDimensionRepositories),
+        _ => Text("模组", LocalizationKeys.DownloadStatsDimensionMods),
     };
 
     /// <summary>错误说明；成功时为 null。</summary>
@@ -117,7 +118,7 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
     public string ModuleCountText => DownloadStatsFormat.Count(ModuleCount);
 
     /// <summary>提示条：有模组下载量不可用时说明来源。</summary>
-    public string UnavailableHint => "部分模组没有下载量数据（多为本地或刚入库的模组），这些行按 0 计。";
+    public string UnavailableHint => Text("部分模组没有下载量数据（多为本地或刚入库的模组），这些行按 0 计。", LocalizationKeys.DownloadStatsUnavailableHint);
 
     /// <summary>刷新。</summary>
     public IAsyncRelayCommand RefreshCommand { get; }
@@ -175,7 +176,7 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
             var result = await _service.ComputeAsync(request, ct).ConfigureAwait(true);
             if (!result.IsSuccess || result.Value is null)
             {
-                ErrorText = result.Message ?? "无法读取下载统计。";
+                ErrorText = result.Message ?? Text("无法读取下载统计。", LocalizationKeys.DownloadStatsErrorLoad);
                 Clear();
                 return;
             }
@@ -208,7 +209,7 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
         }
         catch (Exception ex)
         {
-            ErrorText = "下载统计失败：" + ex.Message;
+            ErrorText = Text("下载统计失败：{0}", LocalizationKeys.DownloadStatsErrorException, ex.Message);
             Clear();
         }
         finally

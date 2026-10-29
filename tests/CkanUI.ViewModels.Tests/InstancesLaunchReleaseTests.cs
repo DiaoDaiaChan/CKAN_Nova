@@ -134,6 +134,128 @@ public sealed class InstancesLaunchReleaseTests
         Assert.That(h.Vm.HasError, Is.True, "恢复失败必须出现在错误栏，而不是只写日志");
     }
 
+    // ---- E6 启动状态机：启动前还锁、精简模式、恢复出口（18 篇 §4/§6） ----
+
+    [Test]
+    public async Task 均衡档_启动前先还注册表锁并进入精简模式()
+    {
+        var h = new Harness(ResourceReleaseTier.Balanced);
+        h.Release.CoreDataResult = OperationResult.Ok();
+
+        await h.Vm.LaunchSelectedAsync(h.Vm.SelectedRow);
+
+        Assert.That(h.Release.CoreDataCalls, Is.EqualTo(1), "启动前必须只跑一次 L2");
+        Assert.That(h.Vm.IsTrimMode, Is.True, "放锁成功即进入精简模式");
+        Assert.That(h.Vm.LaunchPhase, Is.EqualTo(GameLaunchPhase.Running));
+        Assert.That(h.Vm.TrimModeText, Is.EqualTo("精简模式"));
+    }
+
+    [Test]
+    public async Task 关闭档_连锁都不动()
+    {
+        var h = new Harness(ResourceReleaseTier.Off);
+        h.Release.CoreDataResult = OperationResult.Ok();
+
+        await h.Vm.LaunchSelectedAsync(h.Vm.SelectedRow);
+
+        Assert.That(h.Release.CoreDataCalls, Is.Zero, "用户关掉释放后连 L2 都不该跑");
+        Assert.That(h.Vm.IsTrimMode, Is.False);
+    }
+
+    [Test]
+    public async Task 放锁失败_不阻断启动()
+    {
+        var h = new Harness(ResourceReleaseTier.Balanced);
+        h.Release.CoreDataResult = OperationResult.Fail("注册表正被占用。");
+
+        await h.Vm.LaunchSelectedAsync(h.Vm.SelectedRow);
+
+        Assert.That(h.Shell.LaunchCalls, Is.EqualTo(1), "拿不到锁也要把游戏拉起来");
+        Assert.That(h.Vm.IsTrimMode, Is.False);
+        Assert.That(h.Vm.StatusText, Does.Contain("已启动"));
+    }
+
+    [Test]
+    public async Task 启动失败_把刚放掉的锁立刻收回来()
+    {
+        var h = new Harness(ResourceReleaseTier.Balanced);
+        h.Release.CoreDataResult = OperationResult.Ok();
+        h.Shell.LaunchResult = OperationResult.Fail("找不到可执行文件。");
+
+        await h.Vm.LaunchSelectedAsync(h.Vm.SelectedRow);
+
+        Assert.That(h.Release.CoreDataCalls, Is.EqualTo(1));
+        Assert.That(h.Release.RestoreCalls, Is.EqualTo(1), "进程没起来必须立刻恢复，不能停在精简模式");
+        Assert.That(h.Vm.IsTrimMode, Is.False);
+        Assert.That(h.Vm.LaunchPhase, Is.EqualTo(GameLaunchPhase.Idle));
+    }
+
+    [Test]
+    public async Task 游戏退出_退出精简模式()
+    {
+        var h = new Harness(ResourceReleaseTier.Balanced);
+        h.Release.CoreDataResult = OperationResult.Ok();
+
+        await h.Vm.LaunchSelectedAsync(h.Vm.SelectedRow);
+        h.Shell.RaiseExited(MainDir);
+        await AwaitShutdown(h);
+
+        Assert.That(h.Vm.IsTrimMode, Is.False);
+        Assert.That(h.Vm.LaunchPhase, Is.EqualTo(GameLaunchPhase.Idle));
+        Assert.That(h.Vm.CanRestoreTrimMode, Is.False);
+    }
+
+    [Test]
+    public async Task 精简模式下_可以手动恢复数据()
+    {
+        var h = new Harness(ResourceReleaseTier.Aggressive, blockOnDelay: true);
+        h.Release.CoreDataResult = OperationResult.Ok();
+
+        await h.Vm.LaunchSelectedAsync(h.Vm.SelectedRow);
+        Assert.That(h.Vm.CanRestoreTrimMode, Is.True);
+
+        h.Vm.RestoreTrimModeCommand.Execute(null);
+        await AwaitShutdown(h);
+
+        Assert.That(h.Release.RestoreCalls, Is.EqualTo(1));
+        Assert.That(h.Vm.IsTrimMode, Is.False);
+        Assert.That(h.Vm.LaunchPhase, Is.EqualTo(GameLaunchPhase.Idle));
+    }
+
+    [Test]
+    public async Task 恢复失败_留住精简模式并可重试()
+    {
+        var h = new Harness(ResourceReleaseTier.Balanced);
+        h.Release.CoreDataResult = OperationResult.Ok();
+        h.Release.RestoreResult = OperationResult.Fail("恢复注册表失败，可以重试。", "锁拿不到。", retryable: true);
+
+        await h.Vm.LaunchSelectedAsync(h.Vm.SelectedRow);
+        h.Shell.RaiseExited(MainDir);
+        await AwaitShutdown(h);
+
+        Assert.That(h.Vm.IsTrimMode, Is.True, "没恢复成功就不能假装回到常态");
+        Assert.That(h.Vm.CanRestoreTrimMode, Is.True, "失败后要留一个重试出口");
+        Assert.That(h.Vm.ErrorText, Does.Contain("恢复"));
+
+        h.Release.RestoreResult = OperationResult.Ok();
+        h.Vm.RestoreTrimModeCommand.Execute(null);
+        await AwaitShutdown(h);
+
+        Assert.That(h.Vm.IsTrimMode, Is.False, "重试成功才退出精简模式");
+        Assert.That(h.Release.RestoreCalls, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void 启动阶段文案_随状态机变化()
+    {
+        var h = new Harness(ResourceReleaseTier.Balanced);
+
+        Assert.That(h.Vm.LaunchPhase, Is.EqualTo(GameLaunchPhase.Idle));
+        Assert.That(h.Vm.LaunchPhaseText, Is.EqualTo("就绪"));
+        Assert.That(h.Vm.IsLaunchActive, Is.False);
+        Assert.That(h.Vm.TrimModeText, Is.Empty);
+    }
+
     private static async Task AwaitPending(Harness h)
     {
         var pending = h.Vm.PendingRelease;
@@ -205,6 +327,17 @@ public sealed class InstancesLaunchReleaseTests
         public List<ResourceReleaseTier> Calls { get; } = new();
 
         public int RestoreCalls { get; private set; }
+
+        /// <summary>启动前「只跑 L2」的调用次数（18 篇 §4 T0）。</summary>
+        public int CoreDataCalls { get; private set; }
+
+        public OperationResult CoreDataResult { get; set; } = OperationResult.Ok();
+
+        public Task<OperationResult> ReleaseCoreDataAsync(CancellationToken ct = default)
+        {
+            CoreDataCalls++;
+            return Task.FromResult(CoreDataResult);
+        }
 
         public OperationResult RestoreResult { get; set; } = OperationResult.Ok();
 

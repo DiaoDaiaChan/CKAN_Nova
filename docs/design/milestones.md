@@ -77,13 +77,16 @@
 ## 4. 已知缺口（按影响排序）
 
 1. **真实下载未端到端验证**：`CkanInstallerBackend` 的联网路径只有离线假后端用例；沙箱内无法访问 CDN，需要在有网络的机器上跑一次「装一个真实模组」的冒烟。
-2. **实例重命名只改配置不搬目录**：`IInstanceService.RenameAsync` 已接 `GameInstanceManager.RenameInstance`（重名可重试拒绝、自启动名同步跟随），但不移动磁盘目录——与上游语义一致，界面已注明。
-3. **L4 工作集归还未实现**：`IViewResourceParticipant` / `IAppCacheParticipant` 现已有生产参与方（L0 清字形缓存与背景位图，L1 丢三页行投影与本地化诊断表，见 §3 模块表），但 L4（工作集归还）仍返回 `Unsupported` 记 Skipped——需要 psapi P/Invoke 与权限，沙箱内无法验证真实工作集变化。
+2. **（已定取舍）实例重命名只改配置不搬目录**：`IInstanceService.RenameAsync` 已接 `GameInstanceManager.RenameInstance`（重名可重试拒绝、自启动名同步跟随），但不移动磁盘目录——与上游语义一致，界面已注明。
+3. **L4 工作集归还已接入，缺真机量化**：`src/CkanUI.Services/Lifecycle/PlatformMemory.cs` 用 `[LibraryImport("psapi.dll")] EmptyWorkingSet` 真回收工作集，以回收前后 `Process.WorkingSet64` 差值报数；非 Windows 与 Win32 失败仍安全降级（0 项 + Warn，不抛）。缺的是**真机量化**：沙箱内派生的 GUI 进程结论不可信（见第 9 条），需要在普通桌面跑一次 `Aggressive` 档对照工作集曲线。
 4. **托盘只到编译与 VM 单测**：`TrayHost` 的真实图标、菜单点击与两个开关联动仍需人工目视一次——本轮已确认真实窗口能起来、也能用 UI Automation 驱动（见 §6.3），但托盘区图标没有自动化通道；图标固定 32×32 不随 DPI 重绘，菜单文案是 VM 内中文常量。
-5. **插件页签的视图必须自带**：视图符合同程序集命名约定才能被解析，否则回退占位视图；工具项目前只有模组页一个落点（`PluginToolCatalog.ModsPageKey`），新页面要接需实现 `IPluginToolHost` 并在 DI 注册别名（见 `docs/design/plugins.md` §6.1 / §6.2）。
-6. **背景的「游戏截图」来源未做**：P-06 只做纯色/渐变/本机图片三来源，20 篇 §9.1 的「用当前游戏截图（读 `<GameDir>/Screenshots` 最新一张）」折叠进「本机图片」，留到 v2（20 篇 §9.4 已记差异）。
-7. **打包发布、性能验收**（M8–M14 主体）尚未开工。
-8. **本地化只覆盖 XAML 侧，页面 VM 的运行期文案仍是中文硬编码**：`DynamicResource` 文案走词包，但页面 VM 内的状态/提示/校验文案与导航标题都是中文常量（全仓库 130+ 处，例：`src/CkanUI.ViewModels/Pages/ModTextPageViewModel.cs:208`「正在载入翻译词库...」、`src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:128` `Title => "模组"`），尚未按 16 篇 §5 的键规范迁移。这是跨页面的横切债，不是单页缺陷；迁移时应一次性按页面成批做，避免半页中半页英。
+5. **（设计约束，非缺陷）插件页签的视图必须自带**：视图符合同程序集命名约定才能被解析，否则回退占位视图；工具项目前只有模组页一个落点（`PluginToolCatalog.ModsPageKey`），新页面要接需实现 `IPluginToolHost` 并在 DI 注册别名（见 `docs/design/plugins.md` §6.1 / §6.2）。
+6. **（已补齐，自动轮换留 v2）背景的「游戏截图」来源**：第四轮接上 20 篇 §9.1——设置页「背景来源」新增「游戏截图（最新一张）」，
+  由 `src/CkanUI.Services/Settings/BackgroundImageLocator.cs` 读 `<GameDir>/Screenshots` 里最新一张，路径计入背景缓存签名；
+  仍未做的只有 20 篇 §4 Q2 的「每次启动自动换一张」（v2）。
+7. **发布链路已交付、性能验收缺真机**：`tools/release/release.ps1` 一条命令出双发布包（自包含 + 框架依赖）与 `SHA256SUMS.txt`/`manifest.json`，`.github/workflows/release.yml` 按 tag 触发并带冒烟；缺的是**有网机器的性能与端到端**：真实模组下载安装、F12 帧率/可打断性、900–1600 双宽度视觉复核、macOS/Linux 冒烟、安装器（E7）与代码签名。
+8. **页面 VM 运行期文案的本地化（第四轮已收口主体）**：机制见 `src/CkanUI.ViewModels/PageViewModel.cs` 的 `TextResolver`/`TextFormatter` 与 `Text(中文, 键)`，导航时由 `NavigationService` 用 `??=` 注入，没译文就回落中文原文；17 个页面 ViewModel 的标题与正文共 852 处已迁移（含 `ModConfigPageViewModel` 旧式 `T()` 的统一），文案键 76 → 930，中英两套包严格同步，代码 fallback 与 zh-CN 译文逐字一致由 `tests/CkanUI.Architecture.Tests/PageTextLocalizationTests.cs` 守护。**仍剩子 VM 与静态格式化器**（`ChangesFormatter` 39、`ChangesLabels` 19、`ModPackEditorText` 39、`ModsSearchPanelViewModel` 30、`LogGlyphs` 24、`SettingsDiagnosticsViewModel` 14、`StabilityToleranceFile` 14、`InstallHistoryText` 17 等），它们不是 `PageViewModel`，需先加 `Func<string,string,…>` 适配器；清单与理由见 `docs/design/i18n-runtime.md` 的「尚未覆盖」与 `docs/design/feature-matrix-verification.md` §11。
+   仍剩：其余页面正文（Settings / ModPacks / InstallHistory / Unmanaged / Cache / Saves / Changes / Repos 等按中文串量递减）、子 VM 与格式器（`ChangesFormatter`、`LogGlyphs`、`InstallHistoryText`、`ModPackEditorText` 等）、`ModConfigPageViewModel` 旧式「中文即键」`T()` 的统一，以及错误栏兜底句。逐条清单见 `docs/design/feature-matrix-verification.md` §10。
 9. **沙箱里派生的 GUI 进程写不进 `%LocalAppData%\CKAN`**：本轮冒烟见状态栏「启动未完成：实例操作失败。」与模组汉化页 `Access to the path 'C:\Users\43701\AppData\Local\CKAN\ckan-ui\18n\packs' is denied.`；同一路径在 bash 里可写、GUI 进程不可写，判为沙箱派生进程的权限副作用而非产品缺陷。需在普通桌面（双击 exe）启动下复核：能写则撤销本条，仍报错按真缺陷修。
 
 ## 5. 如何复核本表
@@ -136,5 +139,5 @@ dotnet run --project tools/verify-layout -- --all   # 期望「结论: 绿」
 
 ### 6.4 结档时仍然打开的项
 
-§4 的 8 条全部仍打开（真实下载端到端、实例重命名不搬目录、L4 工作集归还、托盘手测、插件页签视图自带 + 工具项落点单一、背景「游戏截图」来源、M8–M14 打包与性能、沙箱写权限复核）；另有插件文档 §9 那批「需要 Lead 落地」条目其实已经落地，本轮只标注不清删。
+§4 的 8 条里，第四轮关掉了 2 条（L4 工作集归还已接 psapi、背景「游戏截图」来源已接），其余 6 条仍打开（真实下载端到端、实例重命名不搬目录「已定取舍」、托盘手测、插件页签视图自带 + 工具项落点单一「设计约束」、M8–M14 打包与性能、沙箱写权限复核）；另有插件文档 §9 那批「需要 Lead 落地」条目其实已经落地，本轮只标注不清删。
 

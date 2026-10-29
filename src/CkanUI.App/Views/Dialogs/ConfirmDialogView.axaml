@@ -1,32 +1,53 @@
 <dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
-                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
-                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
-                       x:Class="CkanUI.App.Views.Dialogs.ConfirmDialogView"
-                       x:DataType="vm:ConfirmDialogViewModel"
-                       Title="{Binding Title}"
-                       Width="440"
-                       SizeToContent="Height">
-  <StackPanel Margin="20" Spacing="12">
-    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
-    <TextBlock Text="{Binding Detail}"
-               IsVisible="{Binding HasDetail}"
-               TextWrapping="Wrap"
-               Opacity="0.75"
-               FontSize="12" />
+                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                      xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                      xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                      x:Class="CkanUI.App.Views.Dialogs.ConfirmDialogView"
+                      x:DataType="vm:ConfirmDialogViewModel"
+                      Title="{Binding Title}"
+                      Width="460"
+                      SizeToContent="Height">
+  <StackPanel Margin="24,20" Spacing="14">
+    <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,4">
+      <Border Width="40" Height="40" CornerRadius="20"
+              Background="{DynamicResource CkanAccentSubtleBrush}"
+              Margin="0,0,14,0" VerticalAlignment="Top">
+        <PathIcon Width="18" Height="18"
+                  Foreground="{DynamicResource CkanAccentBrush}"
+                  Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+      </Border>
+      <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+        <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
+                   FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+        <TextBlock Text="{Binding Detail}"
+                   IsVisible="{Binding HasDetail}"
+                   TextWrapping="Wrap"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+      </StackPanel>
+    </Grid>
+
     <CheckBox Content="{Binding DoNotAskAgainText}"
               IsChecked="{Binding DoNotAskAgain, Mode=TwoWay}"
-              IsVisible="{Binding ShowDoNotAskAgain}" />
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-      <Button Content="{Binding PrimaryButtonText}"
-              Command="{Binding PrimaryCommand}"
-              IsDefault="True"
-              MinWidth="92"
-              HorizontalContentAlignment="Center" />
+              IsVisible="{Binding ShowDoNotAskAgain}"
+              Margin="54,0,0,0" />
+
+    <Border Height="1" Background="{DynamicResource CkanBorderBrush}" Margin="0,4" />
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
       <Button Content="{Binding SecondaryButtonText}"
               Command="{Binding SecondaryCommand}"
               IsVisible="{Binding HasSecondaryButton}"
-              MinWidth="92"
+              Classes="CkanSecondary"
+              MinWidth="88"
+              HorizontalContentAlignment="Center" />
+      <Button Content="{Binding PrimaryButtonText}"
+              Command="{Binding PrimaryCommand}"
+              IsDefault="True"
+              Classes="CkanPrimary"
+              MinWidth="88"
               HorizontalContentAlignment="Center" />
     </StackPanel>
   </StackPanel>

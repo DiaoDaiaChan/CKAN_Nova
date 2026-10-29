@@ -42,7 +42,7 @@
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Grid.Column="0" Spacing="4">
         <TextBlock Text="安装历史" Classes="CkanPageTitle" />
-        <TextBlock Text="每次安装、卸载、升级都会记一条（含当时的已装集合快照）。选中某条历史可以把它重装回来；重装只按该时间点的模组集合计算变更，不会卸载快照之外的模组。"
+        <TextBlock Text="每次安装、卸载、升级都会记一条（含当时的已装集合快照）。选中某条历史可以把它重装回来；重装按该时间点的模组集合计算变更，是否卸载快照之外的模组由工具条上的勾选项决定。"
                    Classes="CkanCaption" TextWrapping="Wrap" />
       </StackPanel>
       <Border Grid.Column="1" Classes="CkanBadge" VerticalAlignment="Center" Margin="12,0,0,0">
@@ -72,6 +72,13 @@
           <TextBlock Text="{Binding RestoreHintText}" VerticalAlignment="Center"
                      MaxWidth="640" TextWrapping="Wrap" Classes="CkanCaption" />
         </WrapPanel>
+        <!-- 重装的附加开关：勾上才把快照之外的模组也卸掉（默认只按快照里的模组算变更）。
+             只在选中了某条历史时出现——没有选中项时这个开关没有作用对象。 -->
+        <CheckBox Content="同时卸载快照之外的模组"
+                  IsChecked="{Binding RemoveExtras, Mode=TwoWay}"
+                  IsVisible="{Binding HasSelection}"
+                  IsEnabled="{Binding HasSelection}"
+                  ToolTip.Tip="勾选后，重装会卸载当前实例里不在该快照中的模组（这些模组及其文件会被删除，无法撤销）；不勾选时只按快照里的模组计算变更。" />
         <StackPanel Spacing="4" IsVisible="{Binding HasProgress}">
           <ProgressBar Value="{Binding ProgressPercent}" Maximum="100" Height="4" />
           <TextBlock Text="{Binding ProgressText}" Classes="CkanCaption" />

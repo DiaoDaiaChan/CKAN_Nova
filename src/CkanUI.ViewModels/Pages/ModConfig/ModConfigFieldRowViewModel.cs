@@ -1,6 +1,7 @@
 using System.Globalization;
 using CkanUI.Services.Abstractions.ModConfig;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace CkanUI.ViewModels.Pages.ModConfig;
 
@@ -8,8 +9,9 @@ namespace CkanUI.ViewModels.Pages.ModConfig;
 /// <remarks>
 /// CFG-04 起这一行可编辑：bool/int/float/enum/string/path/list 用 <see cref="EditValue"/> 承载草稿值，
 /// 页面 VM 收集"草稿与磁盘值不同"的行后统一交给 IAdapterWriter 写盘（写前快照、写后自校验都在服务层）。
-/// color/keybinding/readonly 保持只读，但必须用 <see cref="ReadOnlyNote"/> 写明"本版只读"的原因，
-/// 不做静默禁用。编辑期间不要重建行对象（会丢输入焦点）：页面只在保存/重新读盘之后重建。
+/// color/keybinding 也有各自的编辑控件（取色文本 + 色块预览、点击后按组合键捕获），
+/// readonly 字段保持只读且必须用 <see cref="ReadOnlyNote"/> 写明原因，不做静默禁用。
+/// 编辑期间不要重建行对象（会丢输入焦点）：页面只在保存/重新读盘之后重建。
 /// </remarks>
 public sealed partial class ModConfigFieldRowViewModel : ObservableObject
 {
@@ -147,6 +149,15 @@ public sealed partial class ModConfigFieldRowViewModel : ObservableObject
     /// <summary>是否显示开关控件。</summary>
     public bool ShowToggle => CanEdit && EditorKind == ModConfigEditorKind.Toggle;
 
+    /// <summary>路径字段的「浏览…」通道（由页面注入：视图层把它接到系统的目录选择器）。</summary>
+    /// <remarks>用委托而不是接口，是为了让 ViewModels 层不依赖任何平台类型；为空时不显示按钮。</remarks>
+    public Func<ModConfigFieldRowViewModel, Task<string?>>? PathPicker { get; set; }
+
+    /// <summary>是否可以点「浏览…」挑路径。</summary>
+    public bool CanBrowse => CanEdit
+        && EditorKind == ModConfigEditorKind.PathPicker
+        && PathPicker is not null;
+
     /// <summary>是否显示下拉控件。</summary>
     public bool ShowDropdown => CanEdit && EditorKind == ModConfigEditorKind.Dropdown;
 
@@ -159,8 +170,35 @@ public sealed partial class ModConfigFieldRowViewModel : ObservableObject
     /// <summary>文本框是否多行（list 逐行一项）。</summary>
     public bool IsMultilineEditor => EditorKind == ModConfigEditorKind.ListEditor;
 
+    /// <summary>是否显示取色编辑（文本 + 色块预览）。</summary>
+    public bool ShowColorEditor => CanEdit && EditorKind == ModConfigEditorKind.ColorPicker;
+
+    /// <summary>是否显示按键捕获（点击后按组合键，Esc 清空）。</summary>
+    public bool ShowKeyCapture => CanEdit && EditorKind == ModConfigEditorKind.KeyCapture;
+
+    /// <summary>按键捕获的行内提示：说清"既可以直接输入键名，也可以按住修饰键捕获"。</summary>
+    public string KeyCaptureHint => ShowKeyCapture
+        ? "可直接输入键名，或按住 Ctrl/Alt 再按键捕获；Esc 清空。"
+        : string.Empty;
+
+    /// <summary>是否显示按键捕获提示。</summary>
+    public bool HasKeyCaptureHint => KeyCaptureHint.Length > 0;
+
+    /// <summary>色块预览用的十六进制颜色（无法识别时为空串，视图据此隐藏色块）。</summary>
+    public string ColorPreviewHex => ModConfigColorText.TryNormalize(EditValue, out var hex) ? hex : string.Empty;
+
+    /// <summary>是否显示色块预览。</summary>
+    public bool HasColorPreview => ColorPreviewHex.Length > 0;
+
+    /// <summary>颜色写法提示：空值/识别不了时给一句人话，识别成功时不占版面。</summary>
+    public string ColorNote => ModConfigColorText.Describe(EditValue);
+
+    /// <summary>是否显示颜色写法提示。</summary>
+    public bool HasColorNote => ColorNote.Length > 0;
+
     /// <summary>是否只读展示（此时 ReadOnlyNote 一定有内容，不会静默禁用）。</summary>
-    public bool ShowReadOnlyValue => !ShowToggle && !ShowDropdown && !ShowTextEditor;
+    public bool ShowReadOnlyValue => !ShowToggle && !ShowDropdown && !ShowTextEditor
+        && !ShowColorEditor && !ShowKeyCapture;
 
     /// <summary>只读/暂不支持时的原因说明。</summary>
     public string ReadOnlyNote => ShowReadOnlyValue ? BuildReadOnlyNote() : string.Empty;
@@ -202,6 +240,26 @@ public sealed partial class ModConfigFieldRowViewModel : ObservableObject
         OnPropertyChanged(nameof(WireValue));
         OnPropertyChanged(nameof(HasPendingChange));
         OnPropertyChanged(nameof(IsToggleOn));
+        OnPropertyChanged(nameof(ColorPreviewHex));
+        OnPropertyChanged(nameof(HasColorPreview));
+        OnPropertyChanged(nameof(ColorNote));
+        OnPropertyChanged(nameof(HasColorNote));
+    }
+
+    /// <summary>命令：打开目录选择器挑一个路径，挑到就填进草稿（取消则原样保留）。</summary>
+    [RelayCommand]
+    private async Task BrowseAsync()
+    {
+        if (PathPicker is not { } picker || !CanBrowse)
+        {
+            return;
+        }
+
+        var picked = await picker(this).ConfigureAwait(true);
+        if (!string.IsNullOrWhiteSpace(picked))
+        {
+            EditValue = picked;
+        }
     }
 
     private string BaselineValue => _savedText ?? Field.Value ?? string.Empty;
@@ -220,12 +278,7 @@ public sealed partial class ModConfigFieldRowViewModel : ObservableObject
             return "只读字段：值由 mod 自己维护，页面不提供修改。";
         }
 
-        return EditorKind switch
-        {
-            ModConfigEditorKind.ColorPicker => "本版只读：颜色值请在配置文件里手工调整。",
-            ModConfigEditorKind.KeyCapture => "本版只读：按键组合请在配置文件里手工调整。",
-            _ => "本版只读：这类字段还没有编辑控件。",
-        };
+        return "本版只读：这类字段还没有编辑控件。";
     }
 
     private static IReadOnlyList<string> BuildChoices(ModConfigFieldState field)

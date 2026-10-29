@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using CkanUI.ModText;
+using CkanUI.Services.Abstractions;
 using CkanUI.Services.ModText;
 using CkanUI.TestSupport;
 using NUnit.Framework;
@@ -109,8 +110,9 @@ public sealed class ModTextServiceTests
         Assert.That(found, Is.Not.Null);
         Assert.That(found!.Text, Is.EqualTo("导入文本"));
 
-        string exportedContent = await service.ExportJsonlAsync(Path.Combine("packs", "zh-cn", "CustomPack.jsonl"));
-        Assert.That(exportedContent, Does.Contain("导入文本"));
+        OperationResult<string> exported = await service.ExportJsonlAsync(Path.Combine("packs", "zh-cn", "CustomPack.jsonl"));
+        Assert.That(exported.IsSuccess, Is.True, exported.Message);
+        Assert.That(exported.Value, Does.Contain("导入文本"));
     }
 
     [Test]
@@ -132,6 +134,65 @@ public sealed class ModTextServiceTests
         string overridesPath = Path.Combine(baseDir, "packs", "overrides.jsonl");
         string content = await File.ReadAllTextAsync(overridesPath);
         Assert.That(content, Does.Not.Contain("自动驾驶模组覆盖"));
+    }
+
+    [Test]
+    public async Task ExportJsonlAsync_MissingFile_ReturnsFailureWithoutThrowing()
+    {
+        using var workspace = new TempWorkspace();
+        var service = new ModTextService(workspace.Path);
+        await service.ReloadPacksAsync("zh-cn");
+
+        OperationResult<string> result = null!;
+        Assert.DoesNotThrowAsync(async () =>
+        {
+            result = await service.ExportJsonlAsync(Path.Combine("packs", "zh-cn", "NoSuchPack.jsonl"));
+        });
+
+        Assert.That(result.IsSuccess, Is.False);
+        Assert.That(result.Value, Is.Null);
+        Assert.That(result.Message, Does.Contain("文件不存在"));
+        Assert.That(result.Retryable, Is.False);
+    }
+
+    [Test]
+    public async Task ExportJsonlAsync_BlankPath_ReturnsFailureWithoutThrowing()
+    {
+        using var workspace = new TempWorkspace();
+        var service = new ModTextService(workspace.Path);
+        await service.ReloadPacksAsync("zh-cn");
+
+        OperationResult<string> result = null!;
+        Assert.DoesNotThrowAsync(async () =>
+        {
+            result = await service.ExportJsonlAsync("   ");
+        });
+
+        Assert.That(result.IsSuccess, Is.False);
+        Assert.That(result.Message, Does.Contain("导出路径不能为空"));
+    }
+
+    [Test]
+    public async Task SyncFromUniversalI18nAsync_MissingDirectory_ReturnsFailureWithoutThrowing()
+    {
+        using var workspace = new TempWorkspace();
+        var service = new ModTextService(workspace.Path);
+        await service.ReloadPacksAsync("zh-cn");
+
+        string missing = Path.Combine(workspace.Path, "no-such-universal-i18n");
+
+        OperationResult<int> result = null!;
+        Assert.DoesNotThrowAsync(async () =>
+        {
+            result = await service.SyncFromUniversalI18nAsync(missing);
+        });
+
+        Assert.That(result.IsSuccess, Is.False);
+        Assert.That(result.Value, Is.EqualTo(0));
+        Assert.That(result.Message, Does.Contain("未找到 UniversalI18n"));
+        Assert.That(result.Detail, Is.EqualTo(missing));
+        // 失败不能回落到用户主目录的真实仓库，也不能顺手建出 packs 目录。
+        Assert.That(Directory.Exists(Path.Combine(workspace.Path, "packs")), Is.False);
     }
 
     [Test]
@@ -161,8 +222,9 @@ public sealed class ModTextServiceTests
         // 目标目录预先存在一条本地 override
         await service.PutOverrideAsync("LocalMod", "abstract", "Local source", "本地独有覆盖");
 
-        int count = await service.SyncFromUniversalI18nAsync(sourceDir);
-        Assert.That(count, Is.GreaterThanOrEqualTo(2));
+        OperationResult<int> sync = await service.SyncFromUniversalI18nAsync(sourceDir);
+        Assert.That(sync.IsSuccess, Is.True, sync.Message);
+        Assert.That(sync.Value, Is.GreaterThanOrEqualTo(2));
 
         // 验证源包翻译已被载入
         var syncFound = service.Provider.Find("SyncMod", "abstract", "Sync source text");

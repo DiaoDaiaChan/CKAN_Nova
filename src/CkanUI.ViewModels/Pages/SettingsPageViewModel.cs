@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Input;
@@ -88,6 +89,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         OpenCacheFolderCommand = new AsyncRelayCommand(OpenCacheFolderAsync);
         OpenConfigFolderCommand = new AsyncRelayCommand(OpenConfigFolderAsync);
         CheckForUpdatesCommand = new AsyncRelayCommand(CheckForUpdatesAsync);
+        StatusText = Text("尚未读取设置", LocalizationKeys.SettingsStatusNotLoaded);
 
         BuildGroups();
         // 构造期提供器还没注入，先按随包发布的语种给默认候选；组装根稍后再调一次 RefreshLocaleChoices。
@@ -117,10 +119,10 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     };
 
     /// <summary>构造语言候选：第 0 项固定「跟随系统」（空 code 表示不写 Locale，交给系统区域兜底）。</summary>
-    private static IReadOnlyList<SettingChoice> BuildLocaleChoices(
+    private IReadOnlyList<SettingChoice> BuildLocaleChoices(
         IReadOnlyList<(string Code, string Display)>? fromProvider)
     {
-        var choices = new List<SettingChoice> { new(string.Empty, "跟随系统") };
+        var choices = new List<SettingChoice> { new(string.Empty, Text("跟随系统", LocalizationKeys.SettingsChoiceLocaleFollowSystem)) };
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { string.Empty };
 
         // 提供器可能给出空列表或重复项：退回到随包语种，并逐个去重、跳过空 code。
@@ -139,7 +141,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     }
 
     /// <inheritdoc />
-    public override string Title => "设置";
+    public override string Title => Text("设置", LocalizationKeys.SettingsTitle);
 
     /// <summary>八个设置分组（顺序即界面顺序）。</summary>
     public IReadOnlyList<SettingGroupViewModel> Groups => _groups;
@@ -192,7 +194,9 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
 
     /// <summary>接管提示文案；未被接管时为空。</summary>
     public string AppearanceLockNotice => IsAppearanceLocked
-        ? "系统已开启高对比度：主题、强调色与背景由系统接管，这里的改动不会生效。"
+        ? Text(
+            "系统已开启高对比度：主题、强调色与背景由系统接管，这里的改动不会生效。",
+            LocalizationKeys.SettingsNoticeHighContrastLock)
         : string.Empty;
 
     /// <summary>是否显示接管提示。</summary>
@@ -226,7 +230,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
 
     /// <summary>状态栏文案。</summary>
     [ObservableProperty]
-    private string _statusText = "尚未读取设置";
+    private string _statusText = string.Empty;
 
     /// <summary>读取失败的文案。</summary>
     [ObservableProperty]
@@ -311,7 +315,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         var pending = _items.Where(item => item.IsDirty && !item.HasError).ToArray();
         if (pending.Length == 0)
         {
-            StatusText = "没有需要保存的修改";
+            StatusText = Text("没有需要保存的修改", LocalizationKeys.SettingsStatusNoChanges);
             return;
         }
 
@@ -334,7 +338,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
 
         _tokenEditor.Discard();
         UpdateDirtyState();
-        StatusText = "已放弃未保存的修改";
+        StatusText = Text("已放弃未保存的修改", LocalizationKeys.SettingsStatusReverted);
     }
 
     /// <summary>重试所有可重试的失败项（永久失败不会出现在这里，Retryable 语义见 01 篇 §8）。</summary>
@@ -359,7 +363,9 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
             await _tokenEditor.RetryFailedAsync().ConfigureAwait(true);
         }
 
-        StatusText = retried == 0 ? "没有可重试的失败项" : string.Create(CultureInfo.InvariantCulture, $"已重试 {retried} 项");
+        StatusText = retried == 0
+                ? Text("没有可重试的失败项", LocalizationKeys.SettingsStatusNoRetryable)
+                : Text("已重试 {0} 项", LocalizationKeys.SettingsStatusRetried, retried);
         UpdateDirtyState();
     }
 
@@ -376,7 +382,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
             var all = await _settings.GetAllAsync(ct).ConfigureAwait(true);
             if (!all.IsSuccess || all.Value is null)
             {
-                SetLoadError(all.Message ?? "读取设置失败", all.Detail);
+                SetLoadError(all.Message ?? Text("读取设置失败", LocalizationKeys.SettingsErrorLoadFailed), all.Detail);
                 return;
             }
 
@@ -396,13 +402,17 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
 
             if (!HasLoadError)
             {
-                StatusText = string.Create(CultureInfo.InvariantCulture, $"已读取 {_items.Count} 项设置、{_tokenEditor.Tokens.Count} 条令牌");
+                StatusText = Text(
+                    "已读取 {0} 项设置、{1} 条令牌",
+                    LocalizationKeys.SettingsStatusLoaded,
+                    _items.Count,
+                    _tokenEditor.Tokens.Count);
             }
         }
         catch (Exception ex)
         {
             // 服务契约不抛异常；真抛了也不能穿透到 UI 线程（01 篇 §8 异常收口）。
-            SetLoadError("读取设置失败", ex.Message);
+            SetLoadError(Text("读取设置失败", LocalizationKeys.SettingsErrorLoadFailed), ex.Message);
         }
         finally
         {
@@ -422,7 +432,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
 
         if (item.Validate())
         {
-            StatusText = $"{item.DisplayName}：请先修正输入";
+            StatusText = Text("{0}：请先修正输入", LocalizationKeys.SettingsStatusNeedsFix, item.DisplayName);
             UpdateDirtyState();
             return;
         }
@@ -430,13 +440,13 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         if (IsAppearanceLocked && AppearanceKeys.Contains(item.Key, StringComparer.Ordinal))
         {
             // 高对比度期间这两行是只读的：即便命令被绕过（脚本/快捷键），也不能写出一个立刻要回滚的值。
-            StatusText = $"{item.DisplayName}：系统高对比度已接管外观";
+            StatusText = Text("{0}：系统高对比度已接管外观", LocalizationKeys.SettingsStatusHighContrastOwned, item.DisplayName);
             return;
         }
 
         if (!item.IsDirty)
         {
-            StatusText = $"{item.DisplayName}：没有修改";
+            StatusText = Text("{0}：没有修改", LocalizationKeys.SettingsStatusNoChange, item.DisplayName);
             return;
         }
 
@@ -454,7 +464,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                     }
                     else
                     {
-                        item.MarkFailed(result.Message ?? "保存失败", result.Detail, result.Retryable);
+                        item.MarkFailed(result.Message ?? Text("保存失败", LocalizationKeys.SettingsErrorSaveFailed), result.Detail, result.Retryable);
                         StatusText = ComposeFailedStatus(item, result.Retryable);
                     }
 
@@ -469,14 +479,14 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                     break;
 
                 default:
-                    item.MarkFailed("未知的保存去向", null, retryable: false);
-                    StatusText = $"{item.DisplayName}：保存失败";
+                    item.MarkFailed(Text("未知的保存去向", LocalizationKeys.SettingsErrorUnknownPersistence), null, retryable: false);
+                    StatusText = Text("{0}：保存失败", LocalizationKeys.SettingsStatusItemSaveFailed, item.DisplayName);
                     break;
             }
         }
         catch (Exception ex)
         {
-            item.MarkFailed("保存失败", ex.Message, retryable: true);
+            item.MarkFailed(Text("保存失败", LocalizationKeys.SettingsErrorSaveFailed), ex.Message, retryable: true);
             StatusText = ComposeFailedStatus(item, retryable: true);
         }
         finally
@@ -497,59 +507,59 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     {
         _devBuildsItem = new SettingItemViewModel(
             SettingsKeyNames.DevBuilds,
-            "开发版更新通道",
+            Text("开发版更新通道", LocalizationKeys.SettingsItemDevBuilds),
             SettingItemKind.Boolean,
             SettingPersistence.Core,
             SettingGroupKey.General,
-            description: "开启后检查更新时包含 dev 构建（F-52）；关闭则只跟踪正式版。",
+            description: Text("开启后检查更新时包含 dev 构建（F-52）；关闭则只跟踪正式版。", LocalizationKeys.SettingsItemDevBuildsDesc),
             saveHandler: vm => SaveItemAsync(vm));
-        _devBuildsItem.SetAuxiliaryAction("立即检查更新", CheckForUpdatesCommand);
+        _devBuildsItem.SetAuxiliaryAction(Text("立即检查更新", LocalizationKeys.SettingsAuxiliaryCheckUpdates), CheckForUpdatesCommand);
 
         var general = Group(
             SettingGroupKey.General,
-            "通用",
-            "与具体实例无关的行为。",
+            Text("通用", LocalizationKeys.SettingsSectionGeneral),
+            Text("与具体实例无关的行为。", LocalizationKeys.SettingsSectionGeneralDesc),
             _devBuildsItem);
 
         _autoStartItem = new SettingItemViewModel(
             SettingsKeyNames.AutoStartInstance,
-            "自动打开的实例",
+            Text("自动打开的实例", LocalizationKeys.SettingsItemAutoStartInstance),
             SettingItemKind.Choice,
             SettingPersistence.Core,
             SettingGroupKey.Instance,
-            description: "从已登记的实例里选一个；「不自动打开」表示启动后需要手动选实例。",
+            description: Text("从已登记的实例里选一个；「不自动打开」表示启动后需要手动选实例。", LocalizationKeys.SettingsItemAutoStartInstanceDesc),
             requiresRestart: true,
-            choices: new[] { new SettingChoice(string.Empty, "不自动打开") },
+            choices: new[] { new SettingChoice(string.Empty, Text("不自动打开", LocalizationKeys.SettingsChoiceAutoStartInstanceNone)) },
             saveHandler: vm => SaveItemAsync(vm));
 
         var instance = Group(
             SettingGroupKey.Instance,
-            "实例",
-            "启动该界面时自动打开的实例。",
+            Text("实例", LocalizationKeys.SettingsSectionInstance),
+            Text("启动该界面时自动打开的实例。", LocalizationKeys.SettingsSectionInstanceDesc),
             _autoStartItem);
 
         _cacheDirItem = new SettingItemViewModel(
             SettingsKeyNames.DownloadCacheDir,
-            "缓存目录",
+            Text("缓存目录", LocalizationKeys.SettingsItemDownloadCacheDir),
             SettingItemKind.Path,
             SettingPersistence.Core,
             SettingGroupKey.DownloadCache,
-            description: "留空表示使用 Core 的默认缓存目录。",
+            description: Text("留空表示使用 Core 的默认缓存目录。", LocalizationKeys.SettingsItemDownloadCacheDirDesc),
             saveHandler: vm => SaveItemAsync(vm));
-        _cacheDirItem.SetAuxiliaryAction("打开目录", OpenCacheFolderCommand);
+        _cacheDirItem.SetAuxiliaryAction(Text("打开目录", LocalizationKeys.SettingsAuxiliaryOpenFolder), OpenCacheFolderCommand);
 
         var cache = Group(
             SettingGroupKey.DownloadCache,
-            "下载缓存",
-            "模组压缩包的缓存位置与容量上限（F-50）。",
+            Text("下载缓存", LocalizationKeys.SettingsSectionDownloadCache),
+            Text("模组压缩包的缓存位置与容量上限（F-50）。", LocalizationKeys.SettingsSectionDownloadCacheDesc),
             _cacheDirItem,
             new SettingItemViewModel(
                 SettingsKeyNames.CacheSizeLimit,
-                "缓存容量上限（MiB）",
+                Text("缓存容量上限（MiB）", LocalizationKeys.SettingsItemCacheSizeLimit),
                 SettingItemKind.Integer,
                 SettingPersistence.Core,
                 SettingGroupKey.DownloadCache,
-                description: "超过上限时由缓存管理执行「清理到上限」；留空表示不限。",
+                description: Text("超过上限时由缓存管理执行「清理到上限」；留空表示不限。", LocalizationKeys.SettingsItemCacheSizeLimitDesc),
                 requiresRestart: true,
                 min: 0,
                 max: MaxCacheLimitMebibytes,
@@ -559,383 +569,386 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
 
         var repository = Group(
             SettingGroupKey.Repository,
-            "仓库与网络",
-            "仓库元数据的自动刷新节奏与主机优先级（F-15）。",
+            Text("仓库与网络", LocalizationKeys.SettingsSectionRepository),
+            Text("仓库元数据的自动刷新节奏与主机优先级（F-15）。", LocalizationKeys.SettingsSectionRepositoryDesc),
             new SettingItemViewModel(
                 SettingsKeyNames.RefreshRate,
-                "自动刷新间隔（分钟）",
+                Text("自动刷新间隔（分钟）", LocalizationKeys.SettingsItemRefreshRate),
                 SettingItemKind.Integer,
                 SettingPersistence.Core,
                 SettingGroupKey.Repository,
-                description: "0 表示不自动刷新；留空表示使用默认值。",
+                description: Text("0 表示不自动刷新；留空表示使用默认值。", LocalizationKeys.SettingsItemRefreshRateDesc),
                 min: 0,
                 max: MaxRefreshRateMinutes,
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.PreferredHosts,
-                "首选主机顺序",
+                Text("首选主机顺序", LocalizationKeys.SettingsItemPreferredHosts),
                 SettingItemKind.LineList,
                 SettingPersistence.Core,
                 SettingGroupKey.Repository,
-                description: "每行一个主机名，自上而下优先；空行表示「其余主机」的位置。",
+                description: Text("每行一个主机名，自上而下优先；空行表示「其余主机」的位置。", LocalizationKeys.SettingsItemPreferredHostsDesc),
                 saveHandler: vm => SaveItemAsync(vm)));
 
         var authToken = new SettingGroupViewModel(
             SettingGroupKey.AuthToken,
-            "认证令牌",
-            "按主机配置访问令牌；界面只显示脱敏预览，明文不写日志（F-11）。",
+            Text("认证令牌", LocalizationKeys.SettingsSectionAuthToken),
+            Text("按主机配置访问令牌；界面只显示脱敏预览，明文不写日志（F-11）。", LocalizationKeys.SettingsSectionAuthTokenDesc),
             Array.Empty<SettingItemViewModel>(),
             _tokenEditor);
 
         var appearance = Group(
             SettingGroupKey.Appearance,
-            "外观",
-            "界面主题、语言与密度；只写 ckan-ui.json，不进 Core 配置。",
+            Text("外观", LocalizationKeys.SettingsSectionAppearance),
+            Text("界面主题、语言与密度；只写 ckan-ui.json，不进 Core 配置。", LocalizationKeys.SettingsSectionAppearanceDesc),
             new SettingItemViewModel(
                 SettingsKeyNames.Theme,
-                "主题",
+                Text("主题", LocalizationKeys.SettingsItemTheme),
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "高对比度主题在系统开启高对比度时会被强制使用（P-01）。",
+                description: Text("高对比度主题在系统开启高对比度时会被强制使用（P-01）。", LocalizationKeys.SettingsItemThemeDesc),
                 choices: new[]
                 {
-                    new SettingChoice("system", "跟随系统"),
-                    new SettingChoice("light", "浅色"),
-                    new SettingChoice("dark", "深色"),
-                    new SettingChoice("highcontrast", "高对比度"),
+                    new SettingChoice("system", Text("跟随系统", LocalizationKeys.SettingsChoiceThemeSystem)),
+                    new SettingChoice("light", Text("浅色", LocalizationKeys.SettingsChoiceThemeLight)),
+                    new SettingChoice("dark", Text("深色", LocalizationKeys.SettingsChoiceThemeDark)),
+                    new SettingChoice("highcontrast", Text("高对比度", LocalizationKeys.SettingsChoiceThemeHighContrast)),
                 }),
             new SettingItemViewModel(
                 SettingsKeyNames.Locale,
-                "界面语言",
+                Text("界面语言", LocalizationKeys.SettingsItemLocale),
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "语言切换需要重启界面后生效（F-53）。",
+                description: Text("语言切换需要重启界面后生效（F-53）。", LocalizationKeys.SettingsItemLocaleDesc),
                 requiresRestart: true,
                 choices: BuildLocaleChoices(fromProvider: null)),
             new SettingItemViewModel(
                 SettingsKeyNames.Density,
-                "界面密度",
+                Text("界面密度", LocalizationKeys.SettingsItemDensity),
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "紧凑/标准/舒适三档，影响行高与内边距（P-08）；保存后即时生效。",
+                description: Text("紧凑/标准/舒适三档，影响行高与内边距（P-08）；保存后即时生效。", LocalizationKeys.SettingsItemDensityDesc),
                 choices: new[]
                 {
-                    new SettingChoice("compact", "紧凑"),
-                    new SettingChoice("standard", "标准"),
-                    new SettingChoice("comfortable", "舒适"),
+                    new SettingChoice("compact", Text("紧凑", LocalizationKeys.SettingsChoiceDensityCompact)),
+                    new SettingChoice("standard", Text("标准", LocalizationKeys.SettingsChoiceDensityStandard)),
+                    new SettingChoice("comfortable", Text("舒适", LocalizationKeys.SettingsChoiceDensityComfortable)),
                 }),
             new SettingItemViewModel(
                 SettingsKeyNames.FontScale,
-                "字号缩放",
+                Text("字号缩放", LocalizationKeys.SettingsItemFontScale),
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "90%–130% 五档，只放大界面文案与标题；模组名、版本号等数据文本保持原样（P-09）。",
+                description: Text("90%–130% 五档，只放大界面文案与标题；模组名、版本号等数据文本保持原样（P-09）。", LocalizationKeys.SettingsItemFontScaleDesc),
                 choices: new[]
                 {
                     new SettingChoice("90", "90%"),
-                    new SettingChoice("100", "100%（默认）"),
+                    new SettingChoice("100", Text("100%（默认）", LocalizationKeys.SettingsChoiceFontScale100)),
                     new SettingChoice("110", "110%"),
                     new SettingChoice("120", "120%"),
                     new SettingChoice("130", "130%"),
                 }),
             new SettingItemViewModel(
                 SettingsKeyNames.AccentColor,
-                "强调色",
+                Text("强调色", LocalizationKeys.SettingsItemAccentColor),
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "12 预设色板与系统色彩跟随（P-03）；即时生效。",
+                description: Text("12 预设色板与系统色彩跟随（P-03）；即时生效。", LocalizationKeys.SettingsItemAccentColorDesc),
                 choices: new[]
                 {
-                    new SettingChoice("default", "跟随系统 / 经典"),
-                    new SettingChoice("blue", "经典蓝 / Blue"),
-                    new SettingChoice("indigo", "靛青 / Indigo"),
-                    new SettingChoice("purple", "星云紫 / Purple"),
-                    new SettingChoice("magenta", "品红 / Magenta"),
-                    new SettingChoice("red", "火箭红 / Red"),
-                    new SettingChoice("orange", "轨道橙 / Orange"),
-                    new SettingChoice("amber", "琥珀金 / Amber"),
-                    new SettingChoice("lime", "坎星绿 / Lime"),
-                    new SettingChoice("green", "极光绿 / Green"),
-                    new SettingChoice("teal", "青碧 / Teal"),
-                    new SettingChoice("cyan", "天蓝 / Cyan"),
-                    new SettingChoice("slate", "灰蓝 / Slate"),
+                    new SettingChoice("default", Text("跟随系统 / 经典", LocalizationKeys.SettingsChoiceAccentColorDefault)),
+                    new SettingChoice("blue", Text("经典蓝 / Blue", LocalizationKeys.SettingsChoiceAccentColorBlue)),
+                    new SettingChoice("indigo", Text("靛青 / Indigo", LocalizationKeys.SettingsChoiceAccentColorIndigo)),
+                    new SettingChoice("purple", Text("星云紫 / Purple", LocalizationKeys.SettingsChoiceAccentColorPurple)),
+                    new SettingChoice("magenta", Text("品红 / Magenta", LocalizationKeys.SettingsChoiceAccentColorMagenta)),
+                    new SettingChoice("red", Text("火箭红 / Red", LocalizationKeys.SettingsChoiceAccentColorRed)),
+                    new SettingChoice("orange", Text("轨道橙 / Orange", LocalizationKeys.SettingsChoiceAccentColorOrange)),
+                    new SettingChoice("amber", Text("琥珀金 / Amber", LocalizationKeys.SettingsChoiceAccentColorAmber)),
+                    new SettingChoice("lime", Text("坎星绿 / Lime", LocalizationKeys.SettingsChoiceAccentColorLime)),
+                    new SettingChoice("green", Text("极光绿 / Green", LocalizationKeys.SettingsChoiceAccentColorGreen)),
+                    new SettingChoice("teal", Text("青碧 / Teal", LocalizationKeys.SettingsChoiceAccentColorTeal)),
+                    new SettingChoice("cyan", Text("天蓝 / Cyan", LocalizationKeys.SettingsChoiceAccentColorCyan)),
+                    new SettingChoice("slate", Text("灰蓝 / Slate", LocalizationKeys.SettingsChoiceAccentColorSlate)),
                 }),
             new SettingItemViewModel(
                 SettingsKeyNames.AccentColorCustom,
-                "自定义强调色",
+                Text("自定义强调色", LocalizationKeys.SettingsItemAccentColorCustom),
                 SettingItemKind.Text,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "填 #RRGGBB（例如 #1F6FEB）；保存时按 WCAG AA 校验与底色的对比度（≥4.5:1），不合规会给出建议色并拒绝写入（P-03）。留空表示回到上面的预设。"),
+                description: Text(
+                    "填 #RRGGBB（例如 #1F6FEB）；保存时按 WCAG AA 校验与底色的对比度（≥4.5:1），不合规会给出建议色并拒绝写入（P-03）。留空表示回到上面的预设。",
+                    LocalizationKeys.SettingsItemAccentColorCustomDesc)),
             new SettingItemViewModel(
                 SettingsKeyNames.AccentScope,
-                "强调色作用范围",
+                Text("强调色作用范围", LocalizationKeys.SettingsItemAccentScope),
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "全局 = 所有实例共用一个强调色；按实例 = 为当前实例单独记一个色，切换实例时自动跟着换（P-07）。",
+                description: Text("全局 = 所有实例共用一个强调色；按实例 = 为当前实例单独记一个色，切换实例时自动跟着换（P-07）。", LocalizationKeys.SettingsItemAccentScopeDesc),
                 choices: new[]
                 {
-                    new SettingChoice("global", "全局"),
-                    new SettingChoice("instance", "按实例（当前实例）"),
+                    new SettingChoice("global", Text("全局", LocalizationKeys.SettingsChoiceAccentScopeGlobal)),
+                    new SettingChoice("instance", Text("按实例（当前实例）", LocalizationKeys.SettingsChoiceAccentScopeInstance)),
                 }),
             new SettingItemViewModel(
                 SettingsKeyNames.RadiusScale,
-                "圆角尺度",
+                Text("圆角尺度", LocalizationKeys.SettingsItemRadiusScale),
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "三档圆角比例（P-05）；无圆角/标准微圆角/大饱满圆角。",
+                description: Text("三档圆角比例（P-05）；无圆角/标准微圆角/大饱满圆角。", LocalizationKeys.SettingsItemRadiusScaleDesc),
                 choices: new[]
                 {
-                    new SettingChoice("none", "直角 (0x)"),
-                    new SettingChoice("standard", "标准微圆角 (1x)"),
-                    new SettingChoice("round", "饱满圆角 (1.5x)"),
+                    new SettingChoice("none", Text("直角 (0x)", LocalizationKeys.SettingsChoiceRadiusScaleNone)),
+                    new SettingChoice("standard", Text("标准微圆角 (1x)", LocalizationKeys.SettingsChoiceRadiusScaleStandard)),
+                    new SettingChoice("round", Text("饱满圆角 (1.5x)", LocalizationKeys.SettingsChoiceRadiusScaleRound)),
                 }),
             new SettingItemViewModel(
                 SettingsKeyNames.BackdropKind,
-                "窗口材质与透明",
+                Text("窗口材质与透明", LocalizationKeys.SettingsItemBackdropKind),
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "Windows 磨砂背景材质（P-04）；自动/Mica云母/Acrylic磨砂/纯色。",
+                description: Text("Windows 磨砂背景材质（P-04）；自动/Mica云母/Acrylic磨砂/纯色。", LocalizationKeys.SettingsItemBackdropKindDesc),
                 choices: new[]
                 {
-                    new SettingChoice("auto", "自动推荐 (Mica / Acrylic)"),
-                    new SettingChoice("mica", "Mica 云母"),
-                    new SettingChoice("acrylic", "Acrylic 亚克力磨砂"),
-                    new SettingChoice("none", "纯色无透明"),
+                    new SettingChoice("auto", Text("自动推荐 (Mica / Acrylic)", LocalizationKeys.SettingsChoiceBackdropKindAuto)),
+                    new SettingChoice("mica", Text("Mica 云母", LocalizationKeys.SettingsChoiceBackdropKindMica)),
+                    new SettingChoice("acrylic", Text("Acrylic 亚克力磨砂", LocalizationKeys.SettingsChoiceBackdropKindAcrylic)),
+                    new SettingChoice("none", Text("纯色无透明", LocalizationKeys.SettingsChoiceBackdropKindNone)),
                 }),
             new SettingItemViewModel(
                 SettingsKeyNames.MotionIntensity,
-                "动效强度",
+                Text("动效强度", LocalizationKeys.SettingsItemMotionIntensity),
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "界面动画与过渡效果强度（P-10）。默认跟随系统「减少动画」设置；精简档只保留 90ms 的悬停/按下反馈。",
+                description: Text("界面动画与过渡效果强度（P-10）。默认跟随系统「减少动画」设置；精简档只保留 90ms 的悬停/按下反馈。", LocalizationKeys.SettingsItemMotionIntensityDesc),
                 choices: new[]
                 {
-                    new SettingChoice("auto", "跟随系统 (推荐)"),
-                    new SettingChoice("full", "流畅动画"),
-                    new SettingChoice("reduced", "减少动画"),
-                    new SettingChoice("none", "关闭动画"),
+                    new SettingChoice("auto", Text("跟随系统 (推荐)", LocalizationKeys.SettingsChoiceMotionIntensityAuto)),
+                    new SettingChoice("full", Text("流畅动画", LocalizationKeys.SettingsChoiceMotionIntensityFull)),
+                    new SettingChoice("reduced", Text("减少动画", LocalizationKeys.SettingsChoiceMotionIntensityReduced)),
+                    new SettingChoice("none", Text("关闭动画", LocalizationKeys.SettingsChoiceMotionIntensityNone)),
                 }),
             new SettingItemViewModel(
                 SettingsKeyNames.BackgroundKind,
-                "背景来源",
+                Text("背景来源", LocalizationKeys.SettingsItemBackgroundKind),
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "窗口空白处的背景（P-06）：纯色 / 渐变 / 本机图片；页面卡片保持不透明以保证文字清晰。系统高对比度下不画背景。",
+                description: Text("窗口空白处的背景（P-06）：纯色 / 渐变 / 本机图片 / 当前实例的最新一张游戏截图；页面卡片保持不透明以保证文字清晰。系统高对比度下不画背景。", LocalizationKeys.SettingsItemBackgroundKindDesc),
                 choices: new[]
                 {
-                    new SettingChoice("none", "无（跟随主题）"),
-                    new SettingChoice("solid", "纯色"),
-                    new SettingChoice("gradient", "渐变"),
-                    new SettingChoice("image", "本机图片"),
+                    new SettingChoice("none", Text("无（跟随主题）", LocalizationKeys.SettingsChoiceBackgroundKindNone)),
+                    new SettingChoice("solid", Text("纯色", LocalizationKeys.SettingsChoiceBackgroundKindSolid)),
+                    new SettingChoice("gradient", Text("渐变", LocalizationKeys.SettingsChoiceBackgroundKindGradient)),
+                    new SettingChoice("image", Text("本机图片", LocalizationKeys.SettingsChoiceBackgroundKindImage)),
+                    new SettingChoice("screenshot", Text("游戏截图（最新一张）", LocalizationKeys.SettingsChoiceBackgroundKindScreenshot)),
                 },
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.BackgroundColor,
-                "背景色",
+                Text("背景色", LocalizationKeys.SettingsItemBackgroundColor),
                 SettingItemKind.Text,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "纯色来源的颜色，填 #RRGGBB（例如 #1B1F27）。",
+                description: Text("纯色来源的颜色，填 #RRGGBB（例如 #1B1F27）。", LocalizationKeys.SettingsItemBackgroundColorDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.BackgroundGradientStart,
-                "渐变起色",
+                Text("渐变起色", LocalizationKeys.SettingsItemBackgroundGradientStart),
                 SettingItemKind.Text,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "渐变来源的起始颜色，填 #RRGGBB。",
+                description: Text("渐变来源的起始颜色，填 #RRGGBB。", LocalizationKeys.SettingsItemBackgroundGradientStartDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.BackgroundGradientEnd,
-                "渐变止色",
+                Text("渐变止色", LocalizationKeys.SettingsItemBackgroundGradientEnd),
                 SettingItemKind.Text,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "渐变来源的结束颜色，填 #RRGGBB。",
+                description: Text("渐变来源的结束颜色，填 #RRGGBB。", LocalizationKeys.SettingsItemBackgroundGradientEndDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.BackgroundGradientAngle,
-                "渐变角度",
+                Text("渐变角度", LocalizationKeys.SettingsItemBackgroundGradientAngle),
                 SettingItemKind.Integer,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "0° 向右、90° 向下、180° 向左；取值 0–359（P-06）。",
+                description: Text("0° 向右、90° 向下、180° 向左；取值 0–359（P-06）。", LocalizationKeys.SettingsItemBackgroundGradientAngleDesc),
                 min: 0,
                 max: 359,
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.BackgroundImagePath,
-                "背景图片",
+                Text("背景图片", LocalizationKeys.SettingsItemBackgroundImagePath),
                 SettingItemKind.Path,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "本机图片的绝对路径（PNG/JPG/BMP）；按 1600 像素宽解码，读不出来会退回无背景。",
+                description: Text("本机图片的绝对路径（PNG/JPG/BMP）；按 1600 像素宽解码，读不出来会退回无背景。", LocalizationKeys.SettingsItemBackgroundImagePathDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.BackgroundFill,
-                "图片填充方式",
+                Text("图片填充方式", LocalizationKeys.SettingsItemBackgroundFill),
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "图片超出窗口时怎么摆（P-06）。",
+                description: Text("图片超出窗口时怎么摆（P-06）。", LocalizationKeys.SettingsItemBackgroundFillDesc),
                 choices: new[]
                 {
-                    new SettingChoice("fill", "填充（等比铺满）"),
-                    new SettingChoice("fit", "适应（完整显示）"),
-                    new SettingChoice("stretch", "拉伸（不保比例）"),
-                    new SettingChoice("tile", "平铺"),
-                    new SettingChoice("center", "居中（原尺寸）"),
+                    new SettingChoice("fill", Text("填充（等比铺满）", LocalizationKeys.SettingsChoiceBackgroundFillFill)),
+                    new SettingChoice("fit", Text("适应（完整显示）", LocalizationKeys.SettingsChoiceBackgroundFillFit)),
+                    new SettingChoice("stretch", Text("拉伸（不保比例）", LocalizationKeys.SettingsChoiceBackgroundFillStretch)),
+                    new SettingChoice("tile", Text("平铺", LocalizationKeys.SettingsChoiceBackgroundFillTile)),
+                    new SettingChoice("center", Text("居中（原尺寸）", LocalizationKeys.SettingsChoiceBackgroundFillCenter)),
                 },
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.BackgroundDim,
-                "背景暗化",
+                Text("背景暗化", LocalizationKeys.SettingsItemBackgroundDim),
                 SettingItemKind.Integer,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "在背景上压一层黑色，百分比越高文字越清楚（0–100）。",
+                description: Text("在背景上压一层黑色，百分比越高文字越清楚（0–100）。", LocalizationKeys.SettingsItemBackgroundDimDesc),
                 min: 0,
                 max: 100,
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.BackgroundBlur,
-                "背景模糊",
+                Text("背景模糊", LocalizationKeys.SettingsItemBackgroundBlur),
                 SettingItemKind.Integer,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "模糊半径（0–64 像素）；0 表示不模糊。",
+                description: Text("模糊半径（0–64 像素）；0 表示不模糊。", LocalizationKeys.SettingsItemBackgroundBlurDesc),
                 min: 0,
                 max: 64,
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.BackgroundOpacity,
-                "背景不透明度",
+                Text("背景不透明度", LocalizationKeys.SettingsItemBackgroundOpacity),
                 SettingItemKind.Integer,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "背景层整体不透明度百分比（0–100）。",
+                description: Text("背景层整体不透明度百分比（0–100）。", LocalizationKeys.SettingsItemBackgroundOpacityDesc),
                 min: 0,
                 max: 100,
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.BackgroundScope,
-                "背景作用范围",
+                Text("背景作用范围", LocalizationKeys.SettingsItemBackgroundScope),
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: "「仅当前实例」把整份背景记在 BackgroundByInstance 里（P-07）；切回「全局」会删掉本实例的覆盖。",
+                description: Text("「仅当前实例」把整份背景记在 BackgroundByInstance 里（P-07）；切回「全局」会删掉本实例的覆盖。", LocalizationKeys.SettingsItemBackgroundScopeDesc),
                 choices: new[]
                 {
-                    new SettingChoice("global", "全局（所有实例）"),
-                    new SettingChoice("instance", "仅当前实例"),
+                    new SettingChoice("global", Text("全局（所有实例）", LocalizationKeys.SettingsChoiceBackgroundScopeGlobal)),
+                    new SettingChoice("instance", Text("仅当前实例", LocalizationKeys.SettingsChoiceBackgroundScopeInstance)),
                 },
                 saveHandler: vm => SaveItemAsync(vm)));
 
         _stabilityItem = new SettingItemViewModel(
             SettingsKeyNames.StabilityTolerance,
-            "稳定版容差",
+            Text("稳定版容差", LocalizationKeys.SettingsItemStabilityTolerance),
             SettingItemKind.Choice,
             SettingPersistence.InstanceFile,
             SettingGroupKey.Compatibility,
-            description: "写入当前实例的 CKAN/stability_tolerance.json，只影响该实例；选「稳定」表示只安装标记为稳定的模组。",
+            description: Text("写入当前实例的 CKAN/stability_tolerance.json，只影响该实例；选「稳定」表示只安装标记为稳定的模组。", LocalizationKeys.SettingsItemStabilityToleranceDesc),
             choices: new[]
             {
-                new SettingChoice("stable", "稳定"),
-                new SettingChoice("testing", "测试"),
-                new SettingChoice("development", "开发"),
+                new SettingChoice("stable", Text("稳定", LocalizationKeys.SettingsChoiceStabilityToleranceStable)),
+                new SettingChoice("testing", Text("测试", LocalizationKeys.SettingsChoiceStabilityToleranceTesting)),
+                new SettingChoice("development", Text("开发", LocalizationKeys.SettingsChoiceStabilityToleranceDevelopment)),
             },
             saveHandler: vm => SaveItemAsync(vm));
 
         var compatibility = Group(
             SettingGroupKey.Compatibility,
-            "兼容性",
-            "实例级的稳定版容差，以及按游戏生效的全局安装过滤器（F-14/F-16）。",
+            Text("兼容性", LocalizationKeys.SettingsSectionCompatibility),
+            Text("实例级的稳定版容差，以及按游戏生效的全局安装过滤器（F-14/F-16）。", LocalizationKeys.SettingsSectionCompatibilityDesc),
             _stabilityItem,
             new SettingItemViewModel(
                 SettingsKeyNames.GlobalInstallFilters("KSP"),
-                "安装过滤器（KSP）",
+                Text("安装过滤器（KSP）", LocalizationKeys.SettingsItemGlobalInstallFiltersKsp),
                 SettingItemKind.LineList,
                 SettingPersistence.Core,
                 SettingGroupKey.Compatibility,
-                description: "每行一条过滤器表达式，例如 not:*.zip；留空表示不过滤。",
+                description: Text("每行一条过滤器表达式，例如 not:*.zip；留空表示不过滤。", LocalizationKeys.SettingsItemGlobalInstallFiltersKspDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.GlobalInstallFilters("KSP2"),
-                "安装过滤器（KSP2）",
+                Text("安装过滤器（KSP2）", LocalizationKeys.SettingsItemGlobalInstallFiltersKsp2),
                 SettingItemKind.LineList,
                 SettingPersistence.Core,
                 SettingGroupKey.Compatibility,
-                description: "每行一条过滤器表达式，例如 not:*.zip；留空表示不过滤。",
+                description: Text("每行一条过滤器表达式，例如 not:*.zip；留空表示不过滤。", LocalizationKeys.SettingsItemGlobalInstallFiltersKsp2Desc),
                 saveHandler: vm => SaveItemAsync(vm)));
 
         var advancedItems = new[]
         {
             new SettingItemViewModel(
                 SettingsKeyNames.HideVersionEpoch,
-                "隐藏版本 epoch 前缀",
+                Text("隐藏版本 epoch 前缀", LocalizationKeys.SettingsItemHideVersionEpoch),
                 SettingItemKind.Boolean,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Advanced,
-                description: "把 1:2.0.0 显示为 2.0.0（F-54）。",
+                description: Text("把 1:2.0.0 显示为 2.0.0（F-54）。", LocalizationKeys.SettingsItemHideVersionEpochDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.HideVersionVPrefix,
-                "隐藏版本 v 前缀",
+                Text("隐藏版本 v 前缀", LocalizationKeys.SettingsItemHideVersionVPrefix),
                 SettingItemKind.Boolean,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Advanced,
-                description: "把 v2.0.0 显示为 2.0.0（F-54）。",
+                description: Text("把 v2.0.0 显示为 2.0.0（F-54）。", LocalizationKeys.SettingsItemHideVersionVPrefixDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.AutoSortUpdates,
-                "可升级项自动置顶",
+                Text("可升级项自动置顶", LocalizationKeys.SettingsItemAutoSortUpdates),
                 SettingItemKind.Boolean,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Advanced,
-                description: "模组列表默认把有更新的项排在前面（F-54）。",
+                description: Text("模组列表默认把有更新的项排在前面（F-54）。", LocalizationKeys.SettingsItemAutoSortUpdatesDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.SuppressRecommendations,
-                "不再询问推荐模组",
+                Text("不再询问推荐模组", LocalizationKeys.SettingsItemSuppressRecommendations),
                 SettingItemKind.Boolean,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Advanced,
-                description: "安装时跳过推荐模组选择框（F-35）；可在推荐框内随时改回来。",
+                description: Text("安装时跳过推荐模组选择框（F-35）；可在推荐框内随时改回来。", LocalizationKeys.SettingsItemSuppressRecommendationsDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.MinimizeToTray,
-                "最小化到托盘",
+                Text("最小化到托盘", LocalizationKeys.SettingsItemMinimizeToTray),
                 SettingItemKind.Boolean,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Advanced,
-                description: "最小化时只留托盘图标，不占任务栏（F-51）。",
+                description: Text("最小化时只留托盘图标，不占任务栏（F-51）。", LocalizationKeys.SettingsItemMinimizeToTrayDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.CloseToTray,
-                "关闭到托盘",
+                Text("关闭到托盘", LocalizationKeys.SettingsItemCloseToTray),
                 SettingItemKind.Boolean,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Advanced,
-                description: "点关闭按钮时隐藏窗口而不退出（F-51）；退出请用托盘菜单的「退出」。",
+                description: Text("点关闭按钮时隐藏窗口而不退出（F-51）；退出请用托盘菜单的「退出」。", LocalizationKeys.SettingsItemCloseToTrayDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
         };
         _items.AddRange(advancedItems);
 
         var advanced = new SettingGroupViewModel(
             SettingGroupKey.Advanced,
-            "高级与诊断",
-            "诊断信息可直接贴进 issue；目录按钮在文件管理器里打开对应位置。",
+            Text("高级与诊断", LocalizationKeys.SettingsSectionAdvanced),
+            Text("诊断信息可直接贴进 issue；目录按钮在文件管理器里打开对应位置。", LocalizationKeys.SettingsSectionAdvancedDesc),
             advancedItems,
             tokenEditor: null,
             diagnostics: _diagnostics);
@@ -984,7 +997,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         }
         catch (Exception ex)
         {
-            SetLoadError("读取界面设置失败", ex.Message);
+            SetLoadError(Text("读取界面设置失败", LocalizationKeys.SettingsErrorUiSettingsLoadFailed), ex.Message);
             return;
         }
 
@@ -1060,7 +1073,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         }
 
         // 插在「跟随系统」后面：这是用户自己定的色，位置固定一次，不要在多次保存之间跳来跳去。
-        choices.Insert(1, new SettingChoice(text, $"自定义（{text}）"));
+        choices.Insert(1, new SettingChoice(text, Text("自定义（{0}）", LocalizationKeys.SettingsChoiceInstanceCustom, text)));
         presetItem.SetChoices(choices);
         presetItem.ApplyLoaded(text);
         customItem?.ApplyLoaded(text);
@@ -1257,8 +1270,13 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
             return true;
         }
 
-        item.MarkFailed("背景色需要 #RRGGBB 形式的十六进制（例如 #1B1F27）。", null, retryable: false);
-        StatusText = string.Create(CultureInfo.InvariantCulture, $"{item.DisplayName}：保存失败");
+        item.MarkFailed(
+                    Text(
+                        "背景色需要 #RRGGBB 形式的十六进制（例如 #1B1F27）。",
+                        LocalizationKeys.SettingsErrorBackgroundColorInvalid),
+                    null,
+                    retryable: false);
+        StatusText = Text("{0}：保存失败", LocalizationKeys.SettingsStatusItemSaveFailed, item.DisplayName);
         hex = string.Empty;
         return false;
     }
@@ -1295,7 +1313,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         all.TryGetValue(SettingsKeyNames.AutoStartInstance, out var saved);
         var value = saved ?? string.Empty;
 
-        var choices = new List<SettingChoice> { new(string.Empty, "不自动打开") };
+        var choices = new List<SettingChoice> { new(string.Empty, Text("不自动打开", LocalizationKeys.SettingsChoiceAutoStartInstanceNone)) };
         var known = value.Length == 0;
         foreach (var instance in EnumerateInstances())
         {
@@ -1305,7 +1323,9 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
 
         if (!known)
         {
-            choices.Add(new SettingChoice(value, string.Create(CultureInfo.InvariantCulture, $"{value}（不在当前实例列表中）")));
+            choices.Add(new SettingChoice(
+                value,
+                Text("{0}（不在当前实例列表中）", LocalizationKeys.SettingsChoiceInstanceNotInList, value)));
         }
 
         _autoStartItem.SetChoices(choices);
@@ -1335,7 +1355,10 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         if (!result.IsSuccess)
         {
             _stabilityItem.IsEnabled = false;
-            _stabilityItem.MarkFailed(result.Message ?? "读取稳定版容差失败", result.Detail, result.Retryable);
+            _stabilityItem.MarkFailed(
+                result.Message ?? Text("读取稳定版容差失败", LocalizationKeys.SettingsErrorStabilityReadFailed),
+                result.Detail,
+                result.Retryable);
         }
     }
 
@@ -1345,7 +1368,12 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         var instance = _instances?.Current;
         if (instance is null)
         {
-            item.MarkFailed("尚未打开实例", "稳定版容差是实例级文件，需要先打开一个实例", retryable: false);
+            item.MarkFailed(
+                Text("尚未打开实例", LocalizationKeys.SettingsErrorNoInstanceForStability),
+                Text(
+                    "稳定版容差是实例级文件，需要先打开一个实例",
+                    LocalizationKeys.SettingsErrorNoInstanceForStabilityDetail),
+                retryable: false);
             StatusText = ComposeFailedStatus(item, retryable: false);
             return;
         }
@@ -1354,7 +1382,10 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         var write = await _stability.SaveOverallAsync(instance.GameDir, item.WireValue, ct).ConfigureAwait(true);
         if (!write.IsSuccess)
         {
-            item.MarkFailed(write.Message ?? "保存稳定版容差失败", write.Detail, write.Retryable);
+            item.MarkFailed(
+                write.Message ?? Text("保存稳定版容差失败", LocalizationKeys.SettingsErrorStabilityWriteFailed),
+                write.Detail,
+                write.Retryable);
             StatusText = ComposeFailedStatus(item, write.Retryable);
             return;
         }
@@ -1362,7 +1393,10 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         var read = await _stability.ReadAsync(path, ct).ConfigureAwait(true);
         if (!read.IsSuccess)
         {
-            item.MarkFailed(read.Message ?? "读回稳定版容差失败", read.Detail, read.Retryable);
+            item.MarkFailed(
+                read.Message ?? Text("读回稳定版容差失败", LocalizationKeys.SettingsErrorStabilityReadbackFailed),
+                read.Detail,
+                read.Retryable);
             StatusText = ComposeFailedStatus(item, read.Retryable);
             return;
         }
@@ -1370,8 +1404,12 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         if (!string.Equals(read.Value, item.WireValue, StringComparison.Ordinal))
         {
             item.MarkFailed(
-                "写回校验不一致",
-                string.Create(CultureInfo.InvariantCulture, $"读出 {read.Value}，期望 {item.WireValue}"),
+                Text("写回校验不一致", LocalizationKeys.SettingsErrorStabilityReadbackMismatch),
+                Text(
+                    "读出 {0}，期望 {1}",
+                    LocalizationKeys.SettingsErrorStabilityReadbackMismatchDetail,
+                    read.Value,
+                    item.WireValue),
                 retryable: true);
             StatusText = ComposeFailedStatus(item, retryable: true);
             return;
@@ -1381,54 +1419,61 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         StatusText = ComposeSavedStatus(item);
     }
 
-    private Task OpenCacheFolderAsync() => OpenFolderAsync(_cacheDirItem?.EditValue, "缓存目录");
+    private Task OpenCacheFolderAsync() =>
+        OpenFolderAsync(_cacheDirItem?.EditValue, Text("缓存目录", LocalizationKeys.SettingsFolderCache));
 
-    private Task OpenConfigFolderAsync() => OpenFolderAsync(SettingsPaths.DefaultConfigDirectory, "配置目录");
+    private Task OpenConfigFolderAsync() =>
+        OpenFolderAsync(SettingsPaths.DefaultConfigDirectory, Text("配置目录", LocalizationKeys.SettingsFolderConfig));
 
     private async Task OpenFolderAsync(string? directory, string what)
     {
         if (_shellLauncher is null)
         {
-            StatusText = "当前环境没有打开目录的通道";
+            StatusText = Text("当前环境没有打开目录的通道", LocalizationKeys.SettingsErrorNoFolderChannel);
             return;
         }
 
         if (string.IsNullOrWhiteSpace(directory))
         {
-            StatusText = string.Create(CultureInfo.InvariantCulture, $"{what}为空：请先填写目录并保存，或使用默认目录");
+            StatusText = Text(
+                "{0}为空：请先填写目录并保存，或使用默认目录",
+                LocalizationKeys.SettingsErrorFolderEmpty,
+                what);
             return;
         }
 
         var result = await _shellLauncher.OpenFolderAsync(directory.Trim()).ConfigureAwait(true);
         StatusText = result.IsSuccess
-            ? string.Create(CultureInfo.InvariantCulture, $"已打开{what}")
-            : string.Create(CultureInfo.InvariantCulture, $"打开{what}失败：{result.Message}");
+            ? Text("已打开{0}", LocalizationKeys.SettingsStatusFolderOpened, what)
+            : Text("打开{0}失败：{1}", LocalizationKeys.SettingsErrorFolderOpenFailed, what, result.Message);
     }
 
     private async Task CheckForUpdatesAsync()
     {
         if (_updateCheckService is null)
         {
-            StatusText = "未配置更新检查服务";
+            StatusText = Text("未配置更新检查服务", LocalizationKeys.SettingsErrorNoUpdateService);
             return;
         }
 
-        StatusText = "正在检查更新…";
+        StatusText = Text("正在检查更新…", LocalizationKeys.SettingsStatusCheckingUpdates);
         var includeDevBuilds = _devBuildsItem?.BooleanValue ?? false;
         var result = await _updateCheckService.CheckForUpdatesAsync(includeDevBuilds).ConfigureAwait(true);
 
         if (!result.IsSuccess || result.Value is null)
         {
-            StatusText = string.Create(CultureInfo.InvariantCulture, $"检查更新失败：{result.Message}");
+            StatusText = Text("检查更新失败：{0}", LocalizationKeys.SettingsErrorUpdateCheckFailed, result.Message);
             return;
         }
 
         var updateInfo = result.Value;
         if (updateInfo.HasUpdate)
         {
-            StatusText = string.Create(
-                CultureInfo.InvariantCulture,
-                $"发现新版本 {updateInfo.LatestVersion}（当前版本：{updateInfo.CurrentVersion}）");
+            StatusText = Text(
+                "发现新版本 {0}（当前版本：{1}）",
+                LocalizationKeys.SettingsStatusUpdateAvailable,
+                updateInfo.LatestVersion,
+                updateInfo.CurrentVersion);
 
             if (ShowUpdateDialogAsync != null)
             {
@@ -1442,9 +1487,10 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         }
         else
         {
-            StatusText = string.Create(
-                CultureInfo.InvariantCulture,
-                $"已是最新版本（{updateInfo.CurrentVersion}）");
+            StatusText = Text(
+                "已是最新版本（{0}）",
+                LocalizationKeys.SettingsStatusUpToDate,
+                updateInfo.CurrentVersion);
         }
     }
 
@@ -1531,7 +1577,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 if (!verdict.IsValid)
                 {
                     item.MarkFailed(verdict.Message, null, retryable: false);
-                    StatusText = $"{item.DisplayName}：保存失败";
+                    StatusText = Text("{0}：保存失败", LocalizationKeys.SettingsStatusItemSaveFailed, item.DisplayName);
                     return;
                 }
 
@@ -1545,8 +1591,13 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 if (perInstance && CurrentInstanceName() is null)
                 {
                     // 没有当前实例就没有可写的键：与其静默写坏一份空覆盖，不如当场说清楚。
-                    item.MarkFailed("没有当前实例，无法按实例保存强调色；请先添加或切换实例。", null, retryable: false);
-                    StatusText = string.Create(CultureInfo.InvariantCulture, $"{item.DisplayName}：保存失败");
+                    item.MarkFailed(
+                        Text(
+                            "没有当前实例，无法按实例保存强调色；请先添加或切换实例。",
+                            LocalizationKeys.SettingsErrorNoInstanceForAccent),
+                        null,
+                        retryable: false);
+                    StatusText = Text("{0}：保存失败", LocalizationKeys.SettingsStatusItemSaveFailed, item.DisplayName);
                     return;
                 }
 
@@ -1601,8 +1652,11 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 if (path.Length > 0 && !File.Exists(path))
                 {
                     // 路径写错时当场拦住：让宿主静默退回无背景，用户只会以为「背景坏了」。
-                    item.MarkFailed(string.Create(CultureInfo.InvariantCulture, $"找不到图片文件：{path}"), null, retryable: true);
-                    StatusText = string.Create(CultureInfo.InvariantCulture, $"{item.DisplayName}：保存失败");
+                    item.MarkFailed(
+                        Text("找不到图片文件：{0}", LocalizationKeys.SettingsErrorBackgroundImageMissing, path),
+                        null,
+                        retryable: true);
+                    StatusText = Text("{0}：保存失败", LocalizationKeys.SettingsStatusItemSaveFailed, item.DisplayName);
                     return;
                 }
 
@@ -1631,8 +1685,13 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 var perInstance = string.Equals(item.EditValue, "instance", StringComparison.Ordinal);
                 if (perInstance && CurrentInstanceName() is null)
                 {
-                    item.MarkFailed("没有当前实例，无法按实例保存背景；请先添加或切换实例。", null, retryable: false);
-                    StatusText = string.Create(CultureInfo.InvariantCulture, $"{item.DisplayName}：保存失败");
+                    item.MarkFailed(
+                        Text(
+                            "没有当前实例，无法按实例保存背景；请先添加或切换实例。",
+                            LocalizationKeys.SettingsErrorNoInstanceForBackground),
+                        null,
+                        retryable: false);
+                    StatusText = Text("{0}：保存失败", LocalizationKeys.SettingsStatusItemSaveFailed, item.DisplayName);
                     return;
                 }
 
@@ -1677,8 +1736,11 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 break;
 
             default:
-                item.MarkFailed($"未知的界面设置项：{item.Key}", null, retryable: false);
-                StatusText = $"{item.DisplayName}：保存失败";
+                item.MarkFailed(
+                    Text("未知的界面设置项：{0}", LocalizationKeys.SettingsErrorUnknownUiSetting, item.Key),
+                    null,
+                    retryable: false);
+                StatusText = Text("{0}：保存失败", LocalizationKeys.SettingsStatusItemSaveFailed, item.DisplayName);
                 return;
         }
 
@@ -1707,7 +1769,10 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
             return;
         }
 
-        item.MarkFailed(result.Message ?? "保存界面设置失败", result.Detail, result.Retryable);
+        item.MarkFailed(
+                result.Message ?? Text("保存界面设置失败", LocalizationKeys.SettingsErrorUiSettingSaveFailed),
+                result.Detail,
+                result.Retryable);
         StatusText = ComposeFailedStatus(item, result.Retryable);
     }
 
@@ -1762,15 +1827,19 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     private void SetLoadError(string message, string? detail)
     {
         LoadErrorText = string.IsNullOrEmpty(detail) ? message : $"{message}（{detail}）";
-        StatusText = "读取设置失败";
+        StatusText = Text("读取设置失败", LocalizationKeys.SettingsErrorLoadFailed);
         OnPropertyChanged(nameof(HasLoadError));
     }
 
-    private static string ComposeSavedStatus(SettingItemViewModel item) =>
-        item.RequiresRestart ? $"{item.DisplayName}：已保存，重启后生效" : $"{item.DisplayName}：已保存";
+    private string ComposeSavedStatus(SettingItemViewModel item) =>
+        item.RequiresRestart
+            ? Text("{0}：已保存，重启后生效", LocalizationKeys.SettingsStatusItemSavedRestart, item.DisplayName)
+            : Text("{0}：已保存", LocalizationKeys.SettingsStatusItemSaved, item.DisplayName);
 
-    private static string ComposeFailedStatus(SettingItemViewModel item, bool retryable) =>
-        retryable ? $"{item.DisplayName}：保存失败，可重试" : $"{item.DisplayName}：保存失败";
+    private string ComposeFailedStatus(SettingItemViewModel item, bool retryable) =>
+        retryable
+            ? Text("{0}：保存失败，可重试", LocalizationKeys.SettingsStatusItemSaveFailedRetryable, item.DisplayName)
+            : Text("{0}：保存失败", LocalizationKeys.SettingsStatusItemSaveFailed, item.DisplayName);
 
     /// <summary>MiB 文本 → 字节文本（Core 的 CacheSizeLimit 以字节存储）。空值保持为空（= 不限）。</summary>
     private static string MebibytesToBytes(string editValue)

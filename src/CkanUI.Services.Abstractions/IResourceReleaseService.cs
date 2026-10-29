@@ -25,6 +25,19 @@ public interface IResourceReleaseService
     /// </summary>
     bool IsReleased { get; }
 
+    /// <summary>
+    /// 只卸载 Core 数据层（L2）：把注册表锁与仓库快照在**启动游戏之前**还回去（18 篇 §4 T0 的前置动作）。
+    /// 已卸载过时是幂等空操作；之后的 <see cref="RestoreAsync"/> 照常能把它们重新打开。
+    /// </summary>
+    /// <remarks>
+    /// <para>为什么要单独开一条「只跑 L2」的入口：T3/T4/T5 的排程都是**游戏启动之后**才跑，
+    /// 而注册表锁（<c>CKAN/registry.locked</c>）在启动瞬间就该还回去——游戏侧的安装器/工具看到锁
+    /// 会以为 CKAN 正在改写实例。提前跑完 L2 之后，后续档位排程会因为「本次启动已执行过该层」而自动跳过。</para>
+    /// <para>默认实现返回失败而不是假装成功：只实现主干契约的替身不该被误认为「锁已经放掉了」。</para>
+    /// </remarks>
+    Task<OperationResult> ReleaseCoreDataAsync(CancellationToken ct = default) =>
+        Task.FromResult(OperationResult.Fail("该实现不支持单独卸载 Core 数据层。"));
+
     /// <summary>一次释放结束（含失败与取消）后触发，携带完整报告。可在任意线程触发。</summary>
     event Action<ResourceReleaseReport>? Released;
 

@@ -117,6 +117,33 @@ public sealed class PlayTimeSessionLedger
         }
     }
 
+    /// <summary>
+    /// 清除指定实例的自动累计（该实例的按日分桶整份删掉）。
+    /// 如果正在给这个实例计时，未闭合会话从「现在」重新开始——重置前的时长不再回算，之后的照常累计。
+    /// </summary>
+    /// <returns>该实例本来就没有记录时也返回真（重置是幂等的）；写盘失败返回假。</returns>
+    public bool ResetInstance(string instanceName)
+    {
+        if (string.IsNullOrWhiteSpace(instanceName))
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            var account = ReadUnlocked();
+            var changed = account.Instances.Remove(instanceName);
+            if (account.Open is { } open && string.Equals(open.Instance, instanceName, StringComparison.Ordinal))
+            {
+                account.Open = new OpenSession(open.Instance, _clock());
+                changed = true;
+            }
+
+            // 没有可改的内容就不写盘：避免为一次空重置把整个账本重排一遍（也少一次写坏的机会）。
+            return !changed || WriteUnlocked(account);
+        }
+    }
+
     /// <summary>各实例已累计的自动时长（小时）。</summary>
     public IReadOnlyDictionary<string, double> TotalsByInstance()
     {

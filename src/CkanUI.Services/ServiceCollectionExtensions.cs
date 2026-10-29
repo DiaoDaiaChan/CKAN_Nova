@@ -168,6 +168,10 @@ public static class ServiceCollectionExtensions
         // 用户目录与其它 UI 侧状态同处 %LocalAppData%\CKAN\ui，卸载实例不会连带删掉用户自写的 adapter。
         services.AddCkanModConfig();
 
+        // adapter 导入（ADP-04）：本地文件 / 远程 URL 装 adapter 包，带 SHA-256 清单与 ETag 更新检查。
+        // 必须在 AddCkanModConfig() 之后 —— 安装器要拿到 IAdapterCatalog 才能在装完后热重扫。
+        services.AddCkanAdapterImport();
+
         // 启动编排放在最后：它依赖上面三个领域服务。
         services.TryAddSingleton<IAppBootstrapper, AppBootstrapper>();
 

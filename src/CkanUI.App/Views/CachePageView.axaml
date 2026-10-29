@@ -111,7 +111,7 @@
                      Margin="12,0,0,0" VerticalAlignment="Center" />
         </Grid>
         <ProgressBar Minimum="0" Maximum="100" Value="{Binding UsagePercent}"
-                     Height="8" IsVisible="{Binding HasLimit}" />
+                     Height="6" CornerRadius="{DynamicResource CkanCornerRadiusPill}" IsVisible="{Binding HasLimit}" />
         <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
           <TextBlock Grid.Column="0" Text="{Binding EntryCountText}" Classes="CkanCaption"
                      VerticalAlignment="Center" />
@@ -127,16 +127,16 @@
       <Border Classes="CkanCard" Padding="0" IsVisible="{Binding !ShowEmptyState}">
         <Grid RowDefinitions="Auto,*">
           <!-- 列头：次要字色 + Caption 字号 -->
-          <Border Grid.Row="0" Padding="10,7"
+          <Border Grid.Row="0" Padding="14,9"
                   Background="{DynamicResource CkanSubtleBackgroundBrush}"
                   BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="Auto,192,*,88,128,72">
-              <TextBlock Grid.Column="0" Text="选" Width="24" Classes="CkanCaption" />
-              <TextBlock Grid.Column="1" Text="模块" Classes="CkanCaption" Margin="0,0,8,0" />
-              <TextBlock Grid.Column="2" Text="文件名" Classes="CkanCaption" Margin="0,0,8,0" />
-              <TextBlock Grid.Column="3" Text="大小" Classes="CkanCaption" />
-              <TextBlock Grid.Column="4" Text="最后访问" Classes="CkanCaption" />
-              <TextBlock Grid.Column="5" Text="状态" Classes="CkanCaption" />
+              <TextBlock Grid.Column="0" Text="选择" Width="36" Classes="CkanCaption" FontWeight="SemiBold" />
+              <TextBlock Grid.Column="1" Text="模块" Classes="CkanCaption" FontWeight="SemiBold" Margin="0,0,8,0" />
+              <TextBlock Grid.Column="2" Text="文件名" Classes="CkanCaption" FontWeight="SemiBold" Margin="0,0,8,0" />
+              <TextBlock Grid.Column="3" Text="大小" Classes="CkanCaption" FontWeight="SemiBold" />
+              <TextBlock Grid.Column="4" Text="最后访问" Classes="CkanCaption" FontWeight="SemiBold" />
+              <TextBlock Grid.Column="5" Text="状态" Classes="CkanCaption" FontWeight="SemiBold" />
             </Grid>
           </Border>
           <ListBox Grid.Row="1" ItemsSource="{Binding Entries}" Padding="4"

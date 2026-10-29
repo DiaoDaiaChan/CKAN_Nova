@@ -49,12 +49,25 @@
 
   <Panel>
     <!-- 空状态（03 篇 §10：每页必须有空状态） -->
-    <TextBlock Text="{Binding EmptyText}"
-               IsVisible="{Binding IsEmpty}"
-               Opacity="0.6"
-               HorizontalAlignment="Center"
-               VerticalAlignment="Center"
-               TextWrapping="Wrap" />
+    <StackPanel IsVisible="{Binding IsEmpty}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="12"
+                Margin="32">
+      <Border Width="56" Height="56" CornerRadius="28"
+              Background="{DynamicResource CkanSubtleBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanBorderBrush}"
+              BorderThickness="1"
+              HorizontalAlignment="Center">
+        <PathIcon Width="24" Height="24"
+                  Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                  Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
+      </Border>
+      <TextBlock Text="{Binding EmptyText}"
+                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 HorizontalAlignment="Center"
+                 TextWrapping="Wrap" />
+    </StackPanel>
 
     <!-- 四个页签：内联 TabItem 声明（不是 ItemsSource），切换页签时控件实例不重建，
          滚动位置与列表选中项自然保持；选中态下划线由 FluentStyles 的 TabItem:selected 提供。 -->

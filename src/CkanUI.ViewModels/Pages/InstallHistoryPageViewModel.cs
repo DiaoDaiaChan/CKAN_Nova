@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.ViewModels.Pages.InstallHistory;
@@ -49,17 +50,17 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
         // 能力探测而不是硬依赖：老实现/测试替身没实现维护接口时，页面自动隐藏删除入口。
         _maintenance = history as IInstallHistoryMaintenance;
         _restoreProgress = new InlineProgress<OperationProgress>(OnRestoreProgress);
-        SetStatus("选择一条历史记录，查看当时的已装集合，或从该时间点重装。");
+        SetStatus(Text("选择一条历史记录，查看当时的已装集合，或从该时间点重装。", LocalizationKeys.InstallHistoryStatusSelectHint));
         OnPropertyChanged(nameof(CanEditHistory));
     }
 
     /// <inheritdoc />
-    public override string Title => "安装历史";
+    public override string Title => Text("安装历史", LocalizationKeys.NavRailInstallHistory);
 
     /// <summary>当前实例的说明文案。</summary>
     public string InstanceTitleText => _history.HasActiveInstance && _history.InstanceName is { Length: > 0 } name
-        ? "当前实例：" + name + "（历史文件：<GameDir>/CKAN/install_history.jsonl）"
-        : "当前没有选中的游戏实例，安装历史不可用。";
+        ? Text("当前实例：{0}（历史文件：<GameDir>/CKAN/install_history.jsonl）", LocalizationKeys.InstallHistoryInstanceTitle, name)
+        : Text("当前没有选中的游戏实例，安装历史不可用。", LocalizationKeys.InstallHistoryInstanceMissing);
 
     // ---- 列表 --------------------------------------------------------------
 
@@ -76,7 +77,12 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
     public bool ShowEmptyState => Entries.Count == 0 && !IsBusy;
 
     /// <summary>列表条数文案。</summary>
-    public string CountText => Entries.Count == 0 ? "暂无历史记录" : "共 " + Entries.Count + " 条历史记录";
+    public string CountText => Entries.Count == 0
+        ? Text("暂无历史记录", LocalizationKeys.InstallHistoryCountNone)
+        : Text(
+            "共 {0} 条历史记录",
+            LocalizationKeys.InstallHistoryCountSummary,
+            Entries.Count);
 
     // ---- 删除 / 清空（F-44 剩余两项缺口的界面入口）-------------------------
 
@@ -102,19 +108,25 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
 
     /// <summary>选中记录的标题文案。</summary>
     public string SelectionTitleText => SelectedEntry is { } row
-        ? row.TimestampText + "｜" + row.OperationText + "｜" + row.OutcomeText
-        : "未选择历史记录";
+        ? Text("{0}｜{1}｜{2}", LocalizationKeys.InstallHistorySelectionTitle, row.TimestampText, row.OperationText, row.OutcomeText)
+        : Text("未选择历史记录", LocalizationKeys.InstallHistorySelectionNone);
 
     /// <summary>选中记录的分组统计。</summary>
     public string SelectionSummaryText => SelectedEntry is { } row
-        ? row.GroupCountText + "（快照共 " + row.SnapshotModuleCount + " 个模组）"
-        : "选中一条记录后显示当时的已装集合。";
+        ? Text("{0}（快照共 {1} 个模组）", LocalizationKeys.InstallHistorySelectionSummary, row.GroupCountText, row.SnapshotModuleCount)
+        : Text("选中一条记录后显示当时的已装集合。", LocalizationKeys.InstallHistorySelectionSummaryNone);
 
     /// <summary>已装分组标题。</summary>
-    public string InstalledGroupTitle => "已安装（" + InstalledModules.Count + "）";
+    public string InstalledGroupTitle => Text(
+            "已安装（{0}）",
+            LocalizationKeys.InstallHistoryGroupInstalled,
+            InstalledModules.Count);
 
     /// <summary>未装分组标题。</summary>
-    public string MissingGroupTitle => "未安装（" + MissingModules.Count + "）";
+    public string MissingGroupTitle => Text(
+            "未安装（{0}）",
+            LocalizationKeys.InstallHistoryGroupMissing,
+            MissingModules.Count);
 
     /// <summary>已装分组是否有内容。</summary>
     public bool HasInstalledModules => InstalledModules.Count > 0;
@@ -139,6 +151,14 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
     /// <summary>重装按钮是否可用：不忙、选中了带快照的历史记录。</summary>
     public bool CanRestore => !IsBusy && SelectedEntry is { CanRestore: true };
 
+    /// <summary>
+    /// 是否同时卸载快照之外的模组：开启后重装会把当前实例里多装的那些模组一并卸载，
+    /// 使已装集合与选中时间点完全一致；默认关闭（只按快照里的模组算变更）。
+    /// 该开关随请求一起带到服务层（<c>InstallHistoryRestoreRequest.RemoveExtras</c>），预览与执行都生效。
+    /// </summary>
+    [ObservableProperty]
+    private bool _removeExtras;
+
     /// <summary>重装按钮不可用时的解释文案。</summary>
     public string RestoreHintText
     {
@@ -146,20 +166,22 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
         {
             if (SelectedEntry is not { } row)
             {
-                return "先在左侧选中一条历史记录。";
+                return Text("先在左侧选中一条历史记录。", LocalizationKeys.InstallHistoryRestoreHintNoSelection);
             }
 
             if (!row.HasSnapshot)
             {
-                return "这条历史没有已装集合快照，无法重装。";
+                return Text("这条历史没有已装集合快照，无法重装。", LocalizationKeys.InstallHistoryRestoreHintNoSnapshot);
             }
 
             if (row.SnapshotModuleCount == 0)
             {
-                return "该时间点的快照里没有任何模组，无需重装。";
+                return Text("该时间点的快照里没有任何模组，无需重装。", LocalizationKeys.InstallHistoryRestoreHintEmptySnapshot);
             }
 
-            return "重装会把当前实例的已装集合改成该时间点的样子（不会卸载快照之外的模组）。";
+            return RemoveExtras
+                ? Text("重装会把当前实例的已装集合改成该时间点的样子，并卸载快照之外的模组（这些模组会被删除）。", LocalizationKeys.InstallHistoryRestoreHintRemoveExtras)
+                : Text("重装会把当前实例的已装集合改成该时间点的样子（不会卸载快照之外的模组）。", LocalizationKeys.InstallHistoryRestoreHintKeepExtras);
         }
     }
 
@@ -175,10 +197,29 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
         // 分组按"当前是否装着"分（与旧 GUI 一致）：版本不同的模组仍在已装分组里，但同样是待变更项。
         var reinstall = row.MissingModules.Count;
         var changeVersion = row.InstalledModules.Count(module => module.IsChanged);
-        var parts = new List<string> { "该时间点共 " + row.SnapshotModuleCount + " 个模组" };
-        parts.Add("已装 " + row.InstalledCount + " 个");
-        parts.Add("需变更 " + (reinstall + changeVersion) + " 个（新装 " + reinstall + "，换版本 " + changeVersion + "）");
-        return string.Join("｜", parts) + "。";
+        var parts = new List<string>
+        {
+            Text(
+            "该时间点共 {0} 个模组",
+            LocalizationKeys.InstallHistoryPreviewSnapshot,
+            row.SnapshotModuleCount),
+        };
+        parts.Add(Text(
+            "已装 {0} 个",
+            LocalizationKeys.InstallHistoryPreviewInstalled,
+            row.InstalledCount));
+        parts.Add(Text(
+            "需变更 {0} 个（新装 {1}，换版本 {2}）",
+            LocalizationKeys.InstallHistoryPreviewChanges,
+            reinstall + changeVersion,
+            reinstall,
+            changeVersion));
+        var text = string.Join("｜", parts) + "。";
+
+        // 勾选「同时卸载快照之外的模组」后，本地这份按快照估的数字会偏小：真正要卸载哪些由服务端算。
+        return RemoveExtras
+            ? text + Text("已勾选同时卸载快照之外的模组，实际还会卸载不在该快照里的模组。", LocalizationKeys.InstallHistoryPreviewRemoveExtrasNote)
+            : text;
     }
 
     // ---- 状态 --------------------------------------------------------------
@@ -221,7 +262,7 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
     private Task LoadAsync() => RunAsync(
         () => LoadCoreAsync(SelectedEntry?.Timestamp),
         LoadContext,
-        "正在读取安装历史…");
+        Text("正在读取安装历史…", LocalizationKeys.InstallHistoryBusyLoad));
 
     /// <summary>
     /// 删除当前选中的那一条历史（连同它的快照）；必须先经确认对话框，删完重新读盘以重算统计。
@@ -232,19 +273,19 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
         {
             if (SelectedEntry is not { } row)
             {
-                SetError("请先选中一条历史记录。", null);
+                SetError(Text("请先选中一条历史记录。", LocalizationKeys.InstallHistoryErrorNoSelection), null);
                 return;
             }
 
             if (_maintenance is not { } maintenance)
             {
-                SetError("当前安装历史服务不支持删除。", null);
+                SetError(Text("当前安装历史服务不支持删除。", LocalizationKeys.InstallHistoryErrorDeleteUnsupported), null);
                 return;
             }
 
             if (!await ConfirmAsync(
-                    "删除这条历史？",
-                    "将删除 " + row.TimestampText + "｜" + row.OperationText + " 这一条历史及其已装集合快照，删除后无法撤销。"))
+                    Text("删除这条历史？", LocalizationKeys.InstallHistoryConfirmDeleteTitle),
+                    Text("将删除 {0}｜{1} 这一条历史及其已装集合快照，删除后无法撤销。", LocalizationKeys.InstallHistoryConfirmDeleteMessage, row.TimestampText, row.OperationText)))
             {
                 return;
             }
@@ -252,17 +293,20 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
             var deleted = await maintenance.DeleteAsync(row.Timestamp);
             if (!deleted.IsSuccess)
             {
-                SetError(InstallHistoryText.Compose(deleted.Message, "删除安装历史失败。", deleted.Retryable), deleted.Detail);
+                SetError(InstallHistoryText.Compose(deleted.Message, Text("删除安装历史失败。", LocalizationKeys.InstallHistoryErrorDeleteFailed), deleted.Retryable), deleted.Detail);
                 return;
             }
 
             await LoadCoreAsync(null);
             SetStatus(deleted.Value == 0
-                ? "这条历史已经不存在（列表已刷新）。"
-                : "已删除 1 条历史记录（" + deleted.Value + " 行）。");
+                ? Text("这条历史已经不存在（列表已刷新）。", LocalizationKeys.InstallHistoryStatusGone)
+                : Text(
+                "已删除 1 条历史记录（{0} 行）。",
+                LocalizationKeys.InstallHistoryStatusDeleted,
+                deleted.Value));
         },
         DeleteContext,
-        "正在删除安装历史…");
+        Text("正在删除安装历史…", LocalizationKeys.InstallHistoryBusyDelete));
 
     /// <summary>清空当前实例的全部安装历史；必须先经确认对话框。</summary>
     [RelayCommand(CanExecute = nameof(CanClearHistory))]
@@ -271,13 +315,13 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
         {
             if (_maintenance is not { } maintenance)
             {
-                SetError("当前安装历史服务不支持清空。", null);
+                SetError(Text("当前安装历史服务不支持清空。", LocalizationKeys.InstallHistoryErrorClearUnsupported), null);
                 return;
             }
 
             if (!await ConfirmAsync(
-                    "清空安装历史？",
-                    "将删除当前实例的全部安装历史（" + CountText + "），清空后无法撤销。"))
+                    Text("清空安装历史？", LocalizationKeys.InstallHistoryConfirmClearTitle),
+                    Text("将删除当前实例的全部安装历史（{0}），清空后无法撤销。", LocalizationKeys.InstallHistoryConfirmClearMessage, CountText)))
             {
                 return;
             }
@@ -285,17 +329,20 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
             var cleared = await maintenance.ClearAsync();
             if (!cleared.IsSuccess)
             {
-                SetError(InstallHistoryText.Compose(cleared.Message, "清空安装历史失败。", cleared.Retryable), cleared.Detail);
+                SetError(InstallHistoryText.Compose(cleared.Message, Text("清空安装历史失败。", LocalizationKeys.InstallHistoryErrorClearFailed), cleared.Retryable), cleared.Detail);
                 return;
             }
 
             await LoadCoreAsync(null);
             SetStatus(cleared.Value == 0
-                ? "安装历史本来就是空的。"
-                : "已清空安装历史（" + cleared.Value + " 行）。");
+                ? Text("安装历史本来就是空的。", LocalizationKeys.InstallHistoryStatusAlreadyEmpty)
+                : Text(
+                "已清空安装历史（{0} 行）。",
+                LocalizationKeys.InstallHistoryStatusCleared,
+                cleared.Value));
         },
         ClearContext,
-        "正在清空安装历史…");
+        Text("正在清空安装历史…", LocalizationKeys.InstallHistoryBusyClear));
 
     /// <summary>读盘并重建列表（删除/清空后也要走这里，统计文案才跟着变）。</summary>
     private async Task LoadCoreAsync(DateTimeOffset? preferredTimestamp)
@@ -303,14 +350,17 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
         var result = await _history.LoadAsync();
         if (!result.IsSuccess || result.Value is not { } entries)
         {
-            SetError(InstallHistoryText.Compose(result.Message, "读取安装历史失败。", result.Retryable), result.Detail);
+            SetError(InstallHistoryText.Compose(result.Message, Text("读取安装历史失败。", LocalizationKeys.InstallHistoryErrorLoadFailed), result.Retryable), result.Detail);
             return;
         }
 
         ApplyEntries(entries, preferredTimestamp);
         SetStatus(Entries.Count == 0
-            ? "还没有历史记录：装/卸/升级任意模组后会自动记一条。"
-            : "读取完成：" + CountText + "。");
+            ? Text("还没有历史记录：装/卸/升级任意模组后会自动记一条。", LocalizationKeys.InstallHistoryStatusEmptyHistory)
+            : Text(
+            "读取完成：{0}。",
+            LocalizationKeys.InstallHistoryStatusLoaded,
+            CountText));
     }
 
     /// <summary>
@@ -321,7 +371,7 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
     {
         if (_dialogs is not { } dialogs)
         {
-            SetError("当前环境没有确认对话框，已取消这次操作。", null);
+            SetError(Text("当前环境没有确认对话框，已取消这次操作。", LocalizationKeys.InstallHistoryErrorNoDialogs), null);
             return false;
         }
 
@@ -335,19 +385,20 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
         {
             if (SelectedEntry is not { } row)
             {
-                SetError("请先选中一条历史记录。", null);
+                SetError(Text("请先选中一条历史记录。", LocalizationKeys.InstallHistoryErrorNoSelection), null);
                 return;
             }
 
             RestoreResultText = string.Empty;
             _plan = null;
 
-            var preview = await _history.PreviewRestoreAsync(new InstallHistoryRestoreRequest(row.Timestamp));
+            var preview = await _history.PreviewRestoreAsync(
+                new InstallHistoryRestoreRequest(row.Timestamp) { RemoveExtras = RemoveExtras });
             if (!preview.IsSuccess || preview.Value is not { } plan)
             {
                 RestorePreviewText = string.Empty;
                 OnPropertyChanged(nameof(HasRestorePreview));
-                SetError(InstallHistoryText.Compose(preview.Message, "预览重装失败。", preview.Retryable), preview.Detail);
+                SetError(InstallHistoryText.Compose(preview.Message, Text("预览重装失败。", LocalizationKeys.InstallHistoryErrorPreviewFailed), preview.Retryable), preview.Detail);
                 return;
             }
 
@@ -355,15 +406,18 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
             {
                 RestorePreviewText = DescribePlan(plan);
                 OnPropertyChanged(nameof(HasRestorePreview));
-                SetError("重装目标存在依赖冲突，已中止：" + string.Join("；", plan.Conflicts), null);
+                SetError(Text(
+                "重装目标存在依赖冲突，已中止：{0}",
+                LocalizationKeys.InstallHistoryErrorConflicts,
+                string.Join("；", plan.Conflicts)), null);
                 return;
             }
 
             if (plan.IsEmpty)
             {
-                RestorePreviewText = "该时间点与当前已装集合一致，无需重装。";
+                RestorePreviewText = Text("该时间点与当前已装集合一致，无需重装。", LocalizationKeys.InstallHistoryPreviewNoChange);
                 OnPropertyChanged(nameof(HasRestorePreview));
-                SetStatus("无需重装：当前已装集合已经与该时间点一致。");
+                SetStatus(Text("无需重装：当前已装集合已经与该时间点一致。", LocalizationKeys.InstallHistoryStatusAlreadyMatches));
                 return;
             }
 
@@ -371,27 +425,35 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
             RestorePreviewText = DescribePlan(plan);
             OnPropertyChanged(nameof(HasRestorePreview));
             ProgressPercent = 0;
-            ProgressText = "正在从历史重装…";
+            ProgressText = Text("正在从历史重装…", LocalizationKeys.InstallHistoryBusyRestoring);
 
             var restore = await _history.RestoreAsync(
-                new InstallHistoryRestoreRequest(row.Timestamp),
+                new InstallHistoryRestoreRequest(row.Timestamp) { RemoveExtras = RemoveExtras },
                 _restoreProgress);
             if (!restore.IsSuccess || restore.Value is not { } restored)
             {
                 ProgressText = string.Empty;
-                SetError(InstallHistoryText.Compose(restore.Message, "从历史重装失败，可重试。", restore.Retryable), restore.Detail);
+                SetError(InstallHistoryText.Compose(restore.Message, Text("从历史重装失败，可重试。", LocalizationKeys.InstallHistoryErrorRestoreFailed), restore.Retryable), restore.Detail);
                 return;
             }
 
             ProgressPercent = 100;
-            ProgressText = "重装结束。";
+            ProgressText = Text("重装结束。", LocalizationKeys.InstallHistoryProgressDone);
             RestoreResultText = DescribeResult(restored);
             SetStatus(restored.IsFullSuccess
-                ? "重装完成：安装 " + restored.Installed.Count + " 个，卸载 " + restored.Removed.Count + " 个。"
-                : "重装结束：成功 " + restored.Installed.Count + " 个，失败 " + restored.Failed.Count + " 个。");
+                ? Text(
+                "重装完成：安装 {0} 个，卸载 {1} 个。",
+                LocalizationKeys.InstallHistoryStatusRestored,
+                restored.Installed.Count,
+                restored.Removed.Count)
+                : Text(
+                "重装结束：成功 {0} 个，失败 {1} 个。",
+                LocalizationKeys.InstallHistoryStatusRestorePartial,
+                restored.Installed.Count,
+                restored.Failed.Count));
         },
         RestoreContext,
-        "正在从历史重装…");
+        Text("正在从历史重装…", LocalizationKeys.InstallHistoryBusyRestoring));
 
     /// <summary>按服务返回的条目重建列表，并尽量保留原来的选中项。</summary>
     public void ApplyEntries(IReadOnlyList<InstallHistoryEntry> entries, DateTimeOffset? preferredTimestamp = null)
@@ -436,57 +498,83 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
         DeleteSelectedCommand.NotifyCanExecuteChanged();
     }
 
-    private static string DescribePlan(InstallHistoryRestorePlan plan)
+    private string DescribePlan(InstallHistoryRestorePlan plan)
     {
         ArgumentNullException.ThrowIfNull(plan);
         var parts = new List<string>
         {
-            "重装将变更 " + plan.ChangeCount + " 个模组",
+            Text(
+            "重装将变更 {0} 个模组",
+            LocalizationKeys.InstallHistoryPlanChanges,
+            plan.ChangeCount),
         };
         if (plan.InstallCount > 0)
         {
-            parts.Add("新装 " + plan.InstallCount);
+            parts.Add(Text(
+            "新装 {0}",
+            LocalizationKeys.InstallHistoryPlanInstall,
+            plan.InstallCount));
         }
 
         if (plan.UpgradeCount > 0)
         {
-            parts.Add("换版本 " + plan.UpgradeCount);
+            parts.Add(Text(
+            "换版本 {0}",
+            LocalizationKeys.InstallHistoryPlanUpgrade,
+            plan.UpgradeCount));
         }
 
         if (plan.RemoveCount > 0)
         {
-            parts.Add("卸载 " + plan.RemoveCount);
+            parts.Add(Text(
+            "卸载 {0}",
+            LocalizationKeys.InstallHistoryPlanRemove,
+            plan.RemoveCount));
         }
 
         if (plan.EstimatedDownloadBytes > 0)
         {
-            parts.Add("预计下载 " + (plan.EstimatedDownloadBytes / (1024d * 1024d)).ToString("0.0") + " MB");
+            parts.Add(Text(
+            "预计下载 {0} MB",
+            LocalizationKeys.InstallHistoryPlanDownload,
+            (plan.EstimatedDownloadBytes / (1024d * 1024d)).ToString("0.0")));
         }
 
         return string.Join("，", parts) + "。";
     }
 
-    private static string DescribeResult(InstallHistoryRestoreResult result)
+    private string DescribeResult(InstallHistoryRestoreResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
         var parts = new List<string>
         {
-            "重装结果：安装 " + result.Installed.Count + " 个，卸载 " + result.Removed.Count + " 个，失败 " + result.Failed.Count + " 个",
+            Text(
+            "重装结果：安装 {0} 个，卸载 {1} 个，失败 {2} 个",
+            LocalizationKeys.InstallHistoryResultSummary,
+            result.Installed.Count,
+            result.Removed.Count,
+            result.Failed.Count),
         };
         if (result.Failed.Count > 0)
         {
-            parts.Add("失败清单：" + string.Join("、", result.Failed));
+            parts.Add(Text(
+            "失败清单：{0}",
+            LocalizationKeys.InstallHistoryResultFailedList,
+            string.Join("、", result.Failed)));
         }
 
         if (result.Warnings.Count > 0)
         {
-            parts.Add("警告：" + string.Join("；", result.Warnings));
+            parts.Add(Text(
+            "警告：{0}",
+            LocalizationKeys.InstallHistoryResultWarnings,
+            string.Join("；", result.Warnings)));
         }
 
         return string.Join("；", parts) + "。";
     }
 
-    private void OnRestoreProgress(OperationProgress progress) => ApplyProgress(progress, "正在从历史重装…");
+    private void OnRestoreProgress(OperationProgress progress) => ApplyProgress(progress, Text("正在从历史重装…", LocalizationKeys.InstallHistoryBusyRestoring));
 
     private void ApplyProgress(OperationProgress progress, string fallback)
     {
@@ -523,7 +611,7 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
         catch (Exception ex)
         {
             _errors.Report(ex, context);
-            SetError(InstallHistoryText.FromException(ex, "安装历史操作失败。"), ex.Message);
+            SetError(InstallHistoryText.FromException(ex, Text("安装历史操作失败。", LocalizationKeys.InstallHistoryErrorOperationFailed)), ex.Message);
         }
         finally
         {
@@ -582,6 +670,16 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
     partial void OnRestorePreviewTextChanged(string value) => OnPropertyChanged(nameof(HasRestorePreview));
 
     partial void OnRestoreResultTextChanged(string value) => OnPropertyChanged(nameof(HasRestoreResult));
+
+    partial void OnRemoveExtrasChanged(bool value)
+    {
+        // 提示语与本地预览都跟这个开关的语义绑定：勾上就要说清「会删文件」。
+        OnPropertyChanged(nameof(RestoreHintText));
+        if (SelectedEntry is { } row)
+        {
+            RestorePreviewText = BuildRestorePreview(row);
+        }
+    }
 
     partial void OnInstalledModulesChanged(IReadOnlyList<InstallHistoryModuleRowViewModel> value)
     {

@@ -46,7 +46,7 @@
 
   <!-- 仓库管理页：工具条 + 有序仓库表 + 新增表单 + 状态栏。
        全部颜色走 Tokens.axaml 的语义 token。 -->
-  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="20,16"
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
         Background="{DynamicResource CkanSurfaceBackgroundBrush}">
 
     <!-- 页头 -->
@@ -131,11 +131,9 @@
                    TextWrapping="Wrap" />
         <StackPanel Orientation="Horizontal" Spacing="8">
           <Button Content="添加" Command="{Binding AddCommand}"
-                  Background="{DynamicResource CkanAccentBrush}"
-                  Foreground="{DynamicResource CkanAccentTextBrush}"
-                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="16,6" />
+                  Classes="CkanPrimary" Padding="18,6" />
           <Button Content="取消" Command="{Binding CancelAddCommand}"
-                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,6" />
+                  Classes="CkanSecondary" Padding="14,6" />
         </StackPanel>
       </StackPanel>
     </Border>

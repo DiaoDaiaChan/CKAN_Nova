@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.Services.Abstractions.Mods;
@@ -132,7 +133,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     }
 
     /// <inheritdoc />
-    public override string Title => "模组";
+    public override string Title => Text("模组", LocalizationKeys.NavRailManageMods);
 
     /// <summary>搜索防抖时长（测试可缩短；生产用默认 80ms）。</summary>
     public TimeSpan SearchDebounce { get; init; } = TimeSpan.FromMilliseconds(SearchDebounceMilliseconds);
@@ -276,7 +277,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     }
 
     /// <summary>计数摘要（状态栏左段）。</summary>
-    public string CountText => $"显示 {ModsFormatter.Count(Rows.Count)} / {ModsFormatter.Count(_all.Count)} 个模组";
+    public string CountText => Text("显示 {0} / {1} 个模组", LocalizationKeys.ManageModsCountSummary, ModsFormatter.Count(Rows.Count), ModsFormatter.Count(_all.Count));
 
     /// <summary>选择与变更摘要（状态栏中段）。</summary>
     public string SelectionSummary
@@ -297,14 +298,14 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
                 }
             }
 
-            return $"已选 {SelectedCount} · 变更 +{installs}/-{removals}";
+            return Text("已选 {0} · 变更 +{1}/-{2}", LocalizationKeys.ManageModsSelectionSummary, SelectedCount, installs, removals);
         }
     }
 
     /// <summary>下载体积估算（状态栏右段）。</summary>
     public string DownloadSummary => ChangePreview.IsEmpty
-        ? "无需下载"
-        : $"需下载 {ModsFormatter.Bytes(ChangePreview.EstimatedDownloadBytes)}";
+        ? Text("无需下载", LocalizationKeys.ManageModsDownloadNone)
+        : Text("需下载 {0}", LocalizationKeys.ManageModsDownloadNeeded, ModsFormatter.Bytes(ChangePreview.EstimatedDownloadBytes));
 
     /// <summary>预览里是否有冲突。</summary>
     public bool PreviewHasConflicts => ChangePreview.HasConflicts;
@@ -323,17 +324,17 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             var chips = new List<string>(4);
             if (!string.IsNullOrWhiteSpace(SearchText))
             {
-                chips.Add($"搜索：{SearchText.Trim()}");
+                chips.Add(Text("搜索：{0}", LocalizationKeys.ManageModsChipSearch, SearchText.Trim()));
             }
 
             if (InstallFilter != ModsInstallFilter.All)
             {
-                chips.Add($"安装状态：{DescribeInstallFilter(InstallFilter)}");
+                chips.Add(Text("安装状态：{0}", LocalizationKeys.ManageModsChipInstallState, DescribeInstallFilter(InstallFilter)));
             }
 
             if (CompatibilityFilter != ModsCompatibilityFilter.All)
             {
-                chips.Add($"兼容性：{(CompatibilityFilter == ModsCompatibilityFilter.CompatibleOnly ? "仅兼容" : "仅不兼容")}");
+                chips.Add(Text("兼容性：{0}", LocalizationKeys.ManageModsChipCompatibility, CompatibilityFilter == ModsCompatibilityFilter.CompatibleOnly ? Text("仅兼容", LocalizationKeys.ManageModsFilterCompatibleOnly) : Text("仅不兼容", LocalizationKeys.ManageModsFilterIncompatibleOnly)));
             }
 
             if (HasLabelFilter)
@@ -343,7 +344,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
 
             foreach (var term in _query.UnsupportedTerms)
             {
-                chips.Add($"无法解析：{term}");
+                chips.Add(Text("无法解析：{0}", LocalizationKeys.ManageModsChipUnparsed, term));
             }
 
             return chips;
@@ -380,8 +381,8 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
 
     /// <summary>标签组过滤摘要（状态栏与无障碍提示）。</summary>
     public string LabelFilterSummary => HasLabelFilter
-        ? $"标签组：{string.Join("、", SelectedLabels)}"
-        : "未按标签组过滤";
+        ? Text("标签组：{0}", LocalizationKeys.ManageModsChipLabels, string.Join(Text("、", LocalizationKeys.CommonListSeparator), SelectedLabels))
+        : Text("未按标签组过滤", LocalizationKeys.ManageModsChipLabelsInactive);
 
     /// <summary>切换某个标签组的筛选状态（空名忽略）。</summary>
     public void ToggleLabelFilter(string? name)
@@ -515,8 +516,8 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
 
     /// <summary>详情面板的标签组文本（无标记时给出明确提示，而不是空白）。</summary>
     public string DetailLabelText => HasDetailLabels
-        ? string.Join("、", DetailLabels.Select(badge => badge.Name))
-        : "无标签组";
+        ? string.Join(Text("、", LocalizationKeys.CommonListSeparator), DetailLabels.Select(badge => badge.Name))
+        : Text("无标签组", LocalizationKeys.ManageModsDetailLabelsNone);
 
     /// <summary>选中行是否在收藏组里。</summary>
     public bool DetailIsFavourite => ReadLabelFlag(static (service, identifier) => service.IsFavourite(identifier));
@@ -535,21 +536,21 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     private Task ToggleFavouriteAsync() => ToggleLabelMembershipAsync(
         static (service, identifier) => service.IsFavourite(identifier),
         static (service, identifier, on) => service.SetFavouriteAsync(identifier, on),
-        "收藏");
+        Text("收藏", LocalizationKeys.ManageModsLabelFavourite));
 
     /// <summary>切换隐藏（F-24）。</summary>
     [RelayCommand(CanExecute = nameof(CanToggleLabels))]
     private Task ToggleHiddenAsync() => ToggleLabelMembershipAsync(
         static (service, identifier) => service.IsHidden(identifier),
         static (service, identifier, on) => service.SetHiddenAsync(identifier, on),
-        "隐藏");
+        Text("隐藏", LocalizationKeys.ManageModsLabelHidden));
 
     /// <summary>切换锁定版本（F-24）。</summary>
     [RelayCommand(CanExecute = nameof(CanToggleLabels))]
     private Task ToggleHeldAsync() => ToggleLabelMembershipAsync(
         static (service, identifier) => service.IsHeld(identifier),
         static (service, identifier, on) => service.SetHeldAsync(identifier, on),
-        "锁定版本");
+        Text("锁定版本", LocalizationKeys.ManageModsLabelHeld));
 
     private bool ReadLabelFlag(Func<ILabelService, string, bool> read)
     {
@@ -587,18 +588,18 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             var result = await write(service, identifier, next);
             if (!result.IsSuccess)
             {
-                StatusText = result.Message ?? $"设置{label}失败。";
+                StatusText = result.Message ?? Text("设置{0}失败。", LocalizationKeys.ManageModsLabelSetFailed, label);
                 return;
             }
 
             // 先重建列表（会顺带刷新状态栏摘要），再写提示语，否则提示会被摘要立刻覆盖。
             ReloadFromSnapshots();
-            StatusText = next ? $"已把 {name} 加入{label}。" : $"已把 {name} 移出{label}。";
+            StatusText = next ? Text("已把 {0} 加入{1}。", LocalizationKeys.ManageModsLabelAdded, name, label) : Text("已把 {0} 移出{1}。", LocalizationKeys.ManageModsLabelRemoved, name, label);
         }
         catch (Exception ex)
         {
             _errors.Report(ex, $"设置{label}", $"设置{label}时发生错误。");
-            StatusText = $"设置{label}失败，请查看错误栏。";
+            StatusText = Text("设置{0}失败，请查看错误栏。", LocalizationKeys.ManageModsLabelSetFailedSeeErrors, label);
         }
     }
 
@@ -609,15 +610,15 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         {
             if (!HasInstance)
             {
-                return "未找到 KSP 实例";
+                return Text("未找到 KSP 实例", LocalizationKeys.ManageModsEmptyNoInstance);
             }
 
             if (_all.Count == 0)
             {
-                return "尚未加载模组索引";
+                return Text("尚未加载模组索引", LocalizationKeys.ManageModsEmptyNoIndex);
             }
 
-            return "没有匹配的模组";
+            return Text("没有匹配的模组", LocalizationKeys.ManageModsEmptyNoMatch);
         }
     }
 
@@ -628,15 +629,15 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         {
             if (!HasInstance)
             {
-                return "请先在「实例」页添加或选择一个 KSP 安装目录。";
+                return Text("请先在「实例」页添加或选择一个 KSP 安装目录。", LocalizationKeys.ManageModsEmptyNoInstanceHint);
             }
 
             if (_all.Count == 0)
             {
-                return "仓库索引为空：点击「刷新仓库」联网获取索引，或检查网络与仓库地址。";
+                return Text("仓库索引为空：点击「刷新仓库」联网获取索引，或检查网络与仓库地址。", LocalizationKeys.ManageModsEmptyNoIndexHint);
             }
 
-            return "试着放宽过滤条件，或按 Esc 清空搜索。";
+            return Text("试着放宽过滤条件，或按 Esc 清空搜索。", LocalizationKeys.ManageModsEmptyNoMatchHint);
         }
     }
 
@@ -652,7 +653,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     public bool HasSelectedRow => SelectedRow is not null;
 
     /// <summary>详情标题。</summary>
-    public string DetailName => SelectedRow?.Name ?? "未选择模组";
+    public string DetailName => SelectedRow?.Name ?? Text("未选择模组", LocalizationKeys.ManageModsDetailNoSelection);
 
     /// <summary>详情标识符。</summary>
     public string DetailIdentifier => SelectedRow?.Identifier ?? string.Empty;
@@ -673,7 +674,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
 
     /// <summary>详情标签。</summary>
     public string DetailTagsText => SelectedRow is null || SelectedRow.TagsText.Length == 0
-        ? "无标签"
+        ? Text("无标签", LocalizationKeys.ManageModsDetailNoTags)
         : SelectedRow.TagsText;
 
     /// <summary>详情状态文本。</summary>
@@ -878,7 +879,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         catch (Exception ex)
         {
             _errors.Report(ex, "刷新模组列表", "更新模组列表时发生错误。");
-            StatusText = "更新模组列表失败，请查看错误栏。";
+            StatusText = Text("更新模组列表失败，请查看错误栏。", LocalizationKeys.ManageModsStatusListFailed);
         }
     }
 
@@ -891,7 +892,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         catch (Exception ex)
         {
             _errors.Report(ex, "刷新已装模组", "更新已安装模组时发生错误。");
-            StatusText = "更新已安装模组失败，请查看错误栏。";
+            StatusText = Text("更新已安装模组失败，请查看错误栏。", LocalizationKeys.ManageModsStatusInstalledFailed);
         }
     }
 
@@ -906,7 +907,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         catch (Exception ex)
         {
             _errors.Report(ex, "刷新标签组", "刷新标签组时发生错误。");
-            StatusText = "刷新标签组失败，请查看错误栏。";
+            StatusText = Text("刷新标签组失败，请查看错误栏。", LocalizationKeys.ManageModsStatusLabelsFailed);
         }
     }
 
@@ -922,12 +923,12 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         catch (Exception ex)
         {
             _errors.Report(ex, "切换实例", "切换实例后刷新模组列表失败。");
-            StatusText = "切换实例后刷新失败，请查看错误栏。";
+            StatusText = Text("切换实例后刷新失败，请查看错误栏。", LocalizationKeys.ManageModsStatusInstanceSwitchFailed);
         }
     }
 
     /// <inheritdoc />
-    public string PageName => "模组";
+    public string PageName => Text("模组", LocalizationKeys.NavRailManageMods);
 
     /// <summary>
     /// 丢掉模组行投影（18 篇 §3 L1）：启动游戏前把整张表放掉，回来时 <see cref="ReloadFromSnapshots"/> 会重建。
@@ -963,7 +964,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         catch (Exception ex)
         {
             _errors.Report(ex, "读取模组快照", "读取模组数据时发生错误。");
-            StatusText = "读取模组数据失败，请查看错误栏。";
+            StatusText = Text("读取模组数据失败，请查看错误栏。", LocalizationKeys.ManageModsStatusLoadFailed);
             _all = Array.Empty<ModRowData>();
         }
 
@@ -1342,12 +1343,12 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         return installed;
     }
 
-    private static string DescribeInstallFilter(ModsInstallFilter filter) => filter switch
+    private string DescribeInstallFilter(ModsInstallFilter filter) => filter switch
     {
-        ModsInstallFilter.Installed => "已装",
-        ModsInstallFilter.NotInstalled => "未装",
-        ModsInstallFilter.Upgradeable => "有更新",
-        _ => "全部",
+        ModsInstallFilter.Installed => Text("已装", LocalizationKeys.ManageModsFilterInstalled),
+        ModsInstallFilter.NotInstalled => Text("未装", LocalizationKeys.ManageModsFilterNotInstalled),
+        ModsInstallFilter.Upgradeable => Text("有更新", LocalizationKeys.ManageModsFilterUpgradeable),
+        _ => Text("全部", LocalizationKeys.ManageModsFilterAll),
     };
 
     // ---- 显示格式（F-54）------------------------------------------------
@@ -1714,7 +1715,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         }
 
         IsBusy = true;
-        StatusText = "正在刷新仓库索引…";
+        StatusText = Text("正在刷新仓库索引…", LocalizationKeys.ManageModsStatusRefreshingRegistry);
         try
         {
             var refreshed = await _repositories.RefreshAsync().ConfigureAwait(true);
@@ -1724,22 +1725,22 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
 
             if (!refreshed.IsSuccess)
             {
-                StatusText = refreshed.Message ?? "刷新仓库索引失败，已保留旧数据。";
+                StatusText = refreshed.Message ?? Text("刷新仓库索引失败，已保留旧数据。", LocalizationKeys.ManageModsStatusRegistryFailed);
                 return;
             }
 
             if (!registry.IsSuccess)
             {
-                StatusText = registry.Message ?? "刷新已安装模组失败。";
+                StatusText = registry.Message ?? Text("刷新已安装模组失败。", LocalizationKeys.ManageModsStatusInstalledRefreshFailed);
                 return;
             }
 
-            StatusText = $"已刷新：{ModsFormatter.Count(_all.Count)} 个模组";
+            StatusText = Text("已刷新：{0} 个模组", LocalizationKeys.ManageModsStatusRefreshedCount, ModsFormatter.Count(_all.Count));
         }
         catch (Exception ex)
         {
             _errors.Report(ex, "刷新仓库索引", "刷新模组索引时发生错误。");
-            StatusText = "刷新失败，请查看错误栏。";
+            StatusText = Text("刷新失败，请查看错误栏。", LocalizationKeys.ManageModsStatusRefreshFailed);
         }
         finally
         {
@@ -1839,13 +1840,13 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             }
             else
             {
-                StatusText = result.Message ?? "计算变更集失败。";
+                StatusText = result.Message ?? Text("计算变更集失败。", LocalizationKeys.ManageModsStatusChangeSetFailed);
             }
         }
         catch (Exception ex)
         {
             _errors.Report(ex, "计算变更集", "计算变更集时发生错误。");
-            StatusText = "计算变更集失败，请查看错误栏。";
+            StatusText = Text("计算变更集失败，请查看错误栏。", LocalizationKeys.ManageModsStatusChangeSetFailedSeeErrors);
         }
         finally
         {
@@ -1863,7 +1864,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         var requests = BuildChangeRequests();
         if (requests.Count == 0)
         {
-            StatusText = "请先勾选要变更的模组。";
+            StatusText = Text("请先勾选要变更的模组。", LocalizationKeys.ManageModsStatusNoSelectionToChange);
             return;
         }
 
@@ -1871,7 +1872,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
 
         if (_navigation is null)
         {
-            StatusText = "当前没有可用的导航服务，无法打开变更集页。";
+            StatusText = Text("当前没有可用的导航服务，无法打开变更集页。", LocalizationKeys.ManageModsStatusNoNavigation);
             return;
         }
 
@@ -1879,13 +1880,13 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         {
             if (!await _navigation.NavigateAsync("changes").ConfigureAwait(true))
             {
-                StatusText = "无法打开变更集页。";
+                StatusText = Text("无法打开变更集页。", LocalizationKeys.ManageModsStatusCannotOpenChanges);
             }
         }
         catch (Exception ex)
         {
             _errors.Report(ex, "打开变更集页", "打开变更集页时发生错误。");
-            StatusText = "打开变更集页失败，请查看错误栏。";
+            StatusText = Text("打开变更集页失败，请查看错误栏。", LocalizationKeys.ManageModsStatusOpenChangesFailed);
         }
     }
 
@@ -1917,7 +1918,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         var updatable = _all.Where(m => m.HasUpdate).Select(m => m.Identifier).Where(id => id is not null).ToList();
         if (updatable.Count == 0)
         {
-            StatusText = "当前所有已安装模组均为最新版本。";
+            StatusText = Text("当前所有已安装模组均为最新版本。", LocalizationKeys.ManageModsStatusAllUpToDate);
             return;
         }
 
@@ -1934,7 +1935,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         Rows = Rows.Select(view => view.WithSelected(_selected.Contains(view.Identifier))).ToList();
         UpdateStatusText();
         RefreshDerived();
-        StatusText = $"已将 {addedCount} 个有更新的模组加入待变更列表。";
+        StatusText = Text("已将 {0} 个有更新的模组加入待变更列表。", LocalizationKeys.ManageModsStatusAddedUpgrades, addedCount);
     }
 
     /// <summary>应用变更（F-32）：若有勾选直接转交变更集页；无勾选给出提示。</summary>
@@ -1943,7 +1944,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     {
         if (_selected.Count == 0)
         {
-            StatusText = "当前没有待应用的变更，请先勾选模组或点击全量更新。";
+            StatusText = Text("当前没有待应用的变更，请先勾选模组或点击全量更新。", LocalizationKeys.ManageModsStatusNoPendingChanges);
             return;
         }
 
@@ -1970,7 +1971,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     {
         if (SelectedRow is not { IsInstalled: true } row)
         {
-            StatusText = "请先选择一个已安装的模组。";
+            StatusText = Text("请先选择一个已安装的模组。", LocalizationKeys.ManageModsStatusSelectInstalledMod);
             return;
         }
 
@@ -1979,7 +1980,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(HasPendingChanges));
         ApplyChangesCommand.NotifyCanExecuteChanged();
-        StatusText = $"已将模组 {row.Name} 加入变更列表（准备重新安装）。";
+        StatusText = Text("已将模组 {0} 加入变更列表（准备重新安装）。", LocalizationKeys.ManageModsStatusAddedReinstall, row.Name);
     }
 
     /// <summary>复制选中模组标识符（F-31）。</summary>
@@ -1988,25 +1989,25 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     {
         if (SelectedRow is null)
         {
-            StatusText = "未选中任何模组。";
+            StatusText = Text("未选中任何模组。", LocalizationKeys.ManageModsStatusNoSelection);
             return;
         }
 
         if (ClipboardWriter is null)
         {
-            StatusText = $"标识符：{SelectedRow.Identifier}（当前宿主未接入剪贴板）";
+            StatusText = Text("标识符：{0}（当前宿主未接入剪贴板）", LocalizationKeys.ManageModsStatusIdentifierNoClipboard, SelectedRow.Identifier);
             return;
         }
 
         try
         {
             await ClipboardWriter(SelectedRow.Identifier).ConfigureAwait(true);
-            StatusText = $"已复制标识符“{SelectedRow.Identifier}”到剪贴板。";
+            StatusText = Text("已复制标识符“{0}”到剪贴板。", LocalizationKeys.ManageModsStatusIdentifierCopied, SelectedRow.Identifier);
         }
         catch (Exception ex)
         {
             _errors.Report(ex, "复制模组标识符", "写入系统剪贴板失败。");
-            StatusText = "写入剪贴板失败。";
+            StatusText = Text("写入剪贴板失败。", LocalizationKeys.ManageModsStatusClipboardFailed);
         }
     }
 
@@ -2016,32 +2017,32 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     {
         if (SelectedRow is null)
         {
-            StatusText = "未选中任何模组。";
+            StatusText = Text("未选中任何模组。", LocalizationKeys.ManageModsStatusNoSelection);
             return;
         }
 
         var url = SelectedRow.Facts.DownloadUrl;
         if (string.IsNullOrWhiteSpace(url))
         {
-            StatusText = "该模组没有记录下载链接。";
+            StatusText = Text("该模组没有记录下载链接。", LocalizationKeys.ManageModsStatusNoDownloadLink);
             return;
         }
 
         if (ClipboardWriter is null)
         {
-            StatusText = $"下载链接：{url}（当前宿主未接入剪贴板）";
+            StatusText = Text("下载链接：{0}（当前宿主未接入剪贴板）", LocalizationKeys.ManageModsStatusDownloadLinkNoClipboard, url);
             return;
         }
 
         try
         {
             await ClipboardWriter(url).ConfigureAwait(true);
-            StatusText = "已复制模组下载地址到剪贴板。";
+            StatusText = Text("已复制模组下载地址到剪贴板。", LocalizationKeys.ManageModsStatusDownloadLinkCopied);
         }
         catch (Exception ex)
         {
             _errors.Report(ex, "复制模组下载链接", "写入系统剪贴板失败。");
-            StatusText = "写入剪贴板失败。";
+            StatusText = Text("写入剪贴板失败。", LocalizationKeys.ManageModsStatusClipboardFailed);
         }
     }
 
@@ -2051,32 +2052,32 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     {
         if (SelectedRow is null)
         {
-            StatusText = "未选中任何模组。";
+            StatusText = Text("未选中任何模组。", LocalizationKeys.ManageModsStatusNoSelection);
             return;
         }
 
         var homepage = SelectedRow.Facts.Homepage;
         if (string.IsNullOrWhiteSpace(homepage))
         {
-            StatusText = "该模组没有配置主页链接。";
+            StatusText = Text("该模组没有配置主页链接。", LocalizationKeys.ManageModsStatusNoHomepage);
             return;
         }
 
         if (UriLauncher is null)
         {
-            StatusText = $"主页链接：{homepage}（当前宿主未接入外壳浏览器能力）";
+            StatusText = Text("主页链接：{0}（当前宿主未接入外壳浏览器能力）", LocalizationKeys.ManageModsStatusHomepageNoBrowser, homepage);
             return;
         }
 
         try
         {
             await UriLauncher(homepage).ConfigureAwait(true);
-            StatusText = "正在打开主页…";
+            StatusText = Text("正在打开主页…", LocalizationKeys.ManageModsStatusOpeningHomepage);
         }
         catch (Exception ex)
         {
             _errors.Report(ex, "打开模组主页", "启动外部浏览器打开主页失败。");
-            StatusText = "打开主页失败。";
+            StatusText = Text("打开主页失败。", LocalizationKeys.ManageModsStatusOpenHomepageFailed);
         }
     }
 

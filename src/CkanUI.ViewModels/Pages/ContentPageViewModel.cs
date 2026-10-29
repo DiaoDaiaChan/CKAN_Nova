@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.ViewModels.Pages.Content;
@@ -21,7 +22,7 @@ public sealed partial class ContentPageViewModel : PageViewModel, IPageProjectio
         _target = target ?? throw new ArgumentNullException(nameof(target));
     }
 
-    public override string Title => "内容预览";
+    public override string Title => Text("内容预览", LocalizationKeys.NavRailContent);
 
     /// <summary>当前选中的节点。</summary>
     [ObservableProperty]
@@ -122,18 +123,18 @@ public sealed partial class ContentPageViewModel : PageViewModel, IPageProjectio
     {
         if (SelectedNode is not { } node)
         {
-            StatusText = "请先在列表中选中一个文件或目录。";
+            StatusText = Text("请先在列表中选中一个文件或目录。", LocalizationKeys.ContentErrorNoSelection);
             return;
         }
 
         if (ShellLauncher is not { } launcher)
         {
-            StatusText = "当前宿主没有提供剪贴板支持。";
+            StatusText = Text("当前宿主没有提供剪贴板支持。", LocalizationKeys.ContentErrorNoClipboard);
             return;
         }
 
         var result = await launcher.CopyTextAsync(node.RelativePath).ConfigureAwait(true);
-        StatusText = result.IsSuccess ? $"已复制路径：{node.RelativePath}" : (result.Message ?? "复制失败。");
+        StatusText = result.IsSuccess ? Text("已复制路径：{0}", LocalizationKeys.ContentStatusCopied, node.RelativePath) : (result.Message ?? Text("复制失败。", LocalizationKeys.ContentErrorCopyFailed));
     }
 
     [RelayCommand(CanExecute = nameof(CanCopyOrOpenMethod))]
@@ -141,27 +142,27 @@ public sealed partial class ContentPageViewModel : PageViewModel, IPageProjectio
     {
         if (string.IsNullOrWhiteSpace(CacheFilePath) || !File.Exists(CacheFilePath))
         {
-            StatusText = "当前模组 ZIP 尚未下载，无法打开所在目录。";
+            StatusText = Text("当前模组 ZIP 尚未下载，无法打开所在目录。", LocalizationKeys.ContentErrorZipMissing);
             return;
         }
 
         if (ShellLauncher is not { } launcher)
         {
-            StatusText = "当前宿主没有提供文件管理器支持。";
+            StatusText = Text("当前宿主没有提供文件管理器支持。", LocalizationKeys.ContentErrorNoFileManager);
             return;
         }
 
         var folder = Path.GetDirectoryName(CacheFilePath);
         if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
         {
-            StatusText = "ZIP 所在目录不存在。";
+            StatusText = Text("ZIP 所在目录不存在。", LocalizationKeys.ContentErrorFolderMissing);
             return;
         }
 
         var result = await launcher.OpenFolderAsync(folder).ConfigureAwait(true);
         if (!result.IsSuccess)
         {
-            StatusText = result.Message ?? "打开目录失败。";
+            StatusText = result.Message ?? Text("打开目录失败。", LocalizationKeys.ContentErrorOpenFolderFailed);
         }
     }
 
@@ -184,7 +185,7 @@ public sealed partial class ContentPageViewModel : PageViewModel, IPageProjectio
     }
 
     /// <inheritdoc />
-    public string PageName => "内容预览";
+    public string PageName => Text("内容预览", LocalizationKeys.ContentPageName);
 
     /// <summary>
     /// 丢掉 ZIP 目录树投影（18 篇 §3 L1）：文件条目来自缓存 ZIP 的中央目录，重进页面时会再读一次。
@@ -233,7 +234,7 @@ public sealed partial class ContentPageViewModel : PageViewModel, IPageProjectio
                 CacheFilePath = null;
                 Entries = Array.Empty<ContentNodeViewModel>();
                 RootNodes = Array.Empty<ContentNodeViewModel>();
-                EmptyText = "请先在模组页选择一个模组。";
+                EmptyText = Text("请先在模组页选择一个模组。", LocalizationKeys.ContentEmptyNoMod);
                 OnPropertyChanged(nameof(ShowEmptyState));
                 OnPropertyChanged(nameof(HasNodes));
                 return;
@@ -259,7 +260,7 @@ public sealed partial class ContentPageViewModel : PageViewModel, IPageProjectio
                 RootNodes = Array.Empty<ContentNodeViewModel>();
                 ErrorText = ContentErrorText.Compose(result.Message);
                 ErrorDetail = result.Detail;
-                EmptyText = "无法读取此模组的内容。";
+                EmptyText = Text("无法读取此模组的内容。", LocalizationKeys.ContentEmptyReadFailed);
                 OnPropertyChanged(nameof(ShowEmptyState));
                 OnPropertyChanged(nameof(HasNodes));
                 return;
@@ -274,18 +275,18 @@ public sealed partial class ContentPageViewModel : PageViewModel, IPageProjectio
             Entries = rawNodes;
             RootNodes = ContentTreeBuilder.Build(preview.Entries);
 
-            EmptyText = RootNodes.Count == 0 ? "ZIP 中没有文件条目。" : string.Empty;
+            EmptyText = RootNodes.Count == 0 ? Text("ZIP 中没有文件条目。", LocalizationKeys.ContentEmptyNoEntries) : string.Empty;
             OnPropertyChanged(nameof(ShowEmptyState));
             OnPropertyChanged(nameof(HasNodes));
         }
         catch (OperationCanceledException)
         {
-            ErrorText = "操作已取消。";
+            ErrorText = Text("操作已取消。", LocalizationKeys.CommonActionCancelled);
             ErrorDetail = null;
         }
         catch (Exception ex)
         {
-            ErrorText = "读取模组内容失败。";
+            ErrorText = Text("读取模组内容失败。", LocalizationKeys.ContentErrorLoadFailed);
             ErrorDetail = ex.Message;
         }
         finally
@@ -299,6 +300,7 @@ public sealed partial class ContentPageViewModel : PageViewModel, IPageProjectio
         public Task<string?> GetSelectedIdentifierAsync() => Task.FromResult<string?>(null);
     }
 
+    // 默认构造用的空实现：它在页面实例存在之前就被构造，拿不到文案解析器，故此处保留中文原文。
     private sealed class EmptyContentService : IContentService
     {
         public Task<OperationResult<ContentPreview>> PreviewAsync(string identifier, CancellationToken ct = default) =>

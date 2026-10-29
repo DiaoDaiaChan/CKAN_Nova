@@ -126,29 +126,125 @@ public sealed class ModConfigFieldEditingTests
     }
 
     [Test]
-    public void ColorField_IsReadonlyWithVisibleNote()
+    public void ColorField_EditsWithSwatchPreview()
     {
         var row = Row(ModConfigTestData.Field("tint", ModConfigFieldType.Color, "255,0,0"));
 
         Assert.That(row.EditorKind, Is.EqualTo(ModConfigEditorKind.ColorPicker));
         Assert.That(row.CanEdit, Is.True);
-        Assert.That(row.ShowReadOnlyValue, Is.True);
-        Assert.That(row.HasReadOnlyNote, Is.True);
-        Assert.That(row.ReadOnlyNote, Does.StartWith("本版只读"));
-        Assert.That(row.ReadOnlyNote, Does.Contain("颜色"));
+        Assert.That(row.ShowColorEditor, Is.True);
+        Assert.That(row.ShowReadOnlyValue, Is.False);
+        Assert.That(row.HasReadOnlyNote, Is.False);
+
+        // 逗号三元组能被认出来：色块有颜色，且不再需要"写法不对"的提示。
+        Assert.That(row.ColorPreviewHex, Is.EqualTo("#FF0000"));
+        Assert.That(row.HasColorPreview, Is.True);
+        Assert.That(row.HasColorNote, Is.False);
+
+        row.EditValue = "#80ff0000";
+
+        Assert.That(row.ColorPreviewHex, Is.EqualTo("#80ff0000"));
+        Assert.That(row.WireValue, Is.EqualTo("#80ff0000"));
+        Assert.That(row.HasPendingChange, Is.True);
     }
 
     [Test]
-    public void KeybindingField_IsReadonlyWithVisibleNote()
+    public void ColorField_UnrecognizedTextStillWritesAsTyped()
+    {
+        var row = Row(ModConfigTestData.Field("tint", ModConfigFieldType.Color, "255,0,0"));
+
+        row.EditValue = "跟着 mod 自己的写法";
+
+        // 认不出来只提示、不拦：色块隐藏，说明文字如实写"仍按原文写入"。
+        Assert.That(row.HasColorPreview, Is.False);
+        Assert.That(row.HasColorNote, Is.True);
+        Assert.That(row.ColorNote, Does.Contain("仍会按原文写入"));
+        Assert.That(row.WireValue, Is.EqualTo("跟着 mod 自己的写法"));
+        Assert.That(row.HasPendingChange, Is.True);
+    }
+
+    [Test]
+    public void ColorField_EmptyValueExplainsWhatToType()
+    {
+        var row = Row(ModConfigTestData.Field("tint", ModConfigFieldType.Color));
+
+        Assert.That(row.HasColorPreview, Is.False);
+        Assert.That(row.ColorNote, Does.Contain("#RRGGBB"));
+    }
+
+    [Test]
+    public void KeybindingField_CapturesWithHint()
     {
         var row = Row(ModConfigTestData.Field("toggleWindow", ModConfigFieldType.Keybinding, "KeypadMultiply"));
 
         Assert.That(row.EditorKind, Is.EqualTo(ModConfigEditorKind.KeyCapture));
         Assert.That(row.CanEdit, Is.True);
+        Assert.That(row.ShowKeyCapture, Is.True);
+        Assert.That(row.ShowReadOnlyValue, Is.False);
+        Assert.That(row.HasReadOnlyNote, Is.False);
+        Assert.That(row.HasKeyCaptureHint, Is.True);
+        Assert.That(row.KeyCaptureHint, Does.Contain("Ctrl"));
+
+        // 捕获是视图层把组合键文本写回 EditValue，行只负责承载草稿。
+        row.EditValue = KeyGestureText.Format(ctrl: true, alt: false, shift: true, meta: false, key: "K");
+
+        Assert.That(row.EditValue, Is.EqualTo("Ctrl+Shift+K"));
+        Assert.That(row.HasPendingChange, Is.True);
+    }
+
+    [Test]
+    public void PathField_WithoutPickerHasNoBrowseButton()
+    {
+        var row = Row(ModConfigTestData.Field("cacheDir", ModConfigFieldType.Path, "GameData/Demo"));
+
+        Assert.That(row.EditorKind, Is.EqualTo(ModConfigEditorKind.PathPicker));
+        Assert.That(row.CanBrowse, Is.False);
+    }
+
+    [Test]
+    public async Task PathField_BrowseCommandFillsThePickedFolder()
+    {
+        var row = Row(ModConfigTestData.Field("cacheDir", ModConfigFieldType.Path, "GameData/Demo"));
+        ModConfigFieldRowViewModel? asked = null;
+        row.PathPicker = picked =>
+        {
+            asked = picked;
+            return Task.FromResult<string?>("GameData/Picked");
+        };
+
+        Assert.That(row.CanBrowse, Is.True);
+
+        await row.BrowseCommand.ExecuteAsync(null);
+
+        Assert.That(asked, Is.SameAs(row));
+        Assert.That(row.EditValue, Is.EqualTo("GameData/Picked"));
+        Assert.That(row.HasPendingChange, Is.True);
+    }
+
+    [Test]
+    public async Task PathField_CancelledBrowseKeepsTheDraft()
+    {
+        var row = Row(ModConfigTestData.Field("cacheDir", ModConfigFieldType.Path, "GameData/Demo"));
+        row.PathPicker = _ => Task.FromResult<string?>(null);
+
+        await row.BrowseCommand.ExecuteAsync(null);
+
+        Assert.That(row.EditValue, Is.EqualTo("GameData/Demo"));
+        Assert.That(row.HasPendingChange, Is.False);
+    }
+
+    [Test]
+    public void ReadonlyColorFileHasNoEditor()
+    {
+        // 文件不可写时不许编辑：即便字段类型有控件，也只显示只读值 + 原因。
+        var row = Row(
+            ModConfigTestData.Field("tint", ModConfigFieldType.Color, "255,0,0"),
+            isFileWritable: false,
+            readonlyReason: "这个文件由 mod 自己生成，改了会被覆盖。");
+
+        Assert.That(row.ShowColorEditor, Is.False);
         Assert.That(row.ShowReadOnlyValue, Is.True);
-        Assert.That(row.HasReadOnlyNote, Is.True);
-        Assert.That(row.ReadOnlyNote, Does.StartWith("本版只读"));
-        Assert.That(row.ReadOnlyNote, Does.Contain("按键"));
+        Assert.That(row.ReadOnlyNote, Does.Contain("改了会被覆盖"));
     }
 
     [Test]

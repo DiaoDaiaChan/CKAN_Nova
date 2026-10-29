@@ -6,12 +6,23 @@ namespace CkanUI.ViewModels.Navigation;
 public sealed class NavigationService : INavigationService
 {
     private readonly Func<string, object?> _factory;
+    private readonly Func<string, string>? _translate;
+    private readonly Func<string, object?[], string>? _format;
 
     /// <summary>初始化导航服务。</summary>
     /// <param name="factory">根据页面键解析页面 VM 的工厂委托。</param>
-    public NavigationService(Func<string, object?> factory)
+    /// <param name="translate">
+    /// 页面文案解析器（本地化键 → 译文），通常是 <c>ILocalizer.Get</c>；为 null 时页面保持中文原文。
+    /// </param>
+    /// <param name="format">带占位符的文案解析器，通常是 <c>ILocalizer.Format</c>；为 null 时页面用中文原文格式化。</param>
+    public NavigationService(
+        Func<string, object?> factory,
+        Func<string, string>? translate = null,
+        Func<string, object?[], string>? format = null)
     {
         _factory = factory ?? throw new ArgumentNullException(nameof(factory));
+        _translate = translate;
+        _format = format;
     }
 
     /// <inheritdoc />
@@ -136,6 +147,14 @@ public sealed class NavigationService : INavigationService
 
             CurrentPage = next;
             CurrentKey = pageKey;
+
+            // 页面文案的本地化解析器在这里挂（而不是各页面构造注入）：宿主只注册一次，
+            // 之后任何页面被解析出来都能拿到同一份解析器；页面自己也能覆写成别的（例如测试）。
+            if (next is PageViewModel page)
+            {
+                page.TextResolver ??= _translate;
+                page.TextFormatter ??= _format;
+            }
 
             // 新页面激活
             if (next is IActivatable newActivatable)

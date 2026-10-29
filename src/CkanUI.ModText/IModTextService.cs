@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using CkanUI.Services.Abstractions;
 
 namespace CkanUI.ModText;
 
@@ -70,9 +71,15 @@ public interface IModTextService
     /// <summary>导入 JSONL 格式翻译文件到指定语言的包文件（如 "CKANMeta.jsonl"）。</summary>
     Task ImportJsonlAsync(string targetFileName, string content, string? language = null, CancellationToken ct = default);
 
-    /// <summary>导出指定文件内容为 JSONL 文本。</summary>
-    Task<string> ExportJsonlAsync(string relativePath, CancellationToken ct = default);
+    /// <summary>
+    /// 导出指定文件内容为 JSONL 文本。
+    /// 失败（文件不存在、无权限、读取中断）返回 <see cref="OperationResult{T}"/>，不向调用方抛异常（01 篇 §8）。
+    /// </summary>
+    Task<OperationResult<string>> ExportJsonlAsync(string relativePath, CancellationToken ct = default);
 
-    /// <summary>从 UniversalI18n 仓库或 GameData 目录同步词库文件。返回同步的文件数量。</summary>
-    Task<int> SyncFromUniversalI18nAsync(string? sourceDir = null, CancellationToken ct = default);
+    /// <summary>
+    /// 从 UniversalI18n 仓库或 GameData 目录同步词库文件。成功时 <c>Value</c> 为同步的文件数量。
+    /// 失败返回 <see cref="OperationResult{T}"/>，不向调用方抛异常（01 篇 §8）。
+    /// </summary>
+    Task<OperationResult<int>> SyncFromUniversalI18nAsync(string? sourceDir = null, CancellationToken ct = default);
 }

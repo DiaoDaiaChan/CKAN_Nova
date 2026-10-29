@@ -10,40 +10,35 @@
     <!-- 页头 -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Grid.Column="0" Spacing="4">
-        <TextBlock Text="modpack 编辑器"
-                   FontSize="{DynamicResource CkanFontSizeTitle}"
-                   FontWeight="SemiBold"
-                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+        <TextBlock Text="modpack 编辑器" Classes="CkanPageTitle" />
         <TextBlock Text="编辑一个 .ckan 元数据包：标识、说明、许可证与依赖关系，保存后可直接被 CKAN / 启动器消费。"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                   TextWrapping="Wrap" />
+                   Classes="CkanCaption" TextWrapping="Wrap" />
       </StackPanel>
-      <TextBlock Grid.Column="1" Text="有未保存的改动" IsVisible="{Binding IsDirty}"
-                 VerticalAlignment="Center"
-                 Foreground="{DynamicResource CkanWarningBrush}"
-                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+      <Border Grid.Column="1" Classes="CkanBadge Warning" IsVisible="{Binding IsDirty}" VerticalAlignment="Center">
+        <TextBlock Text="有未保存的改动" />
+      </Border>
     </Grid>
 
     <!-- 工具条（一级卡片，预留错峰入场锚点） -->
     <Border Grid.Row="1" Padding="{DynamicResource CkanToolbarPadding}"
-            Classes="stagger-card"
-            RenderTransform="translate(0px, 0px)"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-            BorderBrush="{DynamicResource CkanBorderBrush}"
-            BorderThickness="1">
+            Classes="CkanCard stagger-card"
+            RenderTransform="translate(0px, 0px)">
       <StackPanel Spacing="8">
         <WrapPanel Orientation="Horizontal">
           <Button Content="打开" Command="{Binding LoadCommand}"
+                  Classes="CkanSecondary"
                   IsEnabled="{Binding !IsBusy}" Margin="0,0,8,0"
                   ToolTip.Tip="读取下面路径的 .ckan 文件到表单" />
           <Button Content="新建" Command="{Binding NewDocumentCommand}"
+                  Classes="CkanSecondary"
                   IsEnabled="{Binding !IsBusy}" Margin="0,0,8,0"
                   ToolTip.Tip="清空表单，从零写一个 modpack" />
           <Button Content="校验" Command="{Binding ValidateCommand}"
+                  Classes="CkanSecondary"
                   IsEnabled="{Binding !IsBusy}" Margin="0,0,8,0"
                   ToolTip.Tip="只检查不写盘，逐条列出中文原因" />
           <Button Content="保存" Command="{Binding SaveCommand}"
+                  Classes="CkanPrimary"
                   IsEnabled="{Binding !IsBusy}"
                   ToolTip.Tip="先校验再写盘；有错误时拒绝保存" />
         </WrapPanel>
@@ -61,25 +56,22 @@
     <!-- 错误 + 校验问题 -->
     <StackPanel Grid.Row="2" Spacing="4" Margin="0,8,0,0">
       <Border IsVisible="{Binding HasError}"
-              Padding="{DynamicResource CkanToolbarPadding}"
-              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-              BorderBrush="{DynamicResource CkanDangerBrush}"
-              BorderThickness="1">
+              Classes="CkanInfoBanner Danger"
+              Padding="{DynamicResource CkanToolbarPadding}">
         <StackPanel Spacing="4">
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Grid.Column="0" Text="{Binding ErrorText}" TextWrapping="Wrap"
                        Foreground="{DynamicResource CkanDangerBrush}" />
             <Button Grid.Column="1" Content="关闭" Command="{Binding ValidateCommand}"
+                    Classes="CkanGhost CkanSmall"
                     ToolTip.Tip="重新校验以刷新错误栏" />
           </Grid>
         </StackPanel>
       </Border>
 
       <Border IsVisible="{Binding HasIssues}"
-              Padding="{DynamicResource CkanToolbarPadding}"
-              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-              BorderBrush="{DynamicResource CkanBorderBrush}"
-              BorderThickness="1">
+              Classes="CkanInfoBanner Warning"
+              Padding="{DynamicResource CkanToolbarPadding}">
         <StackPanel Spacing="4">
           <TextBlock Text="{Binding IssueSummary}"
                      FontSize="{DynamicResource CkanFontSizeCaption}"
@@ -100,11 +92,8 @@
     <!-- 基础表单 -->
     <Border Grid.Row="3" Margin="0,8,0,0"
             Padding="{DynamicResource CkanToolbarPadding}"
-            Classes="stagger-card"
-            RenderTransform="translate(0px, 0px)"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-            BorderBrush="{DynamicResource CkanBorderBrush}"
-            BorderThickness="1">
+            Classes="CkanCard stagger-card"
+            RenderTransform="translate(0px, 0px)">
       <Grid ColumnDefinitions="88,*,88,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
             RowSpacing="6" ColumnSpacing="8">
 
@@ -174,8 +163,8 @@
             <TextBlock Text="作者" FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-              <TextBox Grid.Column="0" Text="{Binding NewAuthor, Mode=TwoWay}" PlaceholderText="按回车或点「加」" />
-              <Button Grid.Column="1" Content="加" Command="{Binding AddAuthorCommand}" />
+              <TextBox Grid.Column="0" Text="{Binding NewAuthor, Mode=TwoWay}" PlaceholderText="按回车或点「添加」" />
+              <Button Grid.Column="1" Content="添加" Classes="CkanSecondary CkanSmall" Command="{Binding AddAuthorCommand}" />
             </Grid>
             <ItemsControl ItemsSource="{Binding Authors}">
               <ItemsControl.ItemTemplate>
@@ -184,7 +173,7 @@
                     <TextBlock Grid.Column="0" Text="{Binding DisplayText}" VerticalAlignment="Center"
                                FontSize="{DynamicResource CkanFontSizeCaption}"
                                Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                    <Button Grid.Column="1" Content="删"
+                    <Button Grid.Column="1" Content="删除" Classes="CkanGhost CkanSmall"
                             Command="{Binding $parent[ItemsControl].DataContext.RemoveAuthorCommand}"
                             CommandParameter="{Binding}" />
                   </Grid>
@@ -198,7 +187,7 @@
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
               <TextBox Grid.Column="0" Text="{Binding NewLicense, Mode=TwoWay}" PlaceholderText="例如 MIT、GPL-3.0、unknown" />
-              <Button Grid.Column="1" Content="加" Command="{Binding AddLicenseCommand}" />
+              <Button Grid.Column="1" Content="添加" Classes="CkanSecondary CkanSmall" Command="{Binding AddLicenseCommand}" />
             </Grid>
             <ItemsControl ItemsSource="{Binding Licenses}">
               <ItemsControl.ItemTemplate>
@@ -207,7 +196,7 @@
                     <TextBlock Grid.Column="0" Text="{Binding DisplayText}" VerticalAlignment="Center"
                                FontSize="{DynamicResource CkanFontSizeCaption}"
                                Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                    <Button Grid.Column="1" Content="删"
+                    <Button Grid.Column="1" Content="删除" Classes="CkanGhost CkanSmall"
                             Command="{Binding $parent[ItemsControl].DataContext.RemoveLicenseCommand}"
                             CommandParameter="{Binding}" />
                   </Grid>
@@ -227,7 +216,7 @@
         <TextBlock Grid.Column="0" Text="关系（依赖 / 推荐 / 建议 / 冲突 / 支持）"
                    FontSize="{DynamicResource CkanFontSizeSubtitle}"
                    Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-        <Button Grid.Column="1" Content="添加关系" Command="{Binding AddRelationCommand}"
+        <Button Grid.Column="1" Content="添加关系" Classes="CkanPrimary" Command="{Binding AddRelationCommand}"
                 ToolTip.Tip="追加一行，再选择关系类型与语义模式" />
       </Grid>
 
@@ -279,7 +268,7 @@
                          FontSize="{DynamicResource CkanFontSizeCaption}"
                          Foreground="{DynamicResource CkanTextSecondaryBrush}" />
 
-              <Button Grid.Column="4" Content="删除"
+              <Button Grid.Column="4" Content="删除" Classes="CkanGhost CkanSmall"
                       Command="{Binding $parent[ListBox].DataContext.RemoveRelationCommand}"
                       CommandParameter="{Binding}" />
             </Grid>
@@ -289,10 +278,8 @@
 
       <Border Grid.Row="3" IsVisible="{Binding ShowEmptyRelations}"
               Margin="0,6,0,0"
-              Padding="{DynamicResource CkanToolbarPadding}"
-              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-              BorderBrush="{DynamicResource CkanBorderBrush}"
-              BorderThickness="1">
+              Classes="CkanEmptyStateCard"
+              Padding="{DynamicResource CkanToolbarPadding}">
         <TextBlock Text="还没有关系行：modpack 通常至少依赖所包含的核心模组。"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />

@@ -8,6 +8,7 @@ using System.Text.Encodings.Web;
 using System.Threading;
 using System.Threading.Tasks;
 using CkanUI.ModText;
+using CkanUI.Services.Abstractions;
 using log4net;
 using UI18n.Core.Dict;
 using UI18n.Core.Hashing;
@@ -411,22 +412,52 @@ public sealed class ModTextService : IModTextService, IDisposable
         await ReloadPacksAsync(lang, ct);
     }
 
-    public async Task<string> ExportJsonlAsync(string relativePath, CancellationToken ct = default)
+    public async Task<OperationResult<string>> ExportJsonlAsync(string relativePath, CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return OperationResult<string>.Fail("导出路径不能为空。");
+        }
+
         string fullPath = Path.Combine(_baseDirectory, relativePath);
         if (!File.Exists(fullPath))
         {
-            throw new FileNotFoundException($"文件不存在: {relativePath}");
+            // 失败用返回值表达，不抛异常：调用方是 ViewModel，抛出去只能变成一条无人处理的崩溃（01 篇 §8）。
+            return OperationResult<string>.Fail($"文件不存在: {relativePath}", fullPath);
         }
-        return await File.ReadAllTextAsync(fullPath, Encoding.UTF8, ct);
+
+        try
+        {
+            return OperationResult<string>.Ok(await File.ReadAllTextAsync(fullPath, Encoding.UTF8, ct));
+        }
+        catch (IOException ex)
+        {
+            // 被其他进程占用/读到一半断了：用户重试可能成功，标可重试。
+            Log.Warn($"[ModTextService] 导出 {relativePath} 失败: {ex.Message}");
+            return OperationResult<string>.Fail($"读取失败: {relativePath}", ex.Message, retryable: true);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Log.Warn($"[ModTextService] 导出 {relativePath} 没有权限: {ex.Message}");
+            return OperationResult<string>.Fail($"没有读取权限: {relativePath}", ex.Message);
+        }
     }
 
-    public async Task<int> SyncFromUniversalI18nAsync(string? sourceDir = null, CancellationToken ct = default)
+    public async Task<OperationResult<int>> SyncFromUniversalI18nAsync(string? sourceDir = null, CancellationToken ct = default)
     {
+        // 显式传了路径就只认这个路径：以前参数不存在时会静默回落到用户主目录里的真实仓库，
+        // 用户点了"同步这个目录"却同步了另一份数据，既难解释也难测。
+        if (!string.IsNullOrWhiteSpace(sourceDir) && !Directory.Exists(sourceDir))
+        {
+            return OperationResult<int>.Fail(
+                "未找到 UniversalI18n 仓库或 packs 目录。请确认路径是否存在。",
+                sourceDir);
+        }
+
         string? resolvedRoot = ResolveUniversalI18nRoot(sourceDir);
         if (resolvedRoot == null || !Directory.Exists(resolvedRoot))
         {
-            throw new DirectoryNotFoundException("未找到 UniversalI18n 仓库或 packs 目录。请确认路径是否存在。");
+            return OperationResult<int>.Fail("未找到 UniversalI18n 仓库或 packs 目录。请确认路径是否存在。");
         }
 
         string sourcePacks = Path.Combine(resolvedRoot, "packs");
@@ -436,52 +467,74 @@ public sealed class ModTextService : IModTextService, IDisposable
         }
 
         string destPacks = Path.Combine(_baseDirectory, "packs");
-        Directory.CreateDirectory(destPacks);
 
         int copiedCount = 0;
 
-        // 1. 同步根层词库与约定文件 (conventions.jsonl, glossary.jsonl, overrides.jsonl 等)
-        foreach (var file in Directory.GetFiles(sourcePacks, "*.jsonl", SearchOption.TopDirectoryOnly))
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            string fileName = Path.GetFileName(file);
-            string dest = Path.Combine(destPacks, fileName);
+            // 建目录也可能失败（只读盘、无权限），放在 try 内一起转成失败结果。
+            Directory.CreateDirectory(destPacks);
 
-            if (fileName.Equals("overrides.jsonl", StringComparison.OrdinalIgnoreCase) && File.Exists(dest))
-            {
-                MergeJsonlLines(file, dest);
-            }
-            else
-            {
-                File.Copy(file, dest, overwrite: true);
-            }
-            copiedCount++;
-        }
-
-        // 2. 同步子语言目录 (如 zh-cn/)
-        foreach (var subDir in Directory.GetDirectories(sourcePacks))
-        {
-            ct.ThrowIfCancellationRequested();
-            string dirName = Path.GetFileName(subDir);
-            if (dirName.Equals("journal", StringComparison.OrdinalIgnoreCase)) continue;
-
-            string destSubDir = Path.Combine(destPacks, dirName);
-            Directory.CreateDirectory(destSubDir);
-
-            foreach (var file in Directory.GetFiles(subDir, "*.jsonl", SearchOption.TopDirectoryOnly))
+            // 1. 同步根层词库与约定文件 (conventions.jsonl, glossary.jsonl, overrides.jsonl 等)
+            foreach (var file in Directory.GetFiles(sourcePacks, "*.jsonl", SearchOption.TopDirectoryOnly))
             {
                 ct.ThrowIfCancellationRequested();
-                string dest = Path.Combine(destSubDir, Path.GetFileName(file));
-                File.Copy(file, dest, overwrite: true);
+                string fileName = Path.GetFileName(file);
+                string dest = Path.Combine(destPacks, fileName);
+
+                if (fileName.Equals("overrides.jsonl", StringComparison.OrdinalIgnoreCase) && File.Exists(dest))
+                {
+                    MergeJsonlLines(file, dest);
+                }
+                else
+                {
+                    File.Copy(file, dest, overwrite: true);
+                }
                 copiedCount++;
             }
+
+            // 2. 同步子语言目录 (如 zh-cn/)
+            foreach (var subDir in Directory.GetDirectories(sourcePacks))
+            {
+                ct.ThrowIfCancellationRequested();
+                string dirName = Path.GetFileName(subDir);
+                if (dirName.Equals("journal", StringComparison.OrdinalIgnoreCase)) continue;
+
+                string destSubDir = Path.Combine(destPacks, dirName);
+                Directory.CreateDirectory(destSubDir);
+
+                foreach (var file in Directory.GetFiles(subDir, "*.jsonl", SearchOption.TopDirectoryOnly))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    string dest = Path.Combine(destSubDir, Path.GetFileName(file));
+                    File.Copy(file, dest, overwrite: true);
+                    copiedCount++;
+                }
+            }
+        }
+        catch (IOException ex)
+        {
+            // 半途失败时已复制的文件留在原处（覆盖写不产生半文件），重试会补齐剩余文件。
+            Log.Warn($"[ModTextService] 从 UniversalI18n ({resolvedRoot}) 同步中断，已传输 {copiedCount} 个文件: {ex.Message}");
+            return OperationResult<int>.Fail($"同步中断，已传输 {copiedCount} 个文件。", ex.Message, retryable: true);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Log.Warn($"[ModTextService] 从 UniversalI18n ({resolvedRoot}) 同步被拒绝: {ex.Message}");
+            return OperationResult<int>.Fail("没有权限读写词库目录。", ex.Message);
         }
 
         Log.Info($"[ModTextService] 从 UniversalI18n ({resolvedRoot}) 同步完成，共传输 {copiedCount} 个文件。");
         await ReloadPacksAsync(_currentLanguage, ct);
-        return copiedCount;
+        return OperationResult<int>.Ok(copiedCount);
     }
 
+    /// <summary>
+    /// 解析 UniversalI18n 仓库根：显式路径 → 环境变量 UNIVERSAL_I18N_ROOT → 用户主目录下的默认克隆。
+    /// 注意：显式路径不存在时 <see cref="SyncFromUniversalI18nAsync"/> 直接返回失败，不会回落到后两者。
+    /// </summary>
+    /// <param name="customDir">显式指定的仓库根。</param>
+    /// <returns>存在的仓库根；都找不到时返回 null。</returns>
     public static string? ResolveUniversalI18nRoot(string? customDir = null)
     {
         if (!string.IsNullOrWhiteSpace(customDir) && Directory.Exists(customDir))

@@ -1,3 +1,4 @@
+using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.ViewModels.Navigation;
@@ -45,7 +46,7 @@ public sealed partial class CachePageViewModel : PageViewModel
     }
 
     /// <inheritdoc />
-    public override string Title => "下载缓存";
+    public override string Title => Text("下载缓存", LocalizationKeys.NavRailCache);
 
     /// <summary>宿主注入的 ZIP 选择器；为 <c>null</c> 时「从 ZIP 灌入」会给出中文错误。</summary>
     public ICacheZipPicker? ZipPicker { get; set; }
@@ -168,16 +169,16 @@ public sealed partial class CachePageViewModel : PageViewModel
     public string TotalText => CacheFormat.FormatSize(TotalBytes);
 
     /// <summary>使用率文案。</summary>
-    public string UsageText => HasLimit ? CacheFormat.FormatPercent(UsagePercent) : "未设上限";
+    public string UsageText => HasLimit ? CacheFormat.FormatPercent(UsagePercent) : Text("未设上限", LocalizationKeys.CacheNoLimit);
 
     /// <summary>容量条右侧的单行摘要（上限 + 已用），免掉多段内联绑定。</summary>
-    public string CapacityText => "上限 " + LimitText + "  ·  已用 " + UsageText;
+    public string CapacityText => Text("上限 {0}  ·  已用 {1}", LocalizationKeys.CacheCapacityText, LimitText, UsageText);
 
     /// <summary>条目数文案。</summary>
-    public string EntryCountText => EntryCount == 0 ? "缓存是空的" : "共 " + EntryCount + " 个条目";
+    public string EntryCountText => EntryCount == 0 ? Text("缓存是空的", LocalizationKeys.CacheEntriesEmpty) : Text("共 {0} 个条目", LocalizationKeys.CacheEntriesCount, EntryCount);
 
     /// <summary>勾选摘要文案。</summary>
-    public string SelectedText => SelectedCount == 0 ? "未选中条目" : "已选中 " + SelectedCount + " 个条目";
+    public string SelectedText => SelectedCount == 0 ? Text("未选中条目", LocalizationKeys.CacheNoSelection) : Text("已选中 {0} 个条目", LocalizationKeys.CacheSelectionText, SelectedCount);
 
     /// <inheritdoc />
     protected override void OnActivated()
@@ -190,7 +191,7 @@ public sealed partial class CachePageViewModel : PageViewModel
 
     /// <summary>重新读取统计与条目。</summary>
     [RelayCommand(CanExecute = nameof(CanRefreshCore))]
-    private Task RefreshAsync() => RunAsync(LoadCoreAsync, "读取下载缓存", "正在读取下载缓存…");
+    private Task RefreshAsync() => RunAsync(LoadCoreAsync, "读取下载缓存", Text("正在读取下载缓存…", LocalizationKeys.CacheBusyLoading));
 
     /// <summary>按容量上限清理（删最久未修改的条目，跳过使用中的条目）。</summary>
     [RelayCommand(CanExecute = nameof(CanPurgeCore))]
@@ -199,40 +200,40 @@ public sealed partial class CachePageViewModel : PageViewModel
         var result = await _service.PurgeToLimitAsync();
         if (!result.IsSuccess || result.Value is null)
         {
-            SetError(CacheErrorText.Compose(result.Message, "按上限清理下载缓存失败。", result.Retryable), result.Detail);
+            SetError(CacheErrorText.Compose(result.Message, Text("按上限清理下载缓存失败。", LocalizationKeys.CacheErrorPurgeToLimit), result.Retryable), result.Detail);
             return;
         }
 
         var purge = result.Value;
         await LoadCoreAsync();
         if (!HasError) SetStatus(Describe("已按上限清理", purge));
-    }, "按上限清理下载缓存", "正在清理下载缓存…");
+    }, "按上限清理下载缓存", Text("正在清理下载缓存…", LocalizationKeys.CacheBusyTrimming));
 
     /// <summary>清空下载缓存（保留正在使用的条目）。</summary>
     [RelayCommand(CanExecute = nameof(CanPurgeCore))]
     private Task PurgeAllAsync() => RunAsync(async () =>
     {
         var confirmed = await _dialogs.ConfirmAsync(
-            "清空下载缓存",
-            "将删除 " + EntryCount + " 个缓存条目（" + TotalText + "）。",
-            "正在被已安装模组使用的条目会被跳过，不会影响游戏运行。");
+            Text("清空下载缓存", LocalizationKeys.CachePurgeTitle),
+            Text("将删除 {0} 个缓存条目（{1}）。", LocalizationKeys.CachePurgeBody, EntryCount, TotalText),
+            Text("正在被已安装模组使用的条目会被跳过，不会影响游戏运行。", LocalizationKeys.CachePurgeHint));
         if (!confirmed)
         {
-            SetStatus("已取消。");
+            SetStatus(Text("已取消。", LocalizationKeys.CacheStatusCancelled));
             return;
         }
 
         var result = await _service.PurgeAllAsync();
         if (!result.IsSuccess || result.Value is null)
         {
-            SetError(CacheErrorText.Compose(result.Message, "清空下载缓存失败。", result.Retryable), result.Detail);
+            SetError(CacheErrorText.Compose(result.Message, Text("清空下载缓存失败。", LocalizationKeys.CacheErrorPurgeAll), result.Retryable), result.Detail);
             return;
         }
 
         var purge = result.Value;
         await LoadCoreAsync();
         if (!HasError) SetStatus(Describe("已清空下载缓存", purge));
-    }, "清空下载缓存", "正在清空下载缓存…");
+    }, "清空下载缓存", Text("正在清空下载缓存…", LocalizationKeys.CacheBusyPurgingAll));
 
     /// <summary>从本地 ZIP 灌入缓存（校验 CKAN 压缩包后复制进缓存目录）。</summary>
     [RelayCommand(CanExecute = nameof(CanImportZipCore))]
@@ -241,33 +242,33 @@ public sealed partial class CachePageViewModel : PageViewModel
         var picker = ZipPicker;
         if (picker is null)
         {
-            SetError("当前宿主没有提供文件选择能力，无法从 ZIP 灌入。", null);
+            SetError(Text("当前宿主没有提供文件选择能力，无法从 ZIP 灌入。", LocalizationKeys.CacheErrorNoFilePicker), null);
             return;
         }
 
         var path = await picker.PickZipFileAsync();
         if (string.IsNullOrWhiteSpace(path))
         {
-            SetStatus("已取消。");
+            SetStatus(Text("已取消。", LocalizationKeys.CacheStatusCancelled));
             return;
         }
 
         var result = await _service.ImportZipAsync(path);
         if (!result.IsSuccess || result.Value is null)
         {
-            SetError(CacheErrorText.Compose(result.Message, "从 ZIP 灌入下载缓存失败。", result.Retryable), result.Detail);
+            SetError(CacheErrorText.Compose(result.Message, Text("从 ZIP 灌入下载缓存失败。", LocalizationKeys.CacheErrorImportZip), result.Retryable), result.Detail);
             return;
         }
 
         var entry = result.Value;
         await LoadCoreAsync();
-        if (!HasError) SetStatus("已灌入 " + entry.ModuleLabel + "（" + CacheFormat.FormatSize(entry.SizeBytes) + "）。");
+        if (!HasError) SetStatus(Text("已灌入 {0}（{1}）。", LocalizationKeys.CacheStatusImported, entry.ModuleLabel, CacheFormat.FormatSize(entry.SizeBytes)));
 
         if (!entry.IsReferenced && !string.IsNullOrWhiteSpace(entry.Identifier))
         {
             var confirmed = await _dialogs.ConfirmAsync(
-                "安装模组",
-                $"已成功将 {entry.ModuleLabel} 导入缓存。是否立即前往变更集安装此模组？");
+                Text("安装模组", LocalizationKeys.CacheInstallModTitle),
+                Text("已成功将 {0} 导入缓存。是否立即前往变更集安装此模组？", LocalizationKeys.CacheInstallModBody, entry.ModuleLabel));
             if (confirmed)
             {
                 _changeSink?.SetRequests(new[] { new ChangeRequest(entry.Identifier, ChangeAction.Install) });
@@ -277,7 +278,7 @@ public sealed partial class CachePageViewModel : PageViewModel
                 }
             }
         }
-    }, "从 ZIP 灌入下载缓存", "正在校验并复制 ZIP…");
+    }, "从 ZIP 灌入下载缓存", Text("正在校验并复制 ZIP…", LocalizationKeys.CacheBusyImportingZip));
 
     /// <summary>删除勾选中的条目。</summary>
     [RelayCommand(CanExecute = nameof(CanDeleteSelectedCore))]
@@ -286,17 +287,17 @@ public sealed partial class CachePageViewModel : PageViewModel
         var selected = Entries.Where(row => row.IsSelected).ToList();
         if (selected.Count == 0)
         {
-            SetStatus("未选中条目。");
+            SetStatus(Text("未选中条目。", LocalizationKeys.CacheStatusNoSelection));
             return;
         }
 
         var confirmed = await _dialogs.ConfirmAsync(
-            "删除缓存条目",
-            "将删除选中的 " + selected.Count + " 个条目。",
-            "正在被已安装模组使用的条目无法删除。");
+            Text("删除缓存条目", LocalizationKeys.CacheDeleteTitle),
+            Text("将删除选中的 {0} 个条目。", LocalizationKeys.CacheDeleteBody, selected.Count),
+            Text("正在被已安装模组使用的条目无法删除。", LocalizationKeys.CacheDeleteHint));
         if (!confirmed)
         {
-            SetStatus("已取消。");
+            SetStatus(Text("已取消。", LocalizationKeys.CacheStatusCancelled));
             return;
         }
 
@@ -306,19 +307,19 @@ public sealed partial class CachePageViewModel : PageViewModel
             var result = await _service.DeleteEntryAsync(row.FileName);
             if (!result.IsSuccess)
             {
-                failures.Add(CacheErrorText.Compose(result.Message, "删除失败。", result.Retryable));
+                failures.Add(CacheErrorText.Compose(result.Message, Text("删除失败。", LocalizationKeys.CacheErrorDelete), result.Retryable));
             }
         }
 
         await LoadCoreAsync();
         if (failures.Count > 0)
         {
-            SetError("有 " + failures.Count + " 个条目没能删除：" + failures[0], string.Join(Environment.NewLine, failures));
+            SetError(Text("有 {0} 个条目没能删除：{1}", LocalizationKeys.CacheErrorDeletePartial, failures.Count, failures[0]), string.Join(Environment.NewLine, failures));
             return;
         }
 
-        if (!HasError) SetStatus("已删除 " + selected.Count + " 个条目。");
-    }, "删除选中的缓存条目", "正在删除缓存条目…");
+        if (!HasError) SetStatus(Text("已删除 {0} 个条目。", LocalizationKeys.CacheStatusDeleted, selected.Count));
+    }, "删除选中的缓存条目", Text("正在删除缓存条目…", LocalizationKeys.CacheBusyDeleting));
 
     /// <summary>在文件管理器中打开下载缓存目录。</summary>
     [RelayCommand(CanExecute = nameof(CanOpenCacheFolderCore))]
@@ -326,7 +327,7 @@ public sealed partial class CachePageViewModel : PageViewModel
     {
         if (_shellLauncher is null)
         {
-            SetStatus("当前宿主没有提供打开目录的外壳能力。");
+            SetStatus(Text("当前宿主没有提供打开目录的外壳能力。", LocalizationKeys.CacheErrorNoShell));
             return;
         }
 
@@ -339,20 +340,20 @@ public sealed partial class CachePageViewModel : PageViewModel
 
         if (string.IsNullOrWhiteSpace(directory))
         {
-            SetError("下载缓存目录为空，无法打开。", "未配置下载缓存目录且无法获取默认目录。");
+            SetError(Text("下载缓存目录为空，无法打开。", LocalizationKeys.CacheErrorDirEmpty), Text("未配置下载缓存目录且无法获取默认目录。", LocalizationKeys.CacheErrorDirUnset));
             return;
         }
 
         var result = await _shellLauncher.OpenFolderAsync(directory.Trim());
         if (result.IsSuccess)
         {
-            SetStatus("已打开下载缓存目录。");
+            SetStatus(Text("已打开下载缓存目录。", LocalizationKeys.CacheStatusDirOpened));
         }
         else
         {
-            SetError(CacheErrorText.Compose(result.Message, "打开下载缓存目录失败。", result.Retryable), result.Detail);
+            SetError(CacheErrorText.Compose(result.Message, Text("打开下载缓存目录失败。", LocalizationKeys.CacheErrorOpenDir), result.Retryable), result.Detail);
         }
-    }, "打开下载缓存目录", "正在打开缓存目录…");
+    }, "打开下载缓存目录", Text("正在打开缓存目录…", LocalizationKeys.CacheBusyOpeningDir));
 
     /// <summary>重置缓存容量上限（弹出选项：重置为默认推荐 2048 MiB、设为无限制、取消）。</summary>
     [RelayCommand(CanExecute = nameof(CanResetLimitCore))]
@@ -360,19 +361,19 @@ public sealed partial class CachePageViewModel : PageViewModel
     {
         var options = new[]
         {
-            "重置为默认推荐上限（2048 MiB）",
-            "设为无限制"
+            Text("重置为默认推荐上限（2048 MiB）", LocalizationKeys.CacheResetToDefault),
+            Text("设为无限制", LocalizationKeys.CacheSetUnlimited)
         };
 
         var selectedIndex = await _dialogs.SelectAsync(
-            "重置容量上限",
-            "请选择如何重置下载缓存容量上限：",
+            Text("重置容量上限", LocalizationKeys.CacheResetLimitTitle),
+            Text("请选择如何重置下载缓存容量上限：", LocalizationKeys.CacheResetLimitPrompt),
             options,
             defaultIndex: 0);
 
         if (selectedIndex < 0 || selectedIndex >= options.Length)
         {
-            SetStatus("已取消。");
+            SetStatus(Text("已取消。", LocalizationKeys.CacheStatusCancelled));
             return;
         }
 
@@ -380,7 +381,7 @@ public sealed partial class CachePageViewModel : PageViewModel
         var result = await _service.SetSizeLimitBytesAsync(targetLimit);
         if (!result.IsSuccess)
         {
-            SetError(CacheErrorText.Compose(result.Message, "重置缓存容量上限失败。", result.Retryable), result.Detail);
+            SetError(CacheErrorText.Compose(result.Message, Text("重置缓存容量上限失败。", LocalizationKeys.CacheErrorResetLimit), result.Retryable), result.Detail);
             return;
         }
 
@@ -388,10 +389,10 @@ public sealed partial class CachePageViewModel : PageViewModel
         if (!HasError)
         {
             SetStatus(targetLimit.HasValue
-                ? "已将缓存容量上限重置为 " + CacheFormat.FormatSize(targetLimit.Value) + "。"
-                : "已将缓存容量上限设为无限制。");
+                ? Text("已将缓存容量上限重置为 {0}。", LocalizationKeys.CacheStatusLimitReset, CacheFormat.FormatSize(targetLimit.Value))
+                : Text("已将缓存容量上限设为无限制。", LocalizationKeys.CacheStatusLimitUnlimited));
         }
-    }, "重置缓存容量上限", "正在重置容量上限…");
+    }, "重置缓存容量上限", Text("正在重置容量上限…", LocalizationKeys.CacheBusyResettingLimit));
 
     private bool CanRefreshCore() => CanRefresh;
 
@@ -410,14 +411,14 @@ public sealed partial class CachePageViewModel : PageViewModel
         var snapshot = await _service.GetSnapshotAsync();
         if (!snapshot.IsSuccess || snapshot.Value is null)
         {
-            SetError(CacheErrorText.Compose(snapshot.Message, "读取下载缓存统计失败。", snapshot.Retryable), snapshot.Detail);
+            SetError(CacheErrorText.Compose(snapshot.Message, Text("读取下载缓存统计失败。", LocalizationKeys.CacheErrorLoadStats), snapshot.Retryable), snapshot.Detail);
             return;
         }
 
         var entries = await _service.ListEntriesAsync();
         if (!entries.IsSuccess || entries.Value is null)
         {
-            SetError(CacheErrorText.Compose(entries.Message, "读取下载缓存条目失败。", entries.Retryable), entries.Detail);
+            SetError(CacheErrorText.Compose(entries.Message, Text("读取下载缓存条目失败。", LocalizationKeys.CacheErrorLoadEntries), entries.Retryable), entries.Detail);
             return;
         }
 
@@ -425,7 +426,7 @@ public sealed partial class CachePageViewModel : PageViewModel
         Entries = entries.Value.Select(entry => new CacheEntryRowViewModel(entry, OnRowSelectionChanged)).ToList();
         EntryCount = Entries.Count;
         SelectedCount = 0;
-        SetStatus("已读取 " + EntryCount + " 个缓存条目。");
+        SetStatus(Text("已读取 {0} 个缓存条目。", LocalizationKeys.CacheStatusLoaded, EntryCount));
     }
 
     private void ApplySnapshot(CacheSnapshot snapshot)
@@ -463,7 +464,7 @@ public sealed partial class CachePageViewModel : PageViewModel
         catch (Exception ex)
         {
             _errors.Report(ex, context);
-            SetError(CacheErrorText.FromException(ex, "下载缓存操作失败。"), ex.Message);
+            SetError(CacheErrorText.FromException(ex, Text("下载缓存操作失败。", LocalizationKeys.CacheErrorOperation)), ex.Message);
         }
         finally
         {

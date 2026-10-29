@@ -67,9 +67,11 @@ public sealed class ModTextPageViewModelTests
             return Task.CompletedTask;
         }
 
-        public Task<string> ExportJsonlAsync(string relativePath, CancellationToken ct = default)
+        public OperationResult<string> ExportResult { get; set; } = OperationResult<string>.Ok(string.Empty);
+
+        public Task<OperationResult<string>> ExportJsonlAsync(string relativePath, CancellationToken ct = default)
         {
-            return Task.FromResult(string.Empty);
+            return Task.FromResult(ExportResult);
         }
 
         public Task DeleteOverrideAsync(string identifier, string field, string sourceText, CancellationToken ct = default)
@@ -79,10 +81,13 @@ public sealed class ModTextPageViewModelTests
             return Task.CompletedTask;
         }
 
-        public Task<int> SyncFromUniversalI18nAsync(string? sourceDir = null, CancellationToken ct = default)
+        public OperationResult<int> SyncResult { get; set; } = OperationResult<int>.Ok(3);
+
+        public Task<OperationResult<int>> SyncFromUniversalI18nAsync(string? sourceDir = null, CancellationToken ct = default)
         {
-            PackChanged?.Invoke();
-            return Task.FromResult(3);
+            // 只有成功才触发重载通知，与真实服务一致（失败时不会重新扫盘）。
+            if (SyncResult.IsSuccess) PackChanged?.Invoke();
+            return Task.FromResult(SyncResult);
         }
     }
 
@@ -208,5 +213,42 @@ public sealed class ModTextPageViewModelTests
 
         Assert.That(vm.StatusMessage, Does.Contain("同步成功"));
         Assert.That(vm.StatusMessage, Does.Contain("3 个词库文件"));
+    }
+
+    [Test]
+    public async Task SyncFromUniversalI18nCommand_Success_SetsStatusBarText()
+    {
+        var service = new FakeModTextService { SyncResult = OperationResult<int>.Ok(5) };
+        var errors = new ModTextFakeErrorReporter();
+        var vm = new ModTextPageViewModel(service, errors, new FakeDispatcher());
+        await vm.LoadAsync();
+
+        await vm.SyncFromUniversalI18nCommand.ExecuteAsync(null);
+
+        Assert.That(vm.StatusMessage, Is.EqualTo("同步成功！已同步 5 个词库文件并实时重载。"));
+        Assert.That(errors.Contexts, Is.Empty);
+        Assert.That(vm.IsLoading, Is.False);
+    }
+
+    [Test]
+    public async Task SyncFromUniversalI18nCommand_Failure_ReportsToErrorOutlet()
+    {
+        const string failMessage = "未找到 UniversalI18n 仓库或 packs 目录。请确认路径是否存在。";
+        var service = new FakeModTextService
+        {
+            SyncResult = OperationResult<int>.Fail(failMessage, "no-such-dir"),
+        };
+        var errors = new ModTextFakeErrorReporter();
+        var vm = new ModTextPageViewModel(service, errors, new FakeDispatcher());
+        await vm.LoadAsync();
+        errors.Contexts.Clear();
+
+        await vm.SyncFromUniversalI18nCommand.ExecuteAsync(null);
+
+        // 失败必须走既有错误出口（错误中心），并在状态栏给出中文原因，而不是抛到 UI 线程。
+        Assert.That(errors.Contexts, Does.Contain("ModTextPage.SyncUniversalI18n"));
+        Assert.That(vm.StatusMessage, Does.Contain("同步失败"));
+        Assert.That(vm.StatusMessage, Does.Contain(failMessage));
+        Assert.That(vm.IsLoading, Is.False);
     }
 }

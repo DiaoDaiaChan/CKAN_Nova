@@ -25,6 +25,7 @@ using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Operations;
 using CkanUI.Services.Abstractions.Instances;
 using CkanUI.Services.Abstractions.Logs;
+using CkanUI.Services.Abstractions.ModConfig;
 using CkanUI.Services.Abstractions.Mods;
 using CkanUI.Services.Abstractions.Update;
 using CkanUI.ViewModels.Pages;
@@ -173,10 +174,20 @@ public static class ServiceRegistration
         services.AddSingleton<InstallHistoryPageViewModel>();
         services.AddSingleton<PluginsPageViewModel>();
         services.AddSingleton<ModTextPageViewModel>();
-        // Mod 配置页（M9 / CFG-01..03）：目前只读骨架，编辑控件是 CFG-04 的活；
-        // DI 能满足四参构造（IModConfigService / IAdapterCatalog / Func<string,string> 都有注册，
-        // renderers 留空由 VM 自建默认注册表），所以不需要工厂。
-        services.AddSingleton<ModConfigPageViewModel>();
+        // Mod 配置页（M9 / CFG-01..05 + ADP-04）：九类字段就地编辑、逐文件写盘、adapter 导入。
+        // 用工厂是因为导入端口是 VM 的可写属性（构造参数已经 7 个，再加会破兼容），
+        // 选择器（系统文件对话框）由视图挂上可视树时补，VM 不认识 Avalonia。
+        services.AddSingleton(sp =>
+        {
+            var page = new ModConfigPageViewModel(
+                sp.GetRequiredService<IModConfigService>(),
+                sp.GetService<IAdapterCatalog>(),
+                sp.GetService<Func<string, string>>(),
+                writer: sp.GetService<IAdapterWriter>(),
+                dialogs: sp.GetService<IDialogService>());
+            page.AdapterInstaller = sp.GetService<IAdapterInstaller>();
+            return page;
+        });
         // 日志页与底部抽屉（M8 / LOG-01..05）：两者共享同一个 ILogStore 单例，抽屉挂在日志页之上
         // （LogDrawerViewModel 内部另建一页供抽屉里的小时间线用），不重建日志页的状态。
         services.AddSingleton<LogPageViewModel>();
@@ -261,7 +272,15 @@ public static class ServiceRegistration
         services.AddSingleton<CommandPaletteViewModel>();
 
         // 导航与外壳。
-        services.AddSingleton<INavigationService>(sp => new NavigationService(CreatePageFactory(sp)));
+        // 导航服务顺便把本地化解析器挂到每个被解析出来的页面上（页面文案 i18n 的统一入口）：
+    // 页面 VM 只认 Func<string,string>，认不出 ILocalizer，因此这里传本地化器的 Get。
+    services.AddSingleton<INavigationService>(sp =>
+    {
+        var localizer = sp.GetService<ILocalizer>();
+        Func<string, string>? translate = localizer is null ? null : localizer.Get;
+        Func<string, object?[], string>? format = localizer is null ? null : (key, args) => localizer.Format(key, args);
+        return new NavigationService(CreatePageFactory(sp), translate, format);
+    });
         services.AddSingleton<ShellViewModel>();
 
         // 深链路由（ARC-05）：解析 ckan:// 的是 Platform 层的 CkanUri，视图模型层不引用 Platform，
