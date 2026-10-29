@@ -12,6 +12,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using CkanUI.App.Animations;
 using CkanUI.App.Converters;
 using CkanUI.App.Views.Dialogs;
@@ -97,6 +98,40 @@ public sealed partial class MainWindow : Window
         }
 
         ApplyStatusBarFacts();
+    }
+
+    /// <summary>
+    /// 顶部 34px 一体化标题条：窗口用 <c>ExtendClientAreaToDecorationsHint</c> 把客户区铺到标题栏上，
+    /// 系统不再替我们拖窗口（拖拽与双击最大化都得自己实现，否则整窗无法移动）。
+    /// </summary>
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        // 点在「前进 / 后退 / 关于」这类按钮上：那是一次命令，不是拖窗口。
+        if (e.Source is Visual source && source.FindAncestorOfType<Button>(includeSelf: true) is not null)
+        {
+            return;
+        }
+
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        if (e.ClickCount == 2)
+        {
+            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+            e.Handled = true;
+            return;
+        }
+
+        // 最大化状态下拖标题条：按 Windows 习惯先还原再接着拖。
+        if (WindowState == WindowState.Maximized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        BeginMoveDrag(e);
+        e.Handled = true;
     }
 
     /// <summary>数据上下文就位后接管导航栏（DI 容器把 ShellViewModel 塞进来的时刻）。</summary>

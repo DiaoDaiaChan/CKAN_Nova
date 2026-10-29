@@ -73,7 +73,12 @@
                            SelectionChanged="OnNavSelectionChanged">
         <!-- 品牌区：Fluent 折叠态会把 PaneHeader 一起收掉，正好省掉一套 Collapsed 样式。 -->
         <ui:FANavigationView.PaneHeader>
-          <StackPanel Orientation="Horizontal" Spacing="10" Margin="4,0,0,0" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal"
+                      Spacing="10"
+                      Margin="4,0,0,0"
+                      VerticalAlignment="Center"
+                      Background="Transparent"
+                      PointerPressed="OnTitleBarPointerPressed">
             <Border Width="26" Height="26" CornerRadius="8" Background="{DynamicResource CkanAccentBrush}">
               <TextBlock Text="C"
                          Foreground="{DynamicResource CkanTextInverseBrush}"
@@ -126,7 +131,11 @@
               顶部现代一体化标题拖拽区：左侧放前进/后退（贴近内容，鼠标移动距离最短），
               中间是窗口标题，右侧 150px 留给原生系统按钮避让。
             -->
-            <Grid Grid.Row="0" Height="34" Background="Transparent" ColumnDefinitions="Auto,Auto,*,150">
+            <Grid Grid.Row="0"
+                  Height="34"
+                  Background="Transparent"
+                  ColumnDefinitions="Auto,Auto,*,150"
+                  PointerPressed="OnTitleBarPointerPressed">
               <Button Grid.Column="0"
                       Classes="CkanIcon"
                       Content="←"

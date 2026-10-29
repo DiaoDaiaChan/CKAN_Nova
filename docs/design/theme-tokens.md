@@ -438,6 +438,11 @@ Avalonia 的 `SpringEasing` 实现 `IEasing.Ease(double progress)`，引擎把 `
 - **保留旧经验**：关键帧必须在 `TranslateTransform` 之类 `Animatable` 上 `RunAsync`（在 `Control` 上报「属性不属于宿主」）；
   `TranslateTransform` 不是 `Control`，写 `x:Name` 报 `AVLN2000`；附加属性的 `TOwner` 不能是静态类型（`CS0718`）；
   字符串形式的 `TransformOperations` 与 `TranslateTransform` 对象是两种类型，不要混用。
+- **标题条拖动**：`MainWindow.axaml` 设了 `ExtendClientAreaToDecorationsHint="True"`（客户区铺到标题栏上），
+  系统就不再代管标题栏的拖动与双击最大化——必须由顶栏自己调 `BeginMoveDrag`。
+  实现：`src/CkanUI.App/MainWindow.axaml.cs` 的 `OnTitleBarPointerPressed`（顶部 34px 拖拽条与侧栏品牌区共用），
+  命中 `Button` 祖先的事件直接返回（前进/后退不是拖窗）、`e.ClickCount == 2` 切最大化/还原、最大化状态下拖动先还原；
+  由 `tests/CkanUI.Architecture.Tests/WindowChromeTests.cs` 锁住这段接线（删掉即整窗不可移动）。
 - **豁免**：`Theming/SkeletonPulse.cs` 的骨架屏脉动只循环 `Opacity`、不位移不参与布局，属于加载态表现，不算物理动画。
 
 ### 5.10 表面分层（第 2 阶段 P1）
