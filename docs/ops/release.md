@@ -25,6 +25,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/release/release.ps
 | `-OutDir` | `<仓库根>/artifacts/release` | 产物目录（`artifacts/` 已在 .gitignore 内） |
 | `-RequireClean` | 关 | 工作树脏就中止；默认只把 `source.dirty=true` 写进 manifest |
 | `-SmokeTest` | 关 | 解压自包含 zip 到临时目录、真启动、等主窗口出现再关；结果进 manifest |
+| `-NoInstaller` | 关 | 跳过原生单文件安装程序（CkanUISetup.exe）的编译构建 |
 | `-KeepWork` | 关 | 保留中间目录 `_work`（publish 输出、发布日志、stage 内容） |
 | `-Configuration` | `Release` | 构建配置；出包不该用 Debug |
 
@@ -97,18 +98,18 @@ cd artifacts/release && sha256sum -c SHA256SUMS.txt
 # ckan-ui-0.1.0-win-x64-framework-dependent-unsigned.zip: OK
 ```
 
-## 2. 两种包怎么选
+## 2. 三种发布形态怎么选
 
-| | 自包含（portable） | 框架依赖（framework-dependent） |
-| --- | --- | --- |
-| 文件名 | `ckan-ui-<ver>-win-x64-portable-unsigned.zip` | `ckan-ui-<ver>-win-x64-framework-dependent-unsigned.zip` |
-| zip 体积 | 63.7 MB | 29.7 MB |
-| 解压体积 | 152 MB / 280 文件（zip 284 条目） | 75.5 MB / 90 文件（zip 97 条目） |
-| 前置依赖 | 无（自带 .NET 10 运行时） | 需 .NET 10 Desktop Runtime |
-| 首次启动 | 0.81 s（R2R，stage 目录实测）；zip 解压后首启 1.08 s | 0.80–0.83 s（同开 R2R，实测） |
-| 适用 | 内网 / 无外网 / 不想装运行时 / 一般用户 | 已装运行时、在意下载体积、CI 内部试用 |
+| | 原生安装向导（setup.exe） | 自包含便携包（portable.zip） | 框架依赖（framework-dependent.zip） |
+| --- | --- | --- | --- |
+| 文件名 | `ckan-ui-<ver>-win-x64-setup-unsigned.exe` | `ckan-ui-<ver>-win-x64-portable-unsigned.zip` | `ckan-ui-<ver>-win-x64-framework-dependent-unsigned.zip` |
+| 文件体积 | ~85 MB（单文件内嵌全量包） | 49.7 ~ 63.7 MB | 15.7 ~ 29.7 MB |
+| 解压/安装体积 | ~119 MB（装入 %LocalAppData%\CKAN UI） | 119 ~ 152 MB / 284 文件 | 42 ~ 75.5 MB / 97 文件 |
+| 前置依赖 | 无（自包含独立执行） | 无（自带 .NET 10 运行时） | 需 .NET 10 Desktop Runtime |
+| 安装与卸载 | 双击直接引导安装，自带控制面板卸载 | 手工解压即用，无系统快捷方式 | 手工解压即用 |
+| 适用 | 普通最终用户首选、企业批量静默部署 | 尝鲜、U 盘随身带、无需安装的机器 | 已装运行时、在意下载体积 |
 
-默认推荐自包含版：M6 的验收口径是「干净机器能跑」，少一个前置条件是少一类工单。框架依赖版是体积敏感场景的补充，不是主推。
+默认推荐原生安装向导或自包含便携版：验收口径是「干净机器能跑」，零前置依赖。
 
 ## 3. 发布参数为什么这么定
 

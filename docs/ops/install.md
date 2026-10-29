@@ -9,15 +9,15 @@
 
 同一份程序有两种交付形态，产物都来自 `tools/release/release.ps1`：
 
-| 维度 | 便携包 zip | 安装器（`install.ps1`） |
-| --- | --- | --- |
-| 使用方式 | 解压到任意目录，双击 exe | 先解压出一份目录，再跑安装器；之后从开始菜单启动 |
-| 写注册表 | 不写 | 写 4 处 HKCU（见 §6） |
-| 出现在「设置 → 应用」 | 否 | 是（可正常卸载） |
-| 快捷方式 | 无 | 开始菜单 + 桌面 |
-| 升级 | 手工覆盖 | 新版本并存，`current` 指针切换 |
-| 管理员权限 | 不需要 | 不需要（不写 HKLM，不弹 UAC） |
-| 适合 | 尝鲜、U 盘随身带、没有 PowerShell 权限的机器 | 长期使用、公司内多人部署 |
+| 维度 | 原生单文件安装程序（`setup.exe`） | 便携包 zip | 安装脚本（`install.ps1`） |
+| --- | --- | --- | --- |
+| 使用方式 | 双击 setup.exe 直接弹出安装/静默安装 | 解压到任意目录，双击 CkanUI.exe | 解压便携包后，运行 PowerShell 脚本安装 |
+| 写注册表 | 写 4 处 HKCU（见 §6） | 不写 | 写 4 处 HKCU（见 §6） |
+| 出现在「设置 → 应用」 | 是（自带卸载向导） | 否 | 是（可正常卸载） |
+| 快捷方式 | 开始菜单 + 桌面（可选） | 无 | 开始菜单 + 桌面（可选） |
+| 升级 | 重跑 setup 自动原子替换 | 手工覆盖 | 重跑 install.ps1 原子切换指针 |
+| 管理员权限 | 不需要（纯 HKCU，不弹 UAC） | 不需要 | 不需要（不写 HKLM，不弹 UAC） |
+| 适合 | 普通最终用户、自动化分发安装 | 尝鲜、U 盘随身带、无安装权限机器 | 运维流水线定制脚本、源码构建者 |
 
 两个 zip 的区别（`release.ps1` 一次出两个）：
 
@@ -48,15 +48,32 @@
 - Windows PowerShell 5.1（系统自带，不需要 PowerShell 7）。
 - 先把 zip 解压出一个目录（下称 stage），安装器从这个目录复制。
 
-### 3.2 命令
+### 3.2 方式一：原生安装向导（CkanUISetup.exe）
 
+从发布页下载 `ckan-ui-<版本>-win-x64-setup.exe`（自包含内嵌版）：
+1. **图形化安装**：直接双击 exe，确认目标目录后全自动安装、创建桌面与开始菜单快捷方式、登记 HKCU 卸载项，并提示是否立即启动。
+2. **命令行静默安装（适合脚本与批量部署）**：
+```cmd
+:: 最简静默安装（默认路径 %LocalAppData%\CKAN UI）
+ckan-ui-0.1.0-win-x64-setup.exe -Quiet
+
+:: 自定义安装目录、静默且装完不自动启动
+ckan-ui-0.1.0-win-x64-setup.exe -InstallDir "D:\Apps\CKAN UI" -Quiet -NoLaunch
+
+:: 兼容 Inno Setup 风格的目录参数
+ckan-ui-0.1.0-win-x64-setup.exe /DIR="D:\Apps\CKAN UI" /S
+```
+
+### 3.3 方式二：PowerShell 安装脚本（install.ps1）
+
+适用于下载便携 zip 解压后手动执行安装：
 ```powershell
-# 最常用：默认装到 %LocalAppData%\CKAN UI，建开始菜单 + 桌面快捷方式，装完启动
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\release\install\install.ps1 -SourceDir D:\tmp\ckan-ui-0.1.0
+# 默认装到 %LocalAppData%\CKAN UI，建开始菜单 + 桌面快捷方式，装完启动
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install\install.ps1 -SourceDir .
 
 # 换安装位置、不建快捷方式、装完不启动
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\release\install\install.ps1 ^
-    -SourceDir D:\tmp\ckan-ui-0.1.0 -InstallDir D:\Apps\CKAN UI -NoShortcuts -NoLaunch
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install\install.ps1 ^
+    -SourceDir . -InstallDir "D:\Apps\CKAN UI" -NoShortcuts -NoLaunch
 ```
 
 参数：

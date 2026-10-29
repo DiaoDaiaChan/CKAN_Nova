@@ -7,7 +7,7 @@
   <!-- 组合搜索面板（12 篇 F-20/F-21 / UI-14，对齐上游 EditModSearchDetails）：
        18 个字段（12 文本 + 6 三态）逐项填写，条件之间是 AND；生成的语法文本实时显示在底部。
        容器与控件样式统一复用 FluentStyles 的 CkanSubtleCard / CkanSmall / CkanCaption。 -->
-  <Border Classes="CkanSubtleCard" Padding="10,8">
+  <Border Classes="CkanSubtleCard view-layer is-active" Padding="10,8">
     <StackPanel Spacing="8">
 
       <!-- 标题行 + 清空条件 -->

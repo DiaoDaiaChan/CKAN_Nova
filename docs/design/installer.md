@@ -26,16 +26,16 @@
 | 代价 | 多用户机器上每人各装一份（磁盘不共享）；没有「所有用户」的开始菜单项 |
 | 后续 | 「随机器共享一份」不在路线图内；真需要就用便携包放共享盘 |
 
-### D2 主路径是 PowerShell 安装器，Inno Setup 只做模板
+### D2 原生 .NET 单文件安装程序（CkanUISetup.exe）为主，脚本为辅，Inno 为模板
 
 | | |
 | --- | --- |
-| 决策 | `tools/release/install/install.ps1` + `uninstall.ps1` 是受支持的安装方式；`CkanUISetup.iss` 作为 Inno Setup 6 模板同时交付 |
-| 备选 A：只做 Inno `setup.exe` | 否决理由：CI 要多装一套 Inno + ISCC；安装包体积翻倍（自包含包已经 578 MB）；本机没有 Inno 环境，交付时无法实测 |
+| 决策 | `tools/installer` 构建的原生单文件安装向导 `CkanUISetup.exe` 是推荐的图形化/静默安装器；随包附带 `install.ps1` / `uninstall.ps1` 作为脚本备份；`CkanUISetup.iss` 作为 Inno Setup 6 模板同时保留 |
+| 为什么能做原生 setup.exe | 基于 .NET 10 单文件自包含发布（内嵌 payload.zip），体积仅约 85 MB（压缩率高），完全不依赖外部 Inno Setup / ISCC 工具链，双击直接运行，带 GUI 提示与控制台附加双模 |
+| 备选 A：纯 Inno `setup.exe` | 否决理由：CI/构建机要额外安装 Inno Setup + ISCC；容易受机器环境影响无法构建 |
 | 备选 B：MSIX | 否决理由见 [ops/install.md](../ops/install.md) §7：Win10 1709 下限（我们支持 1607）、侧载策略、文件虚拟化与「用户可见真实路径」冲突 |
-| 为什么选 PowerShell | 仓库已经有 `release.ps1` 的 PowerShell 惯例（5.1 兼容、中文日志、失败即退）；脚本可读可审计；能直接吃 `release.ps1` 的 stage；出错能逐项回滚；不需要额外工具链 |
-| 代价 | 受执行策略影响，用户必须用 `-ExecutionPolicy Bypass` 调用；没有「双击 setup.exe」的体验；不能加到 Add/Remove Programs 之外的部署工具里当 MSI 用 |
-| 后续 | Inno 模板等有构建环境时补实测；若最终以 Inno 为主，Playbook 是「先 stage，再 ISCC」 |
+| 优势 | 双击直接提示安装与启动；支持 `-Quiet`、`-InstallDir` 等全部自动化静默参数；自带严格误删守卫、原子 staging 替换与自克隆卸载器；自动集成进 `release.ps1` 出包流水线并接入代码签名 |
+| 代价 | 单文件首次启动需要短分解压自身运行时，比纯 C 编写的 Inno 安装器稍慢数百毫秒 |
 
 ### D3 目录布局：`<InstallDir>\app\<版本>\${C} + `current\version.txt` 文本指针
 

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>CkanUISetup</AssemblyName>
+    <RootNamespace>CkanUI.Tools.Installer</RootNamespace>
+    <TargetFramework>net10.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>../../src/CkanUI.App/Assets/ckan.ico</ApplicationIcon>
+    <PayloadZip Condition="'$(PayloadZip)' == ''">payload.zip</PayloadZip>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('$(PayloadZip)')">
+    <EmbeddedResource Include="$(PayloadZip)" LogicalName="payload.zip" />
+  </ItemGroup>
+</Project>

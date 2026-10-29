@@ -19,15 +19,40 @@
     </Style>
   </UserControl.Styles>
 
-  <Grid RowDefinitions="Auto,*,Auto" Margin="16,14,16,12"
-        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
+        Background="Transparent">
 
-    <!-- 顶部工具条：用 WrapPanel 承载，窄窗口（900）自动换行而不是横向溢出 -->
-    <Border Grid.Row="0" Classes="CkanToolbar">
+    <!-- 页面标题与主操作：把高频操作从筛选工具条中解放出来。 -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+      <StackPanel Spacing="4" VerticalAlignment="Center">
+        <TextBlock Text="模组管理" FontSize="{DynamicResource CkanFontSizeTitle}" FontWeight="SemiBold" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="探索、筛选并管理你的 Kerbal Space Program 模组"
+                     Classes="CkanCaption" VerticalAlignment="Center" />
+          <Border Background="{DynamicResource CkanAccentSubtleBrush}"
+                  CornerRadius="{DynamicResource CkanCornerRadiusPill}" Padding="8,2">
+            <TextBlock Text="{Binding CountText}" Classes="CkanCaption"
+                       Foreground="{DynamicResource CkanAccentBrush}" />
+          </Border>
+        </StackPanel>
+      </StackPanel>
+      <Button Grid.Column="1" Command="{Binding ApplyChangesCommand}"
+              Classes="CkanPrimary" Padding="18,8" VerticalAlignment="Center"
+              ToolTip.Tip="审查并应用当前变更集（F-32）">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <PathIcon Width="13" Height="13" Foreground="{DynamicResource CkanAccentTextBrush}"
+                    Data="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
+          <TextBlock Text="应用变更" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+    </Grid>
+
+    <!-- 顶部工具条：用 WrapPanel 承载，窄窗口自动换行而不是横向溢出。 -->
+    <Border Grid.Row="1" Classes="CkanToolbar" Margin="0,16,0,0">
       <StackPanel Spacing="8">
 
         <WrapPanel Orientation="Horizontal">
-          <TextBox x:Name="SearchBox" Width="280" Margin="0,0,8,0"
+          <TextBox x:Name="SearchBox" Width="360" Margin="0,0,8,0"
                    Classes="CkanSearchBox"
                    Text="{Binding SearchText, Mode=TwoWay}"
                    PlaceholderText="搜索模组：名称 / @作者 / tag: / is:installed / -否定"
@@ -105,16 +130,6 @@
             </StackPanel>
           </Button>
 
-          <!-- 主操作按钮：强调色 -->
-          <Button Command="{Binding ApplyChangesCommand}"
-                  Classes="CkanPrimary" Margin="0,0,8,0"
-                  ToolTip.Tip="审查并应用当前变更集（F-32）">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <PathIcon Width="12" Height="12" Foreground="{DynamicResource CkanAccentTextBrush}" Data="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-              <TextBlock Text="应用变更" VerticalAlignment="Center" />
-            </StackPanel>
-          </Button>
-
           <!-- 插件工具项（12 篇 F-17）：没有插件声明时整块不占位 -->
           <ItemsControl VerticalAlignment="Center" Margin="0,0,8,0"
                         IsVisible="{Binding HasPluginTools}"
@@ -168,12 +183,14 @@
         <!-- 组合搜索面板（F-20/F-21）：DataContext 换成面板自身，展开状态与字段都在面板里 -->
         <modsViews:ModsSearchPanelView
             DataContext="{Binding SearchPanel}"
+            Classes="view-layer"
+            Classes.is-active="{Binding IsExpanded}"
             IsVisible="{Binding IsExpanded}" />
       </StackPanel>
     </Border>
 
     <!-- 主体区域：左侧表格 Card + 右侧详情 Card -->
-    <Grid Grid.Row="1" ColumnDefinitions="*,6,380" Margin="0,10,0,0">
+    <Grid Grid.Row="2" ColumnDefinitions="*,8,400" Margin="0,12,0,0">
 
       <!-- 左侧模组列表 Card -->
       <Border Grid.Column="0" Classes="CkanCard" Padding="0" ClipToBounds="True">
@@ -300,7 +317,7 @@
       <GridSplitter Grid.Column="1" Background="Transparent" ResizeDirection="Columns" />
 
       <!-- 右侧模组详情面板（F-26）：历史选择 + 标签组快开 + 四页签富详情 -->
-      <Border Grid.Column="2" Classes="CkanCard">
+      <Border Grid.Column="2" Classes="CkanCard stagger-card">
         <DockPanel>
           <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" ItemSpacing="4" LineSpacing="4" Margin="0,0,0,6">
             <Button Command="{Binding GoBackSelectionCommand}"
@@ -346,7 +363,7 @@
     </Grid>
 
     <!-- 底部状态与操作栏 -->
-    <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,10,0,0">
+    <Grid Grid.Row="3" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,10,0,0">
       <TextBlock Grid.Column="0" Text="{Binding CountText}" Classes="CkanCaption" VerticalAlignment="Center" />
       <TextBlock Grid.Column="1" Text="{Binding SelectionSummary}" Classes="CkanCaption" Margin="14,0,0,0"
                  VerticalAlignment="Center" />
@@ -365,6 +382,11 @@
     <!-- 进行中遮罩：无行时骨架屏，有行时进度条（同一时刻只有一个脉动元素） -->
     <Border Grid.RowSpan="3" IsVisible="{Binding IsBusy}"
             Background="{DynamicResource CkanBlockingScrimBrush}">
+      <Border.Transitions>
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
+        </Transitions>
+      </Border.Transitions>
       <Grid>
         <StackPanel IsVisible="{Binding !HasRows}" IsHitTestVisible="False"
                     app:SkeletonPulse.IsEnabled="True"

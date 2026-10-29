@@ -104,8 +104,8 @@ public sealed class ThemingTests
     {
         var hints = BackdropHost.ResolveHints("auto");
         Assert.That(hints, Has.Count.EqualTo(3));
-        Assert.That(hints[0], Is.EqualTo(WindowTransparencyLevel.Mica));
-        Assert.That(hints[1], Is.EqualTo(WindowTransparencyLevel.AcrylicBlur));
+        Assert.That(hints[0], Is.EqualTo(WindowTransparencyLevel.AcrylicBlur));
+        Assert.That(hints[1], Is.EqualTo(WindowTransparencyLevel.Mica));
         Assert.That(hints[2], Is.EqualTo(WindowTransparencyLevel.None));
     }
 }

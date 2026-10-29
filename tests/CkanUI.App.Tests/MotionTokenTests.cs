@@ -122,11 +122,11 @@ public sealed class MotionTokenTests
     }
 
     [Test]
-    public void ChipButton_PicksUpFastTokenForItsTransitions()
+    public void ChipButton_PicksUpSpringTokenForItsTransitions()
     {
         HeadlessAppHost.EnsureInitialized();
         var app = Application.Current!;
-        var fastKey = MotionHost.FastKey;
+        var fastKey = MotionHost.SpringCrispKey;
         var hasPrevious = app.Resources.TryGetValue(fastKey, out var previous);
         app.Resources[fastKey] = TimeSpan.FromMilliseconds(7);
 
@@ -144,7 +144,7 @@ public sealed class MotionTokenTests
                 .ToList() ?? new List<TimeSpan>();
 
             Assert.That(durations, Is.Not.Empty, "按钮样式应当挂上过渡；为空说明 FluentStyles 没生效或被改坏");
-            Assert.That(durations, Has.Some.EqualTo(TimeSpan.FromMilliseconds(7)), "TransformOperationsTransition 应改用 CkanMotionDurationFast token");
+            Assert.That(durations, Has.Some.EqualTo(TimeSpan.FromMilliseconds(7)), "TransformOperationsTransition 应改用 CkanMotionDurationSpringCrisp token，让筛选标签与按钮回弹手感一致");
         }
         finally
         {

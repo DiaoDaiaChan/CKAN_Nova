@@ -31,6 +31,9 @@
     不做 ReadyToRun 预编译。默认做（冷启动 1.58 s → 0.81 s），代价是体积：实测自包含版解压
     152 MB → 119 MB（-34 MB）、框架依赖版 73 MB → 41 MB。磁盘紧张或要与上游体积对齐时用它。
 
+.PARAMETER NoInstaller
+    跳过构建自包含原生单文件安装程序（CkanUISetup.exe）。默认会编译并产出内嵌便携包的独立安装向导。
+
 .PARAMETER PfxPath
     .pfx 代码签名证书路径。与本参数或 -Thumbprint 一起给时，脚本会在打包前调用
     tools/release/Sign-Artifacts.ps1 给 stage 里的主程序签名。本机没有证书，默认不签名，
@@ -70,6 +73,7 @@ param(
     [switch] $SmokeTest,
     [switch] $KeepWork,
     [switch] $NoReadyToRun,
+    [switch] $NoInstaller,
     [string] $PfxPath = '',
     [string] $PfxPassword = '',
     [string] $Thumbprint = '',
@@ -540,6 +544,84 @@ foreach ($flavor in $flavors) {
         sizeBytes = [long] $zipItem.Length
         sha256 = (Get-Sha256 -Path $zipPath)
         fileCount = $zipFileCount
+        uncompressedBytes = $stage.UncompressedBytes
+    }
+}
+
+# ---- 7.5. 原生单文件安装程序 (CkanUISetup.exe) -----------------------------
+
+if (-not $NoInstaller) {
+    Write-Step '构建自包含原生单文件安装程序 (CkanUISetup.exe)'
+    $setupProj = Join-Path $repoRoot 'tools\installer\CkanUI.Tools.Installer.csproj'
+    if (-not (Test-Path -LiteralPath $setupProj)) {
+        Stop-WithError ('找不到安装器项目 ' + $setupProj)
+    }
+
+    $portableZipArtifact = $artifacts | Where-Object { $_.selfContained -eq $true } | Select-Object -First 1
+    if (-not $portableZipArtifact) {
+        Stop-WithError '未找到自包含便携包，无法内嵌至独立安装器。'
+    }
+    $portableZipPath = (Resolve-Path (Join-Path $OutDir $portableZipArtifact.file)).Path
+    $setupWorkDir = Join-Path $workDir 'installer-publish'
+    if (Test-Path -LiteralPath $setupWorkDir) { Remove-Item -LiteralPath $setupWorkDir -Recurse -Force }
+
+    $setupSuffix = if ($signedApplied) { '' } else { '-unsigned' }
+    $setupExeName = 'ckan-ui-' + $Version + '-' + $Runtime + '-setup' + $setupSuffix + '.exe'
+    $setupOutPath = Join-Path $OutDir $setupExeName
+
+    $setupPublishArgs = @(
+        'publish', $setupProj,
+        '-c', $Configuration,
+        '-r', $Runtime,
+        '--self-contained', 'true',
+        '-p:PublishSingleFile=true',
+        '-p:EnableCompressionInSingleFile=true',
+        ('-p:PayloadZip=' + $portableZipPath),
+        '-o', $setupWorkDir,
+        '--nologo', '-v', 'q',
+        '/nodeReuse:false'
+    )
+    Write-Info ('正在编译独立单文件安装程序并内嵌 ' + $portableZipArtifact.file + '...')
+    $publishOutput = & dotnet @setupPublishArgs 2>&1
+    $publishExit = $LASTEXITCODE
+    if ($publishExit -ne 0) {
+        $publishOutput | ForEach-Object { Write-Host ('    ' + $_) }
+        Stop-WithError ('安装器编译失败，退出码 ' + $publishExit)
+    }
+
+    $rawSetupExe = Join-Path $setupWorkDir 'CkanUISetup.exe'
+    if (-not (Test-Path -LiteralPath $rawSetupExe)) {
+        Stop-WithError '编译完成但未在输出目录找到 CkanUISetup.exe'
+    }
+
+    if ($signRequested) {
+        Write-Step '签名独立安装程序'
+        $signScript = Join-Path $PSScriptRoot 'Sign-Artifacts.ps1'
+        $signArgs = @('-Path', $rawSetupExe)
+        if ($Thumbprint -ne '') { $signArgs += @('-Thumbprint', $Thumbprint) }
+        if ($PfxPath -ne '') { $signArgs += @('-PfxPath', $PfxPath); $signArgs += @('-PfxPassword', $PfxPassword) }
+        if ($TimestampUrl -ne '') { $signArgs += @('-TimestampUrl', $TimestampUrl) }
+        if ($SignDryRun) { $signArgs += '-DryRun' }
+        $signHost = (Get-Process -Id $PID).Path
+        if (-not $signHost) { $signHost = 'powershell.exe' }
+        $signOutput = & $signHost -NoProfile -ExecutionPolicy Bypass -File $signScript @signArgs 2>&1
+        $signExit = $LASTEXITCODE
+        $signOutput | ForEach-Object { Write-Host ('    ' + $_) }
+        if ($signExit -ne 0) {
+            Stop-WithError ('安装程序签名失败，退出码 ' + $signExit)
+        }
+    }
+
+    Copy-Item -LiteralPath $rawSetupExe -Destination $setupOutPath -Force
+    $setupItem = Get-Item -LiteralPath $setupOutPath
+    Write-Info ($setupExeName + '：' + [math]::Round($setupItem.Length / 1MB, 2) + ' MB，自包含单文件安装器')
+
+    $artifacts += [ordered]@{
+        file = $setupExeName
+        selfContained = $true
+        sizeBytes = [long] $setupItem.Length
+        sha256 = (Get-Sha256 -Path $setupOutPath)
+        fileCount = 1
         uncompressedBytes = $stage.UncompressedBytes
     }
 }

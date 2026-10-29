@@ -8,7 +8,7 @@
 
 | 里程碑 | 主题 | 状态 | 门禁实测 |
 | --- | --- | --- | --- |
-| M0 | 骨架与契约冻结（ENV-01..05、ARC-01..05） | ✅ 完成 | 构建 0 警告 0 错误；架构测试 21 例全绿（`DependencyRulesTests` 7 + `NamespaceRulesTests` 3 + `MotionSkeletonTests` 6 + `WindowChromeTests` 2 + `PageTextLocalizationTests` 3，见 §6.2）；CI 三平台 matrix 已落 `.github/workflows/ci.yml` |
+| M0 | 骨架与契约冻结（ENV-01..05、ARC-01..05） | ✅ 完成 | 构建 0 警告 0 错误；架构测试 25 例全绿（`DependencyRulesTests` 7 + `NamespaceRulesTests` 3 + `MotionSkeletonTests` 6 + `WindowChromeTests` 2 + `PageTextLocalizationTests` 3 + `InstallerArchitectureTests` 4，见 §6.2）；CI 三平台 matrix 已落 `.github/workflows/ci.yml` |
 | M1 | 五个主页面 + 服务层打通（UI-01..UI-09、INT-04..08） | ✅ 完成 | 页面 VM 与视图全部可解析（`ViewLocatorTests` 钉死）；测试全绿 |
 | M2 | 安装/卸载真实执行（INT-08 收口、E2） | 🚧 进行中 | `IInstallerService` + `CkanInstallerBackend` 可用；`IDownloadService`（临时文件 + 大小/SHA256 校验 + 原子 Move + 取消清理 + 失败分类）已落地；仍缺「真实联网装一个模组」的端到端冒烟 |
 | M3 | 仓库、实例与设置周边补全（UI-06、UI-07、UI-28..UI-34） | ✅ 基本完成 | 仓库页（F-10）、设置页 8 组与密度、实例重命名（`RenameAsync`）、启动命令编辑（F-05/F-06）、启动后分层资源释放（18 篇 E6）均已落地 |
@@ -16,7 +16,7 @@
 | M5 | 导入导出与工具族（F-39..F-48） | ✅ 完成 | F-39..F-48 十项全部「已实现」：`.ckan` 导入、modpack 导出与五种文本格式导出、实例比对、未管理文件树、ZIP 灌缓存、跨实例去重、安装历史（含删除/清空与 `RemoveExtras` 勾选）、游戏时长（含自动累计与重置）、modpack 编辑器（F-46）、下载统计环图 + 排序表格（F-47）；残留不改变状态，见 feature-matrix §3 |
 | M6 | 插件系统与外观个性化（UI-33、THM-xx） | 🚧 基本完成 | 主题 token 与 Light/Dark/HighContrast 已生效、密度三档落盘；插件页（Active/Dormant 两栏 + 可回收 ALC）、插件声明页签与插件工具项均已落地；外观已交付 P-02/P-03/P-09/P-10 |
 | M7 | 存档工作台（E1，SFS 格式） | ✅ 基本完成 | SFS 内核（解析/格式化/校验 + CLI）93 例全绿；存档工作台页面已落地（枚举/诊断/安全格式化）；V-09 `.loadmeta` 一致性校验未做 |
-| M8–M14 | 日志与 AI 调试、Mod 配置适配、国际化、资源让路、打包发布、外观个性化 | ✅ 已交付（带残留） | 证据：`docs/design/logging-and-diagnostics.md`（M8）、`docs/design/mod-config-adapters.md` + `adapters/**`（M9）、`docs/design/i18n-runtime.md` 与 930 键双包（M10/M11）、`src/CkanUI.Services/Lifecycle/ResourceReleaseService.cs`（M12）、`docs/ops/release.md` + `docs/design/packaging.md` + `tools/release/release.ps1` + `.github/workflows/release.yml`（M13：自包含 277 文件/150 MB、框架依赖 90 文件/73 MB、`manifest.json` signed=false）、`src/CkanUI.App/Tray/TrayHost.cs` 与主题/密度/字号/动效（M14）。**真实剩余**：① 发布物仍未签名——但签名通道已就绪（`tools/release/Sign-Artifacts.ps1` 已接进 `release.ps1` 的签名步骤、`-SignDryRun` 可预演、`manifest.signing` 记 `{requested, applied, method, timestampUrl}`），缺的只是一张证书；② 安装器只有**随包 per-user 脚本**（`install/install.ps1` + `uninstall.ps1` 已由 `release.ps1` 打进包并列入必需条目，装/覆盖装/卸载实测通过）+ 未构建的 Inno 模板 `install/CkanUISetup.iss`，M13 验收口径的 `CkanUISetup.exe` 尚未产出；③ 体积：默认（R2R）自包含解压 152 MB、`-NoReadyToRun` 后 119 MB，下载包 63.7 / 49.7 MB 在 09 篇 §11 的 60–90 MB 预算内（解压地板与两条被挡死的瘦身路见 09 篇 §14）；④ 性能与端到端验收缺有网真机（§4 第 7 条） |
+| M8–M14 | 日志与 AI 调试、Mod 配置适配、国际化、资源让路、打包发布、外观个性化 | ✅ 已交付（带残留） | 证据：`docs/design/logging-and-diagnostics.md`（M8）、`docs/design/mod-config-adapters.md` + `adapters/**`（M9）、`docs/design/i18n-runtime.md` 与 930 键双包（M10/M11）、`src/CkanUI.Services/Lifecycle/ResourceReleaseService.cs`（M12）、`docs/ops/release.md` + `docs/design/packaging.md` + `tools/release/release.ps1` + `.github/workflows/release.yml`（M13：自包含 277 文件/150 MB、框架依赖 90 文件/73 MB、`manifest.json` signed=false）、`src/CkanUI.App/Tray/TrayHost.cs` 与主题/密度/字号/动效（M14）。**真实剩余**：① 发布物仍未签名——但签名通道已就绪（`tools/release/Sign-Artifacts.ps1` 已接进 `release.ps1` 的签名步骤、`-SignDryRun` 可预演、`manifest.signing` 记 `{requested, applied, method, timestampUrl}`），缺的只是一张证书；② 安装器已全量交付：自研原生 .NET 单文件安装向导 `CkanUISetup.exe`（`tools/installer`）由 `release.ps1` 步骤 7.5 自动编译产出（内嵌自包含 `payload.zip`，支持图形向导与静默参数、快捷方式创建、HKCU 卸载注册与原子替换），同时随包保留 `install/install.ps1` 脚本与 Inno 模板；③ 体积：默认（R2R）自包含解压 152 MB、`-NoReadyToRun` 后 119 MB，下载包 63.7 / 49.7 MB 在 09 篇 §11 的 60–90 MB 预算内（解压地板与两条被挡死的瘦身路见 09 篇 §14）；④ 性能与端到端验收缺有网真机（§4 第 7 条） |
 
 ## 2. M0 已交付证据
 
@@ -26,7 +26,7 @@
 | ENV-02 接入 Core | `src/CkanUI.Services/CkanUI.Services.csproj` 对 `external/CKAN/Core/CKAN-core.csproj` 的 ProjectReference（本地 junction，CI 走浅克隆） |
 | ENV-03 日志落位 | `src/CkanUI.App/log4net.xml` + `src/CkanUI.Services/Logging/LoggingSetup.cs`（`__CKAN_LOG_DIR__` 令牌替换） |
 | ENV-04 CI | `.github/workflows/ci.yml`（三平台 matrix + `TestCategory!=RequiresTxF` 分流 + Windows publish） |
-| ENV-05 架构测试 | `tests/CkanUI.Architecture.Tests/DependencyRulesTests.cs`（7 条）+ `NamespaceRulesTests.cs`（3 条），加上 `MotionSkeletonTests`（6）、`WindowChromeTests`（2）、`PageTextLocalizationTests`（3），该程序集共 21 例（§6.2） |
+| ENV-05 架构测试 | `tests/CkanUI.Architecture.Tests/DependencyRulesTests.cs`（7 条）+ `NamespaceRulesTests.cs`（3 条），加上 `MotionSkeletonTests`（6）、`WindowChromeTests`（2）、`PageTextLocalizationTests`（3）、`InstallerArchitectureTests`（4），该程序集共 25 例（§6.2） |
 | ARC-01 DI 组装根 | `src/CkanUI.App/ServiceRegistration.cs` |
 | ARC-02 IDispatcher | `src/CkanUI.Platform/Threading/AvaloniaDispatcher.cs` |
 | ARC-03 ViewLocator | `src/CkanUI.App/ViewLocator.cs`（`ResolveViewType` 可测） |
@@ -86,7 +86,7 @@
 6. **（已补齐，自动轮换留 v2）背景的「游戏截图」来源**：第四轮接上 20 篇 §9.1——设置页「背景来源」新增「游戏截图（最新一张）」，
   由 `src/CkanUI.Services/Settings/BackgroundImageLocator.cs` 读 `<GameDir>/Screenshots` 里最新一张，路径计入背景缓存签名；
   仍未做的只有 20 篇 §4 Q2 的「每次启动自动换一张」（v2）。
-7. **发布链路已交付，签名与安装器只剩最后一口气**：M8–M14 的打包发布已交付——`tools/release/release.ps1` 一条命令出双发布包（默认 R2R：自包含 152 MB、框架依赖 75.5 MB；`-NoReadyToRun` 时 119 MB / 42 MB）与 `SHA256SUMS.txt`/`manifest.json`，`.github/workflows/release.yml` 按 tag 触发并带冒烟，文档见 `docs/ops/release.md`、`docs/design/packaging.md`。本轮补上两件：① **代码签名通道**——`tools/release/Sign-Artifacts.ps1`（`-Thumbprint`/`-PfxPath`/`-DryRun`、找 signtool、带时间戳）已由 `release.ps1` 在 stage 组装后、打 zip 前调用，失败中止出包，`manifest.signing` 记录状态，`New-DevCertificate.ps1` 可造自签测试证书；② **安装器**——`tools/release/install/{install.ps1,uninstall.ps1}` 走每用户安装（只写 `HKCU` 卸载项 + `App Paths`、按 `<FileVersion>` 侧装、`current\version.txt` 指针、误删守卫），随包发在 `install/` 并被列为 zip 必需条目，装/覆盖装/卸载均实测；`CkanUISetup.iss` 是 Inno 6 模板（本机无 Inno，未跑 ISCC）。真实剩余：① **发布物仍未签名**（无证书，文件名照旧带 `-unsigned`、`manifest.signed=false`）；② M13 验收口径的 `CkanUISetup.exe` 未产出；③ **有网真机的性能与端到端**：真实模组下载安装、F12 帧率/可打断性、900–1600 双宽度视觉复核、macOS/Linux 冒烟。体积口径见 `docs/ops/release.md` §3.5 与 09 篇 §14（下载包在预算内，解压有 ~119 MB 地板）。
+7. **发布链路已交付，签名与安装器只剩最后一口气**：M8–M14 的打包发布已交付——`tools/release/release.ps1` 一条命令出双发布包（默认 R2R：自包含 152 MB、框架依赖 75.5 MB；`-NoReadyToRun` 时 119 MB / 42 MB）与 `SHA256SUMS.txt`/`manifest.json`，`.github/workflows/release.yml` 按 tag 触发并带冒烟，文档见 `docs/ops/release.md`、`docs/design/packaging.md`。本轮补上两件：① **代码签名通道**——`tools/release/Sign-Artifacts.ps1`（`-Thumbprint`/`-PfxPath`/`-DryRun`、找 signtool、带时间戳）已由 `release.ps1` 在 stage 组装后、打 zip 前调用，失败中止出包，`manifest.signing` 记录状态，`New-DevCertificate.ps1` 可造自签测试证书；② **安装器**——自研原生单文件安装程序 `tools/installer`（产物 `CkanUISetup.exe`）已无缝整合进 `release.ps1` 步骤 7.5，自动内嵌自包含便携包、联动 `Sign-Artifacts` 签名通道并列入发布三件套，支持命令行静默安装（`-Quiet` / `/S` / `/DIR=`）与图形向导；同时随包分发 `install/{install.ps1,uninstall.ps1}` 脚本与 `CkanUISetup.iss` 模板。真实剩余：① **发布物仍未签名**（通道已就绪，无正式证书）；② **有网真机的性能与端到端**：真实模组下载安装、F12 帧率/可打断性、900–1600 双宽度视觉复核、macOS/Linux 冒烟。体积口径见 `docs/ops/release.md` §3.5 与 09 篇 §14（下载包在预算内，解压有 ~119 MB 地板）。
 8. **页面 VM 运行期文案的本地化（第四轮已收口主体）**：机制见 `src/CkanUI.ViewModels/PageViewModel.cs` 的 `TextResolver`/`TextFormatter` 与 `Text(中文, 键)`，导航时由 `NavigationService` 用 `??=` 注入，没译文就回落中文原文；17 个页面 ViewModel 的标题与正文共 852 处已迁移（含 `ModConfigPageViewModel` 旧式 `T()` 的统一），文案键 76 → 930，中英两套包严格同步，代码 fallback 与 zh-CN 译文逐字一致由 `tests/CkanUI.Architecture.Tests/PageTextLocalizationTests.cs` 守护。**仍剩子 VM 与静态格式化器**（`ChangesFormatter` 39、`ChangesLabels` 19、`ModPackEditorText` 39、`ModsSearchPanelViewModel` 30、`LogGlyphs` 24、`SettingsDiagnosticsViewModel` 14、`StabilityToleranceFile` 14、`InstallHistoryText` 17 等），它们不是 `PageViewModel`，需先加 `Func<string,string,…>` 适配器；清单与理由见 `docs/design/i18n-runtime.md` 的「尚未覆盖」与 `docs/design/feature-matrix-verification.md` §11。
    仍剩：只有**子 VM 与静态格式化器**（`ChangesFormatter` 39、`ChangesLabels` 19、`ModPackEditorText` 39、`ModsSearchPanelViewModel` 30、`LogGlyphs` 24 等，清单见 `docs/design/feature-matrix-verification.md` §11.5）。原写的「其余页面正文未迁移」已随第四轮收口失效——17 个页面 ViewModel 的标题与正文共 852 处已全部迁完（取证 §11.1），`ModConfigPageViewModel` 的 `T()` 也已统一，错误栏兜底句同样入包。
 9. **沙箱里派生的 GUI 进程写不进 `%LocalAppData%\CKAN`**：本轮冒烟见状态栏「启动未完成：实例操作失败。」与模组汉化页 `Access to the path 'C:\Users\43701\AppData\Local\CKAN\ckan-ui\18n\packs' is denied.`；同一路径在 bash 里可写、GUI 进程不可写，判为沙箱派生进程的权限副作用而非产品缺陷。需在普通桌面（双击 exe）启动下复核：能写则撤销本条，仍报错按真缺陷修。
@@ -126,7 +126,7 @@ dotnet run --project tools/verify-layout -- --all   # 期望「结论: 绿」
 | 门禁 | 结果 |
 | --- | --- |
 | `dotnet build ckan-ui.sln --nologo -v q` | 0 警告 0 错误（9.24 s，`artifacts/final-tests-6.log`） |
-| `dotnet run --project tests/CkanUI.TestRunner --no-build` | **3110 个用例 0 失败 0 skip**：App 163 / Architecture 21 / Core 3 / Localization 76 / ModText 19 / Services 1205 / Sfs 93 / ViewModels 1530（`artifacts/final-tests-6.log` 与 2026-10-29 实测一致） |
+| `dotnet run --project tests/CkanUI.TestRunner --no-build` | **3114 个用例 0 失败 0 skip**：App 163 / Architecture 25 / Core 3 / Localization 76 / ModText 19 / Services 1205 / Sfs 93 / ViewModels 1530（2026-10-29 实测一致） |
 | `dotnet run --project tools/verify-layout --no-build -- --all` | 阻断违规 0 · 警告 0 · 结论 绿（H-11 仅 `--prune` 执行） |
 
 ### 6.3 运行冒烟（真实窗口 + UI Automation）
@@ -142,4 +142,3 @@ dotnet run --project tools/verify-layout -- --all   # 期望「结论: 绿」
 ### 6.4 结档时仍然打开的项
 
 §4 现有 9 条：第四轮关掉了 2 条的后半段（第 3 条 L4 工作集归还已接 psapi，只剩真机量化；第 6 条背景「游戏截图」来源已接，只剩 v2 自动轮换），其余仍打开——真实下载端到端（第 1 条）、实例重命名不搬目录「已定取舍」（第 2 条）、托盘手测（第 4 条）、插件页签视图自带 + 工具项落点单一「设计约束」（第 5 条）、发布链路的真机性能/端到端与安装器签名体积（第 7 条）、i18n 子 VM（第 8 条）、沙箱写权限复核（第 9 条）；另有插件文档 §9 那批「需要 Lead 落地」条目其实已经落地，本轮只标注不清删。
-

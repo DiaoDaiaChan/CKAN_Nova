@@ -396,7 +396,14 @@ public sealed partial class MainWindow : Window
 
         if (this.TryFindResource(PageMotionToken, out var value) && value is TimeSpan duration && duration > TimeSpan.Zero)
         {
-            PageHost.PageTransition = new Avalonia.Animation.CrossFade { Duration = duration };
+            PageHost.PageTransition = new Avalonia.Animation.CompositePageTransition
+            {
+                PageTransitions =
+                {
+                    new Avalonia.Animation.CrossFade(duration),
+                    new Avalonia.Animation.PageSlide(duration, Avalonia.Animation.PageSlide.SlideAxis.Vertical),
+                },
+            };
         }
         else
         {

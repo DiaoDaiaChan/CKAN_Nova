@@ -54,10 +54,12 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
   - 可打断：抽屉、浮条、导航项在动画途中反向操作会从当前位置接着跑，不跳变；动效只改 `RenderTransform` / `Opacity`，不触发 Measure/Arrange。
   - 诚实差异：左侧导航的选中指示器是 FluentAvalonia 原生固定 600 ms 组合动画（不对外暴露时长），本轮只给导航项加了 4 px 追赶位移。
 
-- Windows 安装与签名（E7）：发布包新增 `install/` 目录（`install.ps1` / `uninstall.ps1` / `README.txt`），
-  解压后一条命令即可 per-user 安装——装到 `%LocalAppData%\CKAN UI`、建开始菜单与桌面快捷方式、写 HKCU 卸载项与
-  App Paths，不需要管理员权限也不写 HKLM；卸载默认保留设置、日志与缓存。另有 `tools/release/install/CkanUISetup.iss`
-  （Inno Setup 6 模板，本机无 Inno Setup 未实测）。手册见 `docs/ops/install.md`，决策见 `docs/design/installer.md`。
+- 原生独立安装程序（CkanUISetup.exe，M13/E7）：新增自研单文件安装程序（`tools/installer`），
+  在发布脚本 `release.ps1` 步骤 7.5 全自动编译内嵌自包含便携包产出 `ckan-ui-<ver>-win-x64-setup[-unsigned].exe`（约 85 MB），
+  支持双击图形安装向导或命令行静默安装（`-Quiet` / `/S` / `/DIR=`），自动处理同名进程安全退出、开始菜单与桌面快捷方式创建、
+  `HKCU` 卸载注册表与 `App Paths` 登记；内置系统敏感目录防误删安全守卫与 `.staging` 原子回滚机制；支持独立卸载向导。
+  配合随包分发的 `install/{install.ps1,uninstall.ps1}` 脚本与 Inno Setup 模板 `CkanUISetup.iss` 构成完整分发矩阵。
+  手册见 `docs/ops/install.md`，决策见 `docs/design/installer.md`。
 - 代码签名通道：`tools/release/Sign-Artifacts.ps1`（`-PfxPath` / `-Thumbprint` / `-TimestampUrl` / `-DryRun`，
   signtool 从 PATH 或 Windows SDK 自动查找）；`release.ps1` 新增 `-PfxPath` / `-PfxPassword` / `-Thumbprint` /
   `-TimestampUrl` / `-SignDryRun`，签名在打包前对 stage 里的主程序执行，`manifest.json` 记 `signed` 与

@@ -48,8 +48,8 @@ public static class AccentContrast
     /// </summary>
     public static readonly AccentRgb LightPole = new(0xFF, 0xFF, 0xFF);
 
-    /// <summary>深色主题的底色：取卡片表面 #151921（同上，画布 #0D1015 更深、对比度只会更高）。</summary>
-    public static readonly AccentRgb DarkPole = new(0x15, 0x19, 0x21);
+    /// <summary>深色主题的底色：取卡片表面 #131822（同上，画布 #0B0E14 更深、对比度只会更高）。</summary>
+    public static readonly AccentRgb DarkPole = new(0x13, 0x18, 0x22);
 
     /// <summary>高对比度主题的底色（Tokens.axaml <c>CkanSurfaceBackgroundBrush</c> #000000）。</summary>
     public static readonly AccentRgb HighContrastPole = new(0x00, 0x00, 0x00);

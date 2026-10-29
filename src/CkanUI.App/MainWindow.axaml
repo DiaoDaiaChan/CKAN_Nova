@@ -12,10 +12,10 @@
         Title="{Binding Title}"
         Width="1280" Height="800"
         MinWidth="960" MinHeight="600"
-        TransparencyLevelHint="Mica, AcrylicBlur"
+        TransparencyLevelHint="AcrylicBlur, Mica"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaTitleBarHeightHint="-1"
-        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+        Background="Transparent">
   <Window.DataTemplates>
     <local:ViewLocator />
   </Window.DataTemplates>
@@ -35,7 +35,7 @@
     -->
     <Style Selector="ui|FANavigationView">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="OpenPaneLength" Value="248" />
+      <Setter Property="OpenPaneLength" Value="256" />
       <Setter Property="CompactPaneLength" Value="52" />
       <Setter Property="AlwaysShowHeader" Value="False" />
       <Setter Property="IsSettingsVisible" Value="False" />
@@ -58,12 +58,21 @@
       高对比度下整块被 BackgroundHost 清空（THM-10 优先）。
     -->
     <Panel IsHitTestVisible="False">
+      <Border Background="{DynamicResource CkanSurfaceBackgroundBrush}" />
       <Border x:Name="BackgroundLayer" />
       <Image x:Name="BackgroundImage" Stretch="UniformToFill" />
       <Border x:Name="BackgroundDim" Opacity="0" />
       <Border x:Name="BackgroundScrim"
               Opacity="0"
               Background="{DynamicResource CkanSurfaceBackgroundBrush}" />
+      <Border Width="560" Height="560"
+              HorizontalAlignment="Right" VerticalAlignment="Top"
+              Margin="0,-220,-140,0"
+              Background="{DynamicResource CkanAmbientGlowBrush}" />
+      <Ellipse Width="420" Height="420"
+               HorizontalAlignment="Right" VerticalAlignment="Top"
+               Margin="0,70,-210,0"
+               Stroke="{DynamicResource CkanOrbitalLineBrush}" StrokeThickness="1" />
     </Panel>
 
     <Grid>
@@ -183,7 +192,7 @@
                          IsHitTestVisible="False" />
             </Grid>
 
-            <!-- 页面切换动画在代码里按动效 token 装配（CrossFade.Duration 不是 Avalonia 属性，绑不了资源） -->
+            <!-- 页面切换：CrossFade + PageSlide 组合，由代码按动效 token 装配。 -->
             <TransitioningContentControl x:Name="PageHost" Grid.Row="1" Content="{Binding CurrentPage}" />
           </Grid>
 

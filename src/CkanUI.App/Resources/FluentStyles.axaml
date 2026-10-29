@@ -64,12 +64,6 @@
     <Setter Property="MinHeight" Value="{DynamicResource CkanControlHeightMedium}" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
-    <Setter Property="Transitions">
-      <Transitions>
-        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
-        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationFast}" Easing="CubicEaseOut" />
-      </Transitions>
-    </Setter>
   </Style>
 
   <Style Selector="Button.CkanPrimary:pointerover">
@@ -101,7 +95,7 @@
   </Style>
 
   <Style Selector="Border.CkanSubtleCard">
-    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="Background" Value="{DynamicResource CkanCardBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
@@ -148,7 +142,11 @@
         <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
         <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
         <BrushTransition Property="Foreground" Duration="{DynamicResource CkanMotionDurationBase}" />
-        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationFast}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringCrisp}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="320" Damping="24" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
       </Transitions>
     </Setter>
   </Style>
@@ -401,6 +399,10 @@
     </Setter>
   </Style>
 
+  <Style Selector="ui|FANavigationViewItem:pointerover">
+    <Setter Property="RenderTransform" Value="translate(3px, 0px)" />
+  </Style>
+
   <Style Selector="ui|FANavigationViewItem.nav-catch-up">
     <Setter Property="RenderTransform" Value="translate(4px, 0px)" />
   </Style>
@@ -434,11 +436,17 @@
     <Setter Property="Transitions">
       <Transitions>
         <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
       </Transitions>
     </Setter>
   </Style>
 
   <Style Selector="DataGridRow:pointerover">
+    <Setter Property="RenderTransform" Value="translate(2px, 0px)" />
     <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
   </Style>
 
@@ -455,12 +463,17 @@
     <Setter Property="Transitions">
       <Transitions>
         <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
-        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationFast}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
       </Transitions>
     </Setter>
   </Style>
 
   <Style Selector="ListBoxItem:pointerover">
+    <Setter Property="RenderTransform" Value="translate(2px, 0px)" />
     <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
   </Style>
 
