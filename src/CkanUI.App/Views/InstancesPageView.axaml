@@ -70,6 +70,8 @@
     <Grid Grid.Row="1" ColumnDefinitions="*,6,380" Margin="0,10,0,0">
 
       <Border Grid.Column="0"
+              Classes="stagger-card"
+              RenderTransform="translate(0px, 0px)"
               Background="{DynamicResource CkanCardBackgroundBrush}"
               BorderBrush="{DynamicResource CkanCardBorderBrush}"
               BorderThickness="1"
@@ -90,8 +92,15 @@
             </Grid>
           </Border>
 
-          <!-- 实例列表（虚拟化，整表替换） -->
+          <!--
+            实例列表（虚拟化，整表替换）。
+            与下方空状态同处 Grid.Row="1"：两层都在可视化树里，只切 .view-layer 的 is-active，
+            隐藏层的 IsHitTestVisible 同步为 false，鼠标事件穿透到可见层 —— 不用 IsVisible 硬切。
+          -->
           <ListBox x:Name="InstancesList" Grid.Row="1"
+                   Classes="view-layer"
+                   Classes.is-active="{Binding !ShowEmptyState}"
+                   IsHitTestVisible="{Binding !ShowEmptyState}"
                    ItemsSource="{Binding Rows}"
                    SelectionChanged="OnRowSelectionChanged"
                    Background="Transparent"
@@ -128,8 +137,11 @@
             </ListBox.ItemTemplate>
           </ListBox>
 
-          <!-- 空状态 -->
-          <Border Grid.Row="1" IsVisible="{Binding ShowEmptyState}"
+          <!-- 空状态：与列表同格叠放，激活时盖住列表。 -->
+          <Border Grid.Row="1"
+                  Classes="view-layer"
+                  Classes.is-active="{Binding ShowEmptyState}"
+                  IsHitTestVisible="{Binding ShowEmptyState}"
                   Background="{DynamicResource CkanCardBackgroundBrush}">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="440" Margin="24">
               <TextBlock Text="{Binding EmptyStateTitle}" FontSize="{DynamicResource CkanFontSizeTitle}"
@@ -154,11 +166,32 @@
       <GridSplitter Grid.Column="1" Background="Transparent" ResizeDirection="Columns" />
 
       <!-- 详情面板 Card -->
-      <Border Grid.Column="2" Padding="16" CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+      <Border Grid.Column="2" Padding="16"
+              Classes="stagger-card"
+              RenderTransform="translate(0px, 0px)"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
               Background="{DynamicResource CkanCardBackgroundBrush}"
               BorderBrush="{DynamicResource CkanCardBorderBrush}"
               BorderThickness="1">
-        <ScrollViewer>
+        <Grid>
+          <!-- 状态 A：未选择实例时的极简引导（不发灰的按钮墙，只留一句话）。 -->
+          <StackPanel Classes="view-layer"
+                      Classes.is-active="{Binding !HasSelection}"
+                      IsHitTestVisible="False"
+                      VerticalAlignment="Center"
+                      HorizontalAlignment="Center"
+                      Spacing="8"
+                      MaxWidth="220">
+            <TextBlock Text="◎" FontSize="30" Opacity="0.25" HorizontalAlignment="Center" />
+            <TextBlock Text="未选择实例" FontWeight="SemiBold" Opacity="0.6" HorizontalAlignment="Center" />
+            <TextBlock Text="在左侧列表中选择一个实例，即可查看详情或启动游戏"
+                       FontSize="12" Opacity="0.45" TextAlignment="Center" TextWrapping="Wrap" />
+          </StackPanel>
+
+          <!-- 状态 B：选中实例后的详情与操作。 -->
+          <ScrollViewer Classes="view-layer"
+                        Classes.is-active="{Binding HasSelection}"
+                        IsHitTestVisible="{Binding HasSelection}">
           <StackPanel Spacing="8">
             <TextBlock Text="{Binding SelectionTitle}" FontSize="{DynamicResource CkanFontSizeSubtitle}"
                        FontWeight="SemiBold" TextWrapping="Wrap" />
@@ -244,7 +277,8 @@
             <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource CkanTextTertiaryBrush}"
                        FontSize="11" TextWrapping="Wrap" />
           </StackPanel>
-        </ScrollViewer>
+          </ScrollViewer>
+        </Grid>
       </Border>
     </Grid>
 

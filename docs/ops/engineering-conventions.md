@@ -31,6 +31,8 @@ dotnet run --project tests/CkanUI.TestRunner -- Services   # 过滤词匹配的�
 ```
 
 - Runner 从 `tests/<proj>/bin/<config>/net10.0/<proj>.dll` 发现程序集，因此新增测试项目**不用登记**，构建后自动可见。
+- **性能用例默认不跑**：标记 `[Category("Perf")]` 的用例（如日志 10 万行帧预算）测的是毫秒级门禁，宿主机有别的进程抢 CPU 就会假红，
+  所以 runner 默认带 `--where "cat != Perf"`。要跑它们加 `--perf`：`dotnet run --project tests/CkanUI.TestRunner --no-build -- Services --perf`。
 - **它不会替你重建测试项目**：改了测试源码必须先 `dotnet build ckan-ui.sln`，否则跑的还是旧 dll（实测踩过：改了断言却一直看到旧结果）。
 
 测试项目本身是标准 NUnit 类库，CI 上照常用 `dotnet test`。

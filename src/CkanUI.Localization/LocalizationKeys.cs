@@ -86,6 +86,12 @@ public static class LocalizationKeys
     /// <summary>外壳底部提示条：当前页有未保存的改动（IUnsavedChangesAware 驱动）。</summary>
     public const string CommonUnsavedHint = "Ui_Common_UnsavedHint";
 
+    /// <summary>未保存提示条上的「放弃修改」按钮（页面不提供 DiscardChangesCommand 时隐藏）。</summary>
+    public const string CommonUnsavedDiscard = "Ui_Common_Unsaved_Discard";
+
+    /// <summary>未保存提示条上的「保存更改」按钮（页面不提供 SaveChangesCommand 时隐藏）。</summary>
+    public const string CommonUnsavedSave = "Ui_Common_Unsaved_Save";
+
     /// <summary>页面标题：模组管理。</summary>
     public const string ManageModsTitle = "Ui_ManageMods_Title";
 

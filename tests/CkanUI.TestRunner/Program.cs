@@ -17,6 +17,10 @@ var filters = args
                 && !a.Equals("Release", StringComparison.OrdinalIgnoreCase))
     .ToArray();
 
+// 性能用例（[Category("Perf")]）默认不跑：它们测的是毫秒级帧预算，宿主机一有别的进程在抢 CPU 就会假红，
+// 规格 22 篇 §测试纪律也写明「性能用例默认 CI 不跑」。需要跑时显式加 --perf。
+var includePerf = args.Any(a => a.Equals("--perf", StringComparison.OrdinalIgnoreCase));
+
 var candidates = Discover(repoRoot, config);
 var selected = filters.Length == 0
     ? candidates
@@ -26,7 +30,7 @@ if (selected.Length == 0)
 {
     Console.WriteLine("没有可运行的测试程序集。");
     Console.WriteLine("已构建的：" + (candidates.Length == 0 ? "(无)" : string.Join(", ", candidates.Select(c => c.Project))));
-    Console.WriteLine("用法：dotnet run --project tests/CkanUI.TestRunner [-- 过滤词 ...] [--config Release]");
+    Console.WriteLine("用法：dotnet run --project tests/CkanUI.TestRunner [-- 过滤词 ...] [--config Release] [--perf]");
     return 2;
 }
 
@@ -43,7 +47,14 @@ foreach (var (project, path) in selected)
     };
 
     var assembly = context.LoadFromAssemblyPath(path);
-    var result = new AutoRun(assembly).Execute(new[] { "--noresult", "--labels=Off" });
+    var hostArgs = new List<string> { "--noresult", "--labels=Off" };
+    if (!includePerf)
+    {
+        hostArgs.Add("--where");
+        hostArgs.Add("cat != Perf");
+    }
+
+    var result = new AutoRun(assembly).Execute(hostArgs.ToArray());
     if (result != 0)
     {
         exitCode = result;

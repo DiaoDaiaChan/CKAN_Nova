@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Windows.Input;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.ModConfig;
 using CkanUI.ViewModels.Pages.ModConfig;
@@ -196,6 +197,12 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
 
     /// <summary>外壳底部「未保存」提示条：还有没写盘的配置草稿。</summary>
     bool IUnsavedChangesAware.HasUnsavedChanges => HasPendingChanges;
+
+    /// <summary>提示条「保存更改」：把所有草稿写回 .cfg（逐文件原子写，失败保留草稿）。</summary>
+    ICommand? IUnsavedChangesAware.SaveChangesCommand => SaveCommand;
+
+    /// <summary>提示条「放弃修改」：清空全部草稿并重读磁盘。</summary>
+    ICommand? IUnsavedChangesAware.DiscardChangesCommand => DiscardPendingCommand;
 
     /// <summary>底部改动条文案（"改动 N 项（待保存 M 项）"）。</summary>
     public string ModifiedBarText

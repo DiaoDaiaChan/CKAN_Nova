@@ -325,22 +325,47 @@
   但 `Command` / `IsEnabled` / `ToolTip` 照常可用。`FAMenuFlyoutItem` 只能在 `FAMenuFlyout` 里用，放进原生 `MenuFlyout` 会失效。
 - **按钮主样式类名是 `CkanPrimary`**（`FluentStyles.axaml:45`），仓库里没有 `accent` 这个类名。
 
-### 5.9 动效原语与 Overlay（`src/CkanUI.App/Theming/MotionPrimitives.cs`、`ShakeBehavior.cs`）
+### 5.9 动效骨骼与 Overlay（第二阶段：只有状态类，没有动画代码）
 
-- **两条渲染铁律**：位移动画一律挂 `RenderTransform`（`TranslateTransform`），**绝不改 Margin/Height**；浮层（日志抽屉、
-  未保存提示条）放 `Grid` 顶层做 Overlay 而不是 `DockPanel` 的一行，位移不参与布局就不会挤压工作区。
-- **`MotionPrimitives`**：`ResolveDuration(control, key)` 读动效 token（0 或缺失 ⇒ 直接落终态，不启动动画）；
-  `SlideInAsync(control, offsetY, duration)` 用 `SpringEasing{Stiffness=420, Damping=32}`（ζ≈0.75，可中途打断）在
-  `TranslateTransform.Y` 上跑关键帧，`Opacity` 单独置位；`StaggerEntranceAsync(page, duration, maxItems=5, staggerMs=40)`
-  把页面根面板的直接子元素按序滑入（只处理可见且自带 `RenderTransform` 为空的子元素，避免覆盖页面自己的动画）。
-- **`ShakeBehavior.IsError`**（附加属性）：false → true 时抖一次 420ms、7 个衰减关键帧（±12px 起）；
-  动效 token 为 0 时不抖（无障碍优先）。挂在 `InstanceFormPanel` 的外框上，校验失败时表单轻抖，窗口不动。
-- **关键帧必须在 `TranslateTransform` 上 `RunAsync`**：transform 是 `Animatable`，在 `Control` 上跑关键帧会报「属性不属于宿主」。
-- **`TranslateTransform` 没有 `Name`**（不是 `Control`），`<TranslateTransform x:Name="..."/>` 会报 `AVLN2000`；代码里读
-  `control.RenderTransform` 即可。附加属性的 `TOwner` 同样不能是静态类型（`CS0718`），故 `ShakeBehavior` 用一个私有空类当登记宿主。
-- **未保存提示条的数据链**：页面实现 `CkanUI.ViewModels.IUnsavedChangesAware`（`SettingsPageViewModel`、`ModPackEditorPageViewModel`、
-  `ModConfigPageViewModel`、`ModsPageViewModel`）→ 外壳 `ShellViewModel.HasUnsavedChanges` 在 `OnCurrentPageChanged` 里换监听页并重算 →
-  `MainWindow` 见属性变化把 `UnsavedHintHost` 上浮 12px。文案键 `Ui_Common_UnsavedHint`。
+第二阶段的目标是**先把视觉树改到「加动效时不必再改结构」**：所有会动的节点都通过「状态类 + Opacity + RenderTransform」
+表达显隐与位置，节点常驻可视化树，位移与透明度都不参与 Measure/Arrange。物理动画（弹簧、关键帧、错峰入场）
+留到第三阶段，届时只往这些状态类上挂 Transition，XAML 结构一行不改。
+
+- **两条渲染铁律**：位移一律挂 `RenderTransform`（`TransformOperations` 字符串语法），**绝不改 Margin/Height/Width**；
+  浮层（日志抽屉、未保存条）与内容同处一个 Grid 单元格叠放，而不是 `DockPanel` / `Grid` 里单独占一行。
+- **禁止 `IsVisible` 硬切**：`IsVisible="False"` 会在第一帧把节点从渲染树剔除，退场过渡直接消失。改用
+  `Classes.is-open` / `Classes.is-active` 加 `IsHitTestVisible`（隐藏时鼠标穿透），透明度与位移全部由样式类提供。
+- **骨骼样式类**（`src/CkanUI.App/Resources/FluentStyles.axaml`「动效骨骼」段）：
+
+  | 选择器 | 隐状态 | 显状态 | 用途 |
+  | --- | --- | --- | --- |
+  | `Border.overlay-drawer` | `Opacity=0` + `translate(0px,260px)` | `.is-open` 归零 | 底部日志抽屉 |
+  | `Border.floating-pill-bar` | `Opacity=0` + `translate(0px,40px) scale(0.96,0.96)` | `.is-open` 归零 | 未保存改动浮条 |
+  | `Control.view-layer` | `Opacity=0` + `scale(0.98,0.98) translate(0px,6px)` | `.is-active` 归零 | 空态/数据态、未选中/已选中面板 |
+  | `Control.stagger-card` | 无效果（只作标记） | — | 一级卡片入场锚点，第三阶段按索引错峰 |
+  | `Control.is-invalid` | 无效果（只作标记） | — | 表单校验错误，第三阶段驱动抖动 |
+
+- **裸类选择器必须带类型前缀**：`Selector=".view-layer"` 会编译失败（`AVLN2200: Can not find parent Style Selector`），
+  必须写成 `Selector="Control.view-layer"`；因为 Border/ListBox/StackPanel/ScrollViewer 都派生自 `Control`，一条规则即可全命中。
+- **三明治外壳**（`src/CkanUI.App/MainWindow.axaml`）：`Grid RowDefinitions="*,28" ClipToBounds="True"`
+  → Row 0 内容（`PageHost`）+ 同格 `VerticalAlignment="Bottom"` 的浮层容器（抽屉 260px、浮条居中）
+  → Row 1 合并状态栏（左状态、中「日志 (最近 N 行) · 命中 …」开关、右版本号）。
+- **防裁剪二分法**：滑动抽屉视口 `ClipToBounds="True"`（滑出屏幕的部分要裁掉）；
+  需要抖动/缩放的表单输入框及其父容器 `ClipToBounds="False"` + `RenderTransform="translate(0px, 0px)"`（预置 transform，否则 ±8px 抖动会被切边）。
+- **未保存提示条的数据链**：页面实现 `CkanUI.ViewModels.IUnsavedChangesAware`
+  （`HasUnsavedChanges` + 可选的 `SaveChangesCommand` / `DiscardChangesCommand`，两者为 null 时外壳隐藏对应按钮）→
+  `ShellViewModel` 在 `OnCurrentPageChanged` 换监听页并重算 `HasUnsavedChanges` / `UnsavedSaveCommand` / `HasUnsavedSaveAction` 等派生属性 →
+  浮条走 `Classes.is-open="{Binding HasUnsavedChanges}"`。当前实现者：`SettingsPageViewModel`（保存 = 批量保存脏项，放弃 = `Discard`）、
+  `ModPackEditorPageViewModel`、`ModConfigPageViewModel`、`ModsPageViewModel`。文案键 `Ui_Common_UnsavedHint` /
+  `Ui_Common_Unsaved_Discard` / `Ui_Common_Unsaved_Save`。
+- **已删除**：`src/CkanUI.App/Theming/MotionPrimitives.cs`（`SlideInAsync` / `StaggerEntranceAsync`）与
+  `src/CkanUI.App/Theming/ShakeBehavior.cs`——它们的职责在第三阶段由样式类的 Transition 接手；
+  `tests/CkanUI.Architecture.Tests/MotionSkeletonTests.cs` 会断言这两个文件与两个方法名不再出现。
+- **第三阶段备忘（保留旧经验）**：关键帧必须在 `TranslateTransform` 之类的 `Animatable` 上 `RunAsync`（在 `Control` 上跑报「属性不属于宿主」）；
+  `TranslateTransform` 不是 `Control`，写 `x:Name` 报 `AVLN2000`；附加属性的 `TOwner` 不能是静态类型（`CS0718`）；
+  状态切换类动画用 `TransformOperationsTransition` + `SpringEasing`，关键帧动画用 `Animation` + `TranslateTransform.X/Y`，
+  两种 `RenderTransform` 表达形式不能混用（字符串 `TransformOperations` 与 `TranslateTransform` 对象是不同类型）。
+- **豁免**：`Theming/SkeletonPulse.cs` 的骨架屏脉动只循环 `Opacity`、不位移不参与布局，属于加载态表现，不算物理动画。
 
 ### 5.10 表面分层（第 2 阶段 P1）
 

@@ -113,105 +113,138 @@
           </StackPanel>
         </ui:FANavigationView.PaneCustomContent>
 
-        <!-- 主工作区与状态栏 -->
-        <DockPanel LastChildFill="True">
-          <!--
-            顶部现代一体化标题拖拽区：左侧放前进/后退（贴近内容，鼠标移动距离最短），
-            中间是窗口标题，右侧 150px 留给原生系统按钮避让。
-          -->
-          <Grid DockPanel.Dock="Top" Height="34" Background="Transparent" ColumnDefinitions="Auto,Auto,*,150">
-            <Button Grid.Column="0"
-                    Classes="CkanIcon"
-                    Content="←"
-                    Command="{Binding BackCommand}"
-                    IsEnabled="{Binding CanGoBack}"
-                    ToolTip.Tip="{Binding BackToolTip}"
-                    Width="26" Height="26" MinWidth="0" Padding="0"
-                    Margin="10,0,2,0" />
-            <Button Grid.Column="1"
-                    Classes="CkanIcon"
-                    Content="→"
-                    Command="{Binding ForwardCommand}"
-                    IsEnabled="{Binding CanGoForward}"
-                    ToolTip.Tip="{Binding ForwardToolTip}"
-                    Width="26" Height="26" MinWidth="0" Padding="0"
-                    Margin="0,0,4,0" />
-            <TextBlock Grid.Column="2"
-                       Text="{Binding Title}"
-                       Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                       FontSize="{DynamicResource CkanFontSizeCaption}"
-                       VerticalAlignment="Center"
-                       Margin="8,0,8,0"
-                       TextTrimming="CharacterEllipsis"
-                       IsHitTestVisible="False" />
-          </Grid>
-
-          <!-- 状态栏：左状态文案、右实例与版本号 -->
-          <Border DockPanel.Dock="Bottom"
-                  Background="{DynamicResource CkanStatusBarBackgroundBrush}"
-                  BorderBrush="{DynamicResource CkanBorderBrush}"
-                  BorderThickness="0,1,0,0"
-                  Padding="16,6">
-            <DockPanel LastChildFill="True">
-              <TextBlock x:Name="StatusVersionText"
-                         DockPanel.Dock="Right"
+        <!--
+          主工作区：三明治结构 —— 底层内容 / 同格浮动层 / 底部固定状态栏。
+          两个浮层都落在 Grid.Row="0"，与内容层同格：展开日志抽屉、浮出未保存提示条时只改 Opacity 与
+          RenderTransform（状态类见 FluentStyles 的「动效骨骼」段），内容层不会重新 Measure/Arrange。
+          Row 1 是合并后的 28px 状态栏：左状态文案 / 中段日志开关 / 右版本号。
+        -->
+        <Grid RowDefinitions="*,28" ClipToBounds="True">
+          <!-- 内容层：顶部拖拽条 + 页面宿主。 -->
+          <Grid Grid.Row="0" RowDefinitions="34,*">
+            <!--
+              顶部现代一体化标题拖拽区：左侧放前进/后退（贴近内容，鼠标移动距离最短），
+              中间是窗口标题，右侧 150px 留给原生系统按钮避让。
+            -->
+            <Grid Grid.Row="0" Height="34" Background="Transparent" ColumnDefinitions="Auto,Auto,*,150">
+              <Button Grid.Column="0"
+                      Classes="CkanIcon"
+                      Content="←"
+                      Command="{Binding BackCommand}"
+                      IsEnabled="{Binding CanGoBack}"
+                      ToolTip.Tip="{Binding BackToolTip}"
+                      Width="26" Height="26" MinWidth="0" Padding="0"
+                      Margin="10,0,2,0" />
+              <Button Grid.Column="1"
+                      Classes="CkanIcon"
+                      Content="→"
+                      Command="{Binding ForwardCommand}"
+                      IsEnabled="{Binding CanGoForward}"
+                      ToolTip.Tip="{Binding ForwardToolTip}"
+                      Width="26" Height="26" MinWidth="0" Padding="0"
+                      Margin="0,0,4,0" />
+              <TextBlock Grid.Column="2"
+                         Text="{Binding Title}"
                          Foreground="{DynamicResource CkanTextTertiaryBrush}"
                          FontSize="{DynamicResource CkanFontSizeCaption}"
                          VerticalAlignment="Center"
-                         Margin="12,0,0,0" />
-              <TextBlock Text="{Binding StatusText}"
+                         Margin="8,0,8,0"
+                         TextTrimming="CharacterEllipsis"
+                         IsHitTestVisible="False" />
+            </Grid>
+
+            <!-- 页面切换动画在代码里按动效 token 装配（CrossFade.Duration 不是 Avalonia 属性，绑不了资源） -->
+            <TransitioningContentControl x:Name="PageHost" Grid.Row="1" Content="{Binding CurrentPage}" />
+          </Grid>
+
+          <!--
+            浮动层骨骼：VerticalAlignment 贴底、ClipToBounds 挡住滑出视口的部分。
+            显隐一律走 Classes.is-open（Opacity + RenderTransform + IsHitTestVisible），不用 IsVisible ——
+            IsVisible=False 会在第一帧把节点从渲染树里剔除，第三阶段的退场动画会被直接截断。
+          -->
+          <Grid Grid.Row="0" VerticalAlignment="Bottom" ClipToBounds="True">
+            <!-- 2A 底部日志抽屉（14 篇 §4.1 / UI-LOG-01）：收起时整块停在视口下方。 -->
+            <Border x:Name="LogDrawerHost"
+                    Classes="overlay-drawer"
+                    Classes.is-open="{Binding IsLogDrawerOpen}"
+                    IsHitTestVisible="{Binding IsLogDrawerOpen}"
+                    VerticalAlignment="Bottom"
+                    Height="260"
+                    Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+                    BorderBrush="{DynamicResource CkanCardBorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="8,8,0,0">
+              <logs:LogDrawerView DataContext="{Binding LogDrawer}" />
+            </Border>
+
+            <!-- 2B 未保存更改浮条：外壳按当前页的 IUnsavedChangesAware 算 HasUnsavedChanges，只在变脏时浮出。 -->
+            <Border x:Name="UnsavedChangesBar"
+                    Classes="floating-pill-bar"
+                    Classes.is-open="{Binding HasUnsavedChanges}"
+                    IsHitTestVisible="{Binding HasUnsavedChanges}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,0,16"
+                    Padding="16,10"
+                    CornerRadius="{DynamicResource CkanCornerRadiusPill}"
+                    Background="{DynamicResource CkanWarningBackgroundBrush}"
+                    BorderBrush="{DynamicResource CkanWarningBrush}"
+                    BorderThickness="1"
+                    BoxShadow="{DynamicResource CkanElevationMedium}">
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <TextBlock Text="{DynamicResource Ui_Common_UnsavedHint}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           VerticalAlignment="Center" />
+                <Button Content="{DynamicResource Ui_Common_Unsaved_Discard}"
+                        Classes="CkanGhost"
+                        Command="{Binding UnsavedDiscardCommand}"
+                        IsVisible="{Binding HasUnsavedDiscardAction}" />
+                <Button Content="{DynamicResource Ui_Common_Unsaved_Save}"
+                        Classes="CkanPrimary"
+                        Command="{Binding UnsavedSaveCommand}"
+                        IsVisible="{Binding HasUnsavedSaveAction}" />
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <!--
+            3. 合并后的 28px 状态栏：原「日志栏 + 就绪/版本栏」两行压成一行。
+            中段按钮是日志抽屉的唯一开关入口（抽屉自己的标题条也还在，两条路径共用同一条命令）。
+          -->
+          <Border Grid.Row="1"
+                  Background="{DynamicResource CkanStatusBarBackgroundBrush}"
+                  BorderBrush="{DynamicResource CkanBorderBrush}"
+                  BorderThickness="0,1,0,0"
+                  Padding="12,0">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <TextBlock Grid.Column="0"
+                         Text="{Binding StatusText}"
                          Foreground="{DynamicResource CkanTextSecondaryBrush}"
                          FontSize="{DynamicResource CkanFontSizeCaption}"
                          VerticalAlignment="Center"
                          TextTrimming="CharacterEllipsis" />
-            </DockPanel>
+              <Button Grid.Column="1"
+                      Classes="CkanGhost"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      Padding="8,2"
+                      MinHeight="0"
+                      Command="{Binding ToggleLogDrawerCommand}"
+                      ToolTip.Tip="{Binding LogStatusText}">
+                <TextBlock Text="{Binding LogStatusText}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           TextTrimming="CharacterEllipsis" />
+              </Button>
+              <TextBlock Grid.Column="2"
+                         x:Name="StatusVersionText"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         VerticalAlignment="Center"
+                         Margin="12,0,0,0" />
+            </Grid>
           </Border>
-
-          <!-- 页面切换动画在代码里按动效 token 装配（CrossFade.Duration 不是 Avalonia 属性，绑不了资源） -->
-          <TransitioningContentControl x:Name="PageHost" Content="{Binding CurrentPage}" />
-        </DockPanel>
+        </Grid>
       </ui:FANavigationView>
-
-      <!--
-        底部日志抽屉（14 篇 §4.1 / UI-LOG-01）：跨页常驻，收起时只留一条标题条。
-        刻意放进 Grid 顶层做 Overlay 而不是 DockPanel 的一行 —— 位移动画挂在 RenderTransform 上，
-        不参与布局就不会挤压工作区；半屏高度仍由代码按窗口实际尺寸算（UpdateLogDrawerHeight）。
-      -->
-      <Border x:Name="LogDrawerHost"
-              ZIndex="8"
-              VerticalAlignment="Bottom"
-              Margin="0,0,0,30"
-              RenderTransformOrigin="0.5,1"
-              IsVisible="{Binding LogDrawer, Converter={x:Static ObjectConverters.IsNotNull}}">
-        <Border.RenderTransform>
-          <TranslateTransform />
-        </Border.RenderTransform>
-        <logs:LogDrawerView DataContext="{Binding LogDrawer}" />
-      </Border>
-
-      <!--
-        未保存提示条：外壳按当前页的 IUnsavedChangesAware 算 HasUnsavedChanges，只在变脏时滑入。
-        同样挂在 Grid 顶层，既不吃布局行，也不会在页面切换动画期间被裁掉。
-      -->
-      <Border x:Name="UnsavedHintHost"
-              ZIndex="9"
-              HorizontalAlignment="Center"
-              VerticalAlignment="Bottom"
-              Margin="0,0,0,42"
-              Padding="14,7"
-              CornerRadius="{DynamicResource CkanCornerRadiusPill}"
-              Background="{DynamicResource CkanWarningBackgroundBrush}"
-              BorderBrush="{DynamicResource CkanWarningBrush}"
-              BorderThickness="1"
-              IsHitTestVisible="False"
-              Opacity="0"
-              IsVisible="{Binding HasUnsavedChanges}">
-        <Border.RenderTransform>
-          <TranslateTransform />
-        </Border.RenderTransform>
-        <TextBlock Text="{DynamicResource Ui_Common_UnsavedHint}"
-                   FontSize="{DynamicResource CkanFontSizeCaption}" />
-      </Border>
 
       <!-- 操作队列浮层 -->
       <Grid IsVisible="{Binding HasOperationQueue}"

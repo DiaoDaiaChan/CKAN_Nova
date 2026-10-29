@@ -1,12 +1,17 @@
 <UserControl xmlns="https://github.com/avaloniaui"
                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                xmlns:app="using:CkanUI.App.Theming"
                 x:Class="CkanUI.App.Views.Dialogs.InstanceDialogs.InstanceFormPanel"
                 x:CompileBindings="False">
   <!-- 实例表单（03 篇 §8 D-06）：新增 / 克隆 / 重命名共用；提交与取消都落到 InstanceFormViewModel 的命令上。 -->
-  <!-- 校验失败时轻轻抖一下（20 篇 P-10）：只挂在这个表单外框上，避免整窗晃。 -->
+  <!--
+    校验失败时轻轻抖一下（20 篇 P-10）。
+    第二阶段只留状态锚点：RenderTransform 写成字符串平移，配 Classes.is-invalid（样式见 FluentStyles），
+    第三阶段直接给它挂关键帧即可。父容器不能 ClipToBounds，否则左右 ±8px 的位移会被切掉。
+  -->
   <Border Padding="16" CornerRadius="8" MinWidth="420"
-          app:ShakeBehavior.IsError="{Binding HasValidationError}"
+          RenderTransform="translate(0px, 0px)"
+          Classes.is-invalid="{Binding HasValidationError}"
+          ClipToBounds="False"
           Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
           BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
           BorderThickness="1">

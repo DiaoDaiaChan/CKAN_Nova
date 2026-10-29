@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.ViewModels.Pages.ModPacks;
@@ -139,6 +140,12 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
 
     /// <summary>外壳底部「未保存」提示条：模组包表单还有没保存的改动。</summary>
     bool IUnsavedChangesAware.HasUnsavedChanges => IsDirty;
+
+    /// <summary>提示条「保存更改」：写回当前 .netkan 文件。</summary>
+    ICommand? IUnsavedChangesAware.SaveChangesCommand => SaveCommand;
+
+    /// <summary>提示条「放弃修改」：重新从磁盘读取，丢掉表单上的改动。</summary>
+    ICommand? IUnsavedChangesAware.DiscardChangesCommand => LoadCommand;
 
     /// <summary>作者行。</summary>
     public ObservableCollection<ModPackEditorRowViewModel> Authors { get; } = new();

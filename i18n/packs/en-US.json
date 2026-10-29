@@ -28,6 +28,8 @@
     "Ui_NavGroup_Tools": "Tools & Data",
     "Ui_NavGroup_Extensions": "Extensions",
     "Ui_Common_UnsavedHint": "Unsaved changes on this page",
+    "Ui_Common_Unsaved_Discard": "Discard",
+    "Ui_Common_Unsaved_Save": "Save",
     "Ui_NavRail_Settings": "Settings",
     "Ui_ManageMods_Title": "Manage mods",
     "Ui_Instances_Title": "Instances",

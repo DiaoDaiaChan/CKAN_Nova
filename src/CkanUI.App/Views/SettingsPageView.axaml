@@ -66,6 +66,8 @@
                       <ui:FASettingsExpander Header="{Binding DisplayName}"
                                              Description="{Binding Description}"
                                              IsEnabled="{Binding IsEnabled}"
+                                             Classes="stagger-card"
+                                             RenderTransform="translate(0px, 0px)"
                                              HorizontalAlignment="Stretch">
                         <ui:FASettingsExpander.Footer>
                           <StackPanel Spacing="6" HorizontalAlignment="Right">

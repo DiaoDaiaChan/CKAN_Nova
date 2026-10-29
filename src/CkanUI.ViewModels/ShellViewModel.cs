@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading;
+using System.Windows.Input;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.ViewModels.Navigation;
@@ -114,6 +115,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
         NavigateCommand = new AsyncRelayCommand<string>(ExecuteNavigateAsync);
         ToggleNavCollapsedCommand = new RelayCommand(ToggleNavCollapsed);
+        ToggleLogDrawerCommand = new RelayCommand(() => LogDrawer?.ToggleCommand.Execute(null), () => LogDrawer is not null);
         BackCommand = new AsyncRelayCommand(ExecuteBackAsync);
         ForwardCommand = new AsyncRelayCommand(ExecuteForwardAsync);
         _navigation.HistoryChanged += OnHistoryChanged;
@@ -147,6 +149,54 @@ public sealed partial class ShellViewModel : ObservableObject
     /// </remarks>
     [ObservableProperty]
     private Pages.Logs.LogDrawerViewModel? _logDrawer;
+
+    /// <summary>底部日志抽屉是否展开。状态栏中段的开关与 Overlay 的 <c>is-open</c> 类都读它。</summary>
+    public bool IsLogDrawerOpen => LogDrawer?.IsOpen == true;
+
+    /// <summary>
+    /// 状态栏中段的日志开关文案：抽屉标题（含最近行数）+ 收起时的未读徽标；
+    /// 抽屉未接线时退回导航项里的「日志」字样。
+    /// </summary>
+    public string LogStatusText => LogDrawer is { } drawer
+        ? drawer.IsBadgeVisible
+            ? string.Concat(drawer.Title, " · ", drawer.BadgeText)
+            : drawer.Title
+        : _translate("Ui_NavRail_Logs");
+
+    /// <summary>展开/收起底部日志抽屉（状态栏中段按钮与抽屉标题条共用同一条命令）。</summary>
+    public IRelayCommand ToggleLogDrawerCommand { get; }
+
+    /// <summary>正在监听属性变化的抽屉实例（换实例时退订，避免旧抽屉继续推动外壳状态）。</summary>
+    private object? _logDrawerWatched;
+
+    /// <summary>
+    /// 抽屉实例变化：重新挂监听并刷新派生属性。抽屉的展开态是它自己的状态，
+    /// 外壳只做镜像——这样「点状态栏」「点抽屉标题条」「深链要求打开日志」三条路径不会各存一份真相。
+    /// </summary>
+    partial void OnLogDrawerChanged(Pages.Logs.LogDrawerViewModel? value)
+    {
+        if (_logDrawerWatched is INotifyPropertyChanged previous)
+        {
+            previous.PropertyChanged -= OnLogDrawerPropertyChanged;
+        }
+
+        _logDrawerWatched = value;
+
+        if (value is INotifyPropertyChanged current)
+        {
+            current.PropertyChanged += OnLogDrawerPropertyChanged;
+        }
+
+        ToggleLogDrawerCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsLogDrawerOpen));
+        OnPropertyChanged(nameof(LogStatusText));
+    }
+
+    private void OnLogDrawerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(IsLogDrawerOpen));
+        OnPropertyChanged(nameof(LogStatusText));
+    }
 
     /// <summary>页面导航异步命令。</summary>
     public IAsyncRelayCommand<string> NavigateCommand { get; }
@@ -328,6 +378,18 @@ public sealed partial class ShellViewModel : ObservableObject
     /// </summary>
     public bool HasUnsavedChanges { get; private set; }
 
+    /// <summary>提示条「保存更改」：命令归属由当前页决定（见 <see cref="IUnsavedChangesAware"/>），外壳只做转发。</summary>
+    public ICommand? UnsavedSaveCommand => (CurrentPage as IUnsavedChangesAware)?.SaveChangesCommand;
+
+    /// <summary>提示条「放弃修改」：同上，页面没提供命令时为 null。</summary>
+    public ICommand? UnsavedDiscardCommand => (CurrentPage as IUnsavedChangesAware)?.DiscardChangesCommand;
+
+    /// <summary>提示条是否显示「保存更改」按钮。</summary>
+    public bool HasUnsavedSaveAction => UnsavedSaveCommand is not null;
+
+    /// <summary>提示条是否显示「放弃修改」按钮。</summary>
+    public bool HasUnsavedDiscardAction => UnsavedDiscardCommand is not null;
+
     /// <summary>正在监听属性变化的那一页：换页时必须退订，否则旧页面会继续推动外壳状态。</summary>
     private object? _dirtyWatchedPage;
 
@@ -353,14 +415,22 @@ public sealed partial class ShellViewModel : ObservableObject
 
     private void RefreshUnsavedChanges()
     {
-        var dirty = CurrentPage is IUnsavedChangesAware aware && aware.HasUnsavedChanges;
+        var aware = CurrentPage as IUnsavedChangesAware;
+        var dirty = aware?.HasUnsavedChanges == true;
+
+        // 命令归属可能变（同一页在「有命令」与「无命令」之间不会切换，但换页会），
+        // 所以派生属性每次都推一遍而不是只在脏状态翻转时推。
+        OnPropertyChanged(nameof(UnsavedSaveCommand));
+        OnPropertyChanged(nameof(UnsavedDiscardCommand));
+        OnPropertyChanged(nameof(HasUnsavedSaveAction));
+        OnPropertyChanged(nameof(HasUnsavedDiscardAction));
+
         if (dirty == HasUnsavedChanges)
         {
             return;
         }
 
         HasUnsavedChanges = dirty;
-        OnPropertyChanged(nameof(HasUnsavedChanges));
     }
 
     private void OnNavigated(object? newPage, string key)

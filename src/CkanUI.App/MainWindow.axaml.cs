@@ -11,7 +11,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using CkanUI.App.Converters;
-using CkanUI.App.Theming;
 using CkanUI.App.Views.Dialogs;
 using CkanUI.Services.Abstractions.Commands;
 using CkanUI.Services.Commands;
@@ -75,29 +74,7 @@ public sealed partial class MainWindow : Window
         ResourcesChanged += (_, _) => ApplyPageTransition();
         ApplyPageTransition();
 
-        // 日志抽屉「上拉半屏」（14 篇 §4.1）：按窗口实际高度算 MaxHeight，不写死像素。
-        SizeChanged += (_, e) => UpdateLogDrawerHeight(e.NewSize.Height);
-        UpdateLogDrawerHeight(Bounds.Height);
-
         ApplyStatusBarFacts();
-
-        // 页面错峰入场（20 篇 P-10）：换页后把新页面的直接子元素依次滑入。
-        // 挂在 ContentControl.ContentProperty 上而不是 TransitioningContentControl 的过渡事件，
-        // 是因为过渡只管透明度，入场节奏得由这里按动效 token 决定。
-        if (PageHost is not null)
-        {
-            PageHost.PropertyChanged += OnPageHostPropertyChanged;
-        }
-    }
-
-    private void OnPageHostPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-    {
-        if (e.Property != ContentControl.ContentProperty || PageHost is null)
-        {
-            return;
-        }
-
-        _ = MotionPrimitives.StaggerEntranceAsync(PageHost.Content as Control, MotionPrimitives.ResolveDuration(this, PageMotionToken));
     }
 
     /// <summary>数据上下文就位后接管导航栏（DI 容器把 ShellViewModel 塞进来的时刻）。</summary>
@@ -128,14 +105,6 @@ public sealed partial class MainWindow : Window
         RebuildNavigation();
         ApplyPaneState(_shell.IsNavExpanded);
         SyncSelectedNavItem();
-
-        // 初值也要落一次：深链或恢复的会话可能一进来就是抽屉打开、或页面已脏。
-        if (_shell.LogDrawer is not null)
-        {
-            RevealLogDrawer();
-        }
-
-        RevealUnsavedHint();
     }
 
     private void OnNavItemsChanged(object? sender, NotifyCollectionChangedEventArgs e) => RebuildNavigation();
@@ -150,43 +119,9 @@ public sealed partial class MainWindow : Window
         {
             ApplyPaneState(_shell.IsNavExpanded);
         }
-        else if (e.PropertyName == nameof(ShellViewModel.LogDrawer))
-        {
-            RevealLogDrawer();
-        }
-        else if (e.PropertyName == nameof(ShellViewModel.HasUnsavedChanges))
-        {
-            RevealUnsavedHint();
-        }
-    }
 
-    /// <summary>日志抽屉滑入：位移量取抽屉当前高度（还没测量时用半屏约值），只动 RenderTransform。</summary>
-    private void RevealLogDrawer()
-    {
-        if (LogDrawerHost is null || _shell?.LogDrawer is null)
-        {
-            return;
-        }
-
-        var offset = LogDrawerHost.Bounds.Height > 0 ? LogDrawerHost.Bounds.Height : 240d;
-        _ = MotionPrimitives.SlideInAsync(LogDrawerHost, offset, MotionPrimitives.ResolveDuration(this, PageMotionToken));
-    }
-
-    /// <summary>未保存提示条：脏了就上浮 12px，脏状态清掉时直接归零（不需要退场动画）。</summary>
-    private void RevealUnsavedHint()
-    {
-        if (UnsavedHintHost is null)
-        {
-            return;
-        }
-
-        if (_shell?.HasUnsavedChanges != true)
-        {
-            UnsavedHintHost.Opacity = 0d;
-            return;
-        }
-
-        _ = MotionPrimitives.SlideInAsync(UnsavedHintHost, 12d, MotionPrimitives.ResolveDuration(this, PageMotionToken));
+        // 日志抽屉与未保存提示条的显隐完全由 XAML 绑定（Classes.is-open + is-active）驱动，
+        // 代码侧不再插手：第二阶段只留骨骼，第三阶段的过渡写在样式里，不需要事件。
     }
 
     /// <summary>
@@ -311,17 +246,6 @@ public sealed partial class MainWindow : Window
 
         NavView.PaneDisplayMode = expanded ? FANavigationViewPaneDisplayMode.Left : FANavigationViewPaneDisplayMode.LeftCompact;
         NavView.Classes.Set("Collapsed", !expanded);
-    }
-
-    /// <summary>把日志抽屉的最大高度钉在窗口一半（下限 160px，保证至少能看到几行）。</summary>
-    private void UpdateLogDrawerHeight(double windowHeight)
-    {
-        if (LogDrawerHost is null || double.IsNaN(windowHeight) || windowHeight <= 0)
-        {
-            return;
-        }
-
-        LogDrawerHost.MaxHeight = Math.Max(160d, windowHeight / 2d);
     }
 
     /// <summary>按当前动效强度装配页面切换动画；时长归零时干脆不装（关闭档要的是「瞬时」）。</summary>

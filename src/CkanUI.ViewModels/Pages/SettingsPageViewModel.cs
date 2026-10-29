@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Globalization;
+using System.Windows.Input;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.Services.Abstractions.Update;
@@ -217,6 +218,12 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     /// <summary>外壳底部「未保存」提示条：设置项或令牌行还有没落盘的值。</summary>
     bool IUnsavedChangesAware.HasUnsavedChanges => IsDirty;
 
+    /// <summary>提示条「保存更改」：把当前所有脏项串行写盘（与逐项自动保存走同一条 <see cref="SaveItemAsync"/> 链路）。</summary>
+    ICommand? IUnsavedChangesAware.SaveChangesCommand => SaveAllCommand;
+
+    /// <summary>提示条「放弃修改」：所有脏项回退到上次读到的值。</summary>
+    ICommand? IUnsavedChangesAware.DiscardChangesCommand => DiscardCommand;
+
     /// <summary>状态栏文案。</summary>
     [ObservableProperty]
     private string _statusText = "尚未读取设置";
@@ -296,6 +303,25 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     /// <summary>重新读取全部设置（放弃未保存的修改）。</summary>
     [RelayCommand]
     private Task ReloadAsync(CancellationToken ct) => LoadAsync(ct);
+
+    /// <summary>保存全部脏项：外壳悬浮提示条上的「保存更改」走这里（逐项复用 <see cref="SaveItemAsync"/>，失败项各自留错误文案）。</summary>
+    [RelayCommand]
+    private async Task SaveAllAsync(CancellationToken ct)
+    {
+        var pending = _items.Where(item => item.IsDirty && !item.HasError).ToArray();
+        if (pending.Length == 0)
+        {
+            StatusText = "没有需要保存的修改";
+            return;
+        }
+
+        foreach (var item in pending)
+        {
+            await SaveItemAsync(item, ct).ConfigureAwait(true);
+        }
+
+        UpdateDirtyState();
+    }
 
     /// <summary>放弃全部未保存修改（回到已落盘的值）。</summary>
     [RelayCommand]

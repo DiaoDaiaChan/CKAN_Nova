@@ -197,89 +197,66 @@
   </Style>
 
   <!-- ========================================== -->
-  <!-- 侧边栏导航列表与项目 (NavList Items)         -->
+  <!-- 动效骨骼（第二阶段：只有状态类，没有动画代码） -->
   <!-- ========================================== -->
-  <Style Selector="ListBox#NavList">
-    <Setter Property="Background" Value="Transparent" />
-    <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="Padding" Value="6,2" />
-  </Style>
+  <!--
+    这一节是第三阶段写弹簧参数的唯一落点。现在只做两件事：
+    1) 用 Opacity + RenderTransform 表达「显/隐」与「原位/偏移」，绝不改 Margin / Height / Width；
+    2) 显隐一律走 Classes.is-open / Classes.is-active，IsVisible 不参与 —— IsVisible=False 会在第一帧
+       把节点从渲染树里剔除，任何退场动画都会被直接截断。
+    位移一律写 TransformOperations 字符串语法（translate(...) / scale(...)）：第三阶段配对的
+    TransformOperationsTransition 只认这种类型；反过来在 XAML 里写 <TranslateTransform> 元素是另一套类型，
+    关键帧动画驱动它的 .X 时两边对不上，这是 Avalonia 11 最容易踩的一处类型错配。
+  -->
 
-  <Style Selector="ListBox#NavList > ListBoxItem">
-    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
-    <Setter Property="Margin" Value="2,2" />
-    <Setter Property="Padding" Value="10,8" />
-    <Setter Property="MinHeight" Value="38" />
-    <Setter Property="RenderTransform" Value="none" />
-    <Setter Property="Transitions">
-      <Transitions>
-        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
-        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationFast}" />
-      </Transitions>
-    </Setter>
-  </Style>
-
-  <Style Selector="ListBox#NavList > ListBoxItem:pointerover">
-    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
-    <Setter Property="RenderTransform" Value="translateX(3px)" />
-  </Style>
-
-  <Style Selector="ListBox#NavList > ListBoxItem:pressed">
-    <Setter Property="RenderTransform" Value="scale(0.98)" />
-  </Style>
-
-  <Style Selector="ListBox#NavList > ListBoxItem:selected">
-    <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
-    <Setter Property="RenderTransform" Value="none" />
-  </Style>
-
-  <!-- 选中项左侧蓝色指示条 -->
-  <Style Selector="ListBox#NavList > ListBoxItem Rectangle.navIndicator">
+  <!-- 底部日志抽屉：整条默认滑到视口下方，展开时归位。 -->
+  <Style Selector="Border.overlay-drawer">
     <Setter Property="Opacity" Value="0" />
-    <Setter Property="RenderTransform" Value="scaleY(0)" />
-    <Setter Property="Transitions">
-      <Transitions>
-        <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
-        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationBase}" />
-      </Transitions>
-    </Setter>
+    <Setter Property="RenderTransform" Value="translate(0px, 260px)" />
   </Style>
 
-  <Style Selector="ListBox#NavList > ListBoxItem:selected Rectangle.navIndicator">
+  <Style Selector="Border.overlay-drawer.is-open">
     <Setter Property="Opacity" Value="1" />
-    <Setter Property="RenderTransform" Value="scaleY(1)" />
+    <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
   </Style>
 
-  <!-- 图标与文字微交互与高亮 -->
-  <Style Selector="ListBox#NavList PathIcon">
-    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
-    <Setter Property="Transitions">
-      <Transitions>
-        <BrushTransition Property="Foreground" Duration="{DynamicResource CkanMotionDurationBase}" />
-      </Transitions>
-    </Setter>
+  <!-- 未保存悬浮条：从下方 40px 处微微缩小着浮上来。 -->
+  <Style Selector="Border.floating-pill-bar">
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="RenderTransform" Value="translate(0px, 40px) scale(0.96, 0.96)" />
   </Style>
 
-  <Style Selector="ListBox#NavList > ListBoxItem:pointerover PathIcon">
-    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+  <Style Selector="Border.floating-pill-bar.is-open">
+    <Setter Property="Opacity" Value="1" />
+    <Setter Property="RenderTransform" Value="translate(0px, 0px) scale(1, 1)" />
   </Style>
 
-  <Style Selector="ListBox#NavList > ListBoxItem:selected PathIcon">
-    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+  <!--
+    同格叠放的视图层（空态 ↔ 数据态、未选中实例 ↔ 已选中实例）。
+    两层始终都在可视化树里，只切 is-active；隐藏层的 IsHitTestVisible 由视图绑成 false，
+    鼠标事件会穿透到可见层，不需要靠 IsVisible 硬切。
+  -->
+  <Style Selector="Control.view-layer">
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="RenderTransform" Value="scale(0.98, 0.98) translate(0px, 6px)" />
   </Style>
 
-  <Style Selector="ListBox#NavList TextBlock">
-    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
-    <Setter Property="Transitions">
-      <Transitions>
-        <BrushTransition Property="Foreground" Duration="{DynamicResource CkanMotionDurationBase}" />
-      </Transitions>
-    </Setter>
+  <Style Selector="Control.view-layer.is-active">
+    <Setter Property="Opacity" Value="1" />
+    <Setter Property="RenderTransform" Value="scale(1, 1) translate(0px, 0px)" />
   </Style>
 
-  <Style Selector="ListBox#NavList > ListBoxItem:selected TextBlock">
-    <Setter Property="FontWeight" Value="SemiBold" />
-    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+  <!-- 卡片入场锚点：本阶段没有任何视觉效果，只给第三阶段的附加行为留遍历标记。 -->
+  <Style Selector="Control.stagger-card">
+    <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
+  </Style>
+
+  <!--
+    校验错误锚点：同样只预留类名。输入框自己的 RenderTransform 由视图写成 translate(0px, 0px)
+    （类型必须是 TransformOperations，第三阶段的关键帧才有东西可驱动），父容器必须 ClipToBounds="False"。
+  -->
+  <Style Selector="Control.is-invalid">
+    <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
   </Style>
 
   <!-- ========================================== -->
