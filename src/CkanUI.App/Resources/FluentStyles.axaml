@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:FluentAvalonia.UI.Controls">
 
   <!--
     全局字体回退链（16 篇 §7.1）：From Window 继承到所有子控件，中/日/韩文案不会退化成方框。
@@ -20,13 +21,14 @@
         <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
         <BrushTransition Property="Foreground" Duration="{DynamicResource CkanMotionDurationBase}" />
         <!--
-          按压反馈走物理弹簧（MAT-01）：m=1, k=550, c=35（ζ≈0.75，微欠阻尼），
-          首帧按压缩进、松手弹回；连续点击时新目标直接接管旧动画（TransformOperationsTransition 天然可打断）。
-          时长仍取动效 token，用户关掉动效时压缩为 0，按压缩进瞬间完成、不再缓动。
+          松手回弹走「档位 3 高刚度微反馈」（MAT-02）：m=1, k=320, c=24（ζ≈0.67，微欠阻尼）。
+          归一化终点 Ease(1)=0.99999，且尾部斜率≈0，动画结束的最后一帧不会跳变
+          （由 SpringConvergenceTests 把 XAML 里所有 SpringEasing 参数扫一遍做门禁）。
+          时长取动效 token：关闭动效时长度归零，缩放瞬间完成、不再缓动。
         -->
-        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationBase}">
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringCrisp}">
           <TransformOperationsTransition.Easing>
-            <SpringEasing Mass="1" Stiffness="550" Damping="35" InitialVelocity="0" />
+            <SpringEasing Mass="1" Stiffness="320" Damping="24" InitialVelocity="0" />
           </TransformOperationsTransition.Easing>
         </TransformOperationsTransition>
       </Transitions>
@@ -37,8 +39,19 @@
     <Setter Property="RenderTransform" Value="translateY(-1px)" />
   </Style>
 
+  <!--
+    按下方向刻意不等弹簧：80-90ms 的线性冲刺保证首帧跟手（物理弹簧在高刚度下仍然要几十毫秒才明显），
+    松手时这条 :pressed 样式失效、上面那条弹簧过渡接管，从当前 0.96 直接弹回 1（可中途打断）。
+  -->
   <Style Selector="Button:pressed">
-    <Setter Property="RenderTransform" Value="scale(0.96)" />
+    <Setter Property="RenderTransform" Value="scale(0.96, 0.96)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationFast}" />
+        <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationFast}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationFast}" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
   </Style>
 
   <!-- 重点操作主按钮 (Accent / Primary) 现代高光 -->
@@ -197,22 +210,36 @@
   </Style>
 
   <!-- ========================================== -->
-  <!-- 动效骨骼（第二阶段：只有状态类，没有动画代码） -->
+  <!-- 动效骨骼（第三阶段：给状态类注入物理弹簧）     -->
   <!-- ========================================== -->
   <!--
-    这一节是第三阶段写弹簧参数的唯一落点。现在只做两件事：
+    这一节是弹簧参数的唯一落点。第二阶段已经把结构定死，这里只往状态类上挂 Transitions：
     1) 用 Opacity + RenderTransform 表达「显/隐」与「原位/偏移」，绝不改 Margin / Height / Width；
     2) 显隐一律走 Classes.is-open / Classes.is-active，IsVisible 不参与 —— IsVisible=False 会在第一帧
-       把节点从渲染树里剔除，任何退场动画都会被直接截断。
-    位移一律写 TransformOperations 字符串语法（translate(...) / scale(...)）：第三阶段配对的
-    TransformOperationsTransition 只认这种类型；反过来在 XAML 里写 <TranslateTransform> 元素是另一套类型，
-    关键帧动画驱动它的 .X 时两边对不上，这是 Avalonia 11 最容易踩的一处类型错配。
+       把节点从渲染树里剔除，任何退场动画都会被直接截断；
+    3) 位移一律写 TransformOperations 字符串语法（translate(...) / scale(...)）：配对的
+       TransformOperationsTransition 只认这种类型，写 <TranslateTransform> 元素是另一套类型，两边对不上。
+
+    弹簧参数的收敛前提（Avalonia 的 SpringEasing 把 Duration 归一化成 t∈[0,1] 再解微分方程）：
+    轨道结束时位置必须已经收敛到 1，否则最后一帧会跳变。下面四组参数在 t=1 处的误差分别是
+    1e-5 / 2e-5 / 3e-5 / 1.2e-3，全部 < 2e-3，由 SpringConvergenceTests 扫描本文件做门禁。
+    它们是「档位」而不是「时长」：时长由 CkanMotionDurationSpring* token 给，关闭动效时归零。
   -->
 
-  <!-- 底部日志抽屉：整条默认滑到视口下方，展开时归位。 -->
+  <!-- 底部日志抽屉：整条默认滑到视口下方，展开时归位。档位 2（微欠阻尼，m=1 k=220 c=22）。 -->
   <Style Selector="Border.overlay-drawer">
     <Setter Property="Opacity" Value="0" />
     <Setter Property="RenderTransform" Value="translate(0px, 260px)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSlide}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="220" Damping="22" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+        <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
   </Style>
 
   <Style Selector="Border.overlay-drawer.is-open">
@@ -220,10 +247,23 @@
     <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
   </Style>
 
-  <!-- 未保存悬浮条：从下方 40px 处微微缩小着浮上来。 -->
+  <!--
+    未保存悬浮条：从下方 40px 处微微缩小着浮上来。档位 2 变体（m=1 k=220 c=20，初速 -2）：
+    给一点点初始冲量，浮条到位时会有一记极轻的「落定感」，不会像纯缓动那样软塌塌。
+  -->
   <Style Selector="Border.floating-pill-bar">
     <Setter Property="Opacity" Value="0" />
     <Setter Property="RenderTransform" Value="translate(0px, 40px) scale(0.96, 0.96)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSlide}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="220" Damping="20" InitialVelocity="-2" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+        <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
   </Style>
 
   <Style Selector="Border.floating-pill-bar.is-open">
@@ -232,13 +272,24 @@
   </Style>
 
   <!--
-    同格叠放的视图层（空态 ↔ 数据态、未选中实例 ↔ 已选中实例）。
+    同格叠放的视图层（空态 ↔ 数据态、未选中实例 ↔ 已选中实例）。档位 1（临界阻尼，m=1 k=180 c=26）：
+    阅读区域（表格文字）绝不能过冲，落位必须干脆，否则等文字静止时还在晃。
     两层始终都在可视化树里，只切 is-active；隐藏层的 IsHitTestVisible 由视图绑成 false，
     鼠标事件会穿透到可见层，不需要靠 IsVisible 硬切。
   -->
   <Style Selector="Control.view-layer">
     <Setter Property="Opacity" Value="0" />
     <Setter Property="RenderTransform" Value="scale(0.98, 0.98) translate(0px, 6px)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+        <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
   </Style>
 
   <Style Selector="Control.view-layer.is-active">
@@ -246,17 +297,84 @@
     <Setter Property="RenderTransform" Value="scale(1, 1) translate(0px, 0px)" />
   </Style>
 
-  <!-- 卡片入场锚点：本阶段没有任何视觉效果，只给第三阶段的附加行为留遍历标记。 -->
+  <!--
+    卡片入场锚点：默认就位（页面上没有错峰行为的场合保持静止）。
+    错峰由 App/Animations/StaggerAnimator 在页面切换时临时挂 .stagger-prepare 再逐个摘除来驱动。
+  -->
   <Style Selector="Control.stagger-card">
     <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+        <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
   </Style>
 
   <!--
-    校验错误锚点：同样只预留类名。输入框自己的 RenderTransform 由视图写成 translate(0px, 0px)
-    （类型必须是 TransformOperations，第三阶段的关键帧才有东西可驱动），父容器必须 ClipToBounds="False"。
+    「预备态」：Transitions 必须置空（x:Null），否则挂上这个类的瞬间卡片的 14px 位移会自己缓动起来，
+    那就不是「从下方滑入」而是「慢慢飘到下方再滑回来」。摘掉这个类的瞬间才把过渡装回去，
+    于是摘除动作本身走弹簧 —— 这是整套错峰入场的全部机制。
+  -->
+  <Style Selector="Control.stagger-card.stagger-prepare">
+    <Setter Property="Transitions" Value="{x:Null}" />
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="RenderTransform" Value="translate(0px, 14px)" />
+  </Style>
+
+  <!--
+    校验错误锚点：档位 4（强欠阻尼冲量，m=1 k=650 c=14，初速 30）。
+    机制与错峰相反 —— 先挂 .shake-impulse 把控件瞬间拉偏 8px（Transitions 置空，不走过渡），
+    下一帧摘掉它，弹簧从「偏 8px + 初速」的状态释放，自然衰减轻颤三四次后归位，不需要任何关键帧。
   -->
   <Style Selector="Control.is-invalid">
     <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringImpulse}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="650" Damping="14" InitialVelocity="30" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="TextBox.is-invalid, ComboBox.is-invalid">
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanDangerBrush}" />
+  </Style>
+
+  <Style Selector="Control.shake-impulse">
+    <Setter Property="Transitions" Value="{x:Null}" />
+    <Setter Property="RenderTransform" Value="translate(8px, 0px)" />
+  </Style>
+
+  <!--
+    左侧导航项：选中切换时给「被点中的那一项」一记追赶位移（.nav-catch-up 由 MainWindow 挂 110ms）。
+    指示器本身的滑动是 FluentAvalonia 内部 600ms 的组合动画（FANavigationView.AnimateSelectionChanged），
+    不可配时长也不吃我们的 token；这里补的是「跟手感」——点击瞬间这一行先弹一下再归位。
+  -->
+  <Style Selector="ui|FANavigationViewItem">
+    <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSlide}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="220" Damping="22" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="ui|FANavigationViewItem.nav-catch-up">
+    <Setter Property="RenderTransform" Value="translate(4px, 0px)" />
   </Style>
 
   <!-- ========================================== -->

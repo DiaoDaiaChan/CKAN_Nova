@@ -4,12 +4,15 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Threading;
+using CkanUI.App.Animations;
 using CkanUI.App.Converters;
 using CkanUI.App.Views.Dialogs;
 using CkanUI.Services.Abstractions.Commands;
@@ -18,6 +21,7 @@ using CkanUI.ViewModels;
 using CkanUI.ViewModels.CommandPalette;
 using CkanUI.ViewModels.Dialogs;
 using FluentAvalonia.UI.Controls;
+using log4net;
 
 namespace CkanUI.App;
 
@@ -49,6 +53,17 @@ public sealed partial class MainWindow : Window
         ["Ui_NavGroup_Extensions"] = "扩展",
     };
 
+    private static readonly ILog Log = LogManager.GetLogger(typeof(MainWindow));
+
+    /// <summary>当前正在播放的页面错峰入场；切页时取消上一次（未轮到的卡片会被复位）。</summary>
+    private CancellationTokenSource? _pageCascadeCts;
+
+    /// <summary>当前处于「追赶位移」拉伸态的导航项。</summary>
+    private Control? _navPulseTarget;
+
+    /// <summary>追赶位移的代数：只有最后一次脉冲有权摘类。</summary>
+    private int _navPulseGeneration;
+
     private CommandPaletteViewModel? _palette;
     private ICommandCatalog? _commands;
     private Func<string, string>? _translate;
@@ -73,6 +88,13 @@ public sealed partial class MainWindow : Window
         // 动效强度变化会重写这个 token；CrossFade.Duration 是普通属性，只能在代码里跟着重建。
         ResourcesChanged += (_, _) => ApplyPageTransition();
         ApplyPageTransition();
+
+        // 页面切换时给一级卡片排队入场。监听 PageHost.Content 而不是 ShellViewModel：
+        // 命令面板、深链、前进后退最终都落到同一个 Content 上，一处接完全都覆盖。
+        if (PageHost is not null)
+        {
+            PageHost.PropertyChanged += OnPageHostPropertyChanged;
+        }
 
         ApplyStatusBarFacts();
     }
@@ -230,6 +252,87 @@ public sealed partial class MainWindow : Window
         if (args.SelectedItemContainer?.Tag is NavItem nav)
         {
             _shell.SelectedNavItem = nav;
+        }
+
+        // 指示器滑动由 FluentAvalonia 自己播（600ms 组合动画，不可配）；这里补的是点击瞬间的追赶位移。
+        _ = PulseNavItemAsync(args.SelectedItemContainer);
+    }
+
+    /// <summary>给刚被点中的导航项挂 110ms 的追赶位移类（连续点击时后一次接管）。</summary>
+    private async Task PulseNavItemAsync(object? container)
+    {
+        if (container is not Control control)
+        {
+            return;
+        }
+
+        // 前一项若还在拉伸态，这里先摘掉：否则它到点时会回来摘「当前这一项」的类，追赶位移就丢了。
+        if (_navPulseTarget is { } previous && !ReferenceEquals(previous, control))
+        {
+            previous.Classes.Remove(MotionFeedback.NavCatchUpClass);
+        }
+
+        _navPulseTarget = control;
+        var generation = ++_navPulseGeneration;
+        control.Classes.Add(MotionFeedback.NavCatchUpClass);
+
+        await Task.Delay(MotionFeedback.NavCatchUpHold).ConfigureAwait(true);
+
+        // 连点同一项时早到的那次不能提前掐断新一次，所以只有最新一代有权摘类。
+        if (generation == _navPulseGeneration)
+        {
+            control.Classes.Remove(MotionFeedback.NavCatchUpClass);
+        }
+    }
+
+    /// <summary>页面内容变化：新页面视图建好后让一级卡片错峰入场。</summary>
+    private void OnPageHostPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != ContentControl.ContentProperty)
+        {
+            return;
+        }
+
+        _ = PlayPageCascadeAsync();
+    }
+
+    /// <summary>
+    /// 播放一次错峰入场。<see cref="TransitioningContentControl"/> 的 Content 刚设的这一刻，
+    /// ViewLocator 还没把视图建出来，所以要等一轮 Loaded 优先级的布局再遍历卡片。
+    /// </summary>
+    private async Task PlayPageCascadeAsync()
+    {
+        _pageCascadeCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _pageCascadeCts = cts;
+
+        try
+        {
+            await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.Loaded);
+            if (cts.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await StaggerAnimator.PlayAsync(PageHost, cts.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            // 用户连点导航：后一次入场接管，这里安静退出。
+        }
+        catch (Exception ex)
+        {
+            // 动效属增强：任何异常只记日志，绝不影响页面本身已经显示出来这件事。
+            Log.Warn("页面错峰入场失败。", ex);
+        }
+        finally
+        {
+            if (ReferenceEquals(_pageCascadeCts, cts))
+            {
+                _pageCascadeCts = null;
+            }
+
+            cts.Dispose();
         }
     }
 

@@ -29,6 +29,18 @@ public sealed class MotionHost : IDisposable
     /// <summary>页面切换时长 token。</summary>
     public const string PageKey = "CkanMotionDurationPage";
 
+    /// <summary>档位 1（临界阻尼落位）时长 token。</summary>
+    public const string SpringSoftKey = "CkanMotionDurationSpringSoft";
+
+    /// <summary>档位 2（跟手滑动）时长 token。</summary>
+    public const string SpringSlideKey = "CkanMotionDurationSpringSlide";
+
+    /// <summary>档位 3（清脆回弹）时长 token。</summary>
+    public const string SpringCrispKey = "CkanMotionDurationSpringCrisp";
+
+    /// <summary>档位 4（冲量轻颤）时长 token。</summary>
+    public const string SpringImpulseKey = "CkanMotionDurationSpringImpulse";
+
     private static readonly ILog Log = LogManager.GetLogger(typeof(MotionHost));
 
     private readonly IUiSettingsStore _settings;
@@ -94,6 +106,13 @@ public sealed class MotionHost : IDisposable
             _application.Resources[FastKey] = UiMotionScale.Duration(intensity, system, MotionSpeed.Fast);
             _application.Resources[BaseKey] = UiMotionScale.Duration(intensity, system, MotionSpeed.Base);
             _application.Resources[PageKey] = UiMotionScale.Duration(intensity, system, MotionSpeed.Page);
+
+            // 第三阶段的四个弹簧档位：SpringEasing 的 Duration 只决定「这套物理参数在多长窗口里跑完」，
+            // 归一化终点恒为 1，所以时长可以独立于刚度/阻尼调，手感与收敛性都不受影响。
+            _application.Resources[SpringSoftKey] = UiMotionScale.Duration(intensity, system, MotionSpring.Soft);
+            _application.Resources[SpringSlideKey] = UiMotionScale.Duration(intensity, system, MotionSpring.Slide);
+            _application.Resources[SpringCrispKey] = UiMotionScale.Duration(intensity, system, MotionSpring.Crisp);
+            _application.Resources[SpringImpulseKey] = UiMotionScale.Duration(intensity, system, MotionSpring.Impulse);
             _applied = signature;
         }
         catch (Exception ex)

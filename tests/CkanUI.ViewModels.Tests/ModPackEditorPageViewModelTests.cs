@@ -405,6 +405,104 @@ public sealed class ModPackEditorPageViewModelTests
 
     // ---------------- 问题描述 ----------------
 
+    // ---------------- 出错字段（第三阶段 MAT-04：供视图标红与冲量轻颤） ----------------
+
+    [Test]
+    public void ApplyIssues_PublishesErrorFieldsOnly()
+    {
+        _viewModel.ApplyIssues(new[]
+        {
+            new ModPackEditorIssue
+            {
+                Code = "identifier.empty",
+                Field = "Identifier",
+                Message = "模组标识不能为空。",
+                Severity = ModPackEditorIssueSeverity.Error,
+            },
+            new ModPackEditorIssue
+            {
+                Code = "identifier.charset",
+                Field = "Identifier",
+                Message = "模组标识只能包含小写字母。",
+                Severity = ModPackEditorIssueSeverity.Error,
+            },
+            new ModPackEditorIssue
+            {
+                Code = "author.empty",
+                Field = "Authors",
+                Message = "没有填写作者。",
+                Severity = ModPackEditorIssueSeverity.Warning,
+            },
+            new ModPackEditorIssue
+            {
+                Code = "document.invalid",
+                Field = string.Empty,
+                Message = "整文档级问题。",
+                Severity = ModPackEditorIssueSeverity.Error,
+            },
+        });
+
+        Assert.That(
+            _viewModel.InvalidFields,
+            Is.EqualTo(new[] { "Identifier" }),
+            "只收错误级、同字段去重、整文档级（空字段）剔掉");
+        Assert.That(_viewModel.Issues.Count, Is.EqualTo(4), "问题列表仍然逐条展示，不受过滤影响");
+    }
+
+    [Test]
+    public void ApplyIssues_RaisesInvalidFieldsNotification()
+    {
+        var changed = new List<string?>();
+        _viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        _viewModel.ApplyIssues(new[]
+        {
+            new ModPackEditorIssue { Field = "Name", Message = "显示名不能为空。", Severity = ModPackEditorIssueSeverity.Error },
+        });
+
+        Assert.That(
+            changed,
+            Does.Contain(nameof(ModPackEditorPageViewModel.InvalidFields)),
+            "视图靠这条通知触发标红与轻颤");
+    }
+
+    [Test]
+    public void ApplyIssues_DoesNotDirtyTheForm()
+    {
+        _viewModel.ApplyIssues(new[]
+        {
+            new ModPackEditorIssue { Field = "Name", Message = "显示名不能为空。", Severity = ModPackEditorIssueSeverity.Error },
+        });
+
+        Assert.That(_viewModel.IsDirty, Is.False, "校验反馈是只读副作用，不能把表单标脏");
+    }
+
+    [Test]
+    public void ApplyIssues_EmptyList_ClearsInvalidFields()
+    {
+        _viewModel.ApplyIssues(new[]
+        {
+            new ModPackEditorIssue { Field = "Name", Message = "显示名不能为空。", Severity = ModPackEditorIssueSeverity.Error },
+        });
+
+        _viewModel.ApplyIssues(Array.Empty<ModPackEditorIssue>());
+
+        Assert.That(_viewModel.InvalidFields, Is.Empty, "校验通过后必须把红色描边清掉");
+    }
+
+    [Test]
+    public void ValidateCommand_PublishesInvalidFieldsFromService()
+    {
+        _service.ValidateResult = new[]
+        {
+            new ModPackEditorIssue { Field = "Version", Message = "版本号不能为空。", Severity = ModPackEditorIssueSeverity.Error },
+        };
+
+        _viewModel.ValidateCommand.Execute(null);
+
+        Assert.That(_viewModel.InvalidFields, Is.EqualTo(new[] { "Version" }));
+    }
+
     [Test]
     public void DescribeIssue_MentionsRowNumberForRelationIssues()
     {

@@ -88,6 +88,40 @@ public sealed class MotionTokenTests
     }
 
     [Test]
+    public void Install_WritesFourSpringDurationTokens()
+    {
+        HeadlessAppHost.EnsureInitialized();
+        var app = Application.Current!;
+        var store = new FakeStore(new UiSettings { MotionIntensity = UiMotionScale.Full });
+        var host = new MotionHost(store, new InlineDispatcher(), app, () => true);
+
+        try
+        {
+            host.Install();
+
+            // 第三阶段的四档弹簧：时长只是「这套物理参数在多长窗口里跑完」，与刚度/阻尼解耦。
+            Assert.That(app.Resources[MotionHost.SpringSoftKey], Is.EqualTo(TimeSpan.FromMilliseconds(320)));
+            Assert.That(app.Resources[MotionHost.SpringSlideKey], Is.EqualTo(TimeSpan.FromMilliseconds(360)));
+            Assert.That(app.Resources[MotionHost.SpringCrispKey], Is.EqualTo(TimeSpan.FromMilliseconds(250)));
+            Assert.That(app.Resources[MotionHost.SpringImpulseKey], Is.EqualTo(TimeSpan.FromMilliseconds(450)));
+
+            store.Save(new UiSettings { MotionIntensity = UiMotionScale.Reduced });
+            Assert.That(app.Resources[MotionHost.SpringSoftKey], Is.EqualTo(TimeSpan.FromMilliseconds(90)));
+            Assert.That(app.Resources[MotionHost.SpringImpulseKey], Is.EqualTo(TimeSpan.FromMilliseconds(90)));
+
+            store.Save(new UiSettings { MotionIntensity = UiMotionScale.None });
+            Assert.That(app.Resources[MotionHost.SpringSoftKey], Is.EqualTo(TimeSpan.Zero));
+            Assert.That(app.Resources[MotionHost.SpringSlideKey], Is.EqualTo(TimeSpan.Zero));
+            Assert.That(app.Resources[MotionHost.SpringCrispKey], Is.EqualTo(TimeSpan.Zero));
+            Assert.That(app.Resources[MotionHost.SpringImpulseKey], Is.EqualTo(TimeSpan.Zero));
+        }
+        finally
+        {
+            host.Dispose();
+        }
+    }
+
+    [Test]
     public void ChipButton_PicksUpFastTokenForItsTransitions()
     {
         HeadlessAppHost.EnsureInitialized();

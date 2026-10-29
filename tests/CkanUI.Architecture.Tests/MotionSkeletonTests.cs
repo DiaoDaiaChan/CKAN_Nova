@@ -6,9 +6,9 @@ using NUnit.Framework;
 namespace CkanUI.Architecture.Tests;
 
 /// <summary>
-/// 第二阶段动效骨骼的源码级约束（用户 m02458 的验收清单）。
-/// 这一阶段刻意不写任何物理动画代码：只要求「会动的节点不参与布局」「显隐不用 IsVisible 硬切」
-/// 这两条结构前提在源码里成立，第三阶段才可能只改样式不改树。
+/// 动效骨骼的源码级约束（第二阶段用户 m02458 的验收清单，第三阶段沿用并加严）。
+/// 第二阶段刻意不写任何物理动画代码，只要求「会动的节点不参与布局」「显隐不用 IsVisible 硬切」；
+/// 第三阶段（用户 m02777）往同一套状态类里注入 SpringEasing，结构前提必须仍然成立。
 /// </summary>
 [TestFixture]
 public sealed class MotionSkeletonTests
@@ -78,11 +78,17 @@ public sealed class MotionSkeletonTests
         foreach (var selector in new[]
                  {
                      "Border.overlay-drawer",
+                     "Border.overlay-drawer.is-open",
                      "Border.floating-pill-bar",
+                     "Border.floating-pill-bar.is-open",
                      "Control.view-layer",
                      "Control.view-layer.is-active",
                      "Control.stagger-card",
+                     "Control.stagger-card.stagger-prepare",
                      "Control.is-invalid",
+                     "Control.shake-impulse",
+                     "ui|FANavigationViewItem",
+                     "ui|FANavigationViewItem.nav-catch-up",
                  })
         {
             Assert.That(styles, Does.Contain("Selector=\"" + selector + "\""), "缺少动效骨骼状态类：" + selector);
@@ -118,7 +124,18 @@ public sealed class MotionSkeletonTests
             .Select(file => Path.GetRelativePath(RepoRoot.Path, file))
             .ToArray();
 
-        Assert.That(offenders, Is.Empty, "第二阶段不许有物理动画代码；第三阶段再统一引入");
+        Assert.That(offenders, Is.Empty, "旧的物理动画实现不许回来；第三阶段统一用状态类 + SpringEasing");
+
+        // 第三阶段的替代实现：只挂/摘状态类，位移与衰减全交给样式里的弹簧过渡。
+        var animations = Path.Combine(RepoRoot.Path, "src", "CkanUI.App", "Animations");
+        Assert.That(
+            File.Exists(Path.Combine(animations, "StaggerAnimator.cs")),
+            Is.True,
+            "错峰入场必须落在 Animations/StaggerAnimator.cs（只挂状态类，不写关键帧）");
+        Assert.That(
+            File.Exists(Path.Combine(animations, "MotionFeedback.cs")),
+            Is.True,
+            "校验冲量与导航追赶位移必须落在 Animations/MotionFeedback.cs");
 
         // 注：Theming/SkeletonPulse.cs 里的骨架屏脉动不算物理动画——它只循环 Opacity，
         // 不位移、不参与布局，是加载态的静态表现，所以这条断言不拦它。
@@ -127,7 +144,8 @@ public sealed class MotionSkeletonTests
     /// <summary>把「动效骨骼」注释段之间的样式块切出来，供属性白名单断言使用。</summary>
     private static string ExtractSkeletonBlock(string styles)
     {
-        const string start = "<!-- 动效骨骼（第二阶段：只有状态类，没有动画代码） -->";
+        // 段落标题在第三阶段改成了「动效骨骼（第三阶段：给状态类注入物理弹簧）」，这里只认稳定前缀。
+        const string start = "<!-- 动效骨骼（第三阶段";
         const string end = "<!-- 表格 (DataGrid) 现代流畅微交互与视觉优化";
         var from = styles.IndexOf(start, StringComparison.Ordinal);
         var to = styles.IndexOf(end, StringComparison.Ordinal);

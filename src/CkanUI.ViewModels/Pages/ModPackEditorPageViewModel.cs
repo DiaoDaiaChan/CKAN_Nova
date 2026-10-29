@@ -159,6 +159,14 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
     /// <summary>最近一次校验的问题（中文、已排序：错误在前）。</summary>
     public ObservableCollection<string> Issues { get; } = new();
 
+    /// <summary>
+    /// 最近一次校验里出错字段的属性名（与 <see cref="ModPackEditorDocument"/> 的属性名一致；整文档级问题已剔除）。
+    /// </summary>
+    /// <remarks>
+    /// 视图模型不认识控件，只报字段名；由视图代码后置把这些字段对应的输入框标红并给一次冲量轻颤（MAT-04）。
+    /// </remarks>
+    public IReadOnlyList<string> InvalidFields { get; private set; } = Array.Empty<string>();
+
     /// <summary>关系表为空时显示空状态。</summary>
     public bool ShowEmptyRelations => Relations.Count == 0;
 
@@ -257,14 +265,25 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
     public void ApplyIssues(IReadOnlyList<ModPackEditorIssue> issues)
     {
         Issues.Clear();
+        var invalid = new List<string>();
         if (issues is not null)
         {
             foreach (var issue in issues)
             {
                 Issues.Add(ModPackEditorText.DescribeIssue(issue));
+
+                // 只有错误级问题才让输入框抖：提醒级（如 spec_version 缺失）不该抢用户的注意力。
+                if (issue.Severity == ModPackEditorIssueSeverity.Error
+                    && !string.IsNullOrWhiteSpace(issue.Field)
+                    && !invalid.Contains(issue.Field))
+                {
+                    invalid.Add(issue.Field);
+                }
             }
         }
 
+        InvalidFields = invalid;
+        OnPropertyChanged(nameof(InvalidFields));
         OnPropertyChanged(nameof(HasIssues));
         OnPropertyChanged(nameof(IssueSummary));
     }
@@ -451,6 +470,7 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
         or nameof(ErrorText)
         or nameof(HasError)
         or nameof(HasIssues)
+        or nameof(InvalidFields)
         or nameof(IssueSummary)
         or nameof(ShowEmptyRelations)
         or nameof(NewAuthor)

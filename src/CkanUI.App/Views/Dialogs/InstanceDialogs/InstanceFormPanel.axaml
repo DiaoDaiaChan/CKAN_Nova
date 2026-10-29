@@ -8,7 +8,7 @@
     第二阶段只留状态锚点：RenderTransform 写成字符串平移，配 Classes.is-invalid（样式见 FluentStyles），
     第三阶段直接给它挂关键帧即可。父容器不能 ClipToBounds，否则左右 ±8px 的位移会被切掉。
   -->
-  <Border Padding="16" CornerRadius="8" MinWidth="420"
+  <Border x:Name="FormCard" Padding="16" CornerRadius="8" MinWidth="420"
           RenderTransform="translate(0px, 0px)"
           Classes.is-invalid="{Binding HasValidationError}"
           ClipToBounds="False"

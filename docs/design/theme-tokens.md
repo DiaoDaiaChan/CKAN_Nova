@@ -325,46 +325,119 @@
   但 `Command` / `IsEnabled` / `ToolTip` 照常可用。`FAMenuFlyoutItem` 只能在 `FAMenuFlyout` 里用，放进原生 `MenuFlyout` 会失效。
 - **按钮主样式类名是 `CkanPrimary`**（`FluentStyles.axaml:45`），仓库里没有 `accent` 这个类名。
 
-### 5.9 动效骨骼与 Overlay（第二阶段：只有状态类，没有动画代码）
+### 5.9 动效：状态类骨骼 + 物理弹簧（第二、三阶段）
 
-第二阶段的目标是**先把视觉树改到「加动效时不必再改结构」**：所有会动的节点都通过「状态类 + Opacity + RenderTransform」
-表达显隐与位置，节点常驻可视化树，位移与透明度都不参与 Measure/Arrange。物理动画（弹簧、关键帧、错峰入场）
-留到第三阶段，届时只往这些状态类上挂 Transition，XAML 结构一行不改。
+第二阶段先把视觉树改到「加动效时不必再改结构」：所有会动的节点都用「状态类 + Opacity + RenderTransform」
+表达显隐与位置，节点常驻可视化树，位移与透明度都不参与 Measure/Arrange。第三阶段只往这些状态类上挂
+`Transitions` + `SpringEasing`，**视觉树结构一行没改**（除补 `x:Name` / `Tag` 供代码定位）。
 
-- **两条渲染铁律**：位移一律挂 `RenderTransform`（`TransformOperations` 字符串语法），**绝不改 Margin/Height/Width**；
-  浮层（日志抽屉、未保存条）与内容同处一个 Grid 单元格叠放，而不是 `DockPanel` / `Grid` 里单独占一行。
+#### 5.9.1 两条渲染铁律
+
+- 位移一律挂 `RenderTransform`（`TransformOperations` 字符串语法），**绝不改 Margin/Height/Width**。
+- 浮层（日志抽屉、未保存条）与内容同处一个 Grid 单元格叠放，而不是 `DockPanel` / `Grid` 里单独占一行。
 - **禁止 `IsVisible` 硬切**：`IsVisible="False"` 会在第一帧把节点从渲染树剔除，退场过渡直接消失。改用
-  `Classes.is-open` / `Classes.is-active` 加 `IsHitTestVisible`（隐藏时鼠标穿透），透明度与位移全部由样式类提供。
-- **骨骼样式类**（`src/CkanUI.App/Resources/FluentStyles.axaml`「动效骨骼」段）：
+  `Classes.is-open` / `.is-active` 加 `IsHitTestVisible`（隐藏时鼠标穿透），透明度与位移全部由样式类提供。
+- 裸类选择器必须带类型前缀：`Selector=".view-layer"` 会编译失败（`AVLN2200: Can not find parent Style Selector`），
+  必须写成 `Selector="Control.view-layer"`；Border/ListBox/StackPanel/ScrollViewer 都派生自 `Control`，一条规则即可全命中。
 
-  | 选择器 | 隐状态 | 显状态 | 用途 |
-  | --- | --- | --- | --- |
-  | `Border.overlay-drawer` | `Opacity=0` + `translate(0px,260px)` | `.is-open` 归零 | 底部日志抽屉 |
-  | `Border.floating-pill-bar` | `Opacity=0` + `translate(0px,40px) scale(0.96,0.96)` | `.is-open` 归零 | 未保存改动浮条 |
-  | `Control.view-layer` | `Opacity=0` + `scale(0.98,0.98) translate(0px,6px)` | `.is-active` 归零 | 空态/数据态、未选中/已选中面板 |
-  | `Control.stagger-card` | 无效果（只作标记） | — | 一级卡片入场锚点，第三阶段按索引错峰 |
-  | `Control.is-invalid` | 无效果（只作标记） | — | 表单校验错误，第三阶段驱动抖动 |
+#### 5.9.2 状态类 → 过渡映射（`src/CkanUI.App/Resources/FluentStyles.axaml`「动效骨骼（第三阶段）」段）
 
-- **裸类选择器必须带类型前缀**：`Selector=".view-layer"` 会编译失败（`AVLN2200: Can not find parent Style Selector`），
-  必须写成 `Selector="Control.view-layer"`；因为 Border/ListBox/StackPanel/ScrollViewer 都派生自 `Control`，一条规则即可全命中。
+| 选择器 | 隐状态 / 静止态 | 显状态 | 过渡（弹簧档位 + 时长 token） | 用途 |
+| --- | --- | --- | --- | --- |
+| `Border.overlay-drawer` | `Opacity=0` + `translate(0px,260px)` | `.is-open` 归零 | 档位 2 + `CkanMotionDurationSpringSlide`；Opacity 用 `CkanMotionDurationBase` + `CubicEaseOut` | 底部日志抽屉 |
+| `Border.floating-pill-bar` | `Opacity=0` + `translate(0px,40px) scale(0.96,0.96)` | `.is-open` 归零 | 档位 2（`InitialVelocity=-2`，微冲量）+ SpringSlide | 未保存改动浮条 |
+| `Control.view-layer` | `Opacity=0` + `scale(0.98,0.98) translate(0px,6px)` | `.is-active` 归零 | 档位 1 + `CkanMotionDurationSpringSoft` | 空态/数据态、未选中/已选中面板 |
+| `Control.stagger-card` | 就绪原位（`Opacity=1` + `translate(0px,0px)`） | — | 档位 1 + SpringSoft | 一级卡片入场锚点，由 `StaggerAnimator` 驱动 |
+| `Control.stagger-card.stagger-prepare` | `Transitions={x:Null}` + `Opacity=0` + `translate(0px,14px)` | 摘类瞬间弹回 | **必须置空过渡**，否则回起点这一步也会被动画化 | 错峰起跑预备态 |
+| `Control.is-invalid` | 标记类，无视觉效果 | — | 档位 4 + `CkanMotionDurationSpringImpulse` | 校验失败冲量 |
+| `TextBox.is-invalid, ComboBox.is-invalid` | `BorderBrush={DynamicResource CkanDangerBrush}` | — | — | 错误描边 |
+| `Control.shake-impulse` | `Transitions={x:Null}` + `translate(8px,0px)` | 摘类瞬间释放 | **必须置空过渡**，靠"瞬间拉偏→放手"产生冲量 | 抖动蓄力帧 |
+| `ui\|FANavigationViewItem` | `RenderTransform="translate(0px,0px)"` | — | 档位 2 + SpringSlide；Background/BorderBrush 走 `BrushTransition` | 导航项悬停/按下 |
+| `ui\|FANavigationViewItem.nav-catch-up` | 静止 | `translate(4px,0px)` | 同上 | 导航项被选中时的追赶形变 |
+
+全局 `Button`：`RenderTransform="none"` → 弹簧档位 3（`CkanMotionDurationSpringCrisp`）；
+`:pressed` 覆盖为 `scale(0.96,0.96)` + `CkanMotionDurationFast` + `CubicEaseOut`（按下要跟手，不能用弹簧；
+松手回到 `pressed` 之外时才会用档位 3 的弹簧回弹）。
+
+#### 5.9.3 四档黄金弹簧与收敛门禁
+
+Avalonia 的 `SpringEasing` 实现 `IEasing.Ease(double progress)`，引擎把 `Duration` 归一化成归一化进度 t ∈ [0, 1] 再喂给弹簧求解器。
+若 `t=1` 时弹簧还没收敛到 1，动画结束的最后一帧会肉眼可见地跳一下。**工程铁律：|Ease(1)−1| < 0.002 且尾部斜率≈0。**
+
+| 档位 | Mass | Stiffness | Damping | InitialVelocity | Duration token | 场景 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 临界阻尼（稳重零回弹） | 1 | 180 | 26 | 0 | `CkanMotionDurationSpringSoft` = 320 ms | 页面卡片入场、视图层切换、大抽屉收起 |
+| 2 微欠阻尼（灵动跟手） | 1 | 220 | 22 | 0（浮条用 −2） | `CkanMotionDurationSpringSlide` = 360 ms | 抽屉弹出、浮条弹出、导航滑动 |
+| 3 高刚度微反馈（清脆回弹） | 1 | 320 | 24 | 0 | `CkanMotionDurationSpringCrisp` = 250 ms | 按钮松手回弹 |
+| 4 强欠阻尼冲量（衰减震荡） | 1 | 650 | 14 | 30 | `CkanMotionDurationSpringImpulse` = 450 ms | 表单必填项校验轻颤 |
+
+实测 `Ease(1.0)`（Avalonia 12.1.4）：档位 1 = 1.00000、档位 2 = 1.00002、浮条 −2 = 1.00003、档位 3 = 0.99999、档位 4 = 0.99876
+（误差 0.00124，小于 0.002 门槛，可直接用）。
+`tests/CkanUI.App.Tests/SpringConvergenceTests.cs` 会正则抓 `FluentStyles.axaml` 里**所有** `<SpringEasing>` 构造真实
+`SpringEasing` 断言收敛，并锁定这五组参数（`Mass` 必须恒为 1）——以后改弹簧会被测试挡住。
+
+#### 5.9.4 弹簧时长 token（受「动效强度」设置控制）
+
+`src/CkanUI.ViewModels/Pages/Settings/UiMotionScale.cs` 新增 `enum MotionSpring { Soft, Slide, Crisp, Impulse }` 与
+`Milliseconds(intensity, systemAnimationsEnabled, MotionSpring)`：`full` → 320/360/250/450；`reduced` → 一律 90（保留"有反馈但不晃"）；
+`none` → 0（瞬变）。`src/CkanUI.App/Theming/MotionHost.cs` 把结果写进
+`CkanMotionDurationSpringSoft` / `SpringSlide` / `SpringCrisp` / `SpringImpulse` 四个资源，样式里用 `{DynamicResource}` 引用，
+所以"关闭动画"是运行时换资源值生效，不需要改样式。
+
+#### 5.9.5 错峰级联入场（`src/CkanUI.App/Animations/StaggerAnimator.cs`）
+
+`MainWindow` 监听 `PageHost.PropertyChanged` 的 `ContentControl.ContentProperty`，页面换完（`DispatcherPriority.Loaded`）
+调 `StaggerAnimator.PlayAsync(PageHost, token)`：收集所有 `Classes` 含 `stagger-card` 的 `Control` → 全部加 `stagger-prepare`
+（瞬间落到 +14px / Opacity 0）→ 等 16 ms 让合成器提交起始帧 → 每 25 ms 摘一张的 `stagger-prepare`，卡片各自用档位 1 弹回原位。
+**`finally` 里无条件清掉全部 `stagger-prepare`**：页面被快速切走时若提前取消，卡片会停在 `Opacity=0`（等于页面空白），
+所以取消路径也要复位。悬挂点是外壳的 `PageHost`，不是 19 个页面根标签——新增页面无需接线。
+
+#### 5.9.6 校验冲量轻颤（`src/CkanUI.App/Animations/MotionFeedback.cs`）
+
+`ShakeAsync(target)` = 加 `is-invalid`（挂上档位 4 的弹簧过渡）→ 加 `shake-impulse`（过渡置空，瞬间拉到 +8px）→
+等 16 ms（一帧）→ 摘掉 `shake-impulse`：弹簧从 +8px 释放回 0，自动跑出 3 次衰减摆动，无需关键帧。
+
+- **modpack 编辑器**：`ModPackEditorPageViewModel.ApplyIssues` 收集 `Severity==Error` 的 `Field` 到
+  `InvalidFields`（去重、剔空字段，且列进 `IsInfrastructureProperty` 白名单——校验反馈不能把表单标脏）→
+  `ModPackEditorPageView.axaml.cs` 订阅这条通知，用 `Tag` 上的字段名在可视树里找输入框：命中 `ShakeAsync`，未命中 `ClearInvalid`。
+- **实例对话框**：`InstanceFormPanel.axaml.cs` 监听 `DialogViewModelBase.HasValidationError`，true 抖一次、false 清描边；
+  根 Border 必须 `ClipToBounds="False"` + 预置 `RenderTransform="translate(0px, 0px)"`，否则 ±8px 会被父容器切边。
+
+#### 5.9.7 导航选中指示器：与 UI 规格的差异（诚实记录）
+
+规格要求"跨项物理滑动 + 追赶形变"，并给了 `Border#NavFloatingPill` 的样式。本仓库的导航已换成 FluentAvalonia 的
+`ui:FANavigationView`，选中高亮是控件模板内的 `Border#SelectionIndicator`，由
+`FANavigationView.AnimateSelectionChanged`（`external/_fa-tmp/src/FluentAvalonia/UI/Controls/NavigationView/FANavigationView.cs:3282`，
+`PlayIndicatorAnimations` 在 `:3484`）以固定的 **600 ms 组合动画**驱动，**时长与 Easing 都不对外暴露**。
+因此这里只做我们能控制的那一层：导航项自身挂 `nav-catch-up`（`translate(4px,0px)`，110 ms 后摘掉）表达"追赶"，
+指示器的滑动沿用 FluentAvalonia 原生动画。若将来要真正拿到弹簧滑动，得自绘导航列表（放弃 `FANavigationView` 的分组与溢出行为）。
+追赶位移用**代数守卫**（`MainWindow._navPulseGeneration`）：连点同一项时只有最新一次有权摘类，否则早到的 `Task.Delay`
+会把新一次刚挂上的类提前摘掉；换项时则先摘掉上一项的类，避免它 110 ms 后回来误摘当前项。
+
+#### 5.9.8 可打断性
+
+`TransformOperationsTransition` / `DoubleTransition` 在属性变更时会从**当前插值位置**接着跑，所以抽屉半空中反向点击、
+导航快速扫过都不会跳变；页面的错峰入场由 `CancellationTokenSource` 取消上一轮（换页即中止，并在 `finally` 复位）。
+物理动画只改 `RenderTransform` / `Opacity`，**不触发 Measure/Arrange**，连点时表单与列表尺寸不动。
+
+#### 5.9.9 外壳三明治、防裁剪、未保存数据链
+
 - **三明治外壳**（`src/CkanUI.App/MainWindow.axaml`）：`Grid RowDefinitions="*,28" ClipToBounds="True"`
   → Row 0 内容（`PageHost`）+ 同格 `VerticalAlignment="Bottom"` 的浮层容器（抽屉 260px、浮条居中）
   → Row 1 合并状态栏（左状态、中「日志 (最近 N 行) · 命中 …」开关、右版本号）。
 - **防裁剪二分法**：滑动抽屉视口 `ClipToBounds="True"`（滑出屏幕的部分要裁掉）；
-  需要抖动/缩放的表单输入框及其父容器 `ClipToBounds="False"` + `RenderTransform="translate(0px, 0px)"`（预置 transform，否则 ±8px 抖动会被切边）。
+  需要抖动/缩放的表单输入框及其父容器 `ClipToBounds="False"` + 预置 `RenderTransform`。
 - **未保存提示条的数据链**：页面实现 `CkanUI.ViewModels.IUnsavedChangesAware`
   （`HasUnsavedChanges` + 可选的 `SaveChangesCommand` / `DiscardChangesCommand`，两者为 null 时外壳隐藏对应按钮）→
   `ShellViewModel` 在 `OnCurrentPageChanged` 换监听页并重算 `HasUnsavedChanges` / `UnsavedSaveCommand` / `HasUnsavedSaveAction` 等派生属性 →
-  浮条走 `Classes.is-open="{Binding HasUnsavedChanges}"`。当前实现者：`SettingsPageViewModel`（保存 = 批量保存脏项，放弃 = `Discard`）、
-  `ModPackEditorPageViewModel`、`ModConfigPageViewModel`、`ModsPageViewModel`。文案键 `Ui_Common_UnsavedHint` /
-  `Ui_Common_Unsaved_Discard` / `Ui_Common_Unsaved_Save`。
+  浮条走 `Classes.is-open="{Binding HasUnsavedChanges}"`。当前实现者：`SettingsPageViewModel`、`ModPackEditorPageViewModel`、
+  `ModConfigPageViewModel`、`ModsPageViewModel`；文案键 `Ui_Common_UnsavedHint` / `Ui_Common_Unsaved_Discard` / `Ui_Common_Unsaved_Save`。
 - **已删除**：`src/CkanUI.App/Theming/MotionPrimitives.cs`（`SlideInAsync` / `StaggerEntranceAsync`）与
-  `src/CkanUI.App/Theming/ShakeBehavior.cs`——它们的职责在第三阶段由样式类的 Transition 接手；
-  `tests/CkanUI.Architecture.Tests/MotionSkeletonTests.cs` 会断言这两个文件与两个方法名不再出现。
-- **第三阶段备忘（保留旧经验）**：关键帧必须在 `TranslateTransform` 之类的 `Animatable` 上 `RunAsync`（在 `Control` 上跑报「属性不属于宿主」）；
+  `src/CkanUI.App/Theming/ShakeBehavior.cs`——职责已由样式类 + `StaggerAnimator` / `MotionFeedback` 接手，
+  `tests/CkanUI.Architecture.Tests/MotionSkeletonTests.cs` 会断言这两个文件与两个方法名不再出现、新两文件必须存在。
+- **保留旧经验**：关键帧必须在 `TranslateTransform` 之类 `Animatable` 上 `RunAsync`（在 `Control` 上报「属性不属于宿主」）；
   `TranslateTransform` 不是 `Control`，写 `x:Name` 报 `AVLN2000`；附加属性的 `TOwner` 不能是静态类型（`CS0718`）；
-  状态切换类动画用 `TransformOperationsTransition` + `SpringEasing`，关键帧动画用 `Animation` + `TranslateTransform.X/Y`，
-  两种 `RenderTransform` 表达形式不能混用（字符串 `TransformOperations` 与 `TranslateTransform` 对象是不同类型）。
+  字符串形式的 `TransformOperations` 与 `TranslateTransform` 对象是两种类型，不要混用。
 - **豁免**：`Theming/SkeletonPulse.cs` 的骨架屏脉动只循环 `Opacity`、不位移不参与布局，属于加载态表现，不算物理动画。
 
 ### 5.10 表面分层（第 2 阶段 P1）
