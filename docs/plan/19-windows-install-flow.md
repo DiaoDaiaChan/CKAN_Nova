@@ -98,7 +98,7 @@
 ├─ Update.exe                           ← Velopack 引导器（勿改名、勿移动）
 ├─ sq.version
 ├─ current\                             ← 真正跑的程序，升级时整体替换
-│  ├─ CkanUI.App.exe
+│  ├─ CkanUI.exe
 │  ├─ CkanUI.Sfs.Cli.exe               （13 篇 SFS 命令行）
 │  ├─ CkanUI.App.dll / Avalonia / SkiaSharp …
 │  ├─ adapters\                         （15 篇：目录即插件）
@@ -152,14 +152,14 @@
 | # | 键 | 值 | 作用 | 卸载时 |
 | --- | --- | --- | --- | --- |
 | 1 | `HKCU\Software\Classes\ckan` | `(默认)` = `URL: ckan Protocol`；`URL Protocol` = `""`；`FriendlyTypeName` = `CKAN Mod 链接` | 协议根 | 删整棵 |
-| 2 | `HKCU\Software\Classes\ckan\shell\open\command` | `(默认)` = `"%LocalAppData%\CkanUI\current\CkanUI.App.exe" --url "%1"` | 双击链接 | 同上 |
-| 3 | `HKCU\Software\Classes\ckan\DefaultIcon` | `"…\CkanUI.App.exe",0` | 链接图标 | 同上 |
+| 2 | `HKCU\Software\Classes\ckan\shell\open\command` | `(默认)` = `"%LocalAppData%\CkanUI\current\CkanUI.exe" --url "%1"` | 双击链接 | 同上 |
+| 3 | `HKCU\Software\Classes\ckan\DefaultIcon` | `"…\CkanUI.exe",0` | 链接图标 | 同上 |
 | 4 | `HKCU\Software\Classes\.ckan` | `(默认)` = `CKAN.ModPackage`；`Content Type` = `application/x-ckan` | 扩展名映射 | 删 |
-| 5 | `HKCU\Software\Classes\CKAN.ModPackage` | `FriendlyTypeName`、`DefaultIcon`、`shell\open\command` = `"…\CkanUI.App.exe" --install-file "%1"` | ProgId 本体 | 删整棵 |
+| 5 | `HKCU\Software\Classes\CKAN.ModPackage` | `FriendlyTypeName`、`DefaultIcon`、`shell\open\command` = `"…\CkanUI.exe" --install-file "%1"` | ProgId 本体 | 删整棵 |
 | 6 | `HKCU\Software\CKAN\CkanUI\Capabilities` | `ApplicationName/ApplicationDescription/FileAssociations\ .ckan = CKAN.ModPackage / URLAssociations\ ckan = CKAN.UrlHandler` | 让"默认应用"界面认识我们 | 删 |
 | 7 | `HKCU\Software\RegisteredApplications` | `CkanUI` = `Software\CKAN\CkanUI\Capabilities` | 注册到默认应用列表 | 删该值 |
 | 8 | `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\CkanUI` | `DisplayName`/`DisplayVersion`/`Publisher`/`DisplayIcon`/`InstallLocation`/`EstimatedSize`/`NoModify=1`/`NoRepair=1`/`UninstallString`/`QuietUninstallString` | ARP 条目（Velopack 会写大部分，我们补 `Publisher`、`URLInfoAbout`、`EstimatedSize`） | 删整棵 |
-| 9 | `HKCU\Software\Microsoft\Windows\CurrentVersion\App Paths\CkanUI.App.exe` | `(默认)` = 完整路径；`Path` = 所在目录 | Win+R / `start` 能直接找到 | 删整棵 |
+| 9 | `HKCU\Software\Microsoft\Windows\CurrentVersion\App Paths\CkanUI.exe` | `(默认)` = 完整路径；`Path` = 所在目录 | Win+R / `start` 能直接找到 | 删整棵 |
 | 10 | 开始菜单快捷方式 | `%AppData%\Microsoft\Windows\Start Menu\Programs\CKAN UI.lnk` | Velopack 自带 | 随卸载删 |
 | 11 | 桌面快捷方式（可选） | 安装时勾选 | Velopack 默认建 | 随卸载删 |
 
@@ -198,7 +198,7 @@ HKLM\SOFTWARE\Wow6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64
 
 ```
 应用列表点"卸载" → UninstallString（Velopack 的 Update.exe --uninstall）
-  ├─ ① 检测正在运行：CkanUI.App.exe 在跑 → 提示先关闭（或温和等待 3 s）
+  ├─ ① 检测正在运行：CkanUI.exe 在跑 → 提示先关闭（或温和等待 3 s）
   ├─ ② 检测 KSP 是否在跑；若在跑且有未完成事务（registry.locked 存在）→ 提示
   ├─ ③ 删除程序目录 %LocalAppData%\CkanUI\（含 current、packages）
   ├─ ④ 删除 §6 的第 1–9 项注册值（只删我们自己写的；HKLM 不动）
@@ -249,7 +249,7 @@ HKLM\SOFTWARE\Wow6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64
 
 | 项 | 要求 |
 | --- | --- |
-| 签名对象 | `CkanUISetup.exe`、`CkanUI.App.exe`、`CkanUI.Sfs.Cli.exe`、`Update.exe`（**本期不签**，见 §17 Q2） |
+| 签名对象 | `CkanUISetup.exe`、`CkanUI.exe`、`CkanUI.Sfs.Cli.exe`、`Update.exe`（**本期不签**，见 §17 Q2） |
 | 证书 | **0 成本策略**：本期不买证书（OV 约 ¥1–3k/年）；v1.0 前可申请 SignPath Foundation（OSS 免费、证书签给项目、私钥在其 HSM、按其 CI 流程签名）；不采用付费 Azure Artifact Signing，不采用自签 |
 | 时间戳 | 必须（RFC 3161），否则证书过期后旧安装包签名失效 |
 | CI 保管 | 证书不进仓库；用 GitHub Actions secrets + `signtool` 或云签名服务；本地构建允许未签名（打 `-dev` 后缀） |

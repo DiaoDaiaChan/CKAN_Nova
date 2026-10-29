@@ -7,13 +7,13 @@
   <Application.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
-        <ResourceInclude Source="avares://CkanUI.App/Resources/Tokens.axaml" />
+        <ResourceInclude Source="avares://CkanUI/Resources/Tokens.axaml" />
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Application.Resources>
 
   <Application.Styles>
     <sty:FluentAvaloniaTheme PreferUserAccentColor="True" />
-    <StyleInclude Source="avares://CkanUI.App/Resources/FluentStyles.axaml" />
+    <StyleInclude Source="avares://CkanUI/Resources/FluentStyles.axaml" />
   </Application.Styles>
 </Application>

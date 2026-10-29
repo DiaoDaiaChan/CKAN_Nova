@@ -54,8 +54,24 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
   - 可打断：抽屉、浮条、导航项在动画途中反向操作会从当前位置接着跑，不跳变；动效只改 `RenderTransform` / `Opacity`，不触发 Measure/Arrange。
   - 诚实差异：左侧导航的选中指示器是 FluentAvalonia 原生固定 600 ms 组合动画（不对外暴露时长），本轮只给导航项加了 4 px 追赶位移。
 
+- Windows 安装与签名（E7）：发布包新增 `install/` 目录（`install.ps1` / `uninstall.ps1` / `README.txt`），
+  解压后一条命令即可 per-user 安装——装到 `%LocalAppData%\CKAN UI`、建开始菜单与桌面快捷方式、写 HKCU 卸载项与
+  App Paths，不需要管理员权限也不写 HKLM；卸载默认保留设置、日志与缓存。另有 `tools/release/install/CkanUISetup.iss`
+  （Inno Setup 6 模板，本机无 Inno Setup 未实测）。手册见 `docs/ops/install.md`，决策见 `docs/design/installer.md`。
+- 代码签名通道：`tools/release/Sign-Artifacts.ps1`（`-PfxPath` / `-Thumbprint` / `-TimestampUrl` / `-DryRun`，
+  signtool 从 PATH 或 Windows SDK 自动查找）；`release.ps1` 新增 `-PfxPath` / `-PfxPassword` / `-Thumbprint` /
+  `-TimestampUrl` / `-SignDryRun`，签名在打包前对 stage 里的主程序执行，`manifest.json` 记 `signed` 与
+  `signing{requested,applied,method,timestampUrl}`；没有证书时照旧出 `-unsigned` 包。
+  `tools/release/New-DevCertificate.ps1` 能生成自签名证书，用于本机验证签名链路。
+- 发布体积开关：`release.ps1 -NoReadyToRun`。自包含包解压 152 MB → 119 MB、zip 63.7 MB → 49.7 MB，代价是
+  冷启动 0.81 s → 1.6 s；`manifest.json` 的 `publishOptions.publishReadyToRun` 记录实际取值。
+- 项目许可证落到仓库根：新增 `LICENSE.md`（GPL-3.0 全文 + 上游 MIT 说明），发布包随带该文件（缺失即中止出包），
+  「关于」对话框的双声明从此有承载文件。
+
 ### 变更
 
+- 主程序名统一为 `CkanUI.exe`（程序集名 `CkanUI`），与文档里的写法一致；Avalonia 资源 URI 同步改为
+  `avares://CkanUI/…`，发布包里不再有 `CkanUI.App.exe`。
 - 导航栏新增「日志」「Mod 配置」两个一级入口（共 19 项），并补对应字形。
 - 全局字体回退链：`Inter → 微软雅黑 UI → 微软雅黑 → 宋体 → Yu Gothic UI → Meiryo → Malgun Gothic → Segoe UI`，中文与日文界面不再出现豆腐块。
 - 启动时恢复上次选择的界面语言（此前保存了但重启后不生效）；设置页语言下拉改为按磁盘上真实存在的语言包生成，不再列出没有语言包的语言。
@@ -75,6 +91,12 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 - 模组详情四页签此前没有任何宿主、更新检查弹窗在生产里从不出现，现均接通（详情挂进模组页右侧、弹窗由设置页经宿主窗口弹出）。
 - 命令面板的 31 个本地化键常量命名不合「常量名 = 键去掉 Ui_ 前缀」的校验规则，已改名并同步两套语言包。
 - 窗口无法拖动：客户区铺到标题栏后系统不再代管标题栏，顶部 34px 拖拽条与侧栏品牌区改为自己发起移动（同一处理器支持双击最大化/还原，最大化时拖动先还原）；新增架构用例锁住这段接线。
+- 文档账本对账：`docs/design/milestones.md` 里早已交付的「M8–M14 未开工」与 1841 例测试基线改成实测值
+  （3110 例）；`docs/design/feature-matrix-verification.md` 的「证据不足」表移出 F-08/F-26/F-30/F-52 四条已补齐项、
+  其余行逐条复核；`docs/design/feature-matrix.md` 的「55/55」与 milestones 的已知残留清单两个口径互相声明，
+  不再读起来像矛盾。
+- `adapter.json` 的 JSON Schema 收成单一真源：删掉 `tools/verify-layout/adapter.schema.json` 旧副本，H-08 只读
+  `docs/design/adapter.schema.json`，真源缺失时明确报错而不是静默跳过。
 
 ## [0.1.0] - 2026-10-29
 
@@ -96,20 +118,20 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 - 打包（M6）：
   - Windows x64 双发布配置：自包含（自带 .NET 运行时）与框架依赖（需 .NET 10 Desktop Runtime）。
   - 两种配置都开 PublishReadyToRun（实测冷启动 1.58 s → 0.81 s），都不做裁剪（XAML 绑定与反射不是 trim-safe）。
-  - 应用图标内嵌 exe，便携 zip 根目录即程序目录，含 `README.txt`、`THIRD-PARTY-NOTICES.txt`、`licenses/CKAN-LICENSE.md`。
+  - 应用图标内嵌 exe，便携 zip 根目录即程序目录，含 `LICENSE.md`（本项目 GPL-3.0 全文）、`README.txt`、`THIRD-PARTY-NOTICES.txt`、`licenses/CKAN-LICENSE.md`（上游 MIT）。
   - 一条命令出包：`tools/release/release.ps1` 产出两个 zip + `SHA256SUMS.txt` + `manifest.json`（版本、提交、构建参数、逐包哈希、冒烟结果）。
   - 版本号写入程序集与「关于」对话框：`v0.1.0 (26.g4a888a5)` 形式，提交数+短哈希可追溯构建来源。
 - 工程内建：三平台 CI（构建 + 测试）、`tools/verify-layout` 仓库卫生门禁 12 条、统一测试运行器。
 
 ### 已知问题
 
-- **未签名**：没有代码签名证书，Windows SmartScreen 会提示"未知发布者"；
-  发布包名带 `-unsigned`，分发时必须同时给出 `SHA256SUMS.txt` 的值。
-- **体积超出预算**：自包含包解压后约 150 MB，超过 `docs/plan/09-migration-packaging.md` §11 定的 60–90 MB；
-  原因是 Avalonia 的 SkiaSharp / HarfBuzzSharp 原生库体积，本期不做裁剪（理由见 `docs/ops/release.md`）。
-- **没有安装器**：只有便携 zip，解压即用；Windows 标准安装 / 卸载 / 注册（E7）属于后续里程碑。
-- **主程序文件名是 `CkanUI.App.exe`**：程序集名沿用工程名，与文档里写的 `CkanUI.exe` 不一致；
-  改名会牵动 Avalonia 资源 URI（`avares://CkanUI.App/...`），留待单独变更。
-- **项目自身许可证待定**：「关于」框文案已改为双声明（CKAN UI 按 GPL-3.0、内置 CKAN 核心库按上游 MIT），
-  但仓库根还没有 `LICENSE.md` 承载这份声明；便携包里目前只放 CKAN Core 的 MIT 原文与第三方清单。
+- **未签名**：仓库里没有代码签名证书，Windows SmartScreen 仍会提示"未知发布者"。签名通道已就绪
+  （`release.ps1 -PfxPath / -Thumbprint / -SignDryRun` + `tools/release/Sign-Artifacts.ps1`），拿到证书即可出
+  带时间戳的签名包；默认包名照旧带 `-unsigned`，分发时必须同时给出 `SHA256SUMS.txt` 的值。
+- **体积**：自包含包解压 119 MB（`-NoReadyToRun`）/ 152 MB（默认 R2R），下载包 49.7 MB / 63.7 MB。
+  解压体积的地板由 .NET 运行时决定（约 95 MB）加 SkiaSharp / HarfBuzzSharp 原生库，因此 09 篇 §11 的
+  「解压 60–90 MB」只有框架依赖版（解压 42 MB、zip 15.7 MB，需 .NET 10 Desktop Runtime）能满足；
+  两种口径与取舍写在 `docs/ops/release.md` §3.5 与 `docs/plan/09-migration-packaging.md` §14。
+- **安装器**：交付的是随包的 PowerShell 安装脚本（per-user、不需要管理员）与 Inno Setup 模板；模板未在
+  本机实测构建（环境里没有 Inno Setup），未签名的 `Setup.exe` 不分发。
 - 未做 macOS / Linux 冒烟（M6 范围外）。

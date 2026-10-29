@@ -1,4 +1,4 @@
-﻿CKAN UI {{VERSION}} —— Windows x64 {{FLAVOR_NAME}}（未签名）
+CKAN UI {{VERSION}} —— Windows x64 {{FLAVOR_NAME}}（未签名）
 ============================================================
 
 一、这是什么
@@ -8,17 +8,18 @@
 
 二、怎么用
   1. 把整个压缩包解压到任意目录（建议路径不含空格，例如 D:\Games\CkanUI）。
-  2. 双击 CkanUI.App.exe 启动。
+  2. 双击 CkanUI.exe 启动。
   3. {{RUNTIME_NOTE}}
   4. 首次启动会生成配置文件；之后可在界面里选择 / 切换 KSP 实例。
 
 三、目录里有什么
-  CkanUI.App.exe            主程序
+  CkanUI.exe            主程序
   *.dll                     Avalonia、CKAN Core、log4net 等依赖
   log4net.xml               日志配置；程序只在启动时读一次，改完需重启
   i18n\packs\*.json         内置界面语言包（en-US / zh-CN）
   Assets\ckan.ico           应用图标
-  licenses\CKAN-LICENSE.md  CKAN Core 的许可证原文
+  LICENSE.md                本项目（CKAN UI）的许可证原文，GPL-3.0
+  licenses\CKAN-LICENSE.md  CKAN Core（内置核心库）的许可证原文，MIT
   THIRD-PARTY-NOTICES.txt   第三方组件与许可证清单
   README.txt                本文件
 

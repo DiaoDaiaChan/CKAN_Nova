@@ -8,7 +8,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <RootNamespace>CkanUI.App</RootNamespace>
-    <AssemblyName>CkanUI.App</AssemblyName>
+    <AssemblyName>CkanUI</AssemblyName>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>

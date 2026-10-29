@@ -73,7 +73,7 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
 ## §9 本沙箱的两个环境限制（不是代码缺陷，别去"修"）
 
 1. **`dotnet test` 不可用** → 见 §3，用 TestRunner。
-2. **由本沙箱拉起的 GUI 子进程无法写 `%LocalAppData%\CKAN`**：实测 `CkanUI.App.exe` 里任何路径（`CKAN.log`、`probe2.log`、`ckan-ui/probe3.log`）在该目录下都抛
+2. **由本沙箱拉起的 GUI 子进程无法写 `%LocalAppData%\CKAN`**：实测 `CkanUI.exe` 里任何路径（`CKAN.log`、`probe2.log`、`ckan-ui/probe3.log`）在该目录下都抛
    `UnauthorizedAccessException: Access to the path 'C:\Users\<user>\AppData\Local\CKAN\CKAN.log' is denied`，
    而同一 shell 里 bash 写同名目录成功；log4net 内部日志报
    `ERROR [RollingFileAppender] ErrorCode: GenericFailure. Unable to acquire lock on file ... is denied`。

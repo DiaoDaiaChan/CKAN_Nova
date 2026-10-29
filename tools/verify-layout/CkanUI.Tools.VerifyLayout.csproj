@@ -11,9 +11,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
-  <ItemGroup>
-    <!-- adapter.json 的兜底 JSON Schema（15 篇 §4.1）：docs/design/adapter.schema.json 存在时优先用它 -->
-    <None Include="adapter.schema.json" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
+  <!-- adapter.json 的 JSON Schema 只保留一份真源 docs/design/adapter.schema.json（15 篇 §4.1）。
+       tools/verify-layout/adapter.schema.json 已删除，因此这里不再有 None 拷贝项：门禁按仓库根相对路径直读。 -->
 
 </Project>

@@ -26,7 +26,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)] [string] $ZipPath,
-    [string] $ExeName = 'CkanUI.App.exe',
+    [string] $ExeName = 'CkanUI.exe',
     [int] $TimeoutSeconds = 90,
     [string] $ExpectedTitle = 'CKAN UI',
     [switch] $KeepDir

@@ -203,7 +203,7 @@ Compress-Archive artifacts/win-x64-sc/* artifacts/CkanUi-$Version-win-x64.zip
 | 单文件 | **否**（`PublishSingleFile=false`）——单文件首启解压拖慢冷启动 |
 | 分发 | zip（`ckan-ui-<ver>-win-x64.zip`），解压即用；`win-arm64` 后续评估 |
 | 前置依赖 | **无**（运行时随包）——这是选择 Avalonia 自包含发布的核心动因 |
-| 体积预算 | 60–90MB（主题资源 + Skia 原生库为主）；超出预算须在发布说明中解释 |
+| 体积预算 | 60–90MB（主题资源 + Skia 原生库为主）；超出预算须在发布说明中解释。**v1.4 实测后口径修订见 §14**（zip 63.7MB 在预算内；解压体积另计） |
 | 系统检查 | 启动读 `Environment.OSVersion`，低于 Win10 1607 时弹明确提示并退出，**不静默崩溃** |
 | 与老 `ckan.exe` | 并存：不同 exe 名与进程，共享 Core 数据目录；同一实例不可同时操作（本文 §3 铁律不变） |
 
@@ -216,7 +216,7 @@ Compress-Archive artifacts/win-x64-sc/* artifacts/CkanUi-$Version-win-x64.zip
 | 分发形态 | **两产物**：`CkanUISetup.exe`（一键、per-user、免提权；静默 `-s`、`-t <DIR>`、`-l <LOG>`）、`ckan-ui-<ver>-win-x64-portable.zip`（便携/CI） |
 | 安装目录 | `%LocalAppData%\CkanUI`（Velopack `packId = "CkanUI"`）——**绝不能是 `%LocalAppData%\CKAN`**，那是 Core 的数据目录（R-65） |
 | 用户数据 | 仍全部落在原位置（`%LocalAppData%\CKAN` 与 `<GameDir>\CKAN`），安装与卸载都不碰 |
-| 注册表 | **只写 HKCU**：`Software\Classes\ckan`、`.ckan` + `CKAN.ModPackage`、`Software\CKAN\CkanUI\Capabilities` + `RegisteredApplications`、`Uninstall\CkanUI`、`App Paths\CkanUI.App.exe`；不再走 `Registry.ClassesRoot`（旧行为见 `GUI/URLHandlers.cs:109-142`） |
+| 注册表 | **只写 HKCU**：`Software\Classes\ckan`、`.ckan` + `CKAN.ModPackage`、`Software\CKAN\CkanUI\Capabilities` + `RegisteredApplications`、`Uninstall\CkanUI`、`App Paths\CkanUI.exe`；不再走 `Registry.ClassesRoot`（旧行为见 `GUI/URLHandlers.cs:109-142`） |
 | 提权 | 安装与注册都**不需要管理员**；只有"清理旧 ckan.exe 留下的 HKLM 协议键"这一可选动作需要 |
 | 卸载 | 删程序目录 + 上述 HKCU 键 + 快捷方式；**保留** `config.json`/`registry.json`/`repos`/`ckan-ui.json`/日志，完成页列出位置 |
 | 更新 | 由 Velopack `Update.exe` 执行（取代本文 §7 与 08 篇 R-21 的自建替换器） |
@@ -234,3 +234,22 @@ Compress-Archive artifacts/win-x64-sc/* artifacts/CkanUi-$Version-win-x64.zip
 | 外观配置 | `%LocalAppData%\CKAN\ckan-ui.json` 的 `appearance` 段 | 不碰；带 `schemaVersion` 便于迁移 |
 
 打包约束：①主题包与背景**不进** exe 的"程序文件"清单以外位置；②安装器**不得**在卸载时删数据侧 `themes/`（同 §12 的"绝不删除"清单）；③便携版必须能把 `themes/` 相对化（便携模式下数据侧 = 便携目录）。
+
+## §14 附：发布体积实测与预算修订（v1.4 回填，依据 docs/ops/release.md §3.2 / §3.5）
+
+§11 的「体积预算 60–90MB」在实现期被实测修正，本附录为最终口径：
+
+| 形态 | 解压后 | zip | 冷启动 |
+| --- | --- | --- | --- |
+| 自包含 + R2R（默认） | 152 MB / 277 文件 | 63.7 MB / 281 条目 | 0.81 s |
+| 自包含 + 无 R2R（release.ps1 -NoReadyToRun） | 119 MB / 281 条目 | 49.7 MB | 1.6 s |
+| 框架依赖 + R2R | 75.5 MB / 90 文件 | 29.7 MB | 0.80 s |
+| 框架依赖 + 无 R2R | 42 MB / 94 条目 | 15.7 MB | 1.56 s |
+
+- **下载包（zip）在预算内**：默认自包含 63.7 MB，落在 60–90MB 区间；框架依赖 29.7 MB。
+- **解压体积另有地板**：.NET 自包含运行时约 95 MB（System.Private.CoreLib 15.3 MB、coreclr 4.4 MB、System.Private.Xml 7.4 MB 等）+ libSkiaSharp.dll 11.1 MB + av_libglesv2.dll 5.1 MB + 自研与 CKAN 程序集；任何自包含形态都做不到 60–90 MB 解压。
+- **两个省体积杠杆**：release.ps1 -NoReadyToRun（152 → 119 MB，代价是冷启动 0.81 → 1.6 s）；框架依赖版（75.5 / 42 MB，代价是用户要自装 .NET 10 Desktop Runtime）。
+- **被 external 仓库挡死的做法**：PublishSingleFile 与 PublishTrimmed 都会向所有工程注入 Microsoft.NET.ILLink.Tasks，而 external/UniversalI18n 的 src/UI18n.Core/UI18n.Core.csproj 有「必须零第三方依赖」的硬门禁，实测 publish 直接退出码 1；除非改上游仓库，否则本仓库不可能用裁剪换体积。
+- **包内容已变化**：主程序名统一为 CkanUI.exe（AssemblyName=CkanUI，Avalonia 资源 URI 改 avares://CkanUI/…）；包根新增 LICENSE.md（本项目 GPL-3.0 全文）；§12 提到的 App Paths 键名同步改为 App Paths\CkanUI.exe。
+
+> 本附录取代 §11 该行的判读方式；§11 原文保留以便追溯。

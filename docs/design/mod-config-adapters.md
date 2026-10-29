@@ -311,7 +311,7 @@ public interface IModConfigFieldRenderer
 1. **KSPCF 覆盖面**：15 篇示例给了 3 个键，但正文提到该 mod 有 138 条键。本段只实现示例那 3 个，并在 adapter.json 顶部注释与 README 里写明"其余 135 条待核验"。**这不是缩水，是取证边界**。
 2. **custom 布局强制只读**：15 篇只说 custom 是"mod 私有语法"，没有明说禁止写。本项目把"custom 必须 readonly"做成**读取器的硬错误**（写错就得改 adapter），理由是允许写等于允许写坏。
 3. **ConfigNode 复用上游**：15 篇 §9 说"复用 CKAN 的 ConfigNode 实现"。实际复用只到 `SfsParser`（语义解析），序列化自研（`ConfigNodeDocument` 的行内切片），因为 `SfsWriter` 没有按行注入的入口。上游代码零修改。
-4. **JSON Schema**：15 篇提到 schema 校验但没指定位置。仓库里原有一份 `tools/verify-layout/adapter.schema.json`（旧项目版，缺 `custom/id/lineEnding/separator/readonlyReason/label/default`），H-08 会**优先用** `docs/design/adapter.schema.json`。本段新增后者，与读取器规则对齐；旧文件保留未动（属他人范围，建议 Lead 后续合并或删除）。
+4. **JSON Schema**：15 篇提到 schema 校验但没指定位置。仓库里原有一份 `tools/verify-layout/adapter.schema.json`（旧项目版，缺 `custom/id/lineEnding/separator/readonlyReason/label/default`），H-08 现在**只认** `docs/design/adapter.schema.json`。本段新增后者，与读取器规则对齐；旧文件已于 2026-10-29 删除（`tools/verify-layout/GatesData.cs` 不再有 `ProjectSchema` 兜底、csproj 的拷贝项一并移除），H-08 只认这一份，缺失即阻断并点名 `docs/design/adapter.schema.json`。
 5. **KSP 运行中"禁写"**：15 篇 §5 说"运行中禁写"，但 §7 Q1 的结论是"(b) 允许写但二次确认"。实现按 Q1：默认拒绝（`detail: "game-running"`），确认后允许，并提示需要重启才生效。
 6. **页面 VM 不引用 Core**：15 篇没写这条，是本仓库的架构铁律（工程约定 §5 铁律 3）。因此 `ModuleVersion` 语义全部留在 Services，VM 只拿现成字符串（如 `SupportedVersionRangeText`）。
 

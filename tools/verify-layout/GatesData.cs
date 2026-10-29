@@ -116,8 +116,11 @@ internal static class H08AdapterSchema
 {
     public const string Id = "H-08";
 
-    private const string ProjectSchema = "tools/verify-layout/adapter.schema.json";
-
+    /// <summary>
+    /// schema 的唯一真源。旧路径 tools/verify-layout/adapter.schema.json 是旧项目版（缺
+    /// custom / id / lineEnding / separator / readonlyReason / label / default 等字段），已删除；
+    /// 这里不再保留兜底路径——缺文件即阻断，避免门禁拿过期 schema 静默放行。
+    /// </summary>
     private const string DesignSchema = "docs/design/adapter.schema.json";
 
     private static readonly JsonDocumentOptions ParseOptions = new()
@@ -128,12 +131,13 @@ internal static class H08AdapterSchema
 
     public static void Run(GateContext context)
     {
-        var designPath = Path.Combine(context.Repo.Root, DesignSchema.Replace('/', Path.DirectorySeparatorChar));
-        var schemaRelative = File.Exists(designPath) ? DesignSchema : ProjectSchema;
-        var schemaPath = Path.Combine(context.Repo.Root, schemaRelative.Replace('/', Path.DirectorySeparatorChar));
+        var schemaPath = Path.Combine(context.Repo.Root, DesignSchema.Replace('/', Path.DirectorySeparatorChar));
         if (!File.Exists(schemaPath))
         {
-            context.Add(Id, GateLevel.Blocking, $"缺少 adapter schema: {schemaRelative}");
+            context.Add(
+                Id,
+                GateLevel.Blocking,
+                $"缺少 adapter schema: {DesignSchema}（H-08 唯一真源；旧路径 tools/verify-layout/adapter.schema.json 已删除，不存在兜底）");
             return;
         }
 
@@ -165,7 +169,7 @@ internal static class H08AdapterSchema
             }
         }
 
-        context.Note(Id, $"schema = {schemaRelative}，adapter {adapters.Count} 个");
+        context.Note(Id, $"schema = {DesignSchema}，adapter {adapters.Count} 个");
     }
 }
 

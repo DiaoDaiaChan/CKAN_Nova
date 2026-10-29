@@ -8,7 +8,7 @@
 
 | # | 决策 | 主要理由 | 被否决的替代 |
 | --- | --- | --- | --- |
-| D1 | 分发形态是「解压即用」的 zip，根目录即应用目录 | 无安装器、无注册表、回滚=换回上一版 zip；09 篇 §5 明确不做 MSI | 安装器（PKG-04 之后）、单文件 exe |
+| D1 | 分发形态是「解压即用」的 zip，根目录即应用目录；安装器是**可选附加物**（包内 `install/` 每用户脚本，只写 `HKCU`） | 便携版无注册表、回滚=换回上一版 zip；09 篇 §5 明确不做 MSI 与 `HKLM` 写入 | MSI/系统级安装器、单文件 exe |
 | D2 | 每次出两个包：自包含 + 框架依赖 | 06 篇 PKG-01 要求两种配置都可用；干净机器用自包含，体积敏感场景用框架依赖 | 只出一个自包含包 |
 | D3 | 两种都开 `PublishReadyToRun=true` | 实测冷启动 1.57 s → 0.81 s（-49%），启动是高频可感知成本 | 都不开（体积小 32 MB）、只给自包含开 |
 | D4 | `PublishTrimmed=false` | Avalonia XAML 绑定 + Newtonsoft.Json 反射 + 插件加载不是 trim-safe | 裁剪（省 20–30 MB，但验收「干净机器能跑」无法自动验证） |
@@ -58,10 +58,10 @@
 
 ## 3. 便携目录布局
 
-- zip **没有**顶层包裹目录：解压到任意位置后，那个目录就是应用目录，`CkanUI.App.exe` 在根。理由：用户常把 zip 解压到 `D:\Games\CKAN UI\`，多一层 `ckan-ui-0.1.0-.../` 会让「程序在哪」变得不直观，也让快捷方式的相对路径更难写。
+- zip **没有**顶层包裹目录：解压到任意位置后，那个目录就是应用目录，`CkanUI.exe` 在根。理由：用户常把 zip 解压到 `D:\Games\CKAN UI\`，多一层 `ckan-ui-0.1.0-.../` 会让「程序在哪」变得不直观，也让快捷方式的相对路径更难写。
 - `log4net.xml`、`i18n/packs/`、`Assets/` 必须与 exe 同目录：`LoggingSetup.Initialize()` 会先 `Directory.SetCurrentDirectory(AppContext.BaseDirectory)` 再按相对路径找 `log4net.xml` 与语言包。
 - 配置与日志**不**进程序目录：配置在 `%LocalAppData%\CKAN\config.json`、日志在 `%LocalAppData%\CKAN\logs\`。程序目录常常是只读的（装在 Program Files 或只读分卷），写配置会失败；`Program.EnsureConfigFileWritable()` 兜底把 `CKAN_CONFIG_FILE` 指到程序目录。
-- stage（277 文件）→ zip（280 条目）的差值固定为 3：脚本在 stage 之外再注入 `README.txt`、`THIRD-PARTY-NOTICES.txt`、`licenses/CKAN-LICENSE.md`。**不要**把这些塞进 publish 输出目录——那是 MSBuild 的地盘，下次 publish 会被清掉。
+- stage（自包含 277 文件）→ zip（281 条目）的差值固定为 4：脚本在 stage 之外再注入 `README.txt`、`THIRD-PARTY-NOTICES.txt`、`LICENSE.md`（本项目 GPL-3.0）、`licenses/CKAN-LICENSE.md`（上游 MIT）。**不要**把这些塞进 publish 输出目录——那是 MSBuild 的地盘，下次 publish 会被清掉。
 - README/NOTICES 由模板生成（[`tools/release/package/`](../../tools/release/package/)），占位符 `{{VERSION}}`/`{{FLAVOR_NAME}}`/`{{RUNTIME_NOTE}}`/`{{SIZE_NOTE}}` 在打包时替换：两个包的说明必须写明「要不要装运行时」，靠模板只维护一份。
 
 ## 4. 确定性 zip
@@ -107,8 +107,8 @@
 
 | 项 | 为什么现在不做 | 什么时候做 |
 | --- | --- | --- |
-| 安装器 / MSI | 09 篇 §5 明确不做；zip 解压即用已满足「干净机器能跑」 | 需要「开始菜单快捷方式 / 卸载项」时 |
-| 代码签名 | 没有证书；PKG-09 只要求「未签名 + 清单」 | 拿到证书后接 SignPath，改 `signed` 与文件名后缀 |
+| MSI / 系统级安装器 | 09 篇 §5 不做 MSI，也绝不写 `HKLM`／不请求 UAC | 有企业分发需求时再评估 |
+| 代码签名 | 通道已接（`Sign-Artifacts.ps1` + `release.ps1` 签名步骤 + `manifest.signing`），只缺证书 | 拿到证书后传 `-Thumbprint`／`-PfxPath`，并一次性去掉文件名 `-unsigned`、置 `signed=true` |
 | macOS / Linux 包 | M6 不含（PKG-04 才有）；Avalonia 交叉发布容易，但需要在目标系统冒烟 | PKG-04 |
 | 自动更新 | 没有更新源，也没有签名，自动更新反而放大风险 | 签名 + 稳定分发渠道之后 |
 | 单文件 / 裁剪 | 见 D4/D5 | 有完整冒烟用例集之后 |
@@ -119,12 +119,13 @@
 | 事项 | 落点 | 说明 |
 | --- | --- | --- |
 | 文档索引登记 | `docs/README.md` 的「索引 · 运维与设计」表 | 新增了 `ops/release.md` 与 `design/packaging.md`，`verify-layout` H-05 要求索引覆盖所有文档 |
-| 主程序名 | `src/CkanUI.App/CkanUI.App.csproj` 的 `AssemblyName` | 现为 `CkanUI.App`，产物是 `CkanUI.App.exe`；09 篇 §2.1 写的是 `CkanUI.exe` |
+| 主程序名 | `src/CkanUI.App/CkanUI.App.csproj` 的 `AssemblyName` | 已统一为 `CkanUI`，产物 `CkanUI.exe`（与 09 篇 §2.1 一致）；Avalonia 资源 URI 同步改成 `avares://CkanUI/...`，改名后冒烟通过 |
 | 关于页许可证文案 | `src/CkanUI.ViewModels/Dialogs/AboutDialogViewModel.cs` 的 `LicenseText` | 现写 GPL-3.0，上游 CKAN 是 MIT；`AboutDialogTests` 有对应断言 |
-| 项目许可证文件 | 仓库根 `LICENSE.md` | 当前缺失；便携包里只有上游 CKAN 的许可证原文与第三方清单 |
+| 项目许可证文件 | 仓库根 `LICENSE.md` | 已有（GPL-3.0 全文 + 上游 MIT 说明）；`release.ps1` 把它复制到包根，文件缺失时直接中止出包 |
 
 ## 修订记录
 
 | 日期 | 变更 |
 | --- | --- |
 | 2026-10-29 | 首版：M6 / PKG-01..03 的决策表、版本词法、布局、确定性 zip、manifest schema |
+| 2026-10-29 | v1.4 回填：AssemblyName 改 `CkanUI`（产物 `CkanUI.exe`）、包内新增 `LICENSE.md` 与 `install/`、签名通道接进 `release.ps1`、`-NoReadyToRun` 开关与体积实测 |

@@ -1,4 +1,4 @@
-﻿CKAN UI {{VERSION}} 第三方组件与许可证清单
+CKAN UI {{VERSION}} 第三方组件与许可证清单
 ================================================
 
 分发形式：{{FLAVOR_NAME}}（未签名）。
@@ -20,4 +20,5 @@ SkiaSharp / HarfBuzzSharp        MIT         https://github.com/mono/SkiaSharp
 1. CKAN Core 的完整许可证文本见本包 licenses\CKAN-LICENSE.md。
 2. 具体版本号见随包 DLL 的文件版本信息（在资源管理器里右键属性即可看到）。
 3. log4net 以 Apache-2.0 分发，要求保留版权与许可声明，原文见上游仓库。
-4. 本项目自身的许可证尚未在仓库中声明，待项目负责人确定；这不改变上述第三方条款。
+4. 本项目自身（CKAN UI 界面与工具链）以 GPL-3.0 发布，许可证全文见本包根目录的 LICENSE.md。
+   两种许可互不覆盖：界面 GPL-3.0，内置 CKAN 核心库 MIT。

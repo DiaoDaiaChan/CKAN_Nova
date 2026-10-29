@@ -32,18 +32,18 @@
 | F-ID | 特性 | 实现证据（file:line） | 覆盖测试（类:属性数） | 强度 |
 |---|---|---|---|---|
 | F-01 | 多实例列表（名称/游戏/版本/时长/路径，选中、设为默认、遗忘、重命名、新建） | `src/CkanUI.Services/Instances/InstanceService.cs:9`（class）、`:28`（订阅 InstanceChanged 并投影）、`src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:22`（class） | InstancesPageViewModelTests:28、InstancesProjectionTests:9、InstanceServiceTests:1 | 强 |
-| F-02 | 克隆实例（源/目标路径、新名、设为默认、切换） | `src/CkanUI.Services/Instances/InstanceService.cs:71`（`CloneAsync`）；VM 侧命令入口在 `InstancesPageViewModel`（命令层，未逐行取证） | InstancesLaunchCommandTests:44（含克隆入口）、InstanceServiceTests:1 | 中：服务层 CloneAsync 无专门断言用例，主要靠 VM 入口用例 |
+| F-02 | 克隆实例（源/目标路径、新名、设为默认、切换） | `src/CkanUI.Services/Instances/InstanceService.cs:71`（`CloneAsync`）；VM 侧 `src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:530`（`BeginClone`） | InstancesPageViewModelTests:28（克隆：`:195-197` 进模式、`:203` 未填表不调服务、`:213-218` 调用一次且源/默认新名、`:227-233` 目标已存在、`:241-268` 取消与校验失败）、InstancesProjectionTests:9（`:103` 同级路径）、InstanceServiceTests:1 | 强（VM 入口与路径推导都有直接断言；服务层 CloneAsync 仍无断言，属「VM 强 / 服务层薄」，见 §12.1） |
 | F-03 | Steam 库导入 | `src/CkanUI.Services/Platform/SteamLibraryLocator.cs:22`、`src/CkanUI.Core/Steam/SteamLibraryParser.cs:12` | SteamLibraryLocatorTests:10、SteamLibraryParserTests:2 | 强 |
-| F-04 | 实例右键：打开目录 / 加入 CKAN / 克隆 | `InstancesPageViewModel.cs:747`（OpenFolder）、`:785`（Launch）；右键菜单本体在 `src/CkanUI.App/Views/InstancesPageView.axaml`（XAML，未逐项取证） | InstancesLaunchCommandTests:44、InstancesPageViewModelTests:28 | 中：菜单项靠 XAML，UI 层无自动化 |
+| F-04 | 实例右键：打开目录 / 加入 CKAN / 克隆 | `InstancesPageViewModel.cs:530`（`BeginClone`）、`:789`（`OpenFolderAsync`）、`:719`（`ForgetAsync`）；菜单本体 `src/CkanUI.App/Views/InstancesPageView.axaml:235-252`（`FAMenuFlyout` 六项）+ 工具条 `:29-37` | InstancesPageViewModelTests:28（`:430-441` 打开目录：`OpenFolderCalls==1`、`LastOpened==MainDir`、状态栏提示）、InstancesLaunchCommandTests:44 | 部分或缺口：打开目录与克隆有断言，但「加入 CKAN」在 `src/`、`tests/` 全仓 grep `加入 CKAN\|JoinCkan\|AddToCkan\|JoinToCkan` **0 命中**；菜单本体仍是 XAML 无自动化（见 §4.1） |
 | F-05 | 启动游戏（多命令选择） | `src/CkanUI.Services.Abstractions/IInstanceShellLauncher.cs:24`（`LaunchGameAsync`）、`src/CkanUI.App/Views/InstancesPageView.axaml.cs:208`（真实进程启动） | InstancesLaunchCommandTests:44、InstancesLaunchReleaseTests:8 | 中：真实进程外启动需手测，测试用假 launcher |
-| F-06 | 游戏命令行编辑（列表、重置、增、接受、取消） | `src/CkanUI.ViewModels/Pages/Instances/LaunchCommandsPanelViewModel.cs:17` | InstancesLaunchCommandTests:44（部分） | 中 |
-| F-07 | 打开游戏目录（菜单 + 托盘） | `InstancesPageViewModel.cs:747`（`OpenFolderAsync`）+ `IInstanceShellLauncher` 打开目录成员 | InstancesPageViewModelTests:28、InstancesLaunchCommandTests:44 | 中 |
+| F-06 | 游戏命令行编辑（列表、重置、增、接受、取消） | `src/CkanUI.ViewModels/Pages/Instances/LaunchCommandsPanelViewModel.cs:17` | InstancesLaunchCommandTests:44（`:446` 起「F-06」专区 9 例：添加 / 重复拒绝 / 修改 / 取消 / 删到最后一条 / 上移下移 / 重置默认 / 接受交回页面 / 无文本通道提示） | 强（见 §12.2） |
+| F-07 | 打开游戏目录（菜单 + 托盘） | `InstancesPageViewModel.cs:789`（`OpenFolderAsync`）/`:810`（`launcher.OpenFolderAsync(row.GameDir)`）+ `IInstanceShellLauncher` 打开目录成员 | InstancesPageViewModelTests:28（`:430-441`：调用次数、路径、状态栏三断言）、InstancesLaunchCommandTests:44 | 强（外壳调用与提示都有断言；真实文件管理器仍是平台替身，同 F-05，见 §12.3） |
 | F-08 | 实例锁定/注册表损坏处置（删锁、回滚、提示升级 CKAN） | `src/CkanUI.Services.Abstractions/Instances/IInstanceRepairService.cs:12`（Diagnose/ForceUnlock/Quarantine/CheckCompatibility）、`src/CkanUI.Services/Instances/InstanceRepairService.cs:24`、`src/CkanUI.Services.Abstractions/Instances/InstanceRepairModels.cs:6`、`src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:1195`（`Repair` 注入）/`:1243`/`:1278`/`:1352`（三个命令）、`src/CkanUI.App/Views/InstancesPageView.axaml`（「实例自检」区）；原锁定拦截仍在 `src/CkanUI.Services/Instances/InstanceService.cs:48-49`、`src/CkanUI.Services/Registry/RegistryService.cs:38` | InstanceRepairServiceTests:24、InstancesRepairTests:22、RegistryServiceTests:1、InstanceServiceTests:1 | 已实现：删锁（游戏运行中拒绝并可重试、非空锁目录不递归、动作写 `%LocalAppData%/CKAN/instance-repair-journal.jsonl`）、坏注册表隔离为 `registry.json.corrupt-yyyyMMdd-HHmmss`（字节保留）、CKAN 过旧与游戏版本过低给升级建议；§2.6 的原反证留档 |
 | F-09 | 切换实例后按需刷新 | `InstanceService.cs:37`（RefreshAsync）、`:40`（SwitchAsync）、`:28`（InstanceChanged 事件） | InstancesPageViewModelTests:28、InstancesProjectionTests:9、InstanceServiceTests:1 | 强 |
 | F-10 | 元数据仓库管理 | `src/CkanUI.Services/Repositories/RepositoryService.cs:140`（LoadRepositoriesAsync）、`:149`（AddRepositoryAsync）、`SettingsPageViewModel.cs:20`+`:540`（仓库分组） | RepositoryCatalogTests:26、RepositoryServiceListTests:12、ReposPageViewModelTests:29、SettingsPageViewModelTests:51 | 强 |
 | F-11 | 认证令牌（host + token，脱敏显示） | `src/CkanUI.Services/Settings/SettingsService.cs:59`/`:61`（主机枚举与掩码）、`src/CkanUI.ViewModels/Pages/Settings/AuthTokenEditorViewModel.cs:13`、`SettingsPageViewModel.cs:94`（`TokenEditor`） | SettingsPageViewModelTests:51、SettingsServiceTests:2 | 强 |
 | F-12 | 仓库刷新（手动/启动时/定时/暂停/Ctrl 强制重下） | `RepositoryService.cs:84`（`RefreshAsync(ct)`）、`:87`（`RefreshAsync(bool skipETags, ct)`）、`:101`（强制重下进度文案） | RepositorySkipETagsTests:2、RepositoryServiceListTests:12 | 强（主表实现位置列为空，本表补齐） |
-| F-13 | 稳定性容忍度（全局 + 单 mod 覆盖） | `src/CkanUI.ViewModels/Pages/Settings/StabilityToleranceFile.cs:18`、`src/CkanUI.ViewModels/Dialogs/ModDetailsViewModel.cs:35`（单 mod 覆盖） | SettingsStabilityToleranceTests:17 | 中：设置页覆盖面广，文件级读写无独立 fixture |
+| F-13 | 稳定性容忍度（全局 + 单 mod 覆盖） | `src/CkanUI.ViewModels/Pages/Settings/StabilityToleranceFile.cs:18`、`src/CkanUI.ViewModels/Dialogs/ModDetailsViewModel.cs:35`（单 mod 覆盖） | SettingsStabilityToleranceTests:17（`:44` 路径、`:50/:63/:73/:76/:84` 读、`:98/:114/:123` 原子写与非法值、`:133-138` 归一、`:144-157` 单模组覆盖、`:171-172` 同步读、`:181-188` 覆盖写） | 强（文件级读写与单模组覆盖都有直接断言，见 §12.4） |
 | F-14 | 兼容游戏版本管理 | `src/CkanUI.Services/Compatibility/CkanCompatibleVersionsService.cs:16`、`CompatibleVersionsDialogViewModel.cs:18` | CompatibleVersionsServiceTests:14、CompatibleVersionsDialogViewModelTests:13 | 强 |
 | F-15 | 首选下载主机设置 | `src/CkanUI.Services/Settings/PreferredHostsService.cs:13`、`PreferredHostsDialogViewModel.cs:13` | PreferredHostsServiceTests:9、PreferredHostsDialogViewModelTests:14 | 强 |
 | F-16 | 安装过滤器（全局 + 实例级） | `src/CkanUI.Services/Settings/InstallFiltersService.cs:18`、`InstallFiltersDialogViewModel.cs:14` | InstallFiltersServiceTests:5、InstallFiltersDialogViewModelTests:12 | 强 |
@@ -65,7 +65,7 @@
 | F-32 | 全量更新（Update all）、应用（Apply） | `ModsPageViewModel.cs:1183`（`UpdateAllCommand.NotifyCanExecuteChanged()`）、`src/CkanUI.App/Views/ModsPageView.axaml:146`（绑定 UpdateAllCommand）；主表 :1587 未复现 | ModsUpdateAllTests:5、ModsChangePreviewTests:6、ModsChangesHandoffTests:7 | 强（行号漂移） |
 | F-33 | 变更集页（四列、清空、应用、游戏运行警告） | `src/CkanUI.ViewModels/Pages/ChangesPageViewModel.cs:21`、`src/CkanUI.Core/ChangeSets/CoreChangeSetPlanner.cs:21`、`InstanceService.cs:122`（`IsGameRunning`） | ChangesPageViewModelTests:29、ChangesFormatterTests:9、ChangeSetServiceTests:17、ChangesGameRunningTests:8、GameProcessProbeTests:12 | 强 |
 | F-34 | 提供者选择（虚拟 mod 多候选单选） | `src/CkanUI.ViewModels/Dialogs/VirtualModuleDialogViewModel.cs:13`、`src/CkanUI.ViewModels/Dialogs/IModDialogService.cs:10` | ModDialogsTests:25、DialogsConfirmAndSelectTests:9 | 强 |
-| F-35 | 推荐/建议/被支持选择 | `RecommendationDialogViewModel.cs:14` | ModDialogsTests:25（部分） | 中：无独立 fixture 名，混在 ModDialogsTests 里 |
+| F-35 | 推荐/建议/被支持选择 | `RecommendationDialogViewModel.cs:14` | ModDialogsTests:25（`:22/:35/:48/:62/:78/:90/:104/:119/:136/:153` 共 10 处直接构造，含单候选与空 Request 零候选；`Request(...)` 辅助在 `:379`） | 强（无独立 fixture 文件，但断言直指该类并覆盖候选边界，见 §12.5） |
 | F-36 | 推荐审计 | `AuditRecommendationsDialogViewModel.cs:18` | AuditRecommendationsDialogTests:10 | 强 |
 | F-37 | 安装/卸载/升级执行（进度、取消、重试、日志） | `src/CkanUI.Services/Installers/InstallerService.cs:21`、`src/CkanUI.Services/Operations/OperationQueue.cs:21`、`OperationQueueViewModel.cs:22` | InstallerServiceTests:14、OperationsQueueViewModelTests:20、DownloadServiceTests:18 | 强 |
 | F-38 | 下载失败处置（逐项 Retry/Skip、复制诊断） | `src/CkanUI.ViewModels/Dialogs/DownloadErrorsDialogViewModel.cs:15`、`src/CkanUI.Services/Downloads/DownloadFailureClassifier.cs:34` | DownloadErrorsDialogViewModelTests:11、DownloadFailureClassifierTests:13、DownloadRetryPolicyTests:6 | 强（主表实现位置列为空，本表补齐） |
@@ -74,16 +74,16 @@
 | F-41 | 去重（跨实例扫描并共享） | `src/CkanUI.Services/Dedup/DedupScanner.cs:71`、`DedupExecutor.cs:15`、`DedupPageViewModel.cs:20` | DedupServiceTests:13、DedupPageViewModelTests:12 | 强（缺口照主表：非 Windows 无 inode、无共享存储目录模式） |
 | F-42 | 未管理文件（树、删除、接管为受管） | `src/CkanUI.Services/Unmanaged/UnmanagedScanner.cs:15`+`:62`（改走 `GameDataWalker`）、`UnmanagedAdopter.cs:22`、`CkanManagedFileRegistrar.cs:19`、`UnmanagedPageViewModel.cs:15`；新增 `GameDataWalker.cs:15`/`:59` | UnmanagedServiceTests:20、UnmanagedAdopterTests:10、UnmanagedAdoptTests:7、UnmanagedPageViewModelTests:18、**UnmanagedTraversalBoundaryTests:8（本任务新增）** | 强（本轮补齐联接遍历/接管/拒删边界，见 §3.1） |
 | F-43 | 残留目录清理 | `src/CkanUI.Services/Cleanup/ResidualCleanupService.cs:22`、`ResidualCleanupDialogViewModel.cs:22`、`CkanInstallerBackend.cs:180` | ResidualCleanupServiceTests:15、ResidualCleanupDialogTests:12 | 强 |
-| F-44 | 安装历史（时间戳列表、已装/未装分组、从历史重装） | `src/CkanUI.Services/History/InstallHistoryService.cs:21`、`InstallHistoryStore.cs:56`/`:69`/`:104`（`DeleteAt`）/`:140`（`Clear`）、`InstallHistoryRecorder.cs:84`/`:106`、`InstallHistoryPageViewModel.cs:18`/`:230`（`DeleteSelectedAsync`）/`:268`（`ClearHistoryAsync`）、`HistoryRecordingInstaller.cs:22` | InstallHistoryServiceTests:14、InstallHistoryPageViewModelTests:15、**InstallHistoryMaintenanceTests:12（新增）**、**InstallHistoryMaintenancePageViewModelTests:12（新增）** | 强（删除/清空缺口已补齐，见 §3.2；仍缺 RemoveExtras 界面开关） |
+| F-44 | 安装历史（时间戳列表、已装/未装分组、从历史重装） | `src/CkanUI.Services/History/InstallHistoryService.cs:21`、`InstallHistoryStore.cs:56`/`:69`/`:104`（`DeleteAt`）/`:140`（`Clear`）、`InstallHistoryRecorder.cs:84`/`:106`、`InstallHistoryPageViewModel.cs:18`/`:230`（`DeleteSelectedAsync`）/`:268`（`ClearHistoryAsync`）、`HistoryRecordingInstaller.cs:22` | InstallHistoryServiceTests:14、InstallHistoryPageViewModelTests:15、**InstallHistoryMaintenanceTests:12（新增）**、**InstallHistoryMaintenancePageViewModelTests:12（新增）** | 强（删除/清空缺口已补齐见 §3.2；`RemoveExtras` 勾选也已落地：`InstallHistoryPageViewModelTests:233-264` 断言默认关闭与勾选后进预览/请求，见 §9 ⑥、§12.6） |
 | F-45 | 导出：已装列表 / modpack | `src/CkanUI.Services/ModPacks/InstalledListExporter.cs:15`（主表写在 ViewModels 下，实际在 Services）、`CkanModPackStore.cs:27` | InstalledListExporterTests:10、ModPacksPageViewModelTests:43 | 强（路径漂移已校正） |
 | F-46 | modpack 编辑器 | `src/CkanUI.Services/ModPacks/ModPackEditorStore.cs:22`、`ModPackEditorValidator.cs:25`、`ModPackEditorPageViewModel.cs:25` | ModPackEditorStoreTests:20、ModPackEditorValidatorTests:26、ModPackEditorPageViewModelTests:24 | 强（主表 @BT@ 占位符已修正） |
 | F-47 | 下载统计（饼图 + 表格） | `src/CkanUI.Services/Stats/DownloadStatsAggregator.cs:8`、`DownloadStatsService.cs:10`、`DownloadStatsPageViewModel.cs:14`、`src/CkanUI.App/Controls/DonutChart.cs:13` | DownloadStatsServiceTests:19、DownloadStatsPageViewModelTests:16 | 强（主表 @BT@ 占位符已修正；按仓库维度未做） |
-| F-48 | 游戏时长（实例名 / 小时数，F2 就地编辑） | `src/CkanUI.Services/PlayTime/PlayTimeService.cs:22`/`:46`（`DefaultPath`）、`PlayTimeSessionLedger.cs:28`、`src/CkanUI.Services.Abstractions/PlayTime/IPlayTimeTracker.cs`、`PlayTimePageViewModel.cs:12`、`InstancesPageViewModel.cs:95`（`PlayTime` 属性）/`:859`（BeginSession）/`:937`（EndSession） | PlayTimeServiceTests:3、**PlayTimeTrackerTests:14（新增）**、PlayTimePageViewModelTests:1、**InstancesPlayTimeTrackingTests:9（新增）** | 强（自动累计缺口已补齐，见 §3.3；仍缺真实实例集成与清空入口） |
+| F-48 | 游戏时长（实例名 / 小时数，F2 就地编辑） | `src/CkanUI.Services/PlayTime/PlayTimeService.cs:22`/`:46`（`DefaultPath`）、`PlayTimeSessionLedger.cs:28`、`src/CkanUI.Services.Abstractions/PlayTime/IPlayTimeTracker.cs`、`PlayTimePageViewModel.cs:12`、`InstancesPageViewModel.cs:95`（`PlayTime` 属性）/`:859`（BeginSession）/`:937`（EndSession） | PlayTimeServiceTests:3、**PlayTimeTrackerTests:14（新增）**、PlayTimePageViewModelTests:1、**InstancesPlayTimeTrackingTests:9（新增）** | 强（自动累计缺口见 §3.3；重置入口见 `PlayTimePageViewModelTests:70-167`（确认后调用 / 取消 / 失败 / 异常 / 无对话框禁用），见 §9 ⑦、§12.7；仍缺真实实例下的整链集成） |
 | F-49 | 设置总表 | `SettingsPageViewModel.cs:20`、`:540`（`SettingGroupKey.Repository` 分组）；主表 :264 未复现 | SettingsPageViewModelTests:51、SettingsAccentTests:25、SettingsMotionScaleTests:24、SettingsFontScaleTests:17、SettingsStabilityToleranceTests:17、SettingsBackgroundTests:12、SettingsKeyMirrorTests:11、SettingsAccentInstanceTests:8、SettingsTrayTests:8、SettingsDensityTests:7、SettingsHighContrastTests:4 | 强 |
 | F-50 | 下载缓存管理 | `src/CkanUI.Services/Cache/CacheService.cs:17`、`CachePageViewModel.cs:11`/`:193`（Refresh）/`:213`（PurgeAll）/`:325`（OpenFolder）/`:359`（ResetLimit） | CacheServiceTests:14、CachePageViewModelTests:22 | 强 |
-| F-51 | 托盘图标（启用/最小化到托盘；7 项右键菜单） | `src/CkanUI.ViewModels/Shell/TrayMenuViewModel.cs:23`、`TrayMenuItemViewModel.cs:39`、`src/CkanUI.App/Tray/TrayHost.cs:29`、`TrayHostActions.cs:27`、`ITrayHostActions.cs:16`、`UiSettings.MinimizeToTray`/`CloseToTray` | TrayMenuTests:17、SettingsTrayTests:8 | 中：宿主层（真实图标/菜单点击）无自动化通道，需桌面手测；主表 @BT@ 占位符与 — 已修正 |
+| F-51 | 托盘图标（启用/最小化到托盘；7 项右键菜单） | `src/CkanUI.ViewModels/Shell/TrayMenuViewModel.cs:23`、`TrayMenuItemViewModel.cs:39`、`src/CkanUI.App/Tray/TrayHost.cs:29`、`TrayHostActions.cs:27`、`ITrayHostActions.cs:16`、`UiSettings.MinimizeToTray`/`CloseToTray` | TrayMenuTests:17、SettingsTrayTests:8 | 中：VM 侧 7 项菜单见 `TrayMenuTests:34-40`；宿主层（`TrayHost.cs:29` 的真实图标/菜单点击）无自动化通道，需桌面手测（见 §4.1） |
 | F-52 | 自动更新（启动时检查、dev builds、检查/安装、新版本对话框） | 检查侧 `src/CkanUI.Services.Abstractions/IUpdateCheckService.cs:10`、`src/CkanUI.Services/Update/UpdateCheckService.cs:17`（`PickUpdateAsset` 解析 `assets[].browser_download_url` 的 Windows zip 与 `digest` 归一成 SHA256）、`src/CkanUI.Services.Abstractions/Dtos/UpdateCheckResult.cs`（`AssetUrl`/`AssetSha256`/`AssetSize`）；安装侧 `src/CkanUI.Services.Abstractions/Update/IUpdateInstaller.cs:14`、`src/CkanUI.Services/Update/UpdateInstaller.cs:30`、`src/CkanUI.ViewModels/Dialogs/UpdateAvailableDialogViewModel.cs:33`（`InstallCommand`）、`src/CkanUI.App/Views/Dialogs/UpdateAvailableDialogView.axaml`（安装区） | UpdateInstallerTests:17、UpdateInstallDialogTests:15、UpdateCheckServiceTests:11、UpdateDialogViewModelTests:9 | 已实现：下载走既有 `IDownloadService`、SHA256/大小校验、zip-slip 整包拒绝、剥壳最多 4 层、覆盖前 `backup-<时间戳>` 备份、失败或取消自动回滚、成功置 `RestartRequired`；残留见 `docs/design/app-update.md` §10（不校验签名、原地升级需独立 updater）；§2.5 的原反证留档 |
-| F-53 | 语言与本地化（选择需重启；多语 resx/json） | `src/CkanUI.Localization/Localizer.cs:16`、`LanguagePackLoader.cs:12`、`SettingsPageViewModel.cs:54`（`LocaleChoicesProvider`）/`:96`（`RefreshLocaleChoices`）/`:572`（语言项） | LocalizerTests:10、LanguageSwitchTests:8、PseudoLocalizationTests:10、ShippedPacksTests:7、FallbackTests:6、FormatTests:6、LocaleInfoTests:3、LocalizationKeyDriftTests:4、LocalizerCacheParticipantTests:3、**SettingsLocaleChoicesTests:4（新增）** | 强（候选与已发包语种对齐，见 §3.4；VM 侧中文硬编码属横切债，记入缺口） |
+| F-53 | 语言与本地化（选择需重启；多语 resx/json） | `src/CkanUI.Localization/Localizer.cs:16`、`LanguagePackLoader.cs:12`、`SettingsPageViewModel.cs:54`（`LocaleChoicesProvider`）/`:96`（`RefreshLocaleChoices`）/`:572`（语言项） | LocalizerTests:10、LanguageSwitchTests:8、PseudoLocalizationTests:10、ShippedPacksTests:7、FallbackTests:6、FormatTests:6、LocaleInfoTests:3、LocalizationKeyDriftTests:4、LocalizerCacheParticipantTests:3、**SettingsLocaleChoicesTests:4（新增）** | 强（候选与已发包语种对齐见 §3.4、§12.8；页面 VM 文案已迁 852 处（§11.1）并有三条守护用例（§11.4），只剩子 VM 与静态格式化器（§11.5）属横切债） |
 | F-54 | 显示格式（隐藏 epoch、隐藏 v、自动排序） | `src/CkanUI.ViewModels/Pages/Settings/VersionDisplayFormat.cs:6`、`ModsRowView.cs:134` | VersionDisplayFormatTests:7、ModsVersionDisplayTests:8 | 强 |
 | F-55 | 帮助与关于（链接、关于框、单实例互斥、ckan://、错误/崩溃对话框） | `src/CkanUI.ViewModels/Dialogs/AboutDialogViewModel.cs:24`、`src/CkanUI.App/AboutInfoFactory.cs:9`、`src/CkanUI.Platform/SingleInstance/SingleInstanceGuard.cs:20`、`CkanUri.cs:16`、`ErrorDialogViewModel.cs:13` | AboutDialogTests:10、CkanUriTests:11、SingleInstanceGuardTests:4、DialogsErrorAndDiagnosticTests:10 | 强（许可证文案已改为双声明口径） |
 
@@ -243,28 +243,39 @@
 
 ## 4. 证据不足清单与补救建议
 
-| F-ID | 不足点 | 补救建议 |
+> **第五轮对账（2026-10-29）**：原 16 行按 `tests/**` 的真实断言逐行复核——**12 行移出、4 行保留**。判定只看「有没有断言该行为的用例」，不看文件名（`InstancesLaunchCommandTests`、`ModDialogsTests` 这类大 fixture 里都藏着专门用例）。逐条 file:line 见 **§12**。
+
+### 4.1 仍证据不足（4 行）
+
+| F-ID | 不足点 | 缺少什么断言 / 补救建议 |
 |---|---|---|
-| F-02 | 服务层 `InstanceService.CloneAsync`（`:71`）有实现，但没有克隆专属 fixture，入口混在 `InstancesLaunchCommandTests:45` 里 | 补 `CloneInstanceTests`，断言同级路径推导、新名冲突、设为默认 |
-| F-04 | 右键菜单项写在 `src/CkanUI.App/Views/InstancesPageView.axaml`，UI 层无自动化通道 | 列桌面手测项（打开目录 / 加入 CKAN / 克隆三项目测） |
-| F-05 | 真实进程启动在 `src/CkanUI.App/Views/InstancesPageView.axaml.cs:208`，测试用假 `IInstanceShellLauncher` | 桌面手测：启动真实游戏、命令优先级、退订 |
-| F-06 | 命令行编辑只在 VM 层（`LaunchCommandsPanelViewModel.cs:17`）有实现证据 | 手测重置/增/接受/取消四条路径 |
-| F-07 | 与 F-05 同源：打开目录靠平台 launcher，无自动化 | 并入 F-05 手测项 |
-| F-08 | 见 §2.6：只有锁定检测与提示 | 母表改「部分」，删锁/注册表修复/升级提示单列任务 |
-| F-13 | 稳定性容忍度的文件级读写（`StabilityToleranceFile.cs:18`）无独立 fixture，靠设置页用例间接覆盖 | 补 `StabilityToleranceFileTests`（损坏文件、并发写、覆盖层级） |
-| F-17 | 插件卸载是 ALC 尽力而为，且不校验签名；用例覆盖激活/停用/重载，未覆盖真实 DLL 卸载 | 文档明确「卸载尽力而为」；需要强隔离时再评估新进程宿主 |
-| F-26 | 见 §2.1：实现形态与描述不符 | 母表改描述，或补页签容器 |
-| F-30 | 见 §2.2：无版本列表与选择界面 | 母表改「部分」并补实现位置；UI 补齐见 §2.2 建议 |
-| F-35 | 推荐/建议/被支持三种对话框混在 `ModDialogsTests` 里，无独立 fixture | 拆 `RecommendationDialogViewModelTests` |
-| F-44 | 残留：`RemoveExtras` 无界面开关 | 历史页重装选项加一个「卸载快照之外的模组」勾选 |
-| F-48 | 残留：只在实例页启动路径记账；无清空单实例时长入口 | 把 `IPlayTimeTracker` 下沉到启动协调器；时长页加「重置」按钮 |
-| F-51 | 托盘真实图标与菜单点击无自动化通道（宿主层 `TrayHost.cs:29` 需真实桌面） | 桌面手测 7 项菜单 + 最小化/关闭到托盘 |
-| F-52 | 见 §2.5：只有检查，没有下载/安装 | 母表拆行；实现下载与替换时需先定签名与回滚策略 |
-| F-53 | 残留：VM 侧运行期文案与导航标题中文硬编码 130+ 处（`src/CkanUI.ViewModels/Pages/ModTextPageViewModel.cs:208`、`src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:128`） | 按 16 篇 §5 键规范迁移；`milestones.md` §4 第 8 条已登记为横切债 |
+| F-04 | 规格里的「加入 CKAN」在 `src/`、`tests/` 全仓 grep `加入 CKAN\|JoinCkan\|AddToCkan\|JoinToCkan` **0 命中**；打开目录与克隆两动作已有用例（§1 F-04 / F-02） | 二选一：实现该动作（可走 `InstanceService.AddAsync`，`InstanceService.cs:59`）并补用例，或把该动作从母表描述里去掉；菜单本体在 `InstancesPageView.axaml:235-252`，XAML 层无自动化，列桌面手测 |
+| F-05 | 真实进程启动在 `src/CkanUI.App/Views/InstancesPageView.axaml.cs:208`，测试用假 `IInstanceShellLauncher`；`LaunchGameAsync` 在 `tests/**` grep **0 命中** | 把「按命令解析 binary/args」提成纯函数并补用例；真实启动、命令优先级、退订留桌面手测 |
+| F-17 | 卸载是 ALC 尽力而为且不校验签名；`PluginServiceTests` 里 grep `Uninstall` **0 命中**（`AdapterInstallerTests:603` 是 adapter 包目录删除，不是插件卸载） | 补 `Uninstall_*` 断言：卸载后移出激活集合、程序集不可再解析、失败保留条目；真实 DLL 卸载只标「尽力而为」 |
+| F-51 | 宿主层 `TrayHost.cs:29` 的真实图标与菜单点击无自动化通道（`TrayMenuTests.cs:18` 注释即「图标与原生菜单的装配留在 App 层的 TrayHost（无 GUI 会话无法验证）」） | VM 侧 7 项菜单已有用例（`TrayMenuTests:34-40`）；把宿主编排抽到可注入的 `ITrayHostActions` 后补用例，其余桌面手测 |
+
+### 4.2 本轮移出（12 行）
+
+| F-ID | 移出理由 | 依据 |
+|---|---|---|
+| F-02 | VM 侧克隆 6 组断言 + 投影层同级路径推导（原写「无克隆专属 fixture，入口混在 `InstancesLaunchCommandTests:45`」不成立） | `InstancesPageViewModelTests.cs:195-268`、`InstancesProjectionTests.cs:103`（§12.1） |
+| F-06 | `InstancesLaunchCommandTests` 里的「F-06」专区共 9 例 | `InstancesLaunchCommandTests.cs:446-572`（§12.2） |
+| F-07 | 打开目录有调用次数 / 路径 / 状态栏三断言 | `InstancesPageViewModelTests.cs:430-441`（§12.3） |
+| F-13 | `SettingsStabilityToleranceTests` 直测 `StabilityToleranceFile` 读写、归一与单模组覆盖 | `SettingsStabilityToleranceTests.cs:44-188`（§12.4） |
+| F-35 | `ModDialogsTests` 内 10 处直接构造 `RecommendationDialogViewModel`，覆盖单候选与空 Request | `ModDialogsTests.cs:22-153`（§12.5） |
+| F-44 | `RemoveExtras` 勾选已落地并有默认值 / 传递断言 | `InstallHistoryPageViewModelTests.cs:233-264`（§12.6） |
+| F-48 | 重置入口 5 例（确认后调用 / 取消 / 失败 / 异常 / 无对话框禁用） | `PlayTimePageViewModelTests.cs:70-167`（§12.7） |
+| F-53 | 页面文案 852 处已迁 + 三条守护用例；语言候选 4 例 | §11.1 / §11.4、`SettingsLocaleChoicesTests.cs:13-99`（§12.8） |
+| F-08 | 第二轮补齐：自检服务 + 页面三命令 + 动作前确认 | §7 表（F-08 行）、`InstanceRepairServiceTests`（24）、`InstancesRepairTests`（22） |
+| F-26 | 第二轮补齐：四页签容器 + 标题计数 + 切换复位 | §7 表（F-26 行）、`DialogsModDetailsTabsTests`（27） |
+| F-30 | 第三轮补齐：版本集合契约 + 页面注入 + 指定版本安装 | §8、`CkanModVersionCatalogTests`（13）、`ModsVersionCatalogTests`（12） |
+| F-52 | 第二轮补齐：下载—校验—替换—回滚 | §7 表（F-52 行）、`UpdateInstallerTests`（17） |
 
 ---
 
 ## 5. 复核命令与本轮真实计数
+
+> **时效说明**：下面的计数是第 5 轮当时的状态（当时 `ModConfig` 有 24 例失败，属并行改动中的适配器）。**2026-10-29 全量基线**已是 3110 例、0 失败、0 跳过（App 163 / Architecture 21 / Core 3 / Localization 76 / ModText 19 / Services 1205 / Sfs 93 / ViewModels 1530，`artifacts/final-tests-6.log` 与当日实测一致），`docs/design/milestones.md` §6.2 记的是后者；引用测试数字时以基线为准，本节表格只作历史留档。
 
 ```bash
 # 全解决方案构建（干净基线）
@@ -451,4 +462,63 @@ XAML 侧文案本来就是 `DynamicResource` 走词包，缺的是页面 ViewMod
 ### 11.5 仍未覆盖（明确的下一轮清单）
 
 子 VM 与静态格式化器拿不到 `PageViewModel.Text()`，本轮按「收益/风险」判据选择放弃，清单与改造办法见 `docs/design/i18n-runtime.md` 的「尚未覆盖」：`ChangesFormatter`（39）、`ModPackEditorText`（39）、`ModsSearchPanelViewModel`（30）、`LogGlyphs`（24）、`ChangesLabels`（19）、`LaunchCommandsPanelViewModel`（19）、`InstallHistoryText`（17）、`SettingsDiagnosticsViewModel`（14）、`StabilityToleranceFile`（14）、`ModConfigModCardViewModel`（13）、`ModConfigFieldRowViewModel`（12）、`ModPackStateText`（11）、`SaveRowViewModel`（10）、`SettingValidator`（10）等。改法：给它们加可选 `Func<string,string>` / `Func<string,string,string>` 参数，页面构造时把 `Text` 方法组传下去，缺省回落中文原文——这样既有构造点与用例都不用改，但要逐个改构造签名，故留作单独一轮。
+---
+
+## 12. 第五轮：证据不足清单对账（2026-10-29）
+
+`§4` 原有 16 行按「有没有断言该行为的用例」逐行复核，不看文件名（大 fixture 里常有专区）。下表每条只给真实存在的 `[Test]`/断言行；行号取自 `2026-10-29` 的工作区文本，后续改动可能漂移。
+
+### 12.1 F-02 克隆实例（移出）
+
+`tests/CkanUI.ViewModels.Tests/InstancesPageViewModelTests.cs`：
+
+- `:195` `h.Vm.BeginCloneCommand.Execute(null);`、`:197` 断言 `Form.Mode == InstanceFormMode.Clone`；
+- `:203` 只开表单不调服务（`CloneCalls == 0`）；
+- `:213-218` 提交后 `CloneCalls == 1`、`LastCloneSource == "Main"`、`LastCloneName == "Main - 副本"`；
+- `:227-233` 目标已存在时仍调用并回显错误；`:241-268` 取消与校验失败都不调用。
+
+`tests/CkanUI.ViewModels.Tests/InstancesProjectionTests.cs:103` `CloneDestination_为源目录的同级目录()`（`:105` 断言同级路径）。服务层仍薄：`tests/CkanUI.Services.Tests/Instances/InstanceServiceTests.cs` grep `Clone` **0 命中**，克隆路径推导只有投影层证据。
+
+### 12.2 F-06 命令行编辑（移出）
+
+`tests/CkanUI.ViewModels.Tests/InstancesLaunchCommandTests.cs`：`:364` 与 `:446` 两处分区注释均写「F-06」，`:446` 之后 9 例——`:449` 添加、`:462` 重复拒绝、`:476` 修改、`:491` 取消、`:505` 删到最后一条、`:520` / `:537` 上移下移、`:552` 重置默认、`:572` 接受交回页面（另有「无文本通道」提示一例）。
+
+### 12.3 F-07 打开游戏目录（移出）
+
+`InstancesPageViewModelTests.cs:430` `打开目录_调用外壳并提示路径`：`:439` `OpenFolderCalls == 1`、`:440` `LastOpened == MainDir`、`:441` 状态栏「已在文件管理器中打开：…」。实现 `src/CkanUI.ViewModels/Pages/InstancesPageViewModel.cs:789`（`OpenFolderAsync`）/`:810`（`launcher.OpenFolderAsync(row.GameDir)`）。外壳层仍是平台替身，同 F-05。
+
+### 12.4 F-13 稳定性容忍度（移出）
+
+`tests/CkanUI.ViewModels.Tests/SettingsStabilityToleranceTests.cs`：`:44` 路径推导（`stability_tolerance.json`）、`:50/:63/:73/:76/:84` 读取（缺失 / 坏 JSON / 未知值）、`:98/:114/:123` 原子写与非法值、`:133-138` `NormalizeTolerance`（null/空 → stable、`TESTING` → testing、`beta` → stable）、`:144-157` 单模组覆盖、`:171-172` 同步读、`:181-188` 覆盖写。原「文件级读写无独立 fixture」不成立。
+
+### 12.5 F-35 推荐 / 建议对话框（移出）
+
+`tests/CkanUI.ViewModels.Tests/ModDialogsTests.cs` 内 10 处直接构造：`:22`、`:35`、`:48`、`:62`、`:78`（单候选）、`:90`（空 Request 零候选）、`:104`、`:119`、`:136`、`:153`；`Request(...)` 辅助定义在 `:379`。仍无独立 fixture 文件，但断言直指该类并覆盖候选边界，按 §0.3 归「强」。
+
+### 12.6 F-44 `RemoveExtras` 勾选（移出）
+
+`tests/CkanUI.ViewModels.Tests/InstallHistoryPageViewModelTests.cs:233` `RemoveExtras_DefaultsToFalseAndIsCarriedAsFalse`（`:239` 默认 false、`:244/:245` 预览与请求均 false）、`:250` `RemoveExtras_CheckedIsCarriedIntoPreviewAndRestore`（`:256` 置 true、`:263/:264` 预览与请求均 true）。实现见 §9 ⑥。
+
+### 12.7 F-48 重置入口（移出）
+
+`tests/CkanUI.ViewModels.Tests/PlayTimePageViewModelTests.cs`：`:70` 确认后调用并刷新（`:88` `Resets == 1`、`:89` 实例名、`:92` 状态栏文案）、`:99` 取消不调用、`:119` 失败不抛、`:138` 异常收进错误文案、`:153` 无 `IDialogService` 时 `CanReset == false`（`:162-167`）。实现见 §9 ⑦。
+
+### 12.8 F-53 语言候选（移出）
+
+`tests/CkanUI.ViewModels.Tests/SettingsLocaleChoicesTests.cs:13`（fixture）：`:46/:53` 提供器注入 + `RefreshLocaleChoices()`、`:72/:80` 顺序与去重、`:97/:99` 空集合回退随包语种。页面文案迁移见 §11.1（852 处）与 §11.4（3 条守护用例）。
+
+### 12.9 复核命令与结论
+
+```bash
+# F-02 / F-07：克隆与打开目录的视图模型断言
+grep -n "CloneCalls\|OpenFolderCalls" tests/CkanUI.ViewModels.Tests/InstancesPageViewModelTests.cs
+# F-04 缺口：加入 CKAN 全仓无实现（0 命中）
+grep -rn "加入 CKAN\|JoinCkan\|AddToCkan\|JoinToCkan" src tests
+# F-05 缺口：真实启动无测试（0 命中）
+grep -rn "LaunchGameAsync" tests
+# F-17 缺口：插件卸载无断言（0 命中）
+grep -n "Uninstall" tests/CkanUI.Services.Tests/Plugins/PluginServiceTests.cs
+```
+
+结论：§4 从 16 行收缩到 **4 行**（F-04 部分、F-05、F-17、F-51），其中 F-04 的缺口是「加入 CKAN 未实现」而不是「没有断言」。母表 §1 与本文 §1 的强度列已同轮对齐；`milestones.md` §4 与 `feature-matrix.md` 的互链口径见两文引言。
 

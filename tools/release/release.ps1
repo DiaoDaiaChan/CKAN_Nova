@@ -27,6 +27,27 @@
 .PARAMETER RequireClean
     工作树脏就中止。默认只把 dirty 标记写进 manifest——并行开发期工作树常是脏的。
 
+.PARAMETER NoReadyToRun
+    不做 ReadyToRun 预编译。默认做（冷启动 1.58 s → 0.81 s），代价是体积：实测自包含版解压
+    152 MB → 119 MB（-34 MB）、框架依赖版 73 MB → 41 MB。磁盘紧张或要与上游体积对齐时用它。
+
+.PARAMETER PfxPath
+    .pfx 代码签名证书路径。与本参数或 -Thumbprint 一起给时，脚本会在打包前调用
+    tools/release/Sign-Artifacts.ps1 给 stage 里的主程序签名。本机没有证书，默认不签名，
+    包名带 -unsigned；签名后请在发布页同时给出 Authenticode 指纹。
+
+.PARAMETER PfxPassword
+    .pfx 口令。只在内存里传，日志里一律打码。
+
+.PARAMETER Thumbprint
+    证书存储里的证书指纹。与 -PfxPath 同时给时以指纹为准。
+
+.PARAMETER TimestampUrl
+    RFC 3161 时间戳服务，默认 http://timestamp.digicert.com（证书过期后旧签名仍有效）。
+
+.PARAMETER SignDryRun
+    只打印 signtool 命令行、不真签，用于验证签名接线。产物仍是未签名包，包名不改。
+
 .PARAMETER SmokeTest
     打包后把 zip 解压到临时目录、真启动一次、等主窗口出现再关掉，结果写进 manifest。
     没有桌面会话的 CI 环境不要开（会等到超时后判失败）。
@@ -48,6 +69,12 @@ param(
     [switch] $RequireClean,
     [switch] $SmokeTest,
     [switch] $KeepWork,
+    [switch] $NoReadyToRun,
+    [string] $PfxPath = '',
+    [string] $PfxPassword = '',
+    [string] $Thumbprint = '',
+    [string] $TimestampUrl = 'http://timestamp.digicert.com',
+    [switch] $SignDryRun,
     [string] $Configuration = 'Release'
 )
 
@@ -205,7 +232,7 @@ function Invoke-Publish {
         ('-p:CkanUiVersion=' + $Version),
         ('-p:CkanUiCommitCount=' + $commitCount),
         ('-p:CkanUiCommitSha=' + $shortSha),
-        '-p:PublishReadyToRun=true',
+        ('-p:PublishReadyToRun=' + $(if ($NoReadyToRun) { 'false' } else { 'true' })),
         '-p:PublishTrimmed=false',
         '-p:PublishSingleFile=false',
         '--nologo',
@@ -230,9 +257,9 @@ function Invoke-Publish {
         Stop-WithError ('dotnet publish 失败（' + $Flavor + '，退出码 ' + $exitCode + '）。若出现 NU1301 说明 NuGet 源不可用，见 docs/ops/build-environment.md；不要改 NuGet 配置或包版本。')
     }
 
-    $exePath = Join-Path $publishDir 'CkanUI.App.exe'
+    $exePath = Join-Path $publishDir 'CkanUI.exe'
     if (-not (Test-Path -LiteralPath $exePath)) {
-        Stop-WithError ('发布输出里没有 CkanUI.App.exe：' + $publishDir)
+        Stop-WithError ('发布输出里没有 CkanUI.exe：' + $publishDir)
     }
     return $publishDir
 }
@@ -289,12 +316,47 @@ function New-Stage {
 
     $licenseDir = Join-Path $stageDir 'licenses'
     New-Item -ItemType Directory -Path $licenseDir -Force | Out-Null
+    # 本项目自身的许可证（GPL-3.0 全文）随包分发：用户在解压目录里就能读到，不必回仓库找。
+    $ownLicense = Join-Path $repoRoot 'LICENSE.md'
+    if (Test-Path -LiteralPath $ownLicense) {
+        Copy-Item -LiteralPath $ownLicense -Destination (Join-Path $stageDir 'LICENSE.md') -Force
+    } else {
+        Stop-WithError '缺少仓库根的 LICENSE.md：发布包必须带上项目自身的许可证原文。'
+    }
     $ckanLicense = Join-Path $repoRoot 'external\CKAN\LICENSE.md'
     if (Test-Path -LiteralPath $ckanLicense) {
         Copy-Item -LiteralPath $ckanLicense -Destination (Join-Path $licenseDir 'CKAN-LICENSE.md') -Force
     } else {
         Write-Host '    警告：external/CKAN/LICENSE.md 不存在，包里将缺少 CKAN 许可证原文。' -ForegroundColor Yellow
     }
+
+    # 便携包的"安装器"：解压后跑 install\install.ps1 即可 per-user 安装（写 HKCU、建快捷方式、登记卸载），
+    # 不需要管理员，也不需要 Inno Setup。脚本随包分发，用户不用回仓库找。
+    $installScriptDir = Join-Path $stageDir 'install'
+    New-Item -ItemType Directory -Path $installScriptDir -Force | Out-Null
+    foreach ($scriptName in @('install.ps1', 'uninstall.ps1')) {
+        $scriptSource = Join-Path (Join-Path $PSScriptRoot 'install') $scriptName
+        if (-not (Test-Path -LiteralPath $scriptSource)) {
+            Stop-WithError ('缺少安装脚本 tools/release/install/' + $scriptName)
+        }
+        Copy-Item -LiteralPath $scriptSource -Destination (Join-Path $installScriptDir $scriptName) -Force
+    }
+    $installReadme = @(
+        'CKAN UI 安装脚本（per-user，不需要管理员权限）'
+        ''
+        '用法（在解压出来的这个目录里打开 PowerShell）：'
+        '    powershell -ExecutionPolicy Bypass -File .\install\install.ps1 -SourceDir .'
+        ''
+        '装到 %LocalAppData%\CKAN UI，建开始菜单与桌面快捷方式，并在 HKCU 登记卸载项。'
+        '卸载：powershell -ExecutionPolicy Bypass -File .\install\uninstall.ps1'
+        '（卸载默认保留 %LocalAppData%\CKAN 里的设置、日志与缓存）'
+        ''
+        '不想装也可以直接双击同目录的 CkanUI.exe：这就是便携版。'
+        '详细说明见仓库 docs/ops/install.md。'
+    ) -join [Environment]::NewLine
+    [System.IO.File]::WriteAllText((Join-Path $installScriptDir 'README.txt'), $installReadme + [Environment]::NewLine, [System.Text.UTF8Encoding]::new($false))
+
+    $finalMeasure = Get-ChildItem -LiteralPath $stageDir -Recurse -File -Force | Measure-Object -Property Length -Sum
 
     $finalMeasure = Get-ChildItem -LiteralPath $stageDir -Recurse -File -Force | Measure-Object -Property Length -Sum
     return [pscustomobject]@{
@@ -394,12 +456,16 @@ function Get-Sha256 {
 # ---- 7. 主流程 -------------------------------------------------------------
 
 $requiredEntries = @(
-    'CkanUI.App.exe',
+    'CkanUI.exe',
     'CKAN.dll',
     'log4net.xml',
+    'LICENSE.md',
     'README.txt',
     'THIRD-PARTY-NOTICES.txt',
     'licenses/CKAN-LICENSE.md',
+    'install/install.ps1',
+    'install/uninstall.ps1',
+    'install/README.txt',
     'i18n/packs/en-US.json',
     'i18n/packs/zh-CN.json',
     'Assets/ckan.ico'
@@ -409,6 +475,11 @@ $flavors = @(
     [pscustomobject]@{ Name = 'portable'; SelfContained = $true; Suffix = 'portable'; Description = '自包含（自带运行时）' },
     [pscustomobject]@{ Name = 'framework-dependent'; SelfContained = $false; Suffix = 'framework-dependent'; Description = '框架依赖（需 .NET 10 Desktop Runtime）' }
 )
+
+# 主程序名与签名状态：脚本里只此一处写死 exe 名（与 CkanUI.App.csproj 的 AssemblyName 一致）。
+$exeName = 'CkanUI.exe'
+$signRequested = ($PfxPath -ne '') -or ($Thumbprint -ne '') -or $SignDryRun
+$signedApplied = (($PfxPath -ne '') -or ($Thumbprint -ne '')) -and (-not $SignDryRun)
 
 $artifacts = @()
 $smokeResult = [ordered]@{
@@ -423,6 +494,31 @@ foreach ($flavor in $flavors) {
 
     Write-Step ('组装 ' + $flavor.Name + ' 便携目录')
     $stage = New-Stage -Flavor $flavor.Name -PublishDir $publishDir -SelfContained $flavor.SelfContained
+
+    if ($signRequested) {
+        Write-Step ('签名 ' + $flavor.Name + ' 的主程序')
+        $signScript = Join-Path $PSScriptRoot 'Sign-Artifacts.ps1'
+        if (-not (Test-Path -LiteralPath $signScript)) {
+            Stop-WithError ('找不到签名脚本 tools/release/Sign-Artifacts.ps1，去掉签名参数或补上该脚本。')
+        }
+        $stageExe = Join-Path $stage.Directory ($exeName)
+        if (-not (Test-Path -LiteralPath $stageExe)) {
+            Stop-WithError ('stage 里没有主程序 ' + $exeName + '：' + $stage.Directory)
+        }
+        $signArgs = @('-Path', $stageExe)
+        if ($Thumbprint -ne '') { $signArgs += @('-Thumbprint', $Thumbprint) }
+        if ($PfxPath -ne '') { $signArgs += @('-PfxPath', $PfxPath); $signArgs += @('-PfxPassword', $PfxPassword) }
+        if ($TimestampUrl -ne '') { $signArgs += @('-TimestampUrl', $TimestampUrl) }
+        if ($SignDryRun) { $signArgs += '-DryRun' }
+        $signHost = (Get-Process -Id $PID).Path
+        if (-not $signHost) { $signHost = 'powershell.exe' }
+        $signOutput = & $signHost -NoProfile -ExecutionPolicy Bypass -File $signScript @signArgs 2>&1
+        $signExit = $LASTEXITCODE
+        $signOutput | ForEach-Object { Write-Host ('    ' + $_) }
+        if ($signExit -ne 0) {
+            Stop-WithError ('签名失败（' + $flavor.Name + '，退出码 ' + $signExit + '）。没有证书就不要传签名参数；只想验证接线用 -SignDryRun。')
+        }
+    }
 
     Write-Step ('打包 ' + $flavor.Name + ' zip')
     $zipName = 'ckan-ui-' + $Version + '-' + $Runtime + '-' + $flavor.Suffix + '-unsigned.zip'
@@ -494,7 +590,7 @@ $manifest = [ordered]@{
     version = $Version
     runtime = $Runtime
     configuration = $Configuration
-    signed = $false
+    signed = $signedApplied
     builtAtUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
     versionSource = 'src/CkanUI.App/Version.props'
     source = [ordered]@{
@@ -508,12 +604,18 @@ $manifest = [ordered]@{
         powershell = $PSVersionTable.PSVersion.ToString()
     }
     publishOptions = [ordered]@{
-        publishReadyToRun = $true
+        publishReadyToRun = (-not $NoReadyToRun)
         publishTrimmed = $false
         publishSingleFile = $false
         excludedPatterns = @('*.pdb')
     }
     artifacts = $artifacts
+    signing = [ordered]@{
+        requested = $signRequested
+        applied = $signedApplied
+        method = $(if ($Thumbprint -ne '') { 'thumbprint' } elseif ($PfxPath -ne '') { 'pfx' } else { 'none' })
+        timestampUrl = $TimestampUrl
+    }
     smokeTest = $smokeResult
 }
 

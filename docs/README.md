@@ -57,6 +57,8 @@
 | [design/app-update.md](design/app-update.md) | F-52 自动更新：资产挑选与校验、剥壳替换、失败回滚与重启提示 |
 | [design/command-palette.md](design/command-palette.md) | UI-27 命令面板与快捷键目录：模糊打分、目录快照、动作落点与键位 |
 | [design/deep-links.md](design/deep-links.md) | ARC-05 深链 ckan:// 协议：解析规则、三类路由落点、三条入口与失败语义 |
+| [ops/install.md](ops/install.md) | 安装手册：便携包 vs 安装脚本、升级/卸载、写哪些 HKCU 键、签名与 SmartScreen |
+| [design/installer.md](design/installer.md) | E7 安装器决策：per-user 脚本 / Inno 模板 / 为何不用 MSIX、目录与卸载策略 |
 
 ## 索引 · 规格正文（docs/plan）
 

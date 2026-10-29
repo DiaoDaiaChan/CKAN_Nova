@@ -47,7 +47,7 @@ dotnet run --project tools/verify-layout -- --prune
 | H-05 | 警告 | `docs/README.md` 的索引必须覆盖 `docs/**/*.md`（不登记 = 不存在）。 |
 | H-06 | 阻断 | `tests/fixtures` 的 sha256 与清单一致，防夹具被测试就地改写。 |
 | H-07 | 警告 | 单个入库文件 >256 KB 且非 LFS、非生成物时提示改走 LFS 或改生成。 |
-| H-08 | 阻断 | `adapters/**/adapter.json` 过 JSON Schema（优先 `docs/design/adapter.schema.json`，缺省用工具自带的兜底 schema）。 |
+| H-08 | 阻断 | `adapters/**/adapter.json` 过 JSON Schema，schema **唯一真源**为 `docs/design/adapter.schema.json`（旧 `tools/verify-layout/adapter.schema.json` 已删除，不再有兜底）；该文件缺失即阻断，并在输出里点名缺的是哪一份。 |
 | H-09 | 阻断 | `themes/` 只放声明式资源，出现 `.axaml` `.js` `.dll` 即红。 |
 | H-10 | 阻断 | 源码里不得出现个人绝对路径（`[A-Z]:\\Users\\` 与 `Kerbal Space Program_newmod`）；门禁自己的匹配式用片段拼接，不会自匹配。 |
 | H-11 | 独立 | `--prune` 按保留期清理临时区；`--all` 下只提示 SKIP。 |
@@ -67,3 +67,4 @@ dotnet run --project tools/verify-layout -- --prune
 | 日期 | 变更 |
 | --- | --- |
 | 2026-10-27 | 初版：12 条门禁落地、三平台 CI 与 hygiene workflow 接入。 |
+| 2026-10-29 | H-08 去掉 tools 侧兜底 schema，只认 `docs/design/adapter.schema.json`；缺失即阻断并点名路径（配套删 csproj 拷贝项与旧文件）。 |
