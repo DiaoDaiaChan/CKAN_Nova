@@ -510,3 +510,35 @@ node tools/perf-probe/Measure-Startup.mjs --runs 3
 
 所以这段几乎全是 **ILocalizer 构造**（读盘 + 解析），插入资源字典不是成本。可动的方向是后台预取，但有一个必须一起处理的坑：`src/CkanUI.Localization/Localizer.cs:451-452` 的 `ApplyThreadCulture` 会写 `CultureInfo.DefaultThreadCurrentUICulture` 与**构造线程**的 `CurrentUICulture`；后台线程构造不会改 UI 线程的 culture，必须构造完在 UI 线程重新 apply，否则线程 culture 与产品语义（16 篇 §2.3）不一致。本轮未实施。
 
+## 14. 语言包后台预取 + 装配顺序后移（真机首帧 -58 ms）
+
+§13.4 指出 `localization` 段的 58-72 ms 全在 `ILocalizer` 构造（读两个 JSON + 解析 + 建 942 条回退链快照），
+插进资源字典只要 1 ms。本轮把它按「可并行的慢 I/O 丢后台、必须首帧前的插入留 UI 线程」拆开。
+
+### 14.1 改法（两处）
+
+| 位置 | 改动 | 理由 |
+| --- | --- | --- |
+| `src/CkanUI.Localization/Localizer.cs` | 新增 `public void ApplyCultureToCurrentThread()`：`if (_applyThreadCulture) ApplyThreadCulture(_snapshot.Culture);` | 构造期 `ApplyThreadCulture` 只作用于构造线程；后台预热后必须在 UI 线程补一次，否则 UI 线程的 `CurrentUICulture` 没被设过（16 篇 §2.3） |
+| `src/CkanUI.App/App.axaml.cs` | 紧挨 `instanceWarmup` 起 `Task<ILocalizer?> localizerWarmup = Task.Run(() => _services.GetService<ILocalizer>());`；取用时 `localizerWarmup.GetAwaiter().GetResult() ?? _services.GetRequiredService<ILocalizer>()` 之后调 `ApplyCultureToCurrentThread()`；并把整段语言包装配**从 `log-pipeline` 之后移到 `radius` 之后**（仍在 `new MainWindow` 之前） | 只预取、不移动顺序时后台只领先 14 ms（`di-build`→`log-pipeline`），实测 `localization` 仍要 47-48 ms；主题/密度/字号/强调色/圆角这几个宿主只读设置、不引用本地化字符串，让它们先跑就把后台的余量从 14 ms 拉到 150 ms 以上 |
+
+不变量：语言包仍然在窗口构造之前进资源字典，首帧不会出现裸 key（i18n-guide §6.2）。
+
+### 14.2 A/B（隔离 worktree `/c/Users/43701/ckan-ui-mw`，同一 exe，交替重建）
+
+| 组 | `localization` 段增量 | `first-paint` |
+| --- | --- | --- |
+| 基线（HEAD 840ac77） | 58 / 72 / 62 / 58 ms | 1224 / 1273 / 1293 / 1696（中位 1283） |
+| 只加后台预取（顺序不动） | 47 / 48 / 48 ms | 1228 / 1254 / 1293（中位 1254） |
+| 预取 + 装配顺序后移 | **1 / 2 / 1 / 1 ms** | 1161 / 1177 / 1262 / 1276（中位 1219） |
+
+确定性部分是段增量：58-72 ms → 1-2 ms（省 56-70 ms）。`first-paint` 中位只降 64 ms，
+因为这段省下的时间会被后面的 `main-window-new` / 首布局吸收一部分，且这两个阶段本身有 ±50 ms 抖动。
+
+### 14.3 为什么只做到这里
+
+`main-window-new` 的 300-360 ms 里约 50 ms 是结构成本、其余是首次触碰（§13.1），只有 R2R/AOT 能拿走；
+而本环境拿不到 R2R 产物：`dotnet publish -p:PublishReadyToRun=true` 先报 `NETSDK1094: 找不到有效的运行时包`，
+补 `-r win-x64` 让 restore 参与后又在 restore 阶段挂死（90 s 无任何输出，退出码 124），
+`microsoft.netcore.app.runtime.win-x64` 与 `microsoft.netcore.app.crossgen2.win-x64` 都在 `~/.nuget/packages` 且版本同为 10.0.12。
+发行包本来就开 R2R（docs/ops/release.md §3.2），所以开发版这段空白在用户侧不存在。
