@@ -600,3 +600,86 @@ TEMP=$PWD/artifacts/tmp/temp TMP=$PWD/artifacts/tmp/temp \
 真正的空转体感由光栅档代表（每帧真的画一次 1280×800），它稳定得多。
 
 阈值写在 `tools/perf-probe/MemoryGate.cs` 的常量里，改动请连带更新本节的「阈值余量依据」。
+
+## 17. 模组列表的真正地板：36 MB 仓库索引解析（2.8–4.0 s / 1.8 GB 分配）
+
+前 16 节把「空转 CPU」「稳态内存」「启动到首帧」都压下来了，但只要用户点开模组页，
+还有一段固定成本摆在那里：把 36.2 MB 的仓库索引 JSON 解析成 CKAN 对象图。
+
+### 17.1 实测：解析就是地板
+
+```bash
+./tools/perf-probe/bin/Release/net10.0/perf-probe.exe \
+  --repo-index "$LOCALAPPDATA/CKAN/repos/4A85405A-KSP-默认数据库.json"
+```
+
+| 轮次 | 解析 | 模块数 | 下载计数 | 分配 |
+| --- | --- | --- | --- | --- |
+| 1 | 4,027 ms | 3,820 | 3,763 | 1,877.8 MB |
+| 2 | 3,669 ms | 3,820 | 3,763 | 1,765.1 MB |
+| 3 | 3,214 ms | 3,820 | 3,763 | 1,768.6 MB |
+
+解析发生在 `RepositoryData.FromJson`（`external/CKAN/Core/Repositories/RepositoryData.cs`），
+本项目改不动，1.8 GB 的瞬时分配也不是我们造成的 —— 但它决定了「列表什么时候出现」，
+也解释了早期出现过的工作集 1 GB 峰值。
+
+### 17.2 逐模组投影：重复查询值 50–100 ms
+
+`RepositoryService.BuildSnapshot` 对同一 `AvailableModule` 查两次 `Latest(...)`
+（一次取最新版、一次判兼容）、查两次 `InstalledModule(...)`。探针分别量「每模块一次」与
+「复现旧实现的第二次」：
+
+| 轮次 | 每模块一次 | 复现重复查询 | 重复开销 |
+| --- | --- | --- | --- |
+| 1 | 122 ms | 204 ms | +82 ms |
+| 2 | 95 ms | 149 ms | +54 ms |
+| 3 | 287 ms | 41 ms* | — |
+
+*第三轮两遍都落在同一个 GC 抖动窗口里，只作噪声参考。
+
+已改：`compatibleVersion` 与 `installedModule` 各查一次复用（`src/CkanUI.Services/Repositories/RepositoryService.cs`），
+语义不变（`compatible` 仍等价于「兼容版存在」）。
+
+### 17.3 磁盘缓存：指纹一致就不解析
+
+新增 `src/CkanUI.Services/Repositories/SnapshotCache.cs`：把投影出来的行按「输入指纹」落盘，
+下次 `LoadCachedAsync` 命中就直接出列表。设计要点：
+
+| 关注点 | 做法 |
+| --- | --- |
+| 指纹覆盖 | 缓存结构版本 + 实例 `CkanDir` + 仓库清单（name/uri/priority）+ 每个索引文件与 `registry.json` 的大小与修改时间（SHA-256） |
+| 失效 | 任一文件被重写、仓库清单变化、结构版本递增 → 指纹变 → 不命中，退回真实解析 |
+| 权威性 | 只加速不做权威：读失败 / 写失败 / JSON 损坏 / 版本不符，一律安静退回解析，绝不让用户看不到列表 |
+| 落盘 | `%LOCALAPPDATA%/CKAN/ckanui-cache/mods-<指纹前16位>.json`，先写 `.tmp` 再 `File.Move(overwrite)`；空列表不落盘 |
+| 指纹来源 | `SnapshotCache.KeyFrom` / `StampFile`，单测覆盖「顺序敏感」「文件重写后指纹变化」「缺失文件不抛异常」 |
+
+### 17.4 无变化的刷新不再重建
+
+后台刷新 `RefreshAsync` 原来无论结果如何都要 `BuildSnapshot` 一遍。现在：
+`result == UpdateResult.NoChanges && 当前行来自磁盘缓存 && 非空` → 直接沿用，跳过解析与投影
+（`_servedFromDiskCache` 标记，一旦真实重建就清零）。这样热启动的 36 MB 解析整段消失，
+1.8 GB 分配也不发生。
+
+### 17.5 未完成的验证（诚实记录）
+
+端到端验证（真实实例上冷跑 vs 热跑）本轮没做成，原因是环境而不是代码：
+
+- 实例 `D:/Kerbal Space Program_newmod` 被并发进程占用；`registry.locked` 残留时
+  `IsInstanceMaybeLocked` **只看文件是否存在**（`external/CKAN/Core/Registry/RegistryManager.cs:48-49`），
+  于是启动序列在 `SwitchAsync` 就失败退出，压根到不了仓库加载（表现为 `bootstrap-done` 只用 7 ms）。
+- 该锁文件由 `taskkill` 强杀进程留下，删掉后又被并发进程立刻重建（采样时读到 `EBUSY`）。
+
+因此本节 17.1/17.2 的数字来自探针（同一份 36.2 MB 索引、同一台机器），17.3/17.4 的正确性由
+`tests/CkanUI.Services.Tests/SnapshotCacheTests.cs` 的 7 例保证，**端到端时延待有独占实例时补测**。
+
+### 17.6 复测命令
+
+```bash
+# 解析 + 投影
+./tools/perf-probe/bin/Release/net10.0/perf-probe.exe \
+  --repo-index "$LOCALAPPDATA/CKAN/repos/4A85405A-KSP-默认数据库.json"
+
+# 缓存往返与指纹
+TEMP=$PWD/artifacts/tmp/temp TMP=$PWD/artifacts/tmp/temp \
+  dotnet tests/CkanUI.TestRunner/bin/Release/net10.0/CkanUI.TestRunner.dll --config Release Service
+```

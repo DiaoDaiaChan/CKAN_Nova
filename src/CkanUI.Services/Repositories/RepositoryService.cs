@@ -1,3 +1,4 @@
+using System.Globalization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CKAN;
@@ -25,17 +26,20 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
     private readonly IUser _user;
     private readonly IRepositoryStore _store;
     private readonly RepositoryCatalog _catalog;
+    private readonly SnapshotCache _snapshotCache;
 
     private RepositorySnapshot _current = RepositorySnapshot.Empty;
     private IReadOnlyList<RepositoryEntryInfo> _repositories = RepositoryEntryInfo.Empty;
     private int _refreshing;
+    private bool _servedFromDiskCache;
 
     public RepositoryService(GameInstanceManager instances,
                              RepositoryDataManager repositoryData,
                              IDispatcher dispatcher,
                              IErrorReporter errors,
                              IUser user,
-                             IRepositoryStore? store = null)
+                             IRepositoryStore? store = null,
+                             SnapshotCache? snapshotCache = null)
     {
         _instances = instances ?? throw new ArgumentNullException(nameof(instances));
         _repositoryData = repositoryData ?? throw new ArgumentNullException(nameof(repositoryData));
@@ -47,6 +51,7 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
         // 测试/降级场景可注入替身；参数带默认值，因此 DI 注册不需要额外改动。
         _store = store ?? new RegistryRepositoryStore(_instances, _repositoryData, _user);
         _catalog = new RepositoryCatalog(_store);
+        _snapshotCache = snapshotCache ?? new SnapshotCache();
         _repositories = _catalog.Snapshot;
     }
 
@@ -72,14 +77,32 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
         Log.Info($"L2 已丢弃仓库快照：{dropped} 行。");
     }
 
-    public Task<OperationResult<RepositorySnapshot>> LoadCachedAsync(CancellationToken ct = default) =>
-        GuardAsync(() =>
+    public Task<OperationResult<RepositorySnapshot>> LoadCachedAsync(CancellationToken ct = default)
+    {
+        return GuardAsync(() =>
         {
             ct.ThrowIfCancellationRequested();
             var instance = _instances.CurrentInstance;
             if (instance is null) return OperationResult<RepositorySnapshot>.Ok(Publish(RepositorySnapshot.Empty));
+
+            // 指纹一致就直接用上次投影出来的行：这一步能省掉 3–5 秒的 36 MB 索引解析（§17）。
+            // 缓存只覆盖投影结果，指纹涵盖索引文件与 registry.json，所以内容与重新解析等同。
+            var cachedRows = TryLoadSnapshotCache(instance);
+            if (cachedRows is not null)
+            {
+                var cachedRepositories = RepositoriesOf(instance);
+                _servedFromDiskCache = true;
+                return OperationResult<RepositorySnapshot>.Ok(Publish(new RepositorySnapshot(
+                    cachedRows,
+                    cachedRepositories.Select(repository => repository.name).ToArray(),
+                    UpdatedAtOf(cachedRepositories),
+                    true)));
+            }
+
+            _servedFromDiskCache = false;
             return OperationResult<RepositorySnapshot>.Ok(Publish(BuildSnapshot(instance, fromCache: true)));
         });
+    }
 
     public Task<OperationResult<RepositorySnapshot>> RefreshAsync(CancellationToken ct = default)
         => RefreshAsync(skipETags: false, ct);
@@ -104,7 +127,20 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
                 var result = _repositoryData.Update(repositories, instance.Game, skipETags: skipETags,
                     downloader, _user);
                 Log.Info($"仓库索引刷新结果：{result}");
+
+                // 无变化 + 当前行来自磁盘缓存：这些行就是这几个文件投影出来的，再解析一遍 36 MB 只是白烧
+                // 3–5 秒 CPU 和 1.8 GB 分配（§17）。有变化才重建，重建后 _servedFromDiskCache 归零。
+                if (result == RepositoryDataManager.UpdateResult.NoChanges
+                    && _servedFromDiskCache
+                    && _current.Available.Count > 0)
+                {
+                    Log.Info($"仓库索引无变化，沿用磁盘缓存的 {_current.Available.Count} 行，跳过解析。");
+                    ReportProgress("仓库索引已是最新。", 100, OperationState.Succeeded);
+                    return OperationResult<RepositorySnapshot>.Ok(_current);
+                }
+
                 var snapshot = Publish(BuildSnapshot(instance, fromCache: false));
+                _servedFromDiskCache = false;
                 ReportProgress(result == RepositoryDataManager.UpdateResult.NoChanges
                     ? "仓库索引已是最新。"
                     : "仓库索引已更新。", 100, OperationState.Succeeded);
@@ -282,11 +318,72 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
         });
     }
 
+    /// <summary>
+    /// 快照在磁盘上的指纹（§17）：实例目录 + 仓库清单 + 每个索引文件与 registry.json 的大小/修改时间。
+    /// 任何一项变化都会换掉缓存文件，绝不会把过期的行当成最新的。
+    /// </summary>
+    private static string SnapshotCacheKey(GameInstance instance, IEnumerable<Repository> repositories)
+    {
+        var parts = new List<string>
+        {
+            string.Create(CultureInfo.InvariantCulture, $"schema={SnapshotCache.SchemaVersion}"),
+            "instance=" + instance.CkanDir,
+        };
+
+        foreach (var repository in repositories.OrderBy(repository => repository.priority)
+                                               .ThenBy(repository => repository.name, StringComparer.Ordinal))
+        {
+            parts.Add(string.Create(CultureInfo.InvariantCulture,
+                $"repo={repository.name}|{repository.uri}|{repository.priority}"));
+        }
+
+        parts.Add(SnapshotCache.StampFile(Path.Combine(instance.CkanDir, "registry.json")));
+
+        // 索引文件就在 CKAN 自己的缓存目录里（RepositoryDataManager 的默认路径是这个）；目录不在时
+        // 只靠上面的指纹，缓存也照样能失效（实例目录或仓库清单变化）。
+        var reposDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CKAN", "repos");
+        if (Directory.Exists(reposDirectory))
+        {
+            foreach (var file in Directory.EnumerateFiles(reposDirectory, "*.json")
+                                          .OrderBy(path => path, StringComparer.Ordinal))
+            {
+                parts.Add(SnapshotCache.StampFile(file));
+            }
+        }
+
+        return SnapshotCache.KeyFrom(parts);
+    }
+
+    private IReadOnlyList<ModRowData>? TryLoadSnapshotCache(GameInstance instance)
+    {
+        var rows = _snapshotCache.TryLoad(SnapshotCacheKey(instance, RepositoriesOf(instance)));
+        if (rows is null || rows.Count == 0) return null;
+        Log.Info($"命中模组快照缓存：{rows.Count} 行，跳过仓库索引解析。");
+        return rows;
+    }
+
+    private void TrySaveSnapshotCache(GameInstance instance, IEnumerable<Repository> repositories, IReadOnlyList<ModRowData> rows)
+    {
+        _snapshotCache.Save(SnapshotCacheKey(instance, repositories), rows);
+    }
+
+    private DateTime? UpdatedAtOf(IReadOnlyCollection<Repository> repositories)
+    {
+        var age = repositories.Count == 0 ? TimeSpan.MaxValue : _repositoryData.LastUpdate(repositories);
+        return age == TimeSpan.MaxValue || age > RepositoryDataManager.TimeTillVeryStale
+            ? null
+            : DateTime.UtcNow - age;
+    }
+
     private IReadOnlyCollection<Repository> RepositoriesOf(GameInstance instance) =>
         RegistryManager.Instance(instance, _repositoryData).registry.Repositories.Values.ToArray();
 
     private RepositorySnapshot BuildSnapshot(GameInstance instance, bool fromCache)
     {
+        // 38 MB 的仓库索引第一次落地要解析成十万级 CkanModule，这一段历史上是「模组列表什么时候出来」的
+        // 主要成本；把准备段和逐模组投影段分开计时并留一行日志，否则只能靠猜（docs/ops/perf-baseline.md §17）。
+        var phaseWatch = System.Diagnostics.Stopwatch.StartNew();
         var registry = RegistryManager.Instance(instance, _repositoryData).registry;
         var repositories = registry.Repositories.Values.ToArray();
         var criteria = instance.VersionCriteria();
@@ -297,15 +394,23 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
         var cache = _instances.Cache;
         var previouslyCompatible = PreviousCompatibility();
 
+        // 准备段（实例注册表 + 仓库列表 + 标签组索引）到此为止，下面单独量逐模组投影。
+        var prepareMs = phaseWatch.Elapsed.TotalMilliseconds;
+
         var rows = new List<ModRowData>();
         foreach (var available in _repositoryData.GetAllAvailableModules(repositories))
         {
             // 优先取与当前游戏版本兼容的最新版；兼容版不存在时退化成"最新但不可用"，让列表仍然可见（04 篇 §2.1）。
-            var latest = available.Latest(tolerance, criteria) ?? available.Latest(tolerance);
+            // 同一个 AvailableModule 的 Latest 只查一次：它要遍历全部版本做评分，历史上这里对同一模块查了两次
+            // （取 latest 一次、判 compatible 再一次），见 docs/ops/perf-baseline.md §17。
+            var compatibleVersion = available.Latest(tolerance, criteria);
+            var latest = compatibleVersion ?? available.Latest(tolerance);
             if (latest is null) continue;
 
-            var compatible = available.Latest(tolerance, criteria) is not null;
-            var installed = registry.InstalledModule(latest.identifier)?.Module;
+            var compatible = compatibleVersion is not null;
+            // InstalledModule 同理：一份快照里每个模块只查一次，模块本身和 AutoInstalled 都用这个结果。
+            var installedModule = registry.InstalledModule(latest.identifier);
+            var installed = installedModule?.Module;
             var hasUpdate = installed is not null
                             && compatible
                             && ModListProjection.CheckHasUpdate(installed.version.ToString(), latest.version.ToString());
@@ -322,7 +427,7 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
                 IsInstalled: installed is not null,
                 HasUpdate: hasUpdate,
                 IsCompatible: compatible,
-                IsAutoInstalled: registry.InstalledModule(latest.identifier)?.AutoInstalled ?? false,
+                IsAutoInstalled: installedModule?.AutoInstalled ?? false,
                 IsSelected: false,
                 IsImplicit: false)
             {
@@ -341,14 +446,20 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
             });
         }
 
-        var age = repositories.Length == 0 ? TimeSpan.MaxValue : _repositoryData.LastUpdate(repositories);
-        DateTime? updatedAt = age == TimeSpan.MaxValue || age > RepositoryDataManager.TimeTillVeryStale
-            ? null
-            : DateTime.UtcNow - age;
+        var updatedAt = UpdatedAtOf(repositories);
 
-        return new RepositorySnapshot(rows,
+        phaseWatch.Stop();
+        Log.Info(string.Create(
+            CultureInfo.InvariantCulture,
+            $"仓库快照构建完成：{rows.Count} 行，总耗时 {phaseWatch.Elapsed.TotalMilliseconds:F0} ms（准备 {prepareMs:F0} ms、逐模组投影 {phaseWatch.Elapsed.TotalMilliseconds - prepareMs:F0} ms，来源={(fromCache ? "本地缓存" : "刷新")}）。"));
+
+        var snapshot = new RepositorySnapshot(rows,
             repositories.Select(repository => repository.name).ToArray(),
             updatedAt, fromCache);
+
+        // 投影一次就落一份盘：下次启动指纹一致时直接出列表（§17）。
+        TrySaveSnapshotCache(instance, repositories, rows);
+        return snapshot;
     }
 
     /// <summary>上一份快照的 标识符→是否兼容 映射（用于 <c>is:newly-compatible</c> 的会话态差分）。</summary>

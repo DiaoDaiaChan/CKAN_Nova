@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -401,6 +402,73 @@ public static class BenchmarkRunner
             $"[RowSelection] clicks={sorted.Count} p50={Percentile(sorted, 0.50):F2}ms"
             + $" p90={Percentile(sorted, 0.90):F2}ms max={sorted[^1]:F2}ms");
     }
+    /// <summary>
+    /// 仓库索引（约 38 MB 的 JSON）解析成本基准。这是「模组列表什么时候出来」的固定地板：
+    /// 解析发生在 CKAN Core 内部（<c>external/CKAN/Core/Repositories/RepositoryData.FromJson</c>），
+    /// 本项目改不动，所以必须先量清楚它占多少，再决定投影段（<c>RepositoryService.BuildSnapshot</c>）值不值得优化。
+    /// </summary>
+    public static void RunRepoIndexBenchmark(string path, int reps = 3)
+    {
+        var info = new FileInfo(path);
+        if (!info.Exists)
+        {
+            Console.WriteLine($"[RepoIndex] 找不到仓库索引文件：{path}");
+            return;
+        }
+
+        Console.WriteLine($"[RepoIndex] file={path} size={info.Length / 1048576.0:F1}MB reps={reps}");
+        for (var i = 0; i < reps; i++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
+            var allocBefore = GC.GetTotalAllocatedBytes(precise: true);
+            var sw = Stopwatch.StartNew();
+            var data = CKAN.RepositoryData.FromJson(path, null);
+            sw.Stop();
+            var allocMb = (GC.GetTotalAllocatedBytes(precise: true) - allocBefore) / 1048576.0;
+            MeasureProjection(data);
+
+            Console.WriteLine(
+                $"[RepoIndex] run {i + 1}: parse={sw.Elapsed.TotalMilliseconds:F0}ms" +
+                $" modules={data?.AvailableModules?.Count ?? 0}" +
+                $" downloadCounts={data?.DownloadCounts?.Count ?? 0}" +
+                $" alloc={allocMb:F1}MB");
+        }
+    }
+
+    /// <summary>
+    /// 量「逐模组投影」里 <c>AvailableModule.Latest</c> 的成本：旧实现每个模块查两次（取 latest 一次、判兼容再一次），
+    /// 这里分别量「每模块一次」和「每模块两次」，用来给 docs/ops/perf-baseline.md §17 的去重结论提供数字。
+    /// </summary>
+    private static void MeasureProjection(CKAN.RepositoryData? data)
+    {
+        if (data?.AvailableModules is not { Count: > 0 } modules) return;
+
+        var criteria = new CKAN.Versioning.GameVersionCriteria(new CKAN.Versioning.GameVersion(1, 12, 5));
+        var tolerance = new CKAN.Configuration.StabilityToleranceConfig(
+            Path.Combine(Path.GetTempPath(), "ckan-ui-perf-probe-stability.json"));
+
+        for (var pass = 1; pass <= 2; pass++)
+        {
+            var sw = Stopwatch.StartNew();
+            var hits = 0;
+            foreach (var available in modules.Values)
+            {
+                var compatible = available.Latest(tolerance, criteria);
+                var latest = compatible ?? available.Latest(tolerance);
+                if (latest is null) continue;
+                // pass 2 复现旧实现的第二次 Latest（判 compatible），用来量重复查询的代价。
+                if (pass == 2 && available.Latest(tolerance, criteria) is not null) hits++;
+                _ = latest.identifier;
+            }
+            sw.Stop();
+            Console.WriteLine(
+                $"[RepoIndex] projection pass{pass}: {sw.Elapsed.TotalMilliseconds:F0}ms modules={modules.Count} duplicates={hits}");
+        }
+    }
+
     private static double Percentile(List<double> sorted, double fraction)
     {
         if (sorted.Count == 0)

@@ -29,6 +29,16 @@ public static class Program
             return RunMemoryGate();
         }
 
+        // --repo-index <path>：量仓库索引（约 38 MB）的解析成本，见 docs/ops/perf-baseline.md §17
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (string.Equals(args[i], "--repo-index", StringComparison.OrdinalIgnoreCase))
+            {
+                BenchmarkRunner.RunRepoIndexBenchmark(args[i + 1]);
+                return 0;
+            }
+        }
+
         // --rows N：首屏成本按行数扫描用，不影响门禁口径（默认 3,000）
         var modRows = 3000;
         for (var i = 0; i < args.Length - 1; i++)
