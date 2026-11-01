@@ -465,3 +465,48 @@ node tools/perf-probe/Measure-Startup.mjs --runs 3
 
 
 
+## 13. 启动成本的真实构成：首次触碰 vs 结构成本
+
+### 13.1 先分清谁是可优化的
+
+把 `MainWindow` 构造函数拆成标记点后，同一份代码在一个进程里造两个窗口对比（隔离 worktree、`dotnet build` 产物、2026-11-01）：
+
+| 观测点 | 第一个窗口（三次） | 第二个窗口（同进程，三次） |
+| --- | --- | --- |
+| `InitializeComponent()`（XAML 载入 + 全树落地） | 204 / 209 / 216 / 227 / 241 / 257 ms | **41 / 41 ms** |
+| 构造整体（含 7 档 ICO 解码 9–12 ms、`ApplyPageTransition`、指针/涟漪事件挂载、状态栏事实、诊断接线 9–13 ms） | 225 / 229 / 231 / 250 ms | **49 / 50 ms** |
+
+结论：`main-window-new` 那 333–351 ms 里只有约 **50 ms 是结构成本**，剩下 ~175–185 ms 是**一次性首次触碰** —— Avalonia/FluentAvalonia 的 JIT 与类型初始化、首次 `DynamicResource` 解析、首次样式表落地。这条决定了三件事：
+
+1. 靠删控件、拆 XAML 能拿回的只有那 50 ms 里的一部分，前面那 180 ms 拆不动；
+2. 任何「改成惰性创建」的重构必须先证明它减的是结构成本而不是首次触碰；
+3. 首次触碰的消除办法是 AOT/R2R（见 13.3），不是改代码结构。
+
+### 13.2 试过并否掉：后台线程预热窗口
+
+既然 ~180 ms 是首次触碰、而 UI 线程在启动早期还要阻塞等 I/O，直觉是「后台线程先造一个丢弃的窗口把 JIT 预热掉」。实测直接否：
+
+```
+[mw] warm-fail InvalidOperationException: The calling thread cannot access this object because a different thread owns it.
+```
+
+三次全失败 —— Avalonia 控件在构造期就会碰 `Application.Current` 的资源与 dispatcher，具备线程亲和。这条继续往下只能走「UI 线程提前造」，而 UI 线程本来就是串行瓶颈，一分钱不省。改动已 `git checkout` 回滚。
+
+### 13.3 校准：开发版数字不等于用户看到的数字
+
+发行流程本来就开 `PublishReadyToRun=true`（`docs/ops/release.md` §3.2 记录了实测 **冷启动 1.58 s → 0.81 s**，R2R 正是消除首次触碰的手段），所以 §10–§12 那些 1.3–1.5 s 的 `first-paint` 全部来自 `dotnet build` 产物 —— 那是**开发版**数字，比用户实际拿到的包里慢一倍。
+
+后果：本轮之后所有启动优化的验收都应以 publish 产物为准。本环境里 `dotnet publish -r win-x64 -p:PublishReadyToRun=true` 跑到 12 分钟仍未生成 `obj/Release/net10.0/win-x64`（已终止），所以本文目前**没有** R2R 后的实测值，这是已知缺口而不是结论。
+
+### 13.4 localization 那 69 ms 的归属
+
+把 `App.axaml.cs` 的语言包装配拆成三段打点（三次）：
+
+| 段 | 耗时 | 内容 |
+| --- | --- | --- |
+| `_services.GetRequiredService<ILocalizer>()` 解析 | **51 / 56 / 61 ms** | `LocalizerFactory` 读 en-US/zh-CN 两个 JSON + JSON 解析 + 建回退链快照（942 条） |
+| `new LocalizationHost(...)` | 0 / 0 / 1 ms | 只存引用 |
+| `Install()`（942 次 `ResourceDictionary` 插入 + 挂 `MergedDictionaries`） | **1 / 1 / 1 ms** | 此时还没有控件，插入几乎免费 |
+
+所以这段几乎全是 **ILocalizer 构造**（读盘 + 解析），插入资源字典不是成本。可动的方向是后台预取，但有一个必须一起处理的坑：`src/CkanUI.Localization/Localizer.cs:451-452` 的 `ApplyThreadCulture` 会写 `CultureInfo.DefaultThreadCurrentUICulture` 与**构造线程**的 `CurrentUICulture`；后台线程构造不会改 UI 线程的 culture，必须构造完在 UI 线程重新 apply，否则线程 culture 与产品语义（16 篇 §2.3）不一致。本轮未实施。
+
