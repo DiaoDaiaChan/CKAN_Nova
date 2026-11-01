@@ -372,6 +372,41 @@ A/B（隔离 worktree `/c/Users/43701/ckan-ui-dg`，HEAD=10075c5，交替各重�
 | `window-opened` → `first-layout` | 410–490 ms | 窗口显示后的首轮布局；DataGrid 表头/单元格模板 728 个 `Rectangle`（见 §6.6） |
 | `first-paint` 收尾 | 60–80 ms | 首次光栅 |
 
+## 11. 空闲期不再用 `RequestAnimationFrame` 驱动采样
+
+### 11.1 为什么它值钱
+
+`PerformanceMonitor.StartSampling()` 从窗口构造起就起了一条自递归 RAF 循环。空闲时它被降到 `IdleTargetFps`（10 Hz）——但**降频不等于免费**：`TopLevel.RequestAnimationFrame` 每次都会真的排一次渲染，而空闲期星空自己的 10 Hz 定时器（`StarfieldBackground.IdleTickIntervalMs=100`）已经在刷画面。也就是说空闲期每秒有约 20 次整窗重绘，其中一半是诊断自己造的，画面上什么都没有多出来。
+
+### 11.2 改法
+
+- `src/CkanUI.App/Diagnostics/PerformanceMonitor.cs` 的 `RequestNextFrame()`：`DynamicRefreshRateController.Instance.IsIdle` 时直接 return，不再排帧；空闲降频专用的 `_frameDelayTimer` / `ScheduleNextFrameAfter` / `OnFrameDelayTick` 一并删除（没有第二个调用者）。
+- `OnIdleStateChanged(bool isIdle)`：离开空闲时 `_lastFrameTicks = _frameStopwatch.ElapsedTicks` 复位帧计时后重新 `RequestNextFrame()` —— 不复位的话，恢复后的第一帧会把整段空闲算成一帧（几十秒），状态栏会瞬间显示 0.0 FPS。
+- 画面为什么不变：空闲期的每一帧本来就由星空定时器的 `InvalidateVisual()` 驱动，RAF 只是额外的重复渲染。状态栏 FPS 读数保持进入空闲前的值（空闲本来就该是 10 fps 档，颜色档位不变）。
+
+### 11.3 实测
+
+隔离 worktree 用环境变量开关先做定位（Release 真机、40 s 预热、3 个 5 s 窗口、非侵入采样）：
+
+| 组 | 尾窗空转（单核 %） | 备注 |
+| --- | --- | --- |
+| 空闲 RAF 开（现状） | 9.47 / 11.12 | 两个 5 s 尾窗 |
+| 空闲 RAF 关 | 6.82 / 4.83 | 同上 |
+
+在主仓按上面的改法落地后复测（node 采样器：40 s 预热 + 3 个 5 s 窗口，各 2 跑）：
+
+| 组 | 三个窗口（单核 %） | 尾窗 | 工作集 |
+| --- | --- | --- | --- |
+| HEAD（`_frameDelayTimer` 版） | 4.69/7.50/9.69、5.00/9.38/12.50 | 9.69 / 12.50 | 238 / 234 MB |
+| 本次（空闲停 RAF） | 2.81/8.44/5.00、3.44/3.13/5.00 | 5.00 / 5.00 | 228 / 226 MB |
+
+即空闲 CPU 大约再降一半（尾窗 9.7–12.5% → 5.0%），工作集同时低 8–10 MB（少了重复渲染的中间 surface）。
+
+### 11.4 因果验证（别把并行改动算到自己头上）
+
+改完跑全量测试出现 1 例红：`CkanUI.App.Tests.TestDrawerCloseBehavior.TestLeftCompactOpenAndClose`（`Opened: 52, Closed: 52, …`）。**不是本次引入**：把 `PerformanceMonitor.cs` 换回 HEAD 版本重建后再跑，同一用例照旧红（而且那一批里还有 `InspectSplitViewStyles.DumpPaneRootProperties` 等 3 例红），是并行 agent 正在改抽屉/样式时的在途状态。归因靠的是这份 A/B，不是猜。
+
+
 ### 10.4 `main-window-new` 拆开看：窗口构造只占 300 ms，页面视图在布局里
 
 在隔离 worktree 里把 `new MainWindow { DataContext = shell }` 拆成两步打点（`win-split noDc=… withDc=…`，3 次）：
