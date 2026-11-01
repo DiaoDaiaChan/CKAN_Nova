@@ -1516,11 +1516,12 @@ public sealed partial class MainWindow : Window
     ///   <item><description>叠化（旧页不动、新页在上面淡入）：亮度稳住了，但两页文字在淡入过程中叠印，
     ///   标题与副标题都出现重影。</description></item>
     /// </list>
-    /// <para>结论：<see cref="TransitioningContentControl.PageTransition"/> 恒为 <c>null</c>——上面三种做法都要求
-    /// 两页同时在屏幕上，这是双影与凹陷的根源，换任何参数都救不回来。</para>
-    /// <para>入场改由代码驱动的单页编排承担（<see cref="PlayPageReveal"/> → <see cref="EntranceChoreographer"/>）：
-    /// 换页仍瞬时替换，只有新内容浮入，屏幕上永远只有一页，因此既没有双影，也没有亮度凹陷。
-    /// <c>CkanMotionDurationPage</c> 仍供对话框淡入使用。</para>
+    /// <para>结论：这三种做法的共同前提是"两页同时在场且都不透明"，一旦叠在一起就必然出问题。
+    /// 现在的过渡改走 <see cref="SpringPageSlide"/>：两页**始终不透明、互不重叠**，
+    /// 只是一张帘子的接缝扫过去（旧页 0 → +travel，新页 −travel → 0），所以既没有双影也没有亮度凹陷。
+    /// 关闭动效时仍返回 <c>null</c>，回到瞬时替换。</para>
+    /// <para>入场仍由代码驱动的单页编排承担（<see cref="PlayPageReveal"/> → <see cref="EntranceChoreographer"/>）：
+    /// 幕布只负责"换"，新页浮入负责"到"。</para>
     /// </remarks>
     private void ApplyPageTransition()
     {
@@ -1529,8 +1530,11 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        PageHost.PageTransition = null;
+        PageHost.PageTransition = MotionBudget.IsCollapsed ? null : SlideTransition;
     }
+
+    /// <summary>整页幕布过渡：常驻一份，参数只由 <see cref="MotionBudget"/> 决定。</summary>
+    private static readonly SpringPageSlide SlideTransition = new();
 
     /// <summary>
     /// 状态栏右下角常驻版本信息（报问题时截图就带上版本号，不必再问）。
