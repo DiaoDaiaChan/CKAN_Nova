@@ -115,6 +115,247 @@ public static class PageSwitchProbe
     private sealed record ToggleRow(string Identifier, bool IsSelected);
 
     /// <summary>
+    /// 列宽模式对换表成本的影响：Auto 列宽需要逐行量内容，Star/固定像素则不用。
+    /// </summary>
+    public static void GridColumnWidthCost(int rows = 3000, int rounds = 4)
+    {
+        HeadlessAppHost.EnsureInitialized();
+
+        static (double SwapMs, double Width, string Mode) Run(string mode, int rows, int rounds)
+        {
+            var host = new Window { Width = 1280, Height = 800 };
+            host.Show();
+            HeadlessAppHost.PumpJobs();
+
+            var items = new List<ToggleRow>(rows);
+            for (var i = 0; i < rows; i++)
+            {
+                items.Add(new ToggleRow("mod-" + i, false));
+            }
+
+            var observed = new System.Collections.ObjectModel.ObservableCollection<ToggleRow>(items);
+            var grid = new DataGrid { ItemsSource = observed, Height = 800 };
+            var column = new DataGridTextColumn { Header = "name", Binding = new Avalonia.Data.Binding(nameof(ToggleRow.Identifier)) };
+            if (mode == "star")
+            {
+                column.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+            }
+
+            grid.Columns.Add(column);
+            host.Content = grid;
+            HeadlessAppHost.PumpJobs();
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+            HeadlessAppHost.PumpJobs();
+
+            var width = column.ActualWidth;
+            var times = new List<double>(rounds);
+            for (var r = 0; r < rounds; r++)
+            {
+                var target = new List<ToggleRow>(items);
+                if (r % 2 == 1)
+                {
+                    target.Reverse();
+                }
+
+                var sw = Stopwatch.StartNew();
+                grid.ItemsSource = new System.Collections.ObjectModel.ObservableCollection<ToggleRow>(target);
+                host.Measure(new Size(1280, 800));
+                host.Arrange(new Rect(0, 0, 1280, 800));
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+                HeadlessAppHost.PumpJobs();
+                sw.Stop();
+                times.Add(sw.Elapsed.TotalMilliseconds);
+            }
+
+            var sorted = times.OrderBy(v => v).ToList();
+            host.Content = null;
+            host.Close();
+            HeadlessAppHost.PumpJobs();
+            return (Percentile(sorted, 0.5), width, mode);
+        }
+
+        var auto = Run("auto", rows, rounds);
+        var star = Run("star", rows, rounds);
+        Console.WriteLine($"[GridColWidth] rows={rows} auto p50={auto.SwapMs:F2}ms width={auto.Width:F0} | star p50={star.SwapMs:F2}ms width={star.Width:F0}");
+    }
+
+    /// <summary>
+    /// 固定行高对换表成本的影响：DataGrid 默认要逐行量高来算滚动范围，设了 RowHeight 就能按固定高度估。
+    /// 行高一致时视觉不变，但换 ItemsSource / 排序 / 过滤可能从 O(行数测量) 变成 O(1)。
+    /// </summary>
+    public static void GridRowHeightCost(int rows = 3000, int rounds = 4)
+    {
+        HeadlessAppHost.EnsureInitialized();
+
+        static (double SwapMs, double RowHeight, int Nodes) Run(bool fixedHeight, int rows, int rounds)
+        {
+            var host = new Window { Width = 1280, Height = 800 };
+            host.Show();
+            HeadlessAppHost.PumpJobs();
+
+            var items = new List<ToggleRow>(rows);
+            for (var i = 0; i < rows; i++)
+            {
+                items.Add(new ToggleRow("mod-" + i, false));
+            }
+
+            var observed = new System.Collections.ObjectModel.ObservableCollection<ToggleRow>(items);
+            var grid = new DataGrid { ItemsSource = observed, Height = 800 };
+            grid.Columns.Add(new DataGridTextColumn { Header = "name", Binding = new Avalonia.Data.Binding(nameof(ToggleRow.Identifier)) });
+            host.Content = grid;
+            HeadlessAppHost.PumpJobs();
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+            HeadlessAppHost.PumpJobs();
+
+            var rowHeight = grid.GetVisualDescendants().OfType<DataGridRow>().FirstOrDefault()?.Bounds.Height ?? 0;
+            if (fixedHeight)
+            {
+                grid.RowHeight = rowHeight > 1 ? rowHeight : 32;
+                host.Measure(new Size(1280, 800));
+                host.Arrange(new Rect(0, 0, 1280, 800));
+                HeadlessAppHost.PumpJobs();
+            }
+
+            var times = new List<double>(rounds);
+            for (var r = 0; r < rounds; r++)
+            {
+                var target = new List<ToggleRow>(items);
+                if (r % 2 == 1)
+                {
+                    target.Reverse();
+                }
+
+                var sw = Stopwatch.StartNew();
+                grid.ItemsSource = new System.Collections.ObjectModel.ObservableCollection<ToggleRow>(target);
+                host.Measure(new Size(1280, 800));
+                host.Arrange(new Rect(0, 0, 1280, 800));
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+                HeadlessAppHost.PumpJobs();
+                sw.Stop();
+                times.Add(sw.Elapsed.TotalMilliseconds);
+            }
+
+            var sorted = times.OrderBy(v => v).ToList();
+            var nodes = grid.GetVisualDescendants().Count();
+            host.Content = null;
+            host.Close();
+            HeadlessAppHost.PumpJobs();
+            return (Percentile(sorted, 0.5), rowHeight, nodes);
+        }
+
+        var baseline = Run(false, rows, rounds);
+        var fixedCost = Run(true, rows, rounds);
+        Console.WriteLine(
+            $"[GridRowHeight] rows={rows} measuredRowHeight={baseline.RowHeight:F1}"
+            + $" | default p50={baseline.SwapMs:F2}ms nodes={baseline.Nodes}"
+            + $" | rowHeightSet({fixedCost.RowHeight:F1}) p50={fixedCost.SwapMs:F2}ms nodes={fixedCost.Nodes}");
+    }
+
+    /// <summary>
+    /// 列头排序的成本对照：换 ItemsSource（当前实现）vs 在同一个 ObservableCollection 上做 Move 重排。
+    /// 两者数据相同、顺序相同，只有「换不换集合实例」不同。
+    /// </summary>
+    public static void GridReorderCost(int rows = 3000, int rounds = 4)
+    {
+        HeadlessAppHost.EnsureInitialized();
+        var host = new Window { Width = 1280, Height = 800 };
+        host.Show();
+        HeadlessAppHost.PumpJobs();
+
+        var forward = new List<ToggleRow>(rows);
+        for (var i = 0; i < rows; i++)
+        {
+            forward.Add(new ToggleRow("mod-" + i, false));
+        }
+
+        var reversed = new List<ToggleRow>(forward);
+        reversed.Reverse();
+
+        var observed = new System.Collections.ObjectModel.ObservableCollection<ToggleRow>(forward);
+        var grid = new DataGrid { ItemsSource = observed, Height = 800 };
+        grid.Columns.Add(new DataGridTextColumn { Header = "name", Binding = new Avalonia.Data.Binding(nameof(ToggleRow.Identifier)) });
+        host.Content = grid;
+        HeadlessAppHost.PumpJobs();
+        host.Measure(new Size(1280, 800));
+        host.Arrange(new Rect(0, 0, 1280, 800));
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+        HeadlessAppHost.PumpJobs();
+
+        static (double Ms, long Bytes) Settle(Window host, DataGrid grid, Action mutate)
+        {
+            var before = GC.GetTotalAllocatedBytes(precise: true);
+            var sw = Stopwatch.StartNew();
+            mutate();
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+            HeadlessAppHost.PumpJobs();
+            sw.Stop();
+            return (sw.Elapsed.TotalMilliseconds, GC.GetTotalAllocatedBytes(precise: true) - before);
+        }
+
+        var swapMs = new List<double>();
+        var swapBytes = new List<long>();
+        var moveMs = new List<double>();
+        var moveBytes = new List<long>();
+        var ascending = true;
+
+        for (var r = 0; r < rounds; r++)
+        {
+            var target = ascending ? reversed : forward;
+            var (ms, bytes) = Settle(host, grid, () =>
+            {
+                grid.ItemsSource = new System.Collections.ObjectModel.ObservableCollection<ToggleRow>(target);
+            });
+            swapMs.Add(ms);
+            swapBytes.Add(bytes);
+
+            // 让集合回到与 target 相同的顺序，再用 Move 做同样的顺序变化
+            observed.Clear();
+            foreach (var row in target)
+            {
+                observed.Add(row);
+            }
+
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            HeadlessAppHost.PumpJobs();
+
+            var opposite = ascending ? forward : reversed;
+            var (ms2, bytes2) = Settle(host, grid, () =>
+            {
+                // 逐项 Move 到位：先把目标顺序摆好，再从当前集合里挑需要的那一行挪过来
+                for (var targetIndex = 0; targetIndex < opposite.Count; targetIndex++)
+                {
+                    var wanted = opposite[targetIndex];
+                    var currentIndex = observed.IndexOf(wanted);
+                    if (currentIndex != targetIndex)
+                    {
+                        observed.Move(currentIndex, targetIndex);
+                    }
+                }
+            });
+            moveMs.Add(ms2);
+            moveBytes.Add(bytes2);
+            ascending = !ascending;
+        }
+
+        var swapSorted = swapMs.OrderBy(v => v).ToList();
+        var moveSorted = moveMs.OrderBy(v => v).ToList();
+        Console.WriteLine(
+            $"[GridReorder] rows={rows} swap p50={Percentile(swapSorted, 0.5):F2}ms max={swapSorted[^1]:F2}ms bytes={(long)swapBytes.Average()}"
+            + $" | moves p50={Percentile(moveSorted, 0.5):F2}ms max={moveSorted[^1]:F2}ms bytes={(long)moveBytes.Average()}");
+
+        host.Content = null;
+        host.Close();
+        HeadlessAppHost.PumpJobs();
+    }
+
+    /// <summary>
     /// 勾选一行的两条路径对照：整体换 ItemsSource（旧实现）vs ObservableCollection 就地替换（新实现）。
     /// 用真实 DataGrid + 3,000 行，量耗时与分配，并统计可视树里的行容器数量变化。
     /// </summary>

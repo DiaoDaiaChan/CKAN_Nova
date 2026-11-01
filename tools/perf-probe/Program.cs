@@ -111,6 +111,27 @@ public static class Program
             }
         }
 
+        // --grid-colwidth：列宽模式对换表成本的影响
+        if (Array.Exists(args, a => string.Equals(a, "--grid-colwidth", StringComparison.OrdinalIgnoreCase)))
+        {
+            PageSwitchProbe.GridColumnWidthCost();
+            return 0;
+        }
+
+        // --grid-rowheight：固定行高对换表成本的影响
+        if (Array.Exists(args, a => string.Equals(a, "--grid-rowheight", StringComparison.OrdinalIgnoreCase)))
+        {
+            PageSwitchProbe.GridRowHeightCost();
+            return 0;
+        }
+
+        // --grid-reorder：列头排序换表 vs 就地 Move 的成本对照
+        if (Array.Exists(args, a => string.Equals(a, "--grid-reorder", StringComparison.OrdinalIgnoreCase)))
+        {
+            PageSwitchProbe.GridReorderCost();
+            return 0;
+        }
+
         // --mods-toggle：勾选一行时整体换表 vs 就地替换的成本对照
         if (Array.Exists(args, a => string.Equals(a, "--mods-toggle", StringComparison.OrdinalIgnoreCase)))
         {
