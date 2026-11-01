@@ -123,6 +123,28 @@ public static class Program
         }
 
         // --micro：首屏样式成本拆解（不跑门禁）
+        var streamIndex = Array.FindIndex(args, a => string.Equals(a, "--logs-stream", StringComparison.OrdinalIgnoreCase));
+        if (streamIndex >= 0)
+        {
+            var appends = streamIndex + 1 < args.Length && int.TryParse(args[streamIndex + 1], out var parsedAppends)
+                ? parsedAppends
+                : 200;
+            var fill = streamIndex + 2 < args.Length && int.TryParse(args[streamIndex + 2], out var parsedFill)
+                ? parsedFill
+                : 0;
+            PageSwitchProbe.LogsStreamCost(appends, fill);
+            return 0;
+        }
+        var logsIndex = Array.FindIndex(args, a => string.Equals(a, "--logs", StringComparison.OrdinalIgnoreCase));
+        if (logsIndex >= 0)
+        {
+            var entries = logsIndex + 1 < args.Length && int.TryParse(args[logsIndex + 1], out var parsedEntries)
+                ? parsedEntries
+                : 20000;
+            PageSwitchProbe.LogsRefreshCost(entries);
+            return 0;
+        }
+
         var rebindIndex = Array.FindIndex(args, a => string.Equals(a, "--list-rebind", StringComparison.OrdinalIgnoreCase));
         if (rebindIndex >= 0)
         {

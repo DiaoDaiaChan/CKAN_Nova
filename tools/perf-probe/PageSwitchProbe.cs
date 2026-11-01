@@ -11,7 +11,9 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CkanUI.App;
 using CkanUI.Services.Abstractions;
+using CkanUI.Services.Abstractions.Logs;
 using CkanUI.ViewModels;
+using CkanUI.ViewModels.Pages.Logs;
 
 namespace CkanUI.Tools.PerfProbe;
 
@@ -322,6 +324,115 @@ public static class PageSwitchProbe
 
         host.Close();
         HeadlessAppHost.PumpJobs();
+    }
+
+    /// <summary>量化日志页的刷新成本：首次激活、稳态刷新、以及页面可见时每来一行日志的开销。</summary>
+    /// <param name="entries">先灌入存储的日志条数（默认压到容量上限附近）。</param>
+    /// <param name="appends">逐条追加的采样次数。</param>
+    /// <summary>逐条写日志、每写一条把调度队列跑空，量「日志洪流」下 UI 线程被刷新吃掉的总时间。</summary>
+    /// <param name="appends">写入条数。</param>
+    public static void LogsStreamCost(int appends = 200, int fill = 0)
+    {
+        HeadlessAppHost.EnsureInitialized();
+        using var services = ServiceRegistration.Build(() => null);
+        var store = (ILogStore)services.GetService(typeof(ILogStore))!;
+        var page = (LogPageViewModel)services.GetService(typeof(LogPageViewModel))!;
+        if (fill > 0)
+        {
+            // 缓冲里先垫满历史日志，模拟真实会话（环容量 20000），让每次刷新都付全额聚合成本。
+            store.AppendRange(Enumerable.Range(0, fill)
+                .Select(i => new LogEvent
+                {
+                    Level = i % 50 == 0 ? LogLevel.Error : LogLevel.Info,
+                    Message = $"fill {i} mod=Example.Mod",
+                    Source = "user",
+                    Kind = LogSourceKind.User,
+                })
+                .ToArray());
+        }
+
+        page.Activate();
+
+        var sw = Stopwatch.StartNew();
+        for (var i = 0; i < appends; i++)
+        {
+            store.Append(new LogEvent { Level = LogLevel.Info, Message = $"probe stream {i}", Source = "user", Kind = LogSourceKind.User });
+            Dispatcher.UIThread.RunJobs(DispatcherPriority.Loaded);
+        }
+
+        sw.Stop();
+        var burstMs = sw.Elapsed.TotalMilliseconds;
+        // 尾部刷新由定时器触发，需要让调度队列跑一次（真实应用有消息循环）。
+        Thread.Sleep(200);
+        Dispatcher.UIThread.RunJobs(DispatcherPriority.Loaded);
+        Thread.Sleep(20);
+        Dispatcher.UIThread.RunJobs(DispatcherPriority.Loaded);
+        Console.WriteLine($"[LogsStream] appends={appends} fill={fill} burstMs={burstMs:F1} uiTotalMs={sw.Elapsed.TotalMilliseconds:F1} perAppendUs={burstMs * 1000d / appends:F0} rows={page.Rows.Count}");
+    }
+
+    public static void LogsRefreshCost(int entries = 20000, int appends = 20)
+    {
+        HeadlessAppHost.EnsureInitialized();
+        using var services = ServiceRegistration.Build(() => null);
+        var store = (ILogStore)services.GetService(typeof(ILogStore))!;
+        var page = (LogPageViewModel)services.GetService(typeof(LogPageViewModel))!;
+
+        var batch = Enumerable.Range(0, entries)
+            .Select(i => new LogEvent
+            {
+                Level = i % 50 == 0 ? LogLevel.Error : LogLevel.Info,
+                Message = $"probe line {i} mod=Example.Mod",
+                Source = "user",
+                Kind = LogSourceKind.User,
+            })
+            .ToArray();
+        store.AppendRange(batch);
+
+        var sw = Stopwatch.StartNew();
+        page.Activate();
+        var activate = sw.Elapsed.TotalMilliseconds;
+        var rows = page.Rows.Count;
+
+        var refresh = new double[3];
+        for (var i = 0; i < refresh.Length; i++)
+        {
+            sw.Restart();
+            page.Refresh();
+            refresh[i] = sw.Elapsed.TotalMilliseconds;
+        }
+
+        var perLine = new double[appends];
+        for (var i = 0; i < appends; i++)
+        {
+            sw.Restart();
+            store.Append(new LogEvent { Level = LogLevel.Info, Message = $"probe tick {i}", Source = "user", Kind = LogSourceKind.User });
+            perLine[i] = sw.Elapsed.TotalMilliseconds;
+        }
+
+        // 拆开看：过滤查询与聚合各占多少（决定该做增量追加还是该限流）。
+        var queryService = (ILogQueryService)services.GetService(typeof(ILogQueryService))!;
+        var builtQuery = page.Filters.BuildQuery(LogPageViewModel.RowLimit);
+        var qs = new double[3];
+        var ag = new double[3];
+        for (var i = 0; i < 3; i++)
+        {
+            sw.Restart();
+            _ = queryService.Query(builtQuery);
+            qs[i] = sw.Elapsed.TotalMilliseconds;
+            sw.Restart();
+            _ = queryService.Aggregate(builtQuery, 24, 8);
+            ag[i] = sw.Elapsed.TotalMilliseconds;
+        }
+
+        Array.Sort(qs);
+        Array.Sort(ag);
+        Array.Sort(refresh);
+        Array.Sort(perLine);
+        Console.WriteLine(
+            $"[LogsRefresh] entries={entries} rows={rows} activate={activate:F2}ms refreshP50={refresh[refresh.Length / 2]:F2}ms" +
+            $" perAppendP50={perLine[appends / 2]:F2}ms perAppendMax={perLine[^1]:F2}ms" +
+            $" queryP50={qs[1]:F2}ms aggregateP50={ag[1]:F2}ms");
+        page.Deactivate();
     }
 
     /// <summary>量化「换掉整表 ItemsSource」相对「原地不动」多花的布局时间（行容器重建成本）。</summary>

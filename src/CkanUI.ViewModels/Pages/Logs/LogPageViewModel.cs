@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CkanUI.Localization;
 using System.Collections.ObjectModel;
 using CkanUI.Services.Abstractions;
@@ -253,6 +254,7 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
     protected override void OnDeactivated()
     {
         _store.Changed -= OnStoreChanged;
+        _storeThrottleTimer?.Change(Timeout.Infinite, Timeout.Infinite);
     }
 
     /// <summary>按当前过滤条件重算列表、聚合与时间轴。</summary>
@@ -511,8 +513,47 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
 
     private void OnFiltersChanged(object? sender, EventArgs args) => Refresh();
 
+    /// <summary>把被时间窗压住的刷新排到窗口末尾，保证最后一条日志也会落到界面上。</summary>
+    /// <param name="delayMs">距时间窗结束还有多久。</param>
+    private void ScheduleTrailingRefresh(int delayMs)
+    {
+        _storeThrottleTimer ??= new Timer(
+            static state => ((LogPageViewModel)state!).PostCoalescedRefresh(),
+            this,
+            Timeout.Infinite,
+            Timeout.Infinite);
+        _storeThrottleTimer.Change(Math.Max(1, delayMs), Timeout.Infinite);
+    }
+
+    private void PostCoalescedRefresh()
+    {
+        if (Interlocked.CompareExchange(ref _refreshRunning, 1, 0) != 0)
+        {
+            return;
+        }
+
+        var sync = _sync;
+        if (sync is null)
+        {
+            RunCoalescedRefresh();
+            return;
+        }
+
+        sync.Post(static state => ((LogPageViewModel)state!).RunCoalescedRefresh(), this);
+    }
+
     private int _refreshRequested;
     private int _refreshRunning;
+
+    // 日志页每次刷新要重算时间轴与指纹聚合（20k 条缓冲下实测 13 ms/次），
+    // 高频写日志时若每来一行就刷一次，会把 UI 线程打成掉帧。
+    // 这里给「存储驱动的刷新」加一个时间窗合并：窗内的多次变更合并成一次尾部刷新，
+    // 手动 Refresh()（筛选变化、用户操作）不受影响，仍即时生效。
+    private const int StoreRefreshThrottleMs = 150;
+    private readonly Stopwatch _storeClock = Stopwatch.StartNew();
+    // 用「很久以前」作初值，保证第一条日志立刻上屏，之后才进入 150 ms 时间窗。
+    private TimeSpan _lastStoreRefresh = TimeSpan.FromMinutes(-10);
+    private Timer? _storeThrottleTimer;
 
     private void OnStoreChanged(object? sender, LogStoreChangedEventArgs args)
     {
@@ -539,6 +580,15 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
 
     private void RunCoalescedRefresh()
     {
+        var elapsedMs = (_storeClock.Elapsed - _lastStoreRefresh).TotalMilliseconds;
+        if (elapsedMs < StoreRefreshThrottleMs)
+        {
+            ScheduleTrailingRefresh((int)Math.Ceiling(StoreRefreshThrottleMs - elapsedMs));
+            Interlocked.Exchange(ref _refreshRunning, 0);
+            return;
+        }
+
+        _lastStoreRefresh = _storeClock.Elapsed;
         try
         {
             Interlocked.Exchange(ref _refreshRequested, 0);
