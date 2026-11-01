@@ -13,6 +13,8 @@ namespace CkanUI.App.Animations;
 /// <para>样式里 `Border.CkanCardInteractive:pointerover` 用 `TransformOperationsTransition + Fast(90ms)` 播这 2 px。
 /// 鼠标扫过一排卡片时，每张卡都要先把上一次的速度清零再起步，抬升看起来"一顿一顿"。这里按
 /// <see cref="TransformSpring"/> 接管位移：连续掠过多张卡时，抬升之间带速度过渡。</para>
+/// <para>范围：可点卡片、引导卡片（Border 与 Button 两种承载），以及 `ListBoxItem`/`TreeViewItem` 的整行悬停——
+/// 后两者原来什么反馈都没有，鼠标扫过列表只剩指针变化。</para>
 /// <para>样式里的 `:pressed` 会把 RenderTransform 换成 `scale(0.995)`；本类的本地值优先，
 /// 按压手感仍由 <see cref="InteractionMotion"/> 的缩放通道负责（两者改的是不同通道，互不覆盖）。</para>
 /// </remarks>
@@ -24,8 +26,14 @@ public static class HoverLiftMotion
     /// <summary>引导卡片的类名（空态里"下一步做什么"的入口，同样用 2 px 抬升）。</summary>
     public const string GuideCardClass = "CkanGuideCard";
 
+    /// <summary>按钮版引导卡片的类名（Button 承载，类型选择器不跨 Border，故按类识别）。</summary>
+    public const string GuideButtonClass = "CkanGuide";
+
     /// <summary>悬停抬升距离（像素，向上为负）。</summary>
     public const double LiftPixels = 2d;
+
+    /// <summary>列表/树的整行抬升距离：整行比卡片宽，2 px 会像抖动，减半。</summary>
+    public const double RowLiftPixels = 1d;
 
     private const int MaxDepth = 12;
 
@@ -75,7 +83,13 @@ public static class HoverLiftMotion
 
     /// <summary>该类表面要不要抬、抬多少；不认识的类返回 <see langword="null"/>。</summary>
     private static double? LiftOf(Control control) =>
-        control.Classes.Contains(CardClass) || control.Classes.Contains(GuideCardClass) ? LiftPixels : null;
+        control.Classes.Contains(CardClass)
+        || control.Classes.Contains(GuideCardClass)
+        || control.Classes.Contains(GuideButtonClass)
+            ? LiftPixels
+            : control is ListBoxItem or TreeViewItem
+                ? RowLiftPixels
+                : null;
 
     private static IEnumerable<Control> Enumerate(Avalonia.Visual root)
     {

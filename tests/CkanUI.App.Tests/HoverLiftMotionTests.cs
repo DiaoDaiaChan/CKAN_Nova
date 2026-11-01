@@ -122,6 +122,46 @@ public sealed class HoverLiftMotionTests
         }
     }
 
+    [Test]
+    public void ListRowsLiftByHalfTheCardDistance()
+    {
+        var rows = new StackPanel
+        {
+            Children =
+            {
+                new ListBoxItem { Content = "第一行", Height = 32 },
+            },
+        };
+        var window = HeadlessAppHost.CreateTestWindow(rows);
+
+        try
+        {
+            Assert.That(HoverLiftMotion.Attach(window), Is.EqualTo(1), "列表行也要被接管");
+
+            var row = rows.Children.OfType<ListBoxItem>().Single();
+            HoverLiftMotion.Apply(row, hovered: true);
+            Tick(45);
+            Assert.That(TranslateY(row), Is.EqualTo(-HoverLiftMotion.RowLiftPixels).Within(0.05));
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    [Test]
+    public void GuideButtonsLiftLikeCards()
+    {
+        var button = new Button { Classes = { HoverLiftMotion.GuideButtonClass }, Content = "去设置" };
+        HeadlessAppHost.CreateTestWindow(button);
+
+        HoverLiftMotion.Apply(button, hovered: true);
+        Tick(45);
+
+        Assert.That(TranslateY(button), Is.EqualTo(-HoverLiftMotion.LiftPixels).Within(0.05));
+    }
+
     private static Border CreateCard() => new()
     {
         Classes = { HoverLiftMotion.CardClass },
