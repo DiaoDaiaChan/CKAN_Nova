@@ -620,13 +620,14 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        // 幕布过渡已经负责"新页从外面进场"，宿主机再淡一次会把旧页一起压暗（就是当初那个亮度凹陷），
-        // 所以整页姿态只在拿不到幕布时兜底（设计期、或外部把 PageTransition 清空）。
-        if (PageHost.PageTransition is null)
-        {
-            _pageReveal ??= new TransformSpring(PageHost, SpringSpec.Glide, SpringSpec.Glide);
+        // 整页姿态：同一个弹簧实例接管 PageHost，被下一次换页打断时从当前位置继续，不会回零重来。
+        _pageReveal ??= new TransformSpring(PageHost, SpringSpec.Glide, SpringSpec.Glide);
 
-            // 位移带着页签方向：向右切页时内容从右侧补进来，向左切则相反，同组首次只上浮。
+        // 位移带着页签方向：向右切页时内容从右侧补进来，向左切则相反，同组首次只上浮。
+        // 只有上一段入场已经落位时才重新摆姿态；还在飞的时候再摆一次 = 把页面拉回起始位移，
+        // 连点页签看到的就是"跳一下再走"。飞在半路就让当前这一段带着速度直接收尾。
+        if (_pageReveal.IsSettled)
+        {
             var pose = PageRevealSpec.For(direction);
             _pageReveal.MoveTo(
                 x: pose.OffsetX,
@@ -635,8 +636,9 @@ public sealed partial class MainWindow : Window
                 scaleY: pose.StartScale,
                 opacity: pose.StartOpacity,
                 snap: true);
-            _pageReveal.MoveTo(x: 0d, y: 0d, scaleX: 1d, scaleY: 1d, opacity: 1d);
         }
+
+        _pageReveal.MoveTo(x: 0d, y: 0d, scaleX: 1d, scaleY: 1d, opacity: 1d);
 
         // 一级元素只做错峰上浮，不再压一次透明度：整页已经淡入，两层一起淡会看着更闷。
         // 同步调用而不是排到 Loaded：可视树在 Content 赋值时就已建好，先落起点才能保证首帧不闪。
@@ -1533,12 +1535,13 @@ public sealed partial class MainWindow : Window
     ///   <item><description>叠化（旧页不动、新页在上面淡入）：亮度稳住了，但两页文字在淡入过程中叠印，
     ///   标题与副标题都出现重影。</description></item>
     /// </list>
-    /// <para>结论：这三种做法的共同前提是"两页同时在场且都不透明"，一旦叠在一起就必然出问题。
-    /// 现在的过渡改走 <see cref="SpringPageSlide"/>：两页**始终不透明、互不重叠**，
-    /// 只是一张帘子的接缝扫过去（旧页 0 → +travel，新页 −travel → 0），所以既没有双影也没有亮度凹陷。
-    /// 关闭动效时仍返回 <c>null</c>，回到瞬时替换。</para>
-    /// <para>入场仍由代码驱动的单页编排承担（<see cref="PlayPageReveal"/> → <see cref="EntranceChoreographer"/>）：
-    /// 幕布只负责"换"，新页浮入负责"到"。</para>
+    /// <para>结论：这三种做法的共同前提是"两页同时在场且都不透明"，一旦叠在一起就必然出问题。</para>
+    /// <para>也试过幕布过渡（<see cref="SpringPageSlide"/>：两页始终不透明、只有接缝扫过）：
+    /// 单次换页干净，但**连续快速切换时打断手感丢了**——旧过渡被取消的那一帧要先归位、
+    /// 新过渡再从零起步，看见的是"停一下再走"。所以又回到"瞬时替换 + 单页方向化入场"：
+    /// 入场由 <see cref="PlayPageReveal"/> 用弹簧做，同一个弹簧被下一次换页打断时保位置与速度，
+    /// 连点页签时的观感才是连着的。</para>
+    /// <para>因此这里恒定返回 <c>null</c>；性能与观感都由入场编排负责，屏幕上也永远只有一页。</para>
     /// </remarks>
     private void ApplyPageTransition()
     {
@@ -1547,11 +1550,8 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        PageHost.PageTransition = MotionBudget.IsCollapsed ? null : SlideTransition;
+        PageHost.PageTransition = null;
     }
-
-    /// <summary>整页幕布过渡：常驻一份，参数只由 <see cref="MotionBudget"/> 决定。</summary>
-    private static readonly SpringPageSlide SlideTransition = new();
 
     /// <summary>
     /// 状态栏右下角常驻版本信息（报问题时截图就带上版本号，不必再问）。
