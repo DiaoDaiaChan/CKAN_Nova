@@ -124,17 +124,12 @@ public static class PageSwitchProbe
                 var sw = Stopwatch.StartNew();
                 foreach (var file in files)
                 {
-                    using var stream = File.OpenRead(file);
-                    using var bmp = Avalonia.Media.Imaging.Bitmap.DecodeToWidth(
-                        stream, width, Avalonia.Media.Imaging.BitmapInterpolationMode.HighQuality);
-                    // DecodeToWidth 是惰性的，必须真光栅一次才算过费用。
-                    using var rtb = new Avalonia.Media.Imaging.RenderTargetBitmap(bmp.PixelSize);
-                    using (var ctx = rtb.CreateDrawingContext())
-                    {
-                        ctx.DrawImage(bmp, new Rect(0, 0, bmp.PixelSize.Width, bmp.PixelSize.Height));
-                    }
-
-                    _ = rtb.PixelSize;
+                    // 与 Avalonia 的 DecodeToWidth 同构：解码 + 高质量缩放，都是字节级真活。
+                    using var src = SkiaSharp.SKBitmap.Decode(file);
+                    var info = new SkiaSharp.SKImageInfo(width, Math.Max(1, src.Height * width / src.Width));
+                    using var dst = src.Resize(info, new SkiaSharp.SKSamplingOptions(SkiaSharp.SKCubicResampler.Mitchell))
+                                    ?? throw new InvalidOperationException("resize failed");
+                    _ = dst.ByteCount;
                 }
 
                 var ms = sw.Elapsed.TotalMilliseconds;
@@ -143,6 +138,37 @@ public static class PageSwitchProbe
             }
 
             Console.WriteLine($"[ThumbCost] width={width} avg={total / rounds:F1}ms");
+        }
+    }
+
+    /// <summary>走真实转换器量「按不同目标宽度解码」的耗时（每个文件只用一次，保证命中不到缓存）。</summary>
+    /// <param name="dir">图片目录。</param>
+    public static void ThumbConvertCost(string dir)
+    {
+        HeadlessAppHost.EnsureInitialized();
+        var files = Directory.GetFiles(dir, "*.png").OrderBy(f => f, StringComparer.Ordinal).Take(6).ToArray();
+        if (files.Length == 0)
+        {
+            Console.WriteLine($"[ThumbConvert] no png in {dir}");
+            return;
+        }
+
+        var converter = new CkanUI.App.Converters.PathToThumbnailConverter();
+        foreach (var width in new[] { "640", "96" })
+        {
+            var total = 0d;
+            foreach (var file in files)
+            {
+                var sw = Stopwatch.StartNew();
+                var bitmap = converter.Convert(file, typeof(object), width, System.Globalization.CultureInfo.InvariantCulture)
+                    as Avalonia.Media.Imaging.Bitmap;
+                var ms = sw.Elapsed.TotalMilliseconds;
+                total += ms;
+                Console.WriteLine(
+                    $"[ThumbConvert] width={width} {Path.GetFileName(file)} {ms:F2}ms pixels={(bitmap is null ? "null" : bitmap.PixelSize.Width + "x" + bitmap.PixelSize.Height)}");
+            }
+
+            Console.WriteLine($"[ThumbConvert] width={width} total={total:F1}ms per={total / files.Length:F2}ms");
         }
     }
 

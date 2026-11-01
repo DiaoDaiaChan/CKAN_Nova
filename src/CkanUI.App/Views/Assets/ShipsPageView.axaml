@@ -126,7 +126,7 @@
                   <Border Grid.Column="0" Width="40" Height="24" CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                           Background="{DynamicResource CkanSubtleBackgroundBrush}"
                           VerticalAlignment="Center" ClipToBounds="True">
-                    <Image Source="{Binding ThumbnailPath, Converter={StaticResource Thumb}}"
+                    <Image Source="{Binding ThumbnailPath, Converter={StaticResource Thumb}, ConverterParameter=96}"
                            Stretch="UniformToFill" IsVisible="{Binding HasThumbnail}" />
                   </Border>
                   <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"

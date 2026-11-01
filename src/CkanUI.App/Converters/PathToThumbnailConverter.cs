@@ -18,8 +18,14 @@ namespace CkanUI.App.Converters;
 /// </remarks>
 public sealed class PathToThumbnailConverter : IValueConverter
 {
-    /// <summary>缩略图宽度：卡片宽度 ~320 DIP，2 倍屏下仍然清晰。</summary>
+    /// <summary>默认缩略图宽度：卡片宽度 ~320 DIP，2 倍屏下仍然清晰。</summary>
     private const int ThumbnailWidth = 640;
+
+    /// <summary>允许的目标宽度范围，防止写成 0 或离谱值把解码拖死。</summary>
+    private const int MinWidth = 16;
+
+    /// <summary>允许的目标宽度上限。</summary>
+    private const int MaxWidth = 1024;
 
     /// <summary>缓存上限：一屏 12 张 × 几页，够用且不会无限增长。</summary>
     private const int MaxEntries = 64;
@@ -34,6 +40,7 @@ public sealed class PathToThumbnailConverter : IValueConverter
             return null;
         }
 
+        var width = ResolveWidth(parameter);
         string key;
         try
         {
@@ -43,7 +50,7 @@ public sealed class PathToThumbnailConverter : IValueConverter
                 return null;
             }
 
-            key = path + "|" + info.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture);
+            key = path + "|" + info.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture) + "|" + width.ToString(CultureInfo.InvariantCulture);
         }
         catch (Exception)
         {
@@ -62,7 +69,7 @@ public sealed class PathToThumbnailConverter : IValueConverter
         try
         {
             using var stream = File.OpenRead(path);
-            bitmap = Bitmap.DecodeToWidth(stream, ThumbnailWidth, BitmapInterpolationMode.HighQuality);
+            bitmap = Bitmap.DecodeToWidth(stream, width, BitmapInterpolationMode.HighQuality);
         }
         catch (Exception)
         {
@@ -87,6 +94,25 @@ public sealed class PathToThumbnailConverter : IValueConverter
             CacheOrder.Enqueue(key);
             return bitmap;
         }
+    }
+
+    /// <summary>从 <c>ConverterParameter</c> 取目标宽度；不传就用默认值。</summary>
+    private static int ResolveWidth(object? parameter)
+    {
+        var width = ThumbnailWidth;
+        if (parameter is not null)
+        {
+            if (parameter is int direct)
+            {
+                width = direct;
+            }
+            else if (int.TryParse(global::System.Convert.ToString(parameter, CultureInfo.InvariantCulture), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+            {
+                width = parsed;
+            }
+        }
+
+        return Math.Clamp(width, MinWidth, MaxWidth);
     }
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

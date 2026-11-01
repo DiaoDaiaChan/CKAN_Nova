@@ -71,6 +71,13 @@ public static class Program
             return 0;
         }
 
+        // --thumb-conv <dir>：真实转换器在不同目标宽度下的解码成本
+        if (Array.IndexOf(args, "--thumb-conv") is var ci && ci >= 0 && ci + 1 < args.Length)
+        {
+            PageSwitchProbe.ThumbConvertCost(args[ci + 1]);
+            return 0;
+        }
+
         // --thumb-cost <dir>：缩略图解码成本随目标宽度的变化
         if (Array.IndexOf(args, "--thumb-cost") is var ti && ti >= 0 && ti + 1 < args.Length)
         {

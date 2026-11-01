@@ -775,3 +775,29 @@ settings 的 2338 节点 / 686–778 ms 布局仍然是全场唯一 O(700ms) 项
 | `PathToThumbnailConverter` 固定按 640 宽解码 | 可能值：`FlagsPageView` 的旗帜源图只有 64×40，解码到 640 是 100 倍像素浪费；`ShipsPageView` 列表槽位 40×24 却解码到 640（16 倍） | 想按显示尺寸传 `ConverterParameter` 前先量出真实省下的毫秒，但 headless 里 `Bitmap.DecodeToWidth` 是惰性解码，`RenderTargetBitmap` 在无头环境又不真光栅，`--thumb-cost` 量出 0.0–0.8 ms 无法采信；view 文件也在并行改版范围内 |
 | flags / loadingimages 用 `WrapPanel`（非虚拟化） | 未知 | 换 `ItemsRepeater` 会改滚动/换行行为，违反「不影响视觉效果」 |
 | settings 虚拟化 | 值：单项 O(700ms) | 见 §18.5，要动视觉 |
+
+### 18.8 缩略图按显示尺寸解码（列表槽位 40×24，却解码到 640 宽）
+
+`PathToThumbnailConverter` 原来无条件 `DecodeToWidth(640, HighQuality)`。但三处列表的显示尺寸远小于此：
+
+| 视图 | 槽位 | 旧解码宽 | 新解码宽 |
+| --- | --- | --- | --- |
+| `ShipsPageView.axaml` 列表行 | 40×24 | 640 | `ConverterParameter=96` |
+| `FlagsPageView.axaml` 卡片 | 150 宽 / 76 高（源图常是 64×40，等于被放大 10 倍） | 640 | 160 |
+| `LoadingImagesPageView.axaml` 卡片 | 148 宽 / 76 高 | 640 | 320 |
+| 各详情面板 | 300–640 | 640 | 640（不变） |
+
+转换器改动：`ConverterParameter` 解析目标宽度（`int` 或字符串，clamp 到 16–1024），缓存键加上宽度，避免 96 与 640 互相顶掉。
+
+**解码 + 高质量缩放的实测成本**（`perf-probe --thumb-cost`，3 张 1296×809 PNG，用 SkiaSharp `Decode` + `Resize(Mitchell)` 复刻 Avalonia 的两步）：
+
+| 目标宽 | 每张图 | 单张 640×等比 RGBA 内存 |
+| --- | --- | --- |
+| 640 | 13.2 ms | ~1.6 MB |
+| 256 | 3.6 ms | ~0.26 MB |
+| 128 | 3.4 ms | ~0.07 MB |
+| 96 | 3.0 ms | ~0.037 MB |
+
+即列表槽位 40×24 的解码从 **13.2 ms / 1.6 MB** 降到 **3.0 ms / 0.037 MB**，每张省约 10 ms UI 线程与 1.56 MB。转换器缓存上限 64 条，最坏情况下这 64 张缩略图的位图占用从约 **100 MB 降到约 2.4 MB** —— 这一条同时命中内存目标。
+
+> `perf-probe --thumb-conv` 走真实转换器：Avalonia 的 `DecodeToWidth` 是惰性的，转换器本身只花 0.03–0.8 ms，返回的 `PixelSize` 已经是 96×96 而不是 640×640；真正的解码/缩放成本发生在首帧光栅时，所以上表用 SkiaSharp 复刻来取数，不拿转换器返回耗时当结论。

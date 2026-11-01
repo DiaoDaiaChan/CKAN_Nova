@@ -95,7 +95,7 @@
                 <StackPanel Spacing="6">
                   <Border Height="76" CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                           Background="{DynamicResource CkanCanvasBackgroundBrush}" ClipToBounds="True">
-                    <Image Source="{Binding FilePath, Converter={StaticResource Thumb}}" Stretch="Uniform" />
+                    <Image Source="{Binding FilePath, Converter={StaticResource Thumb}, ConverterParameter=160}" Stretch="Uniform" />
                   </Border>
                   <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
                              ToolTip.Tip="{Binding ConfigPath}"
