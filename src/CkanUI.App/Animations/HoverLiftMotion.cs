@@ -109,6 +109,10 @@ public static class HoverLiftMotion
             return;
         }
 
+        // 样式给按钮/卡片挂的 RenderTransform 过渡跑在动画优先级上，会每帧盖住弹簧的位移；
+        // 只摘这一条（含 Opacity 见各入场模块），底色渐变照留。
+        MotionTransitions.Strip(control, includeOpacity: false);
+
         var lift = MotionBudget.Amplitude(distance);
         var spec = control is Button ? SpringSpec.Snappy : SpringSpec.Glide;
         TransformSpring.For(control, spec).MoveTo(y: hovered ? -lift : 0d);

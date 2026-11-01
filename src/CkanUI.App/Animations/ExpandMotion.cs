@@ -76,7 +76,7 @@ public static class ExpandMotion
             return;
         }
 
-        host.Transitions = null;
+        MotionTransitions.Strip(host, includeOpacity: true);
 
         var full = MotionBudget.AllowsPageChoreography;
         var offset = full ? MotionBudget.Amplitude(OffsetPixels) : ReducedOffsetPixels;

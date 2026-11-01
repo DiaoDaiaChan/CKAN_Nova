@@ -159,11 +159,9 @@ public static class TabStripMotion
 
     private static void KillTransitions(Control control)
     {
-        // 样式里的过渡会把逐帧写入再平滑一次（起点读出来仍是旧值），接管前先摘掉。
-        if (control.Transitions is not null)
-        {
-            control.Transitions = null;
-        }
+        // 样式里的过渡会把逐帧写入再平滑一次（起点读出来仍是旧值），接管前先摘掉；
+        // 只摘 RenderTransform / Opacity，背景色过渡留着。
+        MotionTransitions.Strip(control, includeOpacity: true);
     }
 
     private static IEnumerable<TabControl> Enumerate(Visual root)

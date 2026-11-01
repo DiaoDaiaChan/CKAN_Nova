@@ -82,7 +82,7 @@ public static class BannerMotion
 
         // 样式给提示条挂了 DoubleTransition(Opacity)：不摘掉的话，逐帧写不透明度会被过渡再平滑一次，
         // 起点永远落不下去（读出来还是 1）。提示条本身没有可交互状态，摘掉过渡不影响其它观感。
-        banner.Transitions = null;
+        MotionTransitions.Strip(banner, includeOpacity: true);
 
         var offset = MotionBudget.AllowsPageChoreography ? OffsetPixels : ReducedOffsetPixels;
         var rest = banner.Opacity > 0 ? banner.Opacity : 1d;

@@ -70,7 +70,7 @@ public static class ViewLayerMotion
             ((INotifyCollectionChanged)control.Classes).CollectionChanged += handler;
             Tracked.Add(control, handler);
 
-            control.Transitions = null;
+            MotionTransitions.Strip(control, includeOpacity: true);
             Apply(control, snap: true);
             count++;
         }

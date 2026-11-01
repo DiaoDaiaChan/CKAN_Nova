@@ -69,7 +69,7 @@ public static class SurfaceMotion
             Tracked.Add(control, handler);
 
             // 本地值压过样式过渡：不摘掉的话，逐帧写入会被过渡再平滑一次，弹簧等于被冻结。
-            control.Transitions = null;
+            MotionTransitions.Strip(control, includeOpacity: true);
             Apply(control, snap: true);
             count++;
         }

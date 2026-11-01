@@ -197,7 +197,7 @@ public static class SelectionMotion
     /// </summary>
     private static void Kick(Control control, double pop)
     {
-        control.Transitions = null;
+        MotionTransitions.Strip(control, includeOpacity: false);
         TransformSpring.For(control, SpringSpec.Snappy).KickScale(MotionBudget.Amplitude(pop));
     }
 
