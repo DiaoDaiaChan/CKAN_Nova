@@ -143,6 +143,15 @@ public sealed class TransformSpring : IMotionTicker
 
     bool IMotionTicker.Advance(double seconds) => Advance(seconds);
 
+    /// <summary>四通道是否都停住了；正在等 hold 排队的也算没停。</summary>
+    public bool IsSettled =>
+        !_x.IsMoving && !_y.IsMoving && !_scaleX.IsMoving && !_scaleY.IsMoving && _opacity?.IsMoving != true;
+
+    /// <summary>手动推进一帧（帧泵与测试共用；正常情况下由 <see cref="MotionFramePump"/> 驱动）。</summary>
+    /// <param name="seconds">帧间隔（秒）。</param>
+    /// <returns>是否还在运动。</returns>
+    public bool AdvanceFrame(double seconds) => Advance(seconds);
+
     internal bool Advance(double seconds)
     {
         var top = _topLevel;

@@ -30,6 +30,9 @@ public sealed class SpringPageSlide : IPageTransition
     /// <summary>等弹簧收敛的时长：Glide 预设 0.32 s 收敛 + 一点余量。</summary>
     private const double SettleSeconds = 0.42d;
 
+    /// <summary>兜底上限：两页还没停住也到此为止，避免掉帧时过渡一直挂着。</summary>
+    private const double HardCapSeconds = 0.5d;
+
     /// <inheritdoc />
     public async Task Start(Visual? from, Visual? to, bool forward, CancellationToken cancellationToken)
     {
@@ -57,7 +60,7 @@ public sealed class SpringPageSlide : IPageTransition
 
         // 用帧时间而不是定时器：定时器在无头测试里不随 ForceRenderTimerTick 推进，
         // 过渡会一直挂着不结束；帧通道与弹簧同源，测试与应用走同一条路径。
-        var settle = new SettleTicker(SettleSeconds);
+        var settle = new SettleTicker(SettleSeconds, toSpring, fromSpring);
         if (TopLevel.GetTopLevel(incoming) is { } top)
         {
             MotionFramePump.Subscribe(top, settle);
@@ -97,9 +100,18 @@ public sealed class SpringPageSlide : IPageTransition
         // 否则 finally 里的 MoveTo 会从线程池线程写控件。
         private readonly TaskCompletionSource _done = new();
         private readonly double _seconds;
+        private readonly double _hardCap;
+        private readonly TransformSpring _to;
+        private readonly TransformSpring? _from;
         private double _elapsed;
 
-        internal SettleTicker(double seconds) => _seconds = seconds;
+        internal SettleTicker(double seconds, TransformSpring to, TransformSpring? from)
+        {
+            _seconds = seconds;
+            _hardCap = seconds + HardCapSeconds;
+            _to = to;
+            _from = from;
+        }
 
         internal Task Task => _done.Task;
 
@@ -108,7 +120,11 @@ public sealed class SpringPageSlide : IPageTransition
         public bool Advance(double seconds)
         {
             _elapsed += seconds;
-            if (_elapsed < _seconds)
+
+            // 到点还不够：掉帧时弹簧可能还没停住，这时候收货会把最后几像素"啪"地抹掉。
+            // 等到两页都静止再收，另有上限兜底。
+            var settled = _to.IsSettled && (_from?.IsSettled ?? true);
+            if (_elapsed < _hardCap && (_elapsed < _seconds || !settled))
             {
                 return true;
             }
