@@ -948,3 +948,13 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | 实现口径 | `ITransition.Property` 在 12.1.4 不对外公开，反射读 `TransitionBase.Property`；一次接管读一次，不进逐帧路径。没有要摘的就保留原列表实例，不做无谓替换 |
 | 调用点 | `HoverLiftMotion.Apply`（`includeOpacity: false`，只抬 y）、`SelectionMotion`（同）、`BannerMotion` / `ExpandMotion` / `SurfaceMotion` / `ViewLayerMotion` / `TabStripMotion`（`true`，它们也在逐帧写不透明度） |
 | 门禁 | `MotionTransitionsTests` 4 项：底色过渡保留且变换摘掉、`Opacity` 只在模块驱动时才摘、只剩变换时整表置空、没有要摘的不换实例 |
+
+#### 5.9.34 幕布收尾等两页真的停住
+
+| 项 | 口径 |
+| --- | --- |
+| 旧做法 | 帧泵累计到 0.42 s 就收货，两页各 `MoveTo(snap: true)` 归零 |
+| 问题 | 掉帧/低帧率时弹簧还没停住，最后几像素被"啪"地抹掉——幕布收尾的一下轻跳 |
+| 新做法 | `TransformSpring.IsSettled`（四通道 `IsMoving` 全假，排队等 hold 的也算在动）+ `SpringPageSlide.SettleTicker`：`elapsed >= 0.42 s` **且**两页都静止才收；另有 `HardCapSeconds = 0.5 s` 兜底，过渡不会挂着不走 |
+| 为什么用帧累计而不等事件 | 定时器在无头测试里不随 `ForceRenderTimerTick` 推进，过渡会永远完不成；帧通道与弹簧同源，测试与应用走同一条路径 |
+| 门禁 | `SpringSettleTests` 3 项：snap 算静止、新目标未到不算、hold 排队算在动；`SpringPageSlideTests` 5 项仍全绿 |
