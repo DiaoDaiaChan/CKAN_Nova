@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using CkanUI.App.Animations;
+using CkanUI.App.Theming;
 using CkanUI.App.Tests.Automation;
 using NUnit.Framework;
 
@@ -21,8 +22,30 @@ namespace CkanUI.App.Tests;
 [NonParallelizable]
 public sealed class PressFeedbackTests
 {
+    private TimeSpan _page;
+    private TimeSpan _fast;
+
     [SetUp]
-    public void SetUp() => HeadlessAppHost.EnsureInitialized();
+    public void SetUp()
+    {
+        HeadlessAppHost.EnsureInitialized();
+
+        // 档位是从时长 token 反推的，别的用例会把 token 写成 0（关闭档）再恢复；
+        // 这里自己钉住完整档，避免"谁先跑谁决定这条用例的结果"。
+        var resources = Application.Current!.Resources;
+        _page = resources.TryGetResource(MotionHost.PageKey, null, out var page) && page is TimeSpan p ? p : TimeSpan.FromMilliseconds(200);
+        _fast = resources.TryGetResource(MotionHost.FastKey, null, out var fast) && fast is TimeSpan f ? f : TimeSpan.FromMilliseconds(90);
+        resources[MotionHost.PageKey] = TimeSpan.FromMilliseconds(200);
+        resources[MotionHost.FastKey] = TimeSpan.FromMilliseconds(90);
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        var resources = Application.Current!.Resources;
+        resources[MotionHost.PageKey] = _page;
+        resources[MotionHost.FastKey] = _fast;
+    }
 
     [TestCase(1d)]
     [TestCase(2d)]
@@ -132,27 +155,39 @@ public sealed class PressFeedbackTests
             VerticalAlignment = VerticalAlignment.Top,
         };
         var window = HeadlessAppHost.CreateTestWindow(card, 400, 300);
-        window.AddHandler(InputElement.PointerPressedEvent, (_, e) => InteractionMotion.Press(e, window), RoutingStrategies.Tunnel, handledEventsToo: true);
-        window.AddHandler(InputElement.PointerReleasedEvent, (_, _) => InteractionMotion.Release(), RoutingStrategies.Tunnel, handledEventsToo: true);
         Pump(5);
 
         try
         {
-            Press(window, new Point(150, 75));
-            var scale = ScaleOf(card);
-            Assert.That(scale, Is.LessThan(0.9999), "可点卡片按下必须真的缩");
+            var target = InteractionMotion.Press(CardPress(card, window), window);
+            Assert.That(target, Is.SameAs(card), "可点卡片本身就是按下表面，不能被当成容器跳过");
+
+            var scale = InteractionMotion.ScaleFor(card.Bounds.Width, card.Bounds.Height, InteractionMotion.CardInsetPixels);
+            Assert.That(scale, Is.LessThan(0.999), "可点卡片按下必须真的缩");
             Assert.That(scale, Is.GreaterThan(0.95), "整张卡按 12 px 收会塌，卡片用 6 px");
 
-            window.MouseUp(new Point(150, 75), MouseButton.Left);
-            Pump(80);
-            Assert.That(ScaleOf(card), Is.EqualTo(1d).Within(0.01), "松手要弹回去");
+            var origin = card.RenderTransformOrigin;
+            Assert.That(origin.Unit, Is.EqualTo(RelativeUnit.Relative));
+            Assert.That(origin.Point.X, Is.EqualTo(0.5).Within(0.01), "300×150 的卡从中心按下，锚点就该在中心");
+            Assert.That(origin.Point.Y, Is.EqualTo(0.5).Within(0.01));
         }
         finally
         {
+            InteractionMotion.Release();
             window.Close();
             HeadlessAppHost.PumpJobs();
         }
     }
+
+    private static PointerPressedEventArgs CardPress(Visual source, Visual root) => new(
+        source,
+        new Pointer(1, PointerType.Mouse, isPrimary: true),
+        root,
+        new Point(150, 75),
+        0,
+        new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.LeftButtonPressed),
+        KeyModifiers.None,
+        clickCount: 1);
 
     private static Button CreateButton() => new()
     {
