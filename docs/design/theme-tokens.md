@@ -625,8 +625,8 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 
 | 项 | 口径 |
 | --- | --- |
-| 范围 | `Classes.Contains("CkanCardInteractive")`/`CkanGuideCard`/`CkanGuide` 的控件，以及 `ListBoxItem`/`TreeViewItem`/`DataGridRow` 整行（`MaxDepth=12`、`MaxVisited=3000`），命中即 `PointerEntered`/`PointerExited` 接弹簧 |
-| 幅度 | 完整档卡片 `LiftPixels=2` 向上（`y: -2`）、整行 `RowLiftPixels=1`；精简档 45%，关闭档直接返回 |
+| 范围 | `Classes.Contains("CkanCardInteractive")`/`CkanGuideCard`/`CkanGuide` 的控件，`ListBoxItem`/`TreeViewItem`/`DataGridRow` 整行，以及普通 `Button`（`MaxDepth=12`、`MaxVisited=3000`）；命中即 `PointerEntered`/`PointerExited` 接弹簧 |
+| 幅度 | 完整档卡片 `LiftPixels=2` 向上（`y: -2`）、整行 `RowLiftPixels=1`、普通按钮 `ButtonLiftPixels=1.5`；精简档 45%，关闭档直接返回 |
 | 规格 | `SpringSpec.Glide`（与浮层、视图层同一曲线，避免同屏两套手感的观感差） |
 | 与 `:pressed` 共存 | 样式的 `:pressed` 与 `InteractionMotion` 改缩放通道，本类只改 `translateY`，互不覆盖；本地值优先于样式，所以样式那条 90 ms 过渡不再生效 |
 | 与样式悬停共存 | 样式还给了背景刷与阴影（`CkanElevatedCardHoverBrush`/`CkanElevationMedium`），这部分照旧由样式过渡播，只有位移被接管 |
@@ -735,3 +735,21 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 样式里的横向 2 px 保留（本类只改 `translateY`），两者叠加即"抬起 + 右移"。
 
 - **门禁**：`HoverLiftMotionTests.GridRowsLiftByTheRowDistance`（`DataGridRow` 被接管且落到 -1 px）。
+
+#### 5.9.23 按钮悬停：把"1 px 静态抬升"改成速度接力的弹簧
+
+全局 `Button` 基础样式给自己的 `:pointerover` 设 `translateY(-1px)`，过渡是 `TransformOperationsTransition` +
+`CkanMotionDurationSpringCrisp`（250 ms）。单个按钮看着没问题，但工具条、对话框底部、卡片操作区这种"按钮挨着按钮"的
+地方，鼠标横扫过去时每一个都要把速度清零再起步，观感是一顿一顿的；而 `CkanGuide` 引导按钮又因为同时被
+`HoverLiftMotion` 接管，抬升距离在两类按钮之间不一致。
+
+现在普通 `Button` 也进 `HoverLiftMotion`：
+
+| 项 | 口径 |
+| --- | --- |
+| 距离 | `ButtonLiftPixels = 1.5`（样式原值 1 px 略加重，横扫工具条时才看得出方向） |
+| 弹簧 | 按钮用 `SpringSpec.Snappy`（m=1, k=420, c=30，ζ≈0.73，带一点点回弹），不再用临界阻尼的 `Glide`——按钮要"跟手"而不是"庄重" |
+| 卡内按钮 | 卡片/引导卡内部的按钮**不**接管：整张卡已经在抬 2 px，再叠 1.5 px 会让按钮浮到卡面之上，看起来像布局错位（`LiftOf` 沿 `GetVisualAncestors()` 判一次） |
+| 与按压的关系 | 与 `InteractionMotion` 共用同一个 `TransformSpring` 实例：悬停改 `translateY`、按下改 `scale`，松手只回 `scale`，`translateY` 保持悬停值 |
+| 不接管谁 | 导航项（`FANavigationViewItem`）、菜单项、`DataGridRow` 之外的表格内控件都不在页面根下，不受影响；模板里的滚动条按钮也不在扫描范围 |
+| 门禁 | `HoverLiftMotionTests.PlainButtonsLiftByTheButtonDistance`（1.5 px 落位）、`ButtonsInsideALiftingCardAreLeftToTheCard`（卡内按钮零接管） |
