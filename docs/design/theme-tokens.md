@@ -484,7 +484,7 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | `MotionBudget.cs` | 从 `CkanMotionDurationPage/Fast` 反推档位（完整 / 精简 / 关闭），给出幅度系数与是否允许页面编排 | `ReducedAmplitudeScale = 0.45` |
 | `InteractionMotion.cs` | 按下时让**可交互表面**往中心收一点，松手弹回；表面识别复用 `PointerAuraLayer.FindSurface`（按钮、页签、树项、列表项、卡片…），数据行与菜单项不参与 | `PressedScale = 0.95`（`SpringSpec.Tactile`）、`PressInsetPixels = 12` |
 | `PageRevealSpec.cs` | 把页签索引差翻译成换页起点姿态：横切以水平 28 px 为主轴（左切镜像）、一级导航换页只上浮 22 px；三档统一走 `MotionBudget` | `DirectionalHorizontalPixels = 28`、`DirectionalVerticalPixels = 10`、`LiftOnlyPixels = 22`、`StartScale = 0.986`、`DirectionalStartOpacity = 0.30`、`LiftOnlyStartOpacity = 0.34` |
-| `EntranceChoreographer.cs` | 从 `PageHost` 往下六层找"有 ≥2 个可见子元素"的容器，最多取 8 个，按 30 ms 错峰上浮；首层不足 3 个（典型的"头部 + 内容"两子级根）时沿子级最多/面积最大的那支继续下钻补齐，否则整页只有两个元素在动 | `OffsetPixels = 18`、`StepMilliseconds = 30`、`ReducedOffsetPixels = 4`、`MinTargets = 3`、`MaxTargets = 8` |
+| `EntranceChoreographer.cs` | 从 `PageHost` 往下六层找"有 ≥2 个可见子元素"的容器，最多取 8 个，按 30 ms 错峰上浮；首层不足 3 个（典型的"头部 + 内容"两子级根）时沿子级最多/面积最大的那支继续下钻补齐 | `OffsetPixels = 18`、`StepMilliseconds = 30`、`ReducedOffsetPixels = 4`、`MinTargets = 3`、`MaxTargets = 8` |
 
 - **排队而不是定时器**：错峰不是"等 30 ms 再改目标"，而是让弹簧自己扣等待时间——`SpringChannel.Retarget(target, holdSeconds)`
   在排队期间只扣时长、不积分、不攒速度，到点自己出发（`IsHeld` 可观测，`IsMoving` 仍为真以保持帧泵存活）。
@@ -528,9 +528,34 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | 精简档 | 上浮 2 px，不排队（全部一起淡） |
 | 关闭档 | 一次都不发生 |
 | 与块级的关系 | 块先动、字后到；两层各用自己的 `TransformGroup`，互不覆盖（父级位移叠加子级位移，属预期） |
-| 页内页签切换 | `Play` 顺带在首次遇到 `TabControl` 时订阅 `SelectionChanged`：换页签只换内容、不走换页编排，新内容此前是硬出现；订阅后对新选中的内容宿主补齐**整套入场**（先 `ScrollRevealMotion`/`FeedArrivalMotion` 接管，再 `EntranceChoreographer` 块级 + 本类文字；模板未套上时排到 `Loaded` 再来一次），每个 `TabControl` 只订阅一次 |
+| 页内页签切换 | 首次遇到 `TabControl` 时订阅 `SelectionChanged`：换页签不换页，新内容此前是硬出现；订阅后对新选中的内容宿主补齐整套入场（先 `ScrollRevealMotion`/`FeedArrivalMotion` 接管，再块级与本类文字，模板未套上时排到 `Loaded` 再来一次），每个 `TabControl` 只订阅一次 |
 
 - **节拍为什么比块级快**：文字是密集对象，按块级的 30 ms 排 20 行要 0.6 s，看起来像卡顿；12 ms 才有"快速扫过"的速度感。
 - **模板晚一拍**：`PlayPageReveal()` 里同步调用一次，返回 0（`TextBlock` 还没实例化）时在 `DispatcherPriority.Loaded` 重试一次，
   避免整页文字静默出现在屏幕上。
-- **门禁**：`TextRevealChoreographerTests`（逐行节拍、精简档、关闭档、空白/隐藏文本不计入、重放从 0 开始、页内页签切换后新内容块级与文字都重新入场）。
+- **淡出不单独做**：换页仍是瞬时替换（§5.9.10 已说明两页同屏的三种缺陷），旧页没有淡出帧；观感上的"淡入淡出"
+  来自新页低不透明度起步 + 文字逐行跟上，而不是两页交叉淡化。
+
+#### 5.9.13 提示条入场（`BannerMotion`）
+
+`Border.CkanInfoBanner` 的显隐由 `IsVisible` 绑定控制：控件从不在树上到在树上是一次硬切换，
+样式里那条 `DoubleTransition Opacity` 从来没有中间帧（透明度没有机会变）。这一层监听 `IsVisible` 变 true 的那一刻，
+先压到"上浮 8 px + 不透明度 0"，再交 `SpringSpec.Glide` 淡回原位——错误提示、警告条出现时有了"因果感"。
+
+| 项 | 口径 |
+| --- | --- |
+
+#### 5.9.21 开关选中反馈：让"勾上"有手感（`TogglePopMotion`）
+
+筛选条上的胶囊、视图切换、日志等级开关都是 `ToggleButton`，勾上只换背景色（`BrushTransition`），形状一点没动，
+点完像没点。`TogglePopMotion` 给每个 `ToggleButton` 订阅 `IsCheckedProperty`，勾上时打一次缩放冲量。
+
+| 项 | 口径 |
+| --- | --- |
+| 幅度 | `PopScale = 1.035`（峰值 +3.5%），精简档 `MotionBudget.Amplitude` 收到 +1.58%，关闭档不接管 |
+| 实现 | `TransformSpring.KickScale(amount)`：对 `scaleX/scaleY` 通道各打一次初速度冲量，峰值由 `SpringChannel.Kick` 反解 |
+| 为什么不用两次 `MoveTo` | 同一拍里"先设 1.035 再设回 1"会让目标等于当前值，弹簧判定已静止，观感上等于没动（实测踩到） |
+| 接管时机 | 由 `MotionScan.Subscribe` 统一附带：任何被补扫的根（页面、对话框）都会顺手接上，并作为补扫项捡迟到的开关 |
+| 与按压的关系 | 与 `InteractionMotion` 共用同一个 `TransformSpring` 实例，按下收、松开弹各改各的目标，不会互相覆盖成跳变 |
+| 不做 | 不给未带 `CkanPill` 的普通复选框加弹跳（原生复选框有自己的视觉反馈）；不改模板、不动 `IsChecked` 语义 |
+| 门禁 | `TogglePopMotionTests`（勾上真的放大再落回 1、挂载时已选中的不凭空动、精简档幅度更小、关闭档零改动、重复接管为 0） |
