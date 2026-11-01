@@ -110,6 +110,13 @@ public sealed partial class MainWindow : Window
     /// <summary>单 Tab 悬浮弹出卡片关闭防抖计时器（移出后 160ms 优雅关闭）。</summary>
     private readonly DispatcherTimer _popoutCloseTimer = new() { Interval = TimeSpan.FromMilliseconds(160) };
 
+    /// <summary>
+    /// 收起动画结束后再把显示模式降回 LeftCompact 的延时器（320ms > 0.25s 宽度过渡）。
+    /// 收起瞬间就切模式会让 SplitView 立刻变成 CompactOverlay：内容先弹回左侧，面板还在 256px 原位，
+    /// 观感就是「收一半先盖住内容再缩」；等动画走完再切，两种模式的静止几何完全一致，看不出接缝。
+    /// </summary>
+    private readonly DispatcherTimer _navPaneSettleTimer = new() { Interval = TimeSpan.FromMilliseconds(320) };
+
     private NavItem? _currentPopoutNavItem;
     private object? _currentPopoutSender;
 
@@ -185,6 +192,24 @@ public sealed partial class MainWindow : Window
         {
             _popoutCloseTimer.Stop();
             HideTabPopout(immediate: false);
+        };
+
+        _navPaneSettleTimer.Tick += (_, _) =>
+        {
+            _navPaneSettleTimer.Stop();
+            if (NavView is null || _shell is null)
+            {
+                return;
+            }
+
+            // 收起动画还没走完、或者用户/抽屉又把面板打开了：继续等，别在中间切模式。
+            if (!_shell.IsNavCollapsed || NavView.IsPaneOpen)
+            {
+                _navPaneSettleTimer.Start();
+                return;
+            }
+
+            NavView.PaneDisplayMode = FANavigationViewPaneDisplayMode.LeftCompact;
         };
 
         if (AboutCompactButton is not null)
@@ -545,6 +570,9 @@ public sealed partial class MainWindow : Window
     {
         // 抽屉/浮条是窗口级浮层，与换页无关；挂在窗口上，只在首次调用时接管（ConditionalWeakTable 去重）。
         SurfaceMotion.Attach(this);
+
+        // 标题栏/状态条/工具条不在 PageHost 里，页面级挂载扫不到；整窗挂一次，导航树由 IconHoverRole 负责，这里跳过。
+        HoverLiftMotion.AttachShell(this);
 
         if (PageHost is null || MotionBudget.IsCollapsed)
         {
@@ -1101,17 +1129,24 @@ public sealed partial class MainWindow : Window
         }
 
         _navDrawerCloseTimer.Stop();
+        _navPaneSettleTimer.Stop();
+
+        // 展开必须用 Left（inline）：内容整体右移、被"推开"；LeftCompact 的底层是 CompactOverlay，
+        // 展开只是浮在页面上盖住内容 —— 那就是"变成覆盖了"。
+        // 收起时先留在 Left 把宽度动画走完（内容与面板同步回缩），动画结束后再由 _navPaneSettleTimer
+        // 降回 LeftCompact（保留精简轨 + 悬浮抽屉两种态）。
         if (expanded)
         {
             HideTabPopout(immediate: true);
+            NavView.PaneDisplayMode = FANavigationViewPaneDisplayMode.Left;
         }
 
-        // 展开必须用 Left（inline）：内容整体右移、被"推开"；LeftCompact 的底层是 CompactOverlay，
-        // 展开只是浮在页面上盖住内容 —— 那就是"变成覆盖了"。折叠态仍用 LeftCompact 保留 48px 精简轨。
-        NavView.PaneDisplayMode = expanded
-            ? FANavigationViewPaneDisplayMode.Left
-            : FANavigationViewPaneDisplayMode.LeftCompact;
         NavView.IsPaneOpen = expanded;
+
+        if (!expanded && NavView.PaneDisplayMode != FANavigationViewPaneDisplayMode.LeftCompact)
+        {
+            _navPaneSettleTimer.Start();
+        }
 
         // 钉住常驻展开模式（用户通过按钮或快捷键展开）：
         // 给 NavView 打上 PanePinned 类，使得 CSS 样式中把 LightDismissLayer 的命中和可见性禁用，
@@ -1181,6 +1216,13 @@ public sealed partial class MainWindow : Window
             _navDrawerCloseTimer.Stop();
             if (!NavView.IsPaneOpen)
             {
+                // 抽屉是浮层语义：万一收起收尾的延时还没跑（dispatcher 被占住），这里补一刀回到 LeftCompact，
+                // 免得悬停时把内容整体推开。模式切换只在真正要浮出前发生，用户看不到跳变。
+                if (NavView.PaneDisplayMode != FANavigationViewPaneDisplayMode.LeftCompact)
+                {
+                    NavView.PaneDisplayMode = FANavigationViewPaneDisplayMode.LeftCompact;
+                }
+
                 NavView.IsPaneOpen = true;
             }
         }

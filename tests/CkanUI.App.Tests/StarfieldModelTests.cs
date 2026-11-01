@@ -181,22 +181,34 @@ public sealed class StarfieldModelTests
     [Test]
     public void RefreshPointer_HighlightsOnlyTheNeighbourhood()
     {
-        var model = new StarfieldModel();
+        var model = new StarfieldModel(seed: StarfieldModel.DefaultSeed);
         model.Layout(1280, 800);
 
-        model.SetPointer(model.StarX(0), model.StarY(0));
+        // 选取在视口范围内的星点，确保 SetPointer 不会被边界截断
+        var target = 0;
+        for (var i = 0; i < model.StarCount; i++)
+        {
+            if (model.StarX(i) >= 10 && model.StarX(i) <= model.Width - 10 &&
+                model.StarY(i) >= 10 && model.StarY(i) <= model.Height - 10)
+            {
+                target = i;
+                break;
+            }
+        }
+
+        model.SetPointer(model.StarX(target), model.StarY(target));
         model.RefreshPointer();
 
         Assert.That(model.HasPointer, Is.True);
         Assert.That(model.PointerStrength, Is.EqualTo(1).Within(1e-6));
-        Assert.That(model.StarInfluence(0), Is.EqualTo(1).Within(1e-6), "光标压在星点上时影响必须拉满");
+        Assert.That(model.StarInfluence(target), Is.EqualTo(1).Within(1e-6), "光标压在星点上时影响必须拉满");
 
         // 找一颗离光标远超 InfluenceRadius 的星，它必须完全不受影响。
         var far = -1;
         for (var i = 0; i < model.StarCount; i++)
         {
-            var dx = model.StarX(i) - model.StarX(0);
-            var dy = model.StarY(i) - model.StarY(0);
+            var dx = model.StarX(i) - model.StarX(target);
+            var dy = model.StarY(i) - model.StarY(target);
             if (Math.Sqrt((dx * dx) + (dy * dy)) > StarfieldModel.InfluenceRadius * 2)
             {
                 far = i;

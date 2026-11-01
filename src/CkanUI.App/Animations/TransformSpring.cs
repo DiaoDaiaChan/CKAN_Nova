@@ -150,6 +150,13 @@ public sealed class TransformSpring
             return false;
         }
 
+        // 飞行中样式可能把 RenderTransform 换掉（:pointerover 的 translateY / none），
+        // 那样弹簧写的是脱离可视树的旧组，看起来"卡住不动"。只在动画期间收回，停住后不反复抢样式。
+        if (!ReferenceEquals(_target.RenderTransform, _group))
+        {
+            _target.RenderTransform = _group;
+        }
+
         var moving = _x.Advance(seconds);
         moving |= _y.Advance(seconds);
         moving |= _scaleX.Advance(seconds);

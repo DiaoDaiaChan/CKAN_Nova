@@ -226,6 +226,50 @@ public sealed class HoverLiftMotionTests
     }
 
     [Test]
+    public void IconButtonsAreLeftToTheirIconMotion()
+    {
+        // Button.CkanIcon:pointerover 把 RenderTransform 设成 none，硬接管会和那条 setter 抢，
+        // 结果是按钮不动、图标也不转——图标按钮的反馈交给 IconHoverMotion。
+        var button = new Button { Classes = { HoverLiftMotion.IconButtonClass }, Content = "×", Width = 30, Height = 30 };
+        var window = HeadlessAppHost.CreateTestWindow(button);
+
+        try
+        {
+            Assert.That(HoverLiftMotion.Attach(window), Is.EqualTo(0), "图标按钮不进接管名单");
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    [Test]
+    public void ShellAttachAdoptsChromeButtons()
+    {
+        // 标题栏/状态条按钮在 PageHost 外面，页面级挂载永远扫不到，得靠整窗挂载补上。
+        var panel = new StackPanel
+        {
+            Children =
+            {
+                new Button { Name = "AboutCompactButton", Content = "?", Width = 30, Height = 30 },
+            },
+        };
+        var window = HeadlessAppHost.CreateTestWindow(panel);
+
+        try
+        {
+            Assert.That(HoverLiftMotion.AttachShell(window), Is.EqualTo(1), "整窗挂载要接管外壳按钮");
+            Assert.That(HoverLiftMotion.AttachShell(window), Is.EqualTo(0), "重复挂载不叠加");
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    [Test]
     public void GuideArrowSlidesWithTheCard()
     {
         var arrow = new PathIcon { Classes = { HoverLiftMotion.ArrowClass }, Width = 12, Height = 12 };

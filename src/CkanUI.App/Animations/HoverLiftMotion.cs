@@ -44,22 +44,37 @@ public static class HoverLiftMotion
     /// <summary>普通按钮的悬停抬升距离：样式里是 1 px，这里略加重到 1.5 px 才看得出来。</summary>
     public const double ButtonLiftPixels = 1.5d;
 
+    /// <summary>图标按钮的类名：不接管位移，悬停反馈由图标自身的旋转动画负责。</summary>
+    public const string IconButtonClass = "CkanIcon";
+
     /// <summary>引导卡片右箭头的类名：悬停时向右滑 3 px。</summary>
     public const string ArrowClass = "GuideArrow";
 
     /// <summary>箭头滑出距离（像素）。</summary>
     public const double ArrowTravelPixels = 3d;
 
-    private const int MaxDepth = 12;
+    private const int MaxDepth = 24;
 
-    private const int MaxVisited = 3000;
+    private const int MaxVisited = 20000;
+
+    private const int ShellMaxVisited = 60000;
 
     private static readonly ConditionalWeakTable<Control, object> Tracked = new();
 
     private static readonly ConditionalWeakTable<Control, Control?> Arrows = new();
 
     /// <summary>给 <paramref name="root"/> 下的可点卡片挂上弹簧悬停；返回本次新增接管的数量。</summary>
-    public static int Attach(Avalonia.Visual? root)
+    public static int Attach(Avalonia.Visual? root) => Attach(root, MaxVisited);
+
+    /// <summary>给整窗（标题栏、状态条、工具条）挂弹簧悬停，跳过导航树；返回本次新增接管的数量。</summary>
+    /// <remarks>
+    /// 外壳控件不在 PageHost 里面，页面级挂载永远扫不到——标题栏按钮、日志状态按钮原来悬停时一动不动。
+    /// FANavigationViewItem 子树跳过（只跳导航项本身，导航壳里的标题栏按钮照常接管）：
+    /// 导航项自己的悬停由 IconHoverRole 的 IconHoverShape.Sway 负责，再叠 1 px 行抬升会互相打架。
+    /// </remarks>
+    public static int AttachShell(Avalonia.Visual? root) => Attach(root, ShellMaxVisited);
+
+    private static int Attach(Avalonia.Visual? root, int budget)
     {
         if (root is null)
         {
@@ -67,10 +82,10 @@ public static class HoverLiftMotion
         }
 
         // 迟到的控件（模板、晚到的数据、互斥切换）靠根节点的节流补扫接管，只赌换页那一拍会漏。
-        MotionScan.Subscribe(root, nameof(HoverLiftMotion), () => Attach(root));
+        MotionScan.Subscribe(root, nameof(HoverLiftMotion), () => Attach(root, budget));
 
         var count = 0;
-        foreach (var control in Enumerate(root))
+        foreach (var control in Enumerate(root, budget))
         {
             if (LiftOf(control) is null || Tracked.TryGetValue(control, out _))
             {
@@ -89,12 +104,12 @@ public static class HoverLiftMotion
     /// <summary>按悬停状态把卡片放到抬升或原位（关闭档直接不动）。</summary>
     public static void Apply(Control control, bool hovered)
     {
-        if (MotionBudget.IsCollapsed)
+        if (MotionBudget.IsCollapsed || LiftOf(control) is not { } distance)
         {
             return;
         }
 
-        var lift = MotionBudget.Amplitude(LiftOf(control) ?? LiftPixels);
+        var lift = MotionBudget.Amplitude(distance);
         var spec = control is Button ? SpringSpec.Snappy : SpringSpec.Glide;
         TransformSpring.For(control, spec).MoveTo(y: hovered ? -lift : 0d);
 
@@ -121,6 +136,13 @@ public static class HoverLiftMotion
         }
 
         if (control is not Button)
+        {
+            return null;
+        }
+
+        // 图标按钮的 :pointerover 明确写 RenderTransform = none（图标本体由 IconHoverMotion 转角度），
+        // 硬接管会跟那条 setter 抢 RenderTransform，结果是两边都不动。
+        if (control.Classes.Contains(IconButtonClass))
         {
             return null;
         }
@@ -160,13 +182,13 @@ public static class HoverLiftMotion
         return found;
     }
 
-    private static IEnumerable<Control> Enumerate(Avalonia.Visual root)
+    private static IEnumerable<Control> Enumerate(Avalonia.Visual root, int budget)
     {
         var queue = new Queue<(Avalonia.Visual Node, int Depth)>();
         queue.Enqueue((root, 0));
         var visited = 0;
 
-        while (queue.Count > 0 && visited < MaxVisited)
+        while (queue.Count > 0 && visited < budget)
         {
             var (node, depth) = queue.Dequeue();
             visited++;
@@ -176,7 +198,7 @@ public static class HoverLiftMotion
                 yield return control;
             }
 
-            if (depth >= MaxDepth)
+            if (depth >= MaxDepth || node is FluentAvalonia.UI.Controls.FANavigationViewItem)
             {
                 continue;
             }
