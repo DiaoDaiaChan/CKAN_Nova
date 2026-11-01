@@ -1199,3 +1199,31 @@ if (Rows.Count != views.Count || !Rows.SequenceEqual(views))
 
 ### 25.4 工具
 `Measure-Startup.mjs` 新增 `--hold-ms <ms>`：等到 `first-paint` 之后再保持进程一段时间，用来观察首帧之后的后台工作（不等待的话脚本在首帧就杀进程，看不到这类分段）。
+
+## 26 长时驻留与空转：收敛，不泄漏
+
+「内存会不会越用越大」不能靠几十秒的样本回答。新增 `tools/perf-probe/Measure-Soak.mjs`：起 Release exe（不抢前台、不动光标），按固定间隔读 `WorkingSet` / `PrivateMemorySize` / `TotalProcessorTime` / 线程数，跑满时长后输出 min/max 与收敛检查。
+
+### 26.1 一次 216 秒空转采样（Release，`--minutes 4 --sample-ms 10000`）
+| 时间 | 工作集 | 私有 | 线程 | 累计 CPU |
+| ---: | ---: | ---: | ---: | ---: |
+| 10 s | 325.5 MB | 300.0 MB | 142 | 9.3 s |
+| 21 s | 293.8 MB | 260.9 MB | 142 | 11.1 s |
+| 41 s | 299.8 MB | 266.2 MB | 111 | 13.6 s |
+| 62 s | 306.1 MB | 272.5 MB | 108 | 15.5 s |
+| 82 s | 312.2 MB | 277.9 MB | 106 | 18.4 s |
+| 103 s | 312.2 MB | 277.9 MB | 106 | 20.8 s |
+| 144 s | 312.2 MB | 277.8 MB | 103 | 25.2 s |
+| 216 s | 312.3 MB | 277.9 MB | 103 | 32.8 s |
+
+结论：
+1. **驻留在 82 秒后完全平台化**——之后 130 秒里工作集只动了 0.1 MB，没有缓慢增长。启动期的 325 MB 是加载瞬时峰值，不是稳态。
+2. **线程数在收缩**（142 → 103），不是每个周期新起线程。
+3. **空转 CPU 全程线性**：206 秒里消耗 23.5 s CPU ≈ **11.4% 单核**，与 §21.6 的 10–13% 一致；这一档已经用 `NO_STARFIELD` / `NO_LAYERS` / `NO_PERF` / `NO_ANIM` / `NO_RAIL` 逐一排除过，是渲染侧固定开销。
+4. 本轮没有触发 `IdleMemoryReclaimer`（增长门限 128 MB 未达到），也就是说这个稳态不是"回收器压出来的假象"。
+
+### 26.2 用法
+```
+node tools/perf-probe/Measure-Soak.mjs --exe C:/.../CkanUI.exe --minutes 4 --sample-ms 10000 --out artifacts/perf/soak.json
+```
+输出 `[Soak] workingSet min/max`、`[Soak] 单核 CPU min/max` 与收敛检查（预热后首末样本差）。判据：**预热后末段工作集的斜率应接近 0**；若末段仍在单调上行，才是泄漏信号。
