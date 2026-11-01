@@ -101,9 +101,24 @@ public static class TextRevealChoreographer
 
             Watched.Add(tabControl, tabControl);
             tabControl.SelectionChanged += (_, _) => Dispatcher.UIThread.Post(
-                () => Play(SelectedHost(tabControl)),
+                () => PlayTabContent(SelectedHost(tabControl)),
                 DispatcherPriority.Loaded);
         }
+    }
+
+    /// <summary>页签切换后，把新内容的整套入场补齐：块级位移 + 文字逐行 + 滚动/数据到达接管。</summary>
+    private static void PlayTabContent(ContentPresenter? host)
+    {
+        if (host is null || MotionBudget.IsCollapsed)
+        {
+            return;
+        }
+
+        // 新内容里可能刚长出滚动容器与列表：先挂接管再演，后续项才有入场可用。
+        ScrollRevealMotion.Attach(host);
+        FeedArrivalMotion.Attach(host);
+        EntranceChoreographer.Play(host, includeOpacity: false);
+        Play(host);
     }
 
     private static IEnumerable<TabControl> FindTabControls(Visual root)

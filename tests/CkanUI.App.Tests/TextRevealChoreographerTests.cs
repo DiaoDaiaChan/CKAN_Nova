@@ -178,12 +178,14 @@ public sealed class TextRevealChoreographerTests
     {
         var first = new TextBlock { Text = "第一个页签的文字" };
         var second = new TextBlock { Text = "第二个页签的文字" };
+        var block = new Border { Height = 40, Background = Brushes.Transparent };
+        var secondPanel = new StackPanel { Children = { block, second } };
         var tabs = new TabControl
         {
             Items =
             {
                 new TabItem { Header = "一", Content = first },
-                new TabItem { Header = "二", Content = second },
+                new TabItem { Header = "二", Content = secondPanel },
             },
         };
         var window = HeadlessAppHost.CreateTestWindow(tabs, 420, 240);
@@ -197,6 +199,7 @@ public sealed class TextRevealChoreographerTests
             Tick(4);
 
             Assert.That(TranslateY(second), Is.GreaterThan(0.5), "页内页签切换后，新内容文字也要逐行上屏");
+            Assert.That(TranslateY(block), Is.GreaterThan(0.5), "同一页签里的块级元素也要重新入场");
         }
         finally
         {

@@ -528,20 +528,13 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | 精简档 | 上浮 2 px，不排队（全部一起淡） |
 | 关闭档 | 一次都不发生 |
 | 与块级的关系 | 块先动、字后到；两层各用自己的 `TransformGroup`，互不覆盖（父级位移叠加子级位移，属预期） |
-| 页内页签切换 | `Play` 顺带在首次遇到 `TabControl` 时订阅 `SelectionChanged`：换页签只换内容、不走换页编排，新内容此前是硬出现；订阅后把新选中的内容宿主重新排一遍（模板未套上时排到 `Loaded` 再来一次），每个 `TabControl` 只订阅一次 |
+| 页内页签切换 | `Play` 顺带在首次遇到 `TabControl` 时订阅 `SelectionChanged`：换页签只换内容、不走换页编排，新内容此前是硬出现；订阅后对新选中的内容宿主补齐**整套入场**（先 `ScrollRevealMotion`/`FeedArrivalMotion` 接管，再 `EntranceChoreographer` 块级 + 本类文字；模板未套上时排到 `Loaded` 再来一次），每个 `TabControl` 只订阅一次 |
 
 - **节拍为什么比块级快**：文字是密集对象，按块级的 30 ms 排 20 行要 0.6 s，看起来像卡顿；12 ms 才有"快速扫过"的速度感。
 - **模板晚一拍**：`PlayPageReveal()` 里同步调用一次，返回 0（`TextBlock` 还没实例化）时在 `DispatcherPriority.Loaded` 重试一次，
   避免整页文字静默出现在屏幕上。
-- **门禁**：`TextRevealChoreographerTests`（逐行节拍、精简档、关闭档、空白/隐藏文本不计入、重放从 0 开始、页内页签切换后新内容文字同样上屏）。
+- **门禁**：`TextRevealChoreographerTests`（逐行节拍、精简档、关闭档、空白/隐藏文本不计入、重放从 0 开始、页内页签切换后新内容块级与文字都重新入场）。
 - **淡出不单独做**：换页仍是瞬时替换（§5.9.10 已说明两页同屏的三种缺陷），旧页没有淡出帧；观感上的"淡入淡出"
   来自新页低不透明度起步 + 文字逐行跟上，而不是两页交叉淡化。
 
 #### 5.9.13 提示条入场（`BannerMotion`）
-
-`Border.CkanInfoBanner` 的显隐由 `IsVisible` 绑定控制：控件从不在树上到在树上是一次硬切换，
-样式里那条 `DoubleTransition Opacity` 从来没有中间帧（透明度没有机会变）。这一层监听 `IsVisible` 变 true 的那一刻，
-先压到"上浮 8 px + 不透明度 0"，再交 `SpringSpec.Glide` 淡回原位——错误提示、警告条出现时有了"因果感"。
-
-| 项 | 口径 |
-| --- | --- |
