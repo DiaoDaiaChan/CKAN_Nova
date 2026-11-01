@@ -1227,3 +1227,59 @@ if (Rows.Count != views.Count || !Rows.SequenceEqual(views))
 node tools/perf-probe/Measure-Soak.mjs --exe C:/.../CkanUI.exe --minutes 4 --sample-ms 10000 --out artifacts/perf/soak.json
 ```
 输出 `[Soak] workingSet min/max`、`[Soak] 单核 CPU min/max` 与收敛检查（预热后首末样本差）。判据：**预热后末段工作集的斜率应接近 0**；若末段仍在单调上行，才是泄漏信号。
+
+## 27 带真实数据的换页成本：空数据口径低估了 3 倍
+
+§21 的全 tab 表是**空数据**口径（探针的 `HeadlessAppHost` 会把 `CKAN_CONFIG_FILE` 指向一次性空文件，页面读到空集合）。真实用户在真实实例上点同一个 tab，可视树按行数膨胀，成本完全不同。本节给的是带数据口径。
+
+### 27.1 怎么量到带数据的页面
+两处开关：
+1. `tools/perf-probe/HeadlessAppHost.cs`：只有未设 `CKANUI_PROBE_REAL_CONFIG=1` 时才把 `CKAN_CONFIG_FILE` 覆盖成临时空文件——设了就读用户自己的 `%LOCALAPPDATA%/CKAN/config.json`。
+2. `tools/perf-probe/PageSwitchProbe.cs` 的 `Run` 开头：`CKANUI_PROBE_INSTANCE=1` 时 `RefreshAsync()`，当前实例为空则 `SwitchAsync(Instances[0].Name)`，并打印 `[PagesReal] instance=… count=… dir=… modules=…`。
+
+```
+CKANUI_PROBE_REAL_CONFIG=1 CKANUI_PROBE_INSTANCE=1 TEMP=… TMP=… \
+  ./tools/perf-probe/bin/Release/net10.0/perf-probe.exe --pages-real
+```
+
+本次实测实例：`Kerbal Space Program_newmod`（`D:/Kerbal Space Program newmod`，`modules=105`）。探针只读不写：`RefreshAsync` 只重投影、`SwitchAsync` 遇到 `registry.locked` 会返回失败消息，不改用户配置。
+
+### 27.2 全 23 键实测（含数据；r1=首次进入，r2=再次进入，layout 单位 ms）
+| 页面 | r1 layout | r2 layout | 节点 |
+| --- | ---: | ---: | ---: |
+| settings | 590.5 | 752.8 | 2346 |
+| mods | 1089.6 | 314.4 | 2540 |
+| unmanaged | 13.4 → 384.3 | 384.3 | 103 → 1167 |
+| saves | 389.9 | 150.7 | 517 |
+| flags | 217.5 | 93.0 | 522 |
+| ships | 166.4 | 65.6 | 391 |
+| home | 85.5 | 92.7 | 225 |
+| modpack-editor | 165.3 | 46.0 | 459 |
+| instances | 203.7 | 49.1 | 296 |
+| changes | 180.5 | 43.1 | 89 |
+| modtext | 36.6 | 39.3 | 261 |
+| cache | 42.4 | 36.4 | 137 |
+| installhistory | 39.2 | 35.1 | 93 |
+| repos | 41.4 | 27.0 | 128 |
+| modconfig | 57.9 | 26.0 | 146 |
+| modpacks | 143.8 | 26.2 | 202 |
+| dedup | 27.0 | 20.8 | 171 |
+| loadingimages | 39.3 | 19.3 | 165 |
+| plugins | 21.1 | 15.5 | 100 |
+| logs | 35.6 | 14.2 | 126 |
+| content | 25.9 | 14.6 | 84 |
+| downloadstats | 11.3 | 6.8 | 84 |
+| playtime | 6.0 | 4.6 | 51 |
+
+### 27.3 结论
+1. **空数据口径低估 3 倍以上**：mods 146 → 2540 节点、unmanaged 103 → 1167、saves 115 → 517、flags 87 → 522。§21 的 `PageNodeGate` 阈值是按空数据定的（unmanaged 上限 80），带数据必然超限——它是「结构膨胀」护栏，不是行数护栏，判读时要配本节。
+2. **成本仍然 ∝ 节点数**：1167 节点 × 0.33ms ≈ 385ms，与 unmanaged 实测 384.3ms 一致；2540 节点 ≈ 840ms，与 mods 1089ms（首轮含模板实例化）同量级。
+3. **新暴露的三个数据驱动热点**（空数据时完全看不见）：`unmanaged`（文件树 1167 节点，每次进入 384ms）、`mods`（DataGrid + 详情侧栏 2540 节点）、`saves`（517 节点 150ms）。它们不是重建问题——`view=0` 说明视图是复用的，384ms 全在 Measure/Arrange。
+4. `modconfig` 的 `activate=93.4ms` 与 `changes` 的 `activate=55.8ms` 是另一类：进页面就重读盘（`ModConfigPageViewModel.LoadAsync` 每次 `_config.LoadAsync`），不在 layout 里。
+
+### 27.4 下一步（按收益/风险排序）
+| 目标 | 手段 | 风险 |
+| --- | --- | --- |
+| unmanaged 384ms | 树默认不收全展开 / 只实体化可见层（需先确认 `UnmanagedPageViewModel` 是否在加载时就展开全部节点） | 默认展开状态是可见行为，需先取证是不是它 |
+| mods 314ms | 详情侧栏随选中才构建（现在是每次都铺满） | 会改首屏右侧栏内容，属视觉 |
+| modconfig 93ms | 按 registry + ModuleManager 配置文件指纹复用上次结果 | 与 §18 存档校验同型，安全 |

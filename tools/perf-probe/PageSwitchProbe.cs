@@ -33,8 +33,29 @@ public static class PageSwitchProbe
         using var services = ServiceRegistration.Build(() => null);
 
         // 与真机一致：实例与仓库都已在启动时装配好，页面读到的是已加载的数据。
-        _ = services.GetService(typeof(IInstanceService));
+        // 默认的 ownerProvider 是 null、实例访问器为空，页面拿到的是空数据；探针默认保持
+        // 这样（纯结构口径）。要量「带数据」的页面成本，给 CKANUI_PROBE_INSTANCE=1，
+        // 这里就去读真实 CKAN 配置并把当前实例切过去。
+        var instanceService = (IInstanceService)services.GetService(typeof(IInstanceService))!;
+        if (Environment.GetEnvironmentVariable("CKANUI_PROBE_INSTANCE") == "1")
+        {
+            try
+            {
+                instanceService.RefreshAsync().GetAwaiter().GetResult();
+                if (instanceService.Current is null && instanceService.Instances.Count > 0)
+                {
+                    var switched = instanceService.SwitchAsync(instanceService.Instances[0].Name).GetAwaiter().GetResult();
+                    Console.WriteLine($"[PagesReal] switch ok={switched.IsSuccess} msg={switched.Message ?? "-"} detail={switched.Detail ?? "-"}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[PagesReal] instance-load-failed {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
         HeadlessAppHost.PumpJobs();
+        Console.WriteLine($"[PagesReal] instance={instanceService.Current?.Name ?? "<none>"} count={instanceService.Instances.Count} dir={instanceService.Current?.GameDir ?? "-"} modules={instanceService.Current?.ModuleCount?.ToString() ?? "-"}");
 
         var host = new Window { Width = 1280, Height = 800 };
         host.Show();
