@@ -145,6 +145,74 @@ public sealed class ScrollRevealMotionTests
         }
     }
 
+    [Test]
+    public void DeeplyNestedScrollViewerIsStillFound()
+    {
+        var stack = new StackPanel { Width = 260 };
+        var rows = new Border[40];
+        for (var i = 0; i < rows.Length; i++)
+        {
+            rows[i] = new Border { Height = RowHeight, Background = Brushes.Transparent };
+            stack.Children.Add(rows[i]);
+        }
+
+        var scroll = new ScrollViewer { Height = 200, Width = 280, Content = stack };
+        Control root = scroll;
+        // 真实页面里 ScrollViewer 常嵌在模板/列表里十几层：只要能滚，就必须被接管。
+        for (var i = 0; i < 12; i++)
+        {
+            root = new Border { Child = root };
+        }
+
+        var window = HeadlessAppHost.CreateTestWindow(root, 320, 240);
+        try
+        {
+            Assert.That(ScrollRevealMotion.Attach(window), Is.EqualTo(1));
+
+            scroll.Offset = new Vector(0, 200);
+            Tick(4);
+
+            Assert.That(TranslateY(rows[5]), Is.GreaterThan(0.5), "深层容器里的行同样要演");
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    [Test]
+    public void RecycledContainerWithNewDataRevealsAgain()
+    {
+        var (window, scroll, rows) = CreateFeed(rowCount: 40);
+        try
+        {
+            for (var i = 0; i < rows.Length; i++)
+            {
+                rows[i].DataContext = new object();
+            }
+
+            ScrollRevealMotion.Attach(window);
+
+            scroll.Offset = new Vector(0, 200);
+            Tick(45);
+            Assert.That(TranslateY(rows[5]), Is.EqualTo(0).Within(0.05));
+
+            scroll.Offset = new Vector(0, 0);
+            Tick(6);
+            rows[5].DataContext = new object();
+            scroll.Offset = new Vector(0, 200);
+            Tick(4);
+
+            Assert.That(TranslateY(rows[5]), Is.GreaterThan(0.5), "虚拟化回收的容器换了数据，要重新演");
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
     private static (Window Window, ScrollViewer Scroll, Border[] Rows) CreateFeed(int rowCount)
     {
         var stack = new StackPanel { Width = 260 };

@@ -29,6 +29,7 @@ public sealed class TransformSpring
 
     private SpringChannel? _opacity;
     private TopLevel? _topLevel;
+    private bool _waitingForTree;
 
     public TransformSpring(Control target, SpringSpec translateSpec, SpringSpec scaleSpec)
     {
@@ -170,7 +171,14 @@ public sealed class TransformSpring
         var top = TopLevel.GetTopLevel(_target);
         if (top is null)
         {
-            SnapAll();
+            // 换页那一刻新内容可能还没挂进可视树：直接 SnapAll 会把入场动画压成一帧瞬移，
+            // 所以保留起点姿态，等挂树事件到了再起跑。
+            if (!_waitingForTree)
+            {
+                _waitingForTree = true;
+                _target.AttachedToVisualTree += OnAttachedToVisualTree;
+            }
+
             return;
         }
 
@@ -178,8 +186,21 @@ public sealed class TransformSpring
         MotionFramePump.Subscribe(top, this);
     }
 
+    private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        _target.AttachedToVisualTree -= OnAttachedToVisualTree;
+        _waitingForTree = false;
+        Start();
+    }
+
     private void SnapAll()
     {
+        if (_waitingForTree)
+        {
+            _target.AttachedToVisualTree -= OnAttachedToVisualTree;
+            _waitingForTree = false;
+        }
+
         _x.SnapTo(_x.Target);
         _y.SnapTo(_y.Target);
         _scaleX.SnapTo(_scaleX.Target);

@@ -25,22 +25,32 @@ namespace CkanUI.App.Animations;
 public static class ScrollRevealMotion
 {
     /// <summary>起点下移距离（完整档，像素）。</summary>
-    public const double OffsetPixels = 12d;
+    public const double OffsetPixels = 18d;
 
     /// <summary>起点下移距离（精简档，像素）。</summary>
     public const double ReducedOffsetPixels = 3d;
 
     private const int MaxDepth = 10;
 
+    // 找滚动容器的遍历比"挑行层"深得多：页面里 ScrollViewer 常嵌在模板/列表里第 11 层，
+    // 用挑行层的深度限制会直接扫不到（ships 页就是这样整页不演）。
+    private const int MaxScrollDepth = 20;
+
+    private const int MaxScrollVisited = 12000;
+
     private const int MaxTargets = 400;
 
-    private const int MaxVisited = 4000;
+    private const int MaxVisited = 1600;
 
     private static readonly ConditionalWeakTable<Visual, RootState> Roots = new();
 
     private static readonly ConditionalWeakTable<ScrollViewer, ScrollState> Attached = new();
 
     private static readonly ConditionalWeakTable<Control, object> Seen = new();
+
+    // 虚拟化列表会回收容器：行控件还是同一个，装的数据已经换了。按数据对象记"演过"，
+    // 否则滚出来的每一行都被当成"见过"，长列表滚不动。
+    private static readonly ConditionalWeakTable<object, object> SeenData = new();
 
     /// <summary>给 <paramref name="root"/> 下的滚动容器挂上滚动入场；返回本次新增接管的滚动容器数量。</summary>
     public static int Attach(Visual? root)
@@ -93,8 +103,9 @@ public static class ScrollRevealMotion
                 continue;
             }
 
-            state.Initialized = true;
-            RevealNow(scrollViewer, state, initial: true);
+            // 只有在真正拿到"信息流行"这一层之后才算初始化：控件树/容器还没成形时先放过，
+            // 否则首屏的行会被当成"已经见过"，之后滚动永远不演。
+            state.Initialized = RevealNow(scrollViewer, state, initial: true);
         }
 
         return count;
@@ -130,24 +141,25 @@ public static class ScrollRevealMotion
         });
     }
 
-    private static void RevealNow(ScrollViewer scrollViewer, ScrollState state, bool initial)
+    /// <summary>评估一次；只有找到了可演的行层才返回 <see langword="true"/>。</summary>
+    private static bool RevealNow(ScrollViewer scrollViewer, ScrollState state, bool initial)
     {
         if (MotionBudget.IsCollapsed || scrollViewer.Viewport.Height <= 0d)
         {
-            return;
+            return false;
         }
 
         var (panel, candidates) = Candidates(scrollViewer, state);
         if (panel is null || candidates.Count == 0)
         {
-            return;
+            return false;
         }
 
         // 整层只做一次坐标换算：子项位置用各自的 Bounds.Y 相加，滚动一帧不再逐项 TranslatePoint。
         var panelOrigin = panel.TranslatePoint(new Point(0d, 0d), scrollViewer);
         if (panelOrigin is null)
         {
-            return;
+            return false;
         }
 
         var viewport = scrollViewer.Viewport.Height;
@@ -165,13 +177,10 @@ public static class ScrollRevealMotion
 
             var top = baseY + item.Bounds.Y;
             var bottom = top + item.Bounds.Height;
-            var known = state.LastTop.TryGetValue(item, out var previousTop);
-            state.LastTop[item] = top;
-
-            if (Seen.TryGetValue(item, out _))
-            {
-                continue;
-            }
+            var data = KeyOf(item);
+            var known = state.LastTop.TryGetValue(item, out var last) && ReferenceEquals(last.Data, data);
+            var previousTop = last.Top;
+            state.LastTop[item] = (data, top);
 
             if (bottom <= 0d)
             {
@@ -187,12 +196,27 @@ public static class ScrollRevealMotion
                 continue;
             }
 
-            if (initial || !known || previousTop < viewport - 1d)
+            if (IsSeen(item))
             {
-                // 已经在视口里的（首屏、数据晚到、虚拟化跳转）：登记但不补演，避免整屏闪一下。
+                continue;
+            }
+
+            if (initial)
+            {
+                // 首屏：登记但不补演，避免和页面入场叠成两次淡入。
                 MarkSeen(state, item);
                 continue;
             }
+
+            if (known && previousTop < viewport - 1d)
+            {
+                // 早就在视口里的（数据晚到、静态内容）：登记但不补演，避免整屏闪一下。
+                MarkSeen(state, item);
+                continue;
+            }
+
+            // 其余都是刚露头：上一帧还在底边外，或这一帧才被虚拟化实例化出来。
+
 
             MarkSeen(state, item);
             var rest = item.Opacity > 0d ? item.Opacity : 1d;
@@ -202,53 +226,39 @@ public static class ScrollRevealMotion
         }
 
         state.Candidates = pending;
+        return true;
     }
 
     /// <summary>取"信息流自己的行"这一层，并缓存下来：滚动一帧只算一次坐标换算。</summary>
+    /// <remarks>
+    /// 取"可见子级最多"的那一层：设置页那种大分组下面还套着卡片列表，只挑第一层只会整组一起动，
+    /// 观感像两片大块在挪；挑子级最多的一层才是真正的信息流。同数量时保留先遇到的（更浅）那层，
+    /// 避免钻进某一行内部去演它的三个小格子。
+    /// </remarks>
     private static (Visual? Panel, List<Control> Items) Candidates(ScrollViewer scrollViewer, ScrollState state)
     {
-        if (state.Panel is { } knownPanel)
-        {
-            // 层没变就只重读这一层的直接子级：一次子级枚举，不做整棵树 BFS。
-            var known = knownPanel.GetVisualChildren()
-                .OfType<Control>()
-                .Where(child => child.IsVisible)
-                .Take(MaxTargets)
-                .ToList();
-
-            if (known.Count >= 2)
-            {
-                state.Candidates = known;
-                return (knownPanel, known);
-            }
-
-            state.Panel = null;
-        }
-
         var start = (Visual?)scrollViewer.Content ?? scrollViewer;
         var queue = new Queue<(Visual Node, int Depth)>();
         queue.Enqueue((start, 0));
         var visited = 0;
+        Visual? bestNode = null;
+        List<Control>? best = null;
 
         while (queue.Count > 0 && visited < MaxVisited)
         {
             var (node, depth) = queue.Dequeue();
             visited++;
 
-            var children = new List<Control>();
-            foreach (var child in node.GetVisualChildren())
+            var children = VisibleChildren(node);
+            if (children.Count >= 2 && (best is null || children.Count > best.Count))
             {
-                if (child is Control { IsVisible: true } control)
-                {
-                    children.Add(control);
-                }
-            }
+                bestNode = node;
+                best = children;
 
-            if (children.Count >= 2)
-            {
-                state.Panel = node;
-                state.Candidates = children.Count > MaxTargets ? children.GetRange(0, MaxTargets) : children;
-                return (node, state.Candidates);
+                if (best.Count >= MaxTargets)
+                {
+                    break;
+                }
             }
 
             if (depth >= MaxDepth)
@@ -262,16 +272,55 @@ public static class ScrollRevealMotion
             }
         }
 
-        state.Panel = null;
-        state.Candidates = null;
-        return (null, []);
+        if (bestNode is null || best is null)
+        {
+            state.Panel = null;
+            state.Candidates = null;
+            return (null, []);
+        }
+
+        state.Panel = bestNode;
+        state.Candidates = best;
+        return (bestNode, best);
+    }
+
+    private static List<Control> VisibleChildren(Visual node)
+    {
+        var children = new List<Control>();
+        foreach (var child in node.GetVisualChildren())
+        {
+            if (child is Control { IsVisible: true } control)
+            {
+                children.Add(control);
+                if (children.Count >= MaxTargets)
+                {
+                    break;
+                }
+            }
+        }
+
+        return children;
     }
 
     private static void MarkSeen(ScrollState state, Control control)
     {
-        Seen.GetValue(control, static _ => new object());
+        if (KeyOf(control) is { } data)
+        {
+            SeenData.GetValue(data, static _ => new object());
+        }
+        else
+        {
+            Seen.GetValue(control, static _ => new object());
+        }
+
         state.LastTop.Remove(control);
     }
+
+    private static bool IsSeen(Control control) =>
+        KeyOf(control) is { } data ? SeenData.TryGetValue(data, out _) : Seen.TryGetValue(control, out _);
+
+    /// <summary>虚拟化容器按数据对象去重；没有数据上下文（静态行）就按控件本身。</summary>
+    private static object? KeyOf(Control control) => control.DataContext is { } data && data.GetType().IsClass ? data : null;
 
     private static IEnumerable<T> Enumerate<T>(Visual root)
         where T : Visual
@@ -280,7 +329,7 @@ public static class ScrollRevealMotion
         queue.Enqueue((root, 0));
         var visited = 0;
 
-        while (queue.Count > 0 && visited < MaxVisited)
+        while (queue.Count > 0 && visited < MaxScrollVisited)
         {
             var (node, depth) = queue.Dequeue();
             visited++;
@@ -290,7 +339,7 @@ public static class ScrollRevealMotion
                 yield return match;
             }
 
-            if (depth >= MaxDepth)
+            if (depth >= MaxScrollDepth)
             {
                 continue;
             }
@@ -317,7 +366,7 @@ public static class ScrollRevealMotion
 
         public bool FrameRequested;
 
-        public Dictionary<Control, double> LastTop { get; } = new();
+        public Dictionary<Control, (object? Data, double Top)> LastTop { get; } = new();
 
         public Visual? Panel;
 
