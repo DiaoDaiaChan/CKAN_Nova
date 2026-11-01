@@ -898,3 +898,25 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | 接入点 | `MainWindow.PlayPageReveal`（`PageHost` 内）、`MainWindow` 自身（背景图在 `PageHost` 外面）、`DialogEntrance.Play` |
 | 补扫 | `MotionScan.Subscribe`：模板晚实现的 `Image` 4 Hz 补扫接管 |
 | 门禁 | `ImageLoadMotionTests` 4 项：源后到淡入、挂载时已有源也演、同源不重播、关闭档不接管 `RenderTransform` |
+
+
+#### 5.9.31 页内页签：下划线弹簧 + 内容舞台按方向滑入
+
+`src/CkanUI.App/Animations/TabStripMotion.cs`。页内页签（`TabControl`）原来有两处问题：
+下划线靠样式里的 `TransformOperationsTransition + SpringEasing`，连点页签时目标二次变化就从 t=0 重算、速度归零；
+内容舞台 `PART_SelectedContentHost` 的样式写了 `TransformOperationsTransition`，但**没有任何代码去改它的 `RenderTransform`**，等于死配置。
+
+| 项 | 口径 |
+| --- | --- |
+| 接管入口 | `Attach(Visual?)` 广度优先找 `TabControl`，每个订阅一次 `SelectionChanged`；`MotionScan` 4 Hz 补扫晚实现的页签 |
+| 下划线 | 新页签 `opacity 0 → 1`、`scaleX 0.35 → 1`（`SpringSpec.Snappy`）；旧页签反向收回 |
+| 内容舞台 | 按页签序号算方向：向后 `+12 px → 0`、向前 `-12 px → 0`（`MotionBudget.Amplitude` 收档位幅度） |
+| 方向基准 | 接管时记下 `SelectedIndex` 作为起点：`TabControl` 建项时就选中第一项、那一拍没有 `SelectionChanged`，不记就会把第一次切换误判成"无方向" |
+| 摘过渡 | 下划线与内容舞台在接管前都 `Transitions = null`，否则逐帧写入会被再平滑一次（起点读出来仍是旧值） |
+| 无方向切换 | 首次选中（`sign == 0`）只做半程纵向轻沉，不硬塞水平方向 |
+| 三档 | `none` 直接返回；`reduced` 行程 ×0.45，弹簧仍走帧泵 |
+| 接入点 | `MainWindow.PlayPageReveal`（`PageHost` 内）、`DialogEntrance.Play` |
+| 门禁 | `TabStripMotionTests` 5 项：选中后下划线弹出并落位、旧下划线收回、内容从右侧滑入后归零、回退镜像、关闭档不接管 |
+
+不做：页签下划线的"跨页签滑行"（需要把指示器搬出模板做覆盖层，和顶栏胶囊同一套坐标映射，收益低于复杂度）；
+`FANavigationViewItem` 的选中指示器（库内 600 ms 写死，无公开 API）。
