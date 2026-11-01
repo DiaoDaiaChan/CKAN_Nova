@@ -194,6 +194,37 @@ public sealed class MotionChoreographyTests
         }
     }
 
+    [Test]
+    public void TwoChildRootContinuesIntoTheRicherBranch()
+    {
+        var header = new Border { Height = 28, Background = Brushes.Transparent };
+        var content = new StackPanel();
+        var rows = CreateBorders(content, 3);
+        var shell = new StackPanel();
+        shell.Children.Add(header);
+        shell.Children.Add(content);
+        var root = new Border { Child = shell };
+        var window = HeadlessAppHost.CreateTestWindow(root);
+
+        try
+        {
+            var count = EntranceChoreographer.Play(root);
+
+            Assert.That(count, Is.EqualTo(5), "两子级根要继续下钻，不能只排头部和内容壳");
+            Assert.That(TranslateY(rows[2]), Is.EqualTo(EntranceChoreographer.OffsetPixels).Within(1e-6));
+            Assert.That(header.Opacity, Is.EqualTo(0).Within(1e-6));
+
+            Tick(60);
+            Assert.That(rows.All(row => Math.Abs(TranslateY(row)) < 0.05), Is.True);
+            Assert.That(rows.All(row => Math.Abs(row.Opacity - 1) < 0.01), Is.True);
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
     private static Border[] CreateBorders(Panel panel, int count)
     {
         var items = new Border[count];

@@ -28,6 +28,9 @@ public static class EntranceChoreographer
     /// <summary>精简档的上浮起点（像素）。</summary>
     public const double ReducedOffsetPixels = 4d;
 
+    /// <summary>低于这个数量就继续往下一层补，避免只有两个元素在错峰。</summary>
+    private const int MinTargets = 3;
+
     private const int MaxDepth = 6;
 
     /// <summary>对 <paramref name="root"/> 的首个"多子级层"做错峰入场；返回被编排的元素数。</summary>
@@ -89,27 +92,76 @@ public static class EntranceChoreographer
 
     private static List<Control> Collect(Visual? root)
     {
+        var targets = new List<Control>();
         var current = root;
+
         for (var depth = 0; depth < MaxDepth && current is not null; depth++)
         {
-            var children = current.GetVisualChildren()
-                .OfType<Control>()
-                .Where(child => child.IsVisible)
-                .ToList();
+            var children = VisibleChildren(current);
+            if (children.Count == 0)
+            {
+                break;
+            }
 
             if (children.Count >= 2)
             {
-                return children.Take(MaxTargets).ToList();
+                foreach (var child in children)
+                {
+                    if (targets.Count >= MaxTargets)
+                    {
+                        break;
+                    }
+
+                    if (!targets.Contains(child))
+                    {
+                        targets.Add(child);
+                    }
+                }
+
+                if (targets.Count >= MinTargets)
+                {
+                    break;
+                }
             }
 
-            if (children.Count == 0)
-            {
-                return [];
-            }
-
-            current = children[0];
+            // 首层只有"头部 + 内容"这类两子级结构时，继续沿内容最厚的那支往下补，
+            // 否则整页错峰只有两个元素在动，观感上等于没有编排。
+            current = PickRichest(children);
         }
 
-        return [];
+        return targets;
+    }
+
+    private static List<Control> VisibleChildren(Visual parent) =>
+        parent.GetVisualChildren()
+            .OfType<Control>()
+            .Where(child => child.IsVisible)
+            .ToList();
+
+    private static Control PickRichest(List<Control> children)
+    {
+        var best = children[0];
+        var bestScore = Score(best);
+
+        for (var index = 1; index < children.Count; index++)
+        {
+            var score = Score(children[index]);
+            if (score > bestScore)
+            {
+                best = children[index];
+                bestScore = score;
+            }
+        }
+
+        return best;
+
+        static int Score(Control control)
+        {
+            var nested = control.GetVisualChildren().OfType<Control>().Count(child => child.IsVisible);
+            var area = control.Bounds.Width * control.Bounds.Height;
+
+            // 子级多者优先，其次面积大者——头部条的容器通常两者都小。
+            return (nested * 1_000_000) + (int)Math.Min(area, 999_999d);
+        }
     }
 }

@@ -484,7 +484,7 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | `MotionBudget.cs` | 从 `CkanMotionDurationPage/Fast` 反推档位（完整 / 精简 / 关闭），给出幅度系数与是否允许页面编排 | `ReducedAmplitudeScale = 0.45` |
 | `InteractionMotion.cs` | 按下时让**可交互表面**往中心收一点，松手弹回；表面识别复用 `PointerAuraLayer.FindSurface`（按钮、页签、树项、列表项、卡片…），数据行与菜单项不参与 | `PressedScale = 0.95`（`SpringSpec.Tactile`）、`PressInsetPixels = 12` |
 | `PageRevealSpec.cs` | 把页签索引差翻译成换页起点姿态：横切以水平 28 px 为主轴（左切镜像）、一级导航换页只上浮 22 px；三档统一走 `MotionBudget` | `DirectionalHorizontalPixels = 28`、`DirectionalVerticalPixels = 10`、`LiftOnlyPixels = 22`、`StartScale = 0.986`、`DirectionalStartOpacity = 0.30`、`LiftOnlyStartOpacity = 0.34` |
-| `EntranceChoreographer.cs` | 从 `PageHost` 往下六层找到第一层"有 ≥2 个可见子元素"的容器，最多取 8 个，按 30 ms 错峰上浮；无需给页面标 class，也不参与布局 | `OffsetPixels = 18`、`StepMilliseconds = 30`、`ReducedOffsetPixels = 4` |
+| `EntranceChoreographer.cs` | 从 `PageHost` 往下六层找"有 ≥2 个可见子元素"的容器，最多取 8 个，按 30 ms 错峰上浮；首层不足 3 个（典型的"头部 + 内容"两子级根）时沿子级最多/面积最大的那支继续下钻补齐，否则整页只有两个元素在动 | `OffsetPixels = 18`、`StepMilliseconds = 30`、`ReducedOffsetPixels = 4`、`MinTargets = 3`、`MaxTargets = 8` |
 
 - **排队而不是定时器**：错峰不是"等 30 ms 再改目标"，而是让弹簧自己扣等待时间——`SpringChannel.Retarget(target, holdSeconds)`
   在排队期间只扣时长、不积分、不攒速度，到点自己出发（`IsHeld` 可观测，`IsMoving` 仍为真以保持帧泵存活）。
@@ -535,6 +535,3 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
   避免整页文字静默出现在屏幕上。
 - **门禁**：`TextRevealChoreographerTests`（逐行节拍、精简档、关闭档、空白/隐藏文本不计入、重放从 0 开始、页内页签切换后新内容块级与文字都重新入场）。
 - **淡出不单独做**：换页仍是瞬时替换（§5.9.10 已说明两页同屏的三种缺陷），旧页没有淡出帧；观感上的"淡入淡出"
-  来自新页低不透明度起步 + 文字逐行跟上，而不是两页交叉淡化。
-
-#### 5.9.13 提示条入场（`BannerMotion`）
