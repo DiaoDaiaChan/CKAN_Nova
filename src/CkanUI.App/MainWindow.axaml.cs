@@ -597,6 +597,9 @@ public sealed partial class MainWindow : Window
         // 页内页签：下划线弹簧冲量 + 内容舞台按切换方向滑进来（原来样式给了过渡却没人改 RenderTransform）。
         TabStripMotion.Attach(PageHost);
 
+        // 展开即淡入：Expander 与 TreeViewItem 展开时正文一帧硬切出现，补一段上浮淡入。
+        ExpandMotion.Attach(PageHost);
+
         // 选中行与键盘焦点原来只有静态描边/背景，补一次弹簧冲量；整窗挂一次，标题栏按钮的键盘焦点也在内。
         SelectionMotion.Attach(this);
         SelectionMotion.Attach(PageHost);
