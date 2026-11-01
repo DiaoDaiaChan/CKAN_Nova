@@ -23,6 +23,12 @@ public static class Program
             return RunMemoryProfile();
         }
 
+        // --gate-mem：内存与空转回归门禁（阈值见 MemoryGate，依据见 docs/ops/perf-baseline.md §16）
+        if (Array.Exists(args, a => string.Equals(a, "--gate-mem", StringComparison.OrdinalIgnoreCase)))
+        {
+            return RunMemoryGate();
+        }
+
         // --rows N：首屏成本按行数扫描用，不影响门禁口径（默认 3,000）
         var modRows = 3000;
         for (var i = 0; i < args.Length - 1; i++)
@@ -126,6 +132,26 @@ public static class Program
             Console.WriteLine("===============================================================");
             return 1;
         }
+    }
+
+    /// <summary>跑内存与空转画像并按 <see cref="MemoryGate"/> 判定，退化时返回非零退出码。</summary>
+    private static int RunMemoryGate()
+    {
+        Console.WriteLine("模式: 内存与空转回归门禁 (--gate-mem)");
+        Console.WriteLine();
+
+        var result = MemoryProbe.Run();
+        Console.WriteLine(MemoryProbe.ToMarkdown(result));
+
+        var (passed, rows) = MemoryGate.Evaluate(result);
+        Console.WriteLine(MemoryGate.ToMarkdown(rows));
+        Console.WriteLine();
+        Console.WriteLine("===============================================================");
+        Console.WriteLine(passed
+            ? "  内存与空转门禁判定结果: 全部通过 [ALL PASS]"
+            : "  内存与空转门禁判定结果: 存在退化指标 [FAILED]");
+        Console.WriteLine("===============================================================");
+        return passed ? 0 : 1;
     }
 
     /// <summary>只跑内存与空转画像并导出 JSON（<c>--mem</c> 模式）。</summary>
