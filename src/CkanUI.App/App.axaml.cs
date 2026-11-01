@@ -107,18 +107,17 @@ public sealed partial class App : Application
             // 注意这不等于「挪到首帧之后」—— 那样这 140ms 会原样搬到 ShellViewModel 构造里，一秒都不省。
             Task<IInstanceService?>? instanceWarmup = Task.Run(() => _services.GetService<IInstanceService>());
 
-            // 语言包的解析（读 en-US/zh-CN 两个 JSON + 解析 + 建回退链快照）实测 58-72ms，全是 ILocalizer 构造；
-            // 灌进资源字典只要 1ms（942 条，那时还没有控件）。同样丢到后台先造好，UI 线程只做插入。
-            // 代价是构造发生在后台线程，而构造期会把界面语言设到「构造线程」的 CurrentUICulture，
-            // 所以拿到实例后必须在 UI 线程补一次 ApplyCultureToCurrentThread()，否则线程 culture 与构造在 UI 线程时不一致。
-            Task<ILocalizer?> localizerWarmup = Task.Run(() => _services.GetService<ILocalizer>());
-
             // 日志域（M8 / 14 篇 §3.2）：Program 里已跑过 LoggingSetup.Initialize()，这里把缓冲挂到 log4net 仓库。
             // 顺序不能反 —— Install() 会把仓库标记为 Configured，抢在 LoggingSetup 之前就会跳过 log4net.xml。
             // 文件 appender 建不出来只是降级（缓冲照常工作），绝不能因为写不了盘就不启动。
             InstallLogPipeline();
             Mark("log-pipeline");
 
+            // 语言包必须在窗口显示前灌进资源字典，否则首帧会看到裸 key（i18n-guide §6.2）。
+            var localizer = _services.GetRequiredService<ILocalizer>();
+            _localization = new LocalizationHost(localizer, _services.GetRequiredService<IDispatcher>(), this);
+            _localization.Install();
+            Mark("localization");
 
             // 主题与语言一样必须在首帧前生效，否则会看到默认变体闪一下（20 篇 P-08）。
             // 系统高对比度是最高优先级（20 篇 §15 / P-02）：探针直读平台设置，开了就压过用户选的主题与强调色。
@@ -174,15 +173,6 @@ public sealed partial class App : Application
                 this);
             _radius.Install();
             Mark("radius");
-
-            // 语言包必须在窗口显示前灌进资源字典，否则首帧会看到裸 key（i18n-guide §6.2）。
-            // 它排在主题/密度/字号/强调色/圆角之后：这些都只读设置、不引用本地化字符串，
-            // 而 ILocalizer 的构造已在后台预热，晚取相当于多给后台一百多毫秒，UI 线程只剩插入的 1ms
-            //（实测见 docs/ops/perf-baseline.md §14）。
-            var localizer = _services.GetRequiredService<ILocalizer>();
-            _localization = new LocalizationHost(localizer, _services.GetRequiredService<IDispatcher>(), this);
-            _localization.Install();
-            Mark("localization");
 
             var shell = _services.GetRequiredService<ShellViewModel>();
             Mark("shell-vm");

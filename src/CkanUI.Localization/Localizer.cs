@@ -445,21 +445,6 @@ public sealed class Localizer : ILocalizer, ILocalizationDiagnostics
         }
     }
 
-    /// <summary>
-    /// 把当前实例的界面语言重新应用到**调用线程**。
-    /// </summary>
-    /// <remarks>
-    /// 构造期的 <see cref="ApplyThreadCulture"/> 只作用于构造线程。实例被后台线程预热、真正使用发生在 UI 线程时，
-    /// UI 线程的 CurrentUICulture 还没设过，由调用方在 UI 线程补一次，保证线程 culture 与「构造在 UI 线程」时一致（16 篇 §2.3）。
-    /// </remarks>
-    public void ApplyCultureToCurrentThread()
-    {
-        if (_applyThreadCulture)
-        {
-            ApplyThreadCulture(_snapshot.Culture);
-        }
-    }
-
     private static void ApplyThreadCulture(CultureInfo culture)
     {
         // 只设 UI Culture：数字与日期继续跟随系统区域（16 篇 §2.3 / Q3 决策）。

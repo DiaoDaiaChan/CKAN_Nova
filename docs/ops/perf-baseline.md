@@ -510,35 +510,46 @@ node tools/perf-probe/Measure-Startup.mjs --runs 3
 
 所以这段几乎全是 **ILocalizer 构造**（读盘 + 解析），插入资源字典不是成本。可动的方向是后台预取，但有一个必须一起处理的坑：`src/CkanUI.Localization/Localizer.cs:451-452` 的 `ApplyThreadCulture` 会写 `CultureInfo.DefaultThreadCurrentUICulture` 与**构造线程**的 `CurrentUICulture`；后台线程构造不会改 UI 线程的 culture，必须构造完在 UI 线程重新 apply，否则线程 culture 与产品语义（16 篇 §2.3）不一致。本轮未实施。
 
-## 14. 语言包后台预取 + 装配顺序后移（真机首帧 -58 ms）
+## 14. 否定实验：语言包后台预取 + 装配顺序后移（端到端无收益，已回退）
 
 §13.4 指出 `localization` 段的 58-72 ms 全在 `ILocalizer` 构造（读两个 JSON + 解析 + 建 942 条回退链快照），
-插进资源字典只要 1 ms。本轮把它按「可并行的慢 I/O 丢后台、必须首帧前的插入留 UI 线程」拆开。
+插进资源字典只要 1 ms - 看起来是纯 I/O，丢了后台就能省掉。本轮把这个假设完整测完再否掉。
 
-### 14.1 改法（两处）
+### 14.1 试过什么
 
-| 位置 | 改动 | 理由 |
-| --- | --- | --- |
-| `src/CkanUI.Localization/Localizer.cs` | 新增 `public void ApplyCultureToCurrentThread()`：`if (_applyThreadCulture) ApplyThreadCulture(_snapshot.Culture);` | 构造期 `ApplyThreadCulture` 只作用于构造线程；后台预热后必须在 UI 线程补一次，否则 UI 线程的 `CurrentUICulture` 没被设过（16 篇 §2.3） |
-| `src/CkanUI.App/App.axaml.cs` | 紧挨 `instanceWarmup` 起 `Task<ILocalizer?> localizerWarmup = Task.Run(() => _services.GetService<ILocalizer>());`；取用时 `localizerWarmup.GetAwaiter().GetResult() ?? _services.GetRequiredService<ILocalizer>()` 之后调 `ApplyCultureToCurrentThread()`；并把整段语言包装配**从 `log-pipeline` 之后移到 `radius` 之后**（仍在 `new MainWindow` 之前） | 只预取、不移动顺序时后台只领先 14 ms（`di-build`→`log-pipeline`），实测 `localization` 仍要 47-48 ms；主题/密度/字号/强调色/圆角这几个宿主只读设置、不引用本地化字符串，让它们先跑就把后台的余量从 14 ms 拉到 150 ms 以上 |
+| 位置 | 改动 |
+| --- | --- |
+| `src/CkanUI.Localization/Localizer.cs` | 新增 `public void ApplyCultureToCurrentThread()`：`if (_applyThreadCulture) ApplyThreadCulture(_snapshot.Culture);`（构造期那次只作用于构造线程，后台预热后必须在 UI 线程补一次，16 篇 §2.3） |
+| `src/CkanUI.App/App.axaml.cs` | 紧挨 `instanceWarmup` 起 `Task<ILocalizer?> localizerWarmup = Task.Run(() => _services.GetService<ILocalizer>());`；取用处 `localizerWarmup.GetAwaiter().GetResult() ?? _services.GetRequiredService<ILocalizer>()` + `ApplyCultureToCurrentThread()`；再把整段语言包装配从 `log-pipeline` 之后移到 `radius` 之后（仍在 `new MainWindow` 之前） |
 
-不变量：语言包仍然在窗口构造之前进资源字典，首帧不会出现裸 key（i18n-guide §6.2）。
+步骤 2 是必须的：只预取、不移顺序时后台只领先 14 ms（`di-build` 之后到 `log-pipeline` 结束），
+`localization` 段仍要 47-48 ms；主题/密度/字号/强调色/圆角这几个宿主只读设置、不引用本地化字符串，
+让它们先跑才能把后台余量拉到 150 ms 以上。
 
-### 14.2 A/B（隔离 worktree `/c/Users/43701/ckan-ui-mw`，同一 exe，交替重建）
+### 14.2 实测（隔离 worktree `/c/Users/43701/ckan-ui-mw`，同一 exe，交替重建）
 
-| 组 | `localization` 段增量 | `first-paint` |
-| --- | --- | --- |
-| 基线（HEAD 840ac77） | 58 / 72 / 62 / 58 ms | 1224 / 1273 / 1293 / 1696（中位 1283） |
-| 只加后台预取（顺序不动） | 47 / 48 / 48 ms | 1228 / 1254 / 1293（中位 1254） |
-| 预取 + 装配顺序后移 | **1 / 2 / 1 / 1 ms** | 1161 / 1177 / 1262 / 1276（中位 1219） |
+| 组 | `theme` 段 | `localization` 段 | `di-build`→`shell-vm` 合计 | `first-paint`（相对 `di-build`） |
+| --- | --- | --- | --- | --- |
+| 基线（840ac77） | 2-3 ms | 58 / 72 / 62 / 58 ms | 160 / 220 / 171 / 164（中位 166） | 1027 / 1330 / 996 / 955（中位 1011） |
+| 只加后台预取 | 2-3 ms | 47 / 48 / 48 ms | 183 / 170 / 170（中位 170） | 1029 / 968 / 1054（中位 1029） |
+| 预取 + 顺序后移 | **33 / 36 / 33 / 34 ms** | **1 / 2 / 1 / 1 ms** | 163 / 186 / 169 / 167（中位 168） | 949 / 1014 / 1027 / 936（中位 982） |
 
-确定性部分是段增量：58-72 ms → 1-2 ms（省 56-70 ms）。`first-paint` 中位只降 64 ms，
-因为这段省下的时间会被后面的 `main-window-new` / 首布局吸收一部分，且这两个阶段本身有 ±50 ms 抖动。
+### 14.3 结论：省下的 58 ms 挪进了 `theme` 段，合计不变
 
-### 14.3 为什么只做到这里
+`localization` 段确实从 58-72 ms 掉到 1-2 ms，但 `theme` 段同步从 2-3 ms 涨到 33-36 ms -
+它是「第一次真正触碰 `Application.Resources`」的那个宿主，原本这 30 ms 的一性次开销被排在前面的语言包装配替它付掉了。
+决定性指标是 `di-build`→`shell-vm` 的合计：166 → 170 → 168 ms，三组在噪声内完全一致；
+`first-paint` 相对值虽然从 1011 掉到 982 ms，但单跑极差超过 300 ms（并行编译的机器），不足以支撑结论。
 
-`main-window-new` 的 300-360 ms 里约 50 ms 是结构成本、其余是首次触碰（§13.1），只有 R2R/AOT 能拿走；
-而本环境拿不到 R2R 产物：`dotnet publish -p:PublishReadyToRun=true` 先报 `NETSDK1094: 找不到有效的运行时包`，
-补 `-r win-x64` 让 restore 参与后又在 restore 阶段挂死（90 s 无任何输出，退出码 124），
-`microsoft.netcore.app.runtime.win-x64` 与 `microsoft.netcore.app.crossgen2.win-x64` 都在 `~/.nuget/packages` 且版本同为 10.0.12。
-发行包本来就开 R2R（docs/ops/release.md §3.2），所以开发版这段空白在用户侧不存在。
+判据：省时间要看「关键路径上的一性次工作量」有没有真的变少，不能只看某一阶段变短 -
+UI 线程上串行的工作总量没变，把它在几个宿主之间换个位置不会让首帧提前。改动已回退，`Localizer` 也不留 `ApplyCultureToCurrentThread()`（没有生产调用点）。
+
+顺带记录（同一批测出来的）：主仓 3 次实测 `localization` 段 0 / 1 / 1 ms、`theme` 31 / 33 / 37 ms、
+`first-paint` 1441 / 1530 / 1552 ms，与 worktree 结论一致。
+
+### 14.4 R2R 仍然拿不到（续 §13.3）
+
+`dotnet publish -p:PublishReadyToRun=true` 在本机报 `NETSDK1094: 无法优化程序集以改进性能: 找不到有效的运行时包`；
+补 `-r win-x64` 让 restore 参与后挂死在 restore 阶段（90 s 无任何输出，退出码 124，第一次跑 12 分钟也没生成 `obj/Release/net10.0/win-x64`）。
+`microsoft.netcore.app.runtime.win-x64` 与 `microsoft.netcore.app.crossgen2.win-x64` 都在 `~/.nuget/packages` 且版本同为 10.0.12，与共享运行时一致。
+发行包本来开 R2R（docs/ops/release.md §3.2），所以这段空白只在开发版出现。
