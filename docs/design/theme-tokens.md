@@ -797,3 +797,16 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | 审计脚本 | 临时工程 `motionprobe`（不入库）：导航每个 `shell.NavItems`，统计 `btn/card/row/view/sv`，对 4 个可见按钮合成 `PointerEntered`/`PointerExited`，输出 `hoverLift=n/m`；采样相位会抖动（同一按钮在循环里 0.00、单独测 -1.50），只作覆盖趋势证据，不作为门禁 |
 
 改后：24 个页面里 21 个 `hoverLift=4/4`，其余页面首个布局拍前采样会低 1 个（`direct=4` 证明按钮一旦出现就能接管，真实应用靠 `MotionScan` 4 Hz 补扫覆盖）；外壳非图标按钮 `-1.50` 落位。
+
+#### 5.9.26 选中与键盘焦点的弹簧反馈
+
+`src/CkanUI.App/Animations/SelectionMotion.cs`。列表/树/表格的选中态原来只有背景色瞬间切换，键盘 Tab 也只有一圈静态描边。
+
+- 接管范围：`ListBoxItem` / `TreeViewItem` / `DataGridRow`（行容器级，虚拟化回收复用后照样生效）+ 窗口级 `GotFocus` 冒泡。
+- 选中：`KickScale(SelectionPop 1.5%)`，`SpringSpec.Snappy`；行容器在选中之后才被虚拟化实现时，由列表 `SelectionChanged` 在下一帧（`RequestAnimationFrame`）补扫一次已实现容器。
+- 键盘焦点：`FocusPop 1.2%`；指针已在控件上（`IsPointerOver`，即鼠标点出来的焦点）跳过，`TextBox`/`ComboBox`/`AutoCompleteBox` 跳过——文本输入自带插入符与滚动，别再叠缩放。
+- 为什么用 `KickScale` 而不是位移：悬停已经占住位移通道（y），选中要能叠在悬停态上。
+- 接入点：`MainWindow.PlayPageReveal` 内 `SelectionMotion.Attach(this)` + `SelectionMotion.Attach(PageHost)`。
+- 三档：`MotionBudget.Amplitude` 统一缩放，`none` 在 `Attach` 入口直接返回。
+- 门禁：`SelectionMotionTests` 4 项（选中弹起、键盘焦点弹起、文本输入不动、重复挂载/关闭档不接管）。
+- 不做：`ComboBox` 弹层（`PopupRoot` 不在可视树里）、`TabItem`（顶栏与页内页签已有自己的指示器动画）。
