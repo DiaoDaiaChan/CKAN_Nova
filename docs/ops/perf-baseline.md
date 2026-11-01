@@ -372,3 +372,15 @@ A/B（隔离 worktree `/c/Users/43701/ckan-ui-dg`，HEAD=10075c5，交替各重�
 | `window-opened` → `first-layout` | 410–490 ms | 窗口显示后的首轮布局；DataGrid 表头/单元格模板 728 个 `Rectangle`（见 §6.6） |
 | `first-paint` 收尾 | 60–80 ms | 首次光栅 |
 
+### 10.4 `main-window-new` 拆开看：窗口构造只占 300 ms，页面视图在布局里
+
+在隔离 worktree 里把 `new MainWindow { DataContext = shell }` 拆成两步打点（`win-split noDc=… withDc=…`，3 次）：
+
+| 步骤 | 耗时 |
+| --- | --- |
+| `new MainWindow()`（XAML 载入 + 控件树构建） | 300 / 308 / 318 ms |
+| `DataContext = shell`（导航到首页、创建 ModsPageView） | +26 / +27 / +25 ms |
+
+即 `Mark("main-window-new")` 的 +300~380 ms 是**窗口自身 XAML + 样式落地**，页面视图创建实际落在 `window-opened` 之后的首轮布局里（`perf-probe --cold` 的 `view-new` 182–216 ms 对应这一段）。要动这两块都得改 `src/CkanUI.App/MainWindow.axaml` / `Views/ModsPageView.axaml`（并行 agent 占用中），本轮不动。
+
+
