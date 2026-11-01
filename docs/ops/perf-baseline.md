@@ -1056,3 +1056,13 @@ TEMP=$PWD/artifacts/tmp/temp TMP=$PWD/artifacts/tmp/temp \
 
 校准结论：**纯框架地板的滚动分配就是 5.3 万 B/帧**，我们带 DataGrid + 行模板 + 徽章的真实列表是 6.7 万 B/帧（§16 门禁实测 67,281）——只多 28%，不是十倍。按 60 fps 折算约 4 MB/s，正是虚拟化列表每帧重排的固有分配；要再降只能换更轻的行模板（改视觉）或换容器（§20 已否决）。`--gate-mem` 的 90,000 B/帧 阈值因此是合理的退化护栏，不是目标值。
 
+### 21.8 HEAD 上已知的两例红（不是性能改动引入）
+
+在 b4f0a19 的全量 3514 例里有 2 例失败，`git log -- <文件>` 追踪到都来自并行 agent 的 `f0d8f81 feat(motion): 全站交互动效改为帧驱动弹簧并补齐入场编排`，与本轮 perf 提交无关：
+
+| 用例 | 断言 | 实测 |
+| --- | --- | --- |
+| `CkanUI.App.Tests.NavPanePushTests.ExpandedPane_PushesContentAside` | `Expected: greater than 200.0d` | `-1.0d` |
+| `CkanUI.App.Tests.StarfieldModelTests.RefreshPointer_HighlightsOnlyTheNeighbourhood` | `Expected: 1` | `0.48758360911756443` |
+
+其余 3512 例通过（App 437/439、Architecture 27、Core 3、Localization 76、ModText 19、Services 1243 + 1 Skip、Sfs 93、ViewModels 1613）。判定口径：用 `git log --oneline -4 -- <失败用例文件与实现文件>` 看最后一次提交是不是自己——不是就不要去改别人的语义，报给对应 owner。
