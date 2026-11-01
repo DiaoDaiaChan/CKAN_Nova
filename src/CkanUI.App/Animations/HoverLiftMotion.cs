@@ -18,6 +18,8 @@ namespace CkanUI.App.Animations;
 /// 后两者原来什么反馈都没有，鼠标扫过列表只剩指针变化。</para>
 /// <para>样式里的 `:pressed` 会把 RenderTransform 换成 `scale(0.995)`；本类的本地值优先，
 /// 按压手感仍由 <see cref="InteractionMotion"/> 的缩放通道负责（两者改的是不同通道，互不覆盖）。</para>
+/// <para>引导卡/引导按钮悬停时，卡内的 `GuideArrow` 箭头同时右滑 3 px——样式里同样是 90 ms 的
+/// `TransformOperationsTransition`，跟卡片一起抬的时候箭头会迟半步，看起来像"卡动了、箭头没跟上"。</para>
 /// <para>普通 `Button` 也接管：基础样式靠 `TransformOperationsTransition`(`CkanMotionDurationSpringCrisp`)
 /// 播 1 px 抬升，鼠标横扫一排按钮/工具条时每一个都从零速重新起步；换成弹簧后 1.5 px 且速度接力。
 /// 卡片内部的按钮不接管——整张卡已经在抬，再叠一层会让卡内的按钮"比卡还高"，看起来像错位。</para>
@@ -42,11 +44,19 @@ public static class HoverLiftMotion
     /// <summary>普通按钮的悬停抬升距离：样式里是 1 px，这里略加重到 1.5 px 才看得出来。</summary>
     public const double ButtonLiftPixels = 1.5d;
 
+    /// <summary>引导卡片右箭头的类名：悬停时向右滑 3 px。</summary>
+    public const string ArrowClass = "GuideArrow";
+
+    /// <summary>箭头滑出距离（像素）。</summary>
+    public const double ArrowTravelPixels = 3d;
+
     private const int MaxDepth = 12;
 
     private const int MaxVisited = 3000;
 
     private static readonly ConditionalWeakTable<Control, object> Tracked = new();
+
+    private static readonly ConditionalWeakTable<Control, Control?> Arrows = new();
 
     /// <summary>给 <paramref name="root"/> 下的可点卡片挂上弹簧悬停；返回本次新增接管的数量。</summary>
     public static int Attach(Avalonia.Visual? root)
@@ -87,6 +97,12 @@ public static class HoverLiftMotion
         var lift = MotionBudget.Amplitude(LiftOf(control) ?? LiftPixels);
         var spec = control is Button ? SpringSpec.Snappy : SpringSpec.Glide;
         TransformSpring.For(control, spec).MoveTo(y: hovered ? -lift : 0d);
+
+        if (ArrowOf(control) is { } arrow)
+        {
+            var travel = MotionBudget.Amplitude(ArrowTravelPixels);
+            TransformSpring.For(arrow, SpringSpec.Snappy).MoveTo(x: hovered ? travel : 0d);
+        }
     }
 
     /// <summary>该类表面要不要抬、抬多少；不认识的类返回 <see langword="null"/>。</summary>
@@ -116,6 +132,32 @@ public static class HoverLiftMotion
             .Any(ancestor => ancestor.Classes.Contains(CardClass) || ancestor.Classes.Contains(GuideCardClass));
 
         return insideLiftingCard ? null : ButtonLiftPixels;
+    }
+
+    /// <summary>引导卡片的箭头；不认识的卡片返回 <see langword="null"/>（每个宿主只找一次）。</summary>
+    private static Control? ArrowOf(Control host)
+    {
+        if (!host.Classes.Contains(GuideCardClass) && !host.Classes.Contains(GuideButtonClass))
+        {
+            return null;
+        }
+
+        if (Arrows.TryGetValue(host, out var cached))
+        {
+            return cached;
+        }
+
+        var found = host
+            .GetVisualDescendants()
+            .OfType<Control>()
+            .FirstOrDefault(child => child.Classes.Contains(ArrowClass));
+
+        if (found is not null)
+        {
+            Arrows.Add(host, found);
+        }
+
+        return found;
     }
 
     private static IEnumerable<Control> Enumerate(Avalonia.Visual root)

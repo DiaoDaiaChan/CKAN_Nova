@@ -225,6 +225,28 @@ public sealed class HoverLiftMotionTests
         }
     }
 
+    [Test]
+    public void GuideArrowSlidesWithTheCard()
+    {
+        var arrow = new PathIcon { Classes = { HoverLiftMotion.ArrowClass }, Width = 12, Height = 12 };
+        var card = new Border
+        {
+            Classes = { HoverLiftMotion.GuideCardClass },
+            Height = 90,
+            Child = new StackPanel { Children = { new TextBlock { Text = "去设置" }, arrow } },
+        };
+        HeadlessAppHost.CreateTestWindow(card);
+
+        HoverLiftMotion.Apply(card, hovered: true);
+        Tick(45);
+
+        Assert.That(TranslateX(arrow), Is.EqualTo(HoverLiftMotion.ArrowTravelPixels).Within(0.05), "箭头要跟卡片一起滑出去");
+
+        HoverLiftMotion.Apply(card, hovered: false);
+        Tick(45);
+        Assert.That(TranslateX(arrow), Is.EqualTo(0).Within(0.05));
+    }
+
     private static Border CreateCard() => new()
     {
         Classes = { HoverLiftMotion.CardClass },
@@ -248,6 +270,12 @@ public sealed class HoverLiftMotionTests
             Thread.Sleep(16);
         }
     }
+
+    private static double TranslateX(Control control) =>
+        control.RenderTransform is TransformGroup group
+        && group.Children.OfType<TranslateTransform>().FirstOrDefault() is { } translate
+            ? translate.X
+            : 0d;
 
     private static double TranslateY(Control control) =>
         control.RenderTransform is TransformGroup group
