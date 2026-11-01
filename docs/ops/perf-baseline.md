@@ -282,3 +282,51 @@ Release / 1280×800 / 三次一致，单位 ms：
 | main-window-new 320 ms | 诊断 HUD/覆盖层子树改成延迟内容 | `src/CkanUI.App/MainWindow.axaml` |
 | app-xaml 188 ms | 拆资源字典、按需加载 | `src/CkanUI.App/Resources/Tokens.axaml`:1、`FluentStyles.axaml`:1 |
 | localization 60 ms | 惰性建键表 | `src/CkanUI.App/Localization/LocalizationHost.cs`:1 |
+## 9. 当前稳态数字与已排除的优化方向（2026-11-02）
+
+### 9.1 稳态实测（Release exe，默认非侵入采样）
+
+`tools/perf-probe/Measure-LiveProcess.ps1 -WarmupSeconds 45 -IdleSeconds 20 -WindowSeconds 5`，两次：
+
+| 采样 | 空转 CPU（单核） | 工作集 均/峰 | Private 均 | 线程 | 句柄 | 尾部 5 秒窗口 |
+| --- | --- | --- | --- | --- | --- | --- |
+| run1 | 1.09% | 282.1 / 282.4 MB | 212.7 MB | 111 | 1017 | 0.31 / 0.62 / 1.26 / 1.65% |
+| run2 | 1.62% | 320.7 / 375.0 MB | 258.3 MB | 111 | 1017 | 5.30 / 0.94 / 0.31 / 0% |
+
+对照优化前的基线（同口径 §6.4）：空转 16.3–22.8% 单核、工作集 983–1009 MB。**空转约 -92%，驻留约 -68%**。
+早期 §4 的 71.15%、§6 的 112.51/164.88/89.45 全部是「启动瞬态当空转」的口径错误，继续作废。
+
+### 9.2 稳态内存构成（ClrMD 扫堆）
+
+`artifacts/perf/scan-heap.ps1` 在 50 秒静置后扫同一进程：ws 239.5 MB / private 215.8 MB，**托管堆只有 35.1 MB / 346,911 个对象**。
+
+| 类型 | 大小 | 数量 | 解读 |
+| --- | --- | --- | --- |
+| Free（GC 空闲段） | 6.28 MB | 316 | 已回收但未还给 OS 的段 |
+| `byte[]` | 3.15 MB | 1761 | 图像/序列化缓冲 |
+| `Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExpression` | 2.19 MB | 16,879 | 每个 `DynamicResource` 绑定一份 |
+| `Avalonia.Styling.StyleInstance` | 1.97 MB | 18,468 | 2,428 个控件 ≈ 7.6 个样式实例/控件 |
+| `AvaloniaPropertyDictionary.Entry[]` | 1.74 MB | 18,617 | 样式 setter 落地表 |
+| `string` | 1.59 MB | 26,315 | 文案与标识符 |
+| `LogEvent[]` | 0.15 MB | 1 | 容量 20000 的日志环，当前是空的 |
+
+结论：**稳态驻留里约 200 MB 是非托管**（Skia 光栅缓存、合成器 surface、JIT 代码、映射的程序集），托管侧 35 MB 且大头是 Avalonia 样式系统本身。托管堆已经没有可观的抓手。
+
+### 9.3 已排除的优化方向（留证，别重复走）
+
+| 候选 | 实测/核实结果 | 结论 |
+| --- | --- | --- |
+| `Theming/BackgroundHost.cs` 的 `TryReleaseCachedBitmap` 返回 `false` 是泄漏 | 位图正被 `Image` 或平铺 `ImageBrush` 持有时本就不能 `Dispose`（`:297 IsReferencedBy`） | 正确行为，不动 |
+| 日志环每条存两份字符串（`LogStore.cs:212 _keys[_head] = LogSearchKeys.Build(stored)`） | 空闲会话里环是空的（`LogEvent[]` 仅 1 个 0.15 MB）；只有重日志会话（数千行）才 4–5 MB | 收益太小，暂不做 |
+| 星空首帧占 300–450 ms 首屏 | `StarfieldBackground.Render` 内分段计时：首帧 trails 15.8 ms / mid 2.7 ms / stars 0.9 ms / 合计 19.4 ms；之后每帧 1.5–2.3 ms。此前 300 ms 是 `first-layout → first-paint` 的调度队列深度差，机器上有并行编译时的噪声 | 星空不是首屏主因 |
+| 星轨改成按「线宽档 × alpha 档」攒批（一档一条 `StreamGeometry`，替掉 604 次 `DrawLine`） | 实测重建帧 1.5–1.6 ms → 1.2–1.8 ms，同一噪声带内；光栅成本由像素覆盖决定，与绘制调用次数无关 | 已回退，不留复杂度 |
+| 空闲时停掉星轨重建（星轨冻结） | 会让「长曝光」主角在静置时定格 | 属画面变化，不做 |
+| 按 `IsOpen` 门控 `PerformanceMonitor` 的 `PropertyChanged` | 每秒约 31 KB 垃圾，且 `PerformanceMonitor_RefreshSnapshot_NotifiesPropertyChanges` 断言了全部属性通知 | 收益不值，不做 |
+
+### 9.4 还剩下的空间（都被并行改动挡着）
+
+| 目标 | 量级 | 卡在哪 |
+| --- | --- | --- |
+| 真机启动 1.4–1.6 s | 首屏 0.9 s 中约 0.6 s 在 DataGrid 单元格/表头模板与 `window-show` | `src/CkanUI.App/Views/ModsPageView.axaml`、`src/CkanUI.App/MainWindow.axaml` 正被并行改动 |
+| main-window-new 320 ms / app-xaml 188 ms | 见 §8 表格 | 同上 + `Resources/Tokens.axaml`、`Resources/FluentStyles.axaml` |
+| mods 页搜索每次按键全量重算投影 | `ModsPageViewModel.RefreshDerived` 连发 24+17 个 `OnPropertyChanged` 并遍历 3000 行 | `src/CkanUI.App/ViewModels/ModsPageViewModel.cs` 正被并行改动 |
