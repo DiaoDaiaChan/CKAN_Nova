@@ -14,8 +14,11 @@ namespace CkanUI.Tools.PerfProbe;
 /// </remarks>
 public static class MemoryGate
 {
-    /// <summary>滚动每帧分配上限：实测 67,418 B/帧，留 1.33 倍余量。</summary>
-    public const double MaxAllocatedPerFrameBytes = 90_000;
+    /// <summary>
+    /// 滚动每帧分配上限：b4f0a19 起行模板被 f0d8f81 的视觉改版加重，实测 97,674 B/帧（旧模板 67,418），留 1.33 倍余量。
+    /// 行模板再改重就要重新标这个阈值——它是退化护栏，不是达标线。
+    /// </summary>
+    public const double MaxAllocatedPerFrameBytes = 130_000;
 
     /// <summary>3,000 模组首屏后工作集上限：实测 161-162 MB，留 1.6 倍余量。</summary>
     public const long MaxWorkingSetInteractiveBytes = 260L * 1024 * 1024;
