@@ -162,6 +162,33 @@ public sealed class HoverLiftMotionTests
         Assert.That(TranslateY(button), Is.EqualTo(-HoverLiftMotion.LiftPixels).Within(0.05));
     }
 
+    [Test]
+    public void GridRowsLiftByTheRowDistance()
+    {
+        var rows = new StackPanel
+        {
+            Children =
+            {
+                new DataGridRow { Height = 32 },
+            },
+        };
+        var window = HeadlessAppHost.CreateTestWindow(rows);
+
+        try
+        {
+            Assert.That(HoverLiftMotion.Attach(rows), Is.EqualTo(1));
+            HoverLiftMotion.Apply((DataGridRow)rows.Children[0], hovered: true);
+            Tick(45);
+
+            Assert.That(TranslateY((DataGridRow)rows.Children[0]), Is.EqualTo(-HoverLiftMotion.RowLiftPixels).Within(0.05));
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
     private static Border CreateCard() => new()
     {
         Classes = { HoverLiftMotion.CardClass },
