@@ -1283,3 +1283,18 @@ CKANUI_PROBE_REAL_CONFIG=1 CKANUI_PROBE_INSTANCE=1 TEMP=… TMP=… \
 | unmanaged 384ms | 树默认不收全展开 / 只实体化可见层（需先确认 `UnmanagedPageViewModel` 是否在加载时就展开全部节点） | 默认展开状态是可见行为，需先取证是不是它 |
 | mods 314ms | 详情侧栏随选中才构建（现在是每次都铺满） | 会改首屏右侧栏内容，属视觉 |
 | modconfig 93ms | 按 registry + ModuleManager 配置文件指纹复用上次结果 | 与 §18 存档校验同型，安全 |
+
+### 27.5 否定实验：给未管理页的 TreeView 换虚拟化面板
+`src/CkanUI.App/Views/UnmanagedPageView.axaml` 的 `TreeView` 加
+`<TreeView.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></TreeView.ItemsPanel>`，
+带真实实例重测：
+
+| 组 | 节点 | r1 layout | r2 layout |
+| --- | ---: | ---: | ---: |
+| 基线 | 1167 | 384.3 | 384.3 |
+| 加 VirtualizingStackPanel | 661 | 558.9 | 386.6 |
+
+节点少了 43%，布局时间没有变化（386.6 vs 384.3，同噪声带）。说明未管理页的 384ms 不是「实体化了太多行」，
+而是这些行本身在 Measure/Arrange 里就要花掉——与 0.33ms/节点 的固定单价一致（661 × 0.33 ≈ 218，剩余部分是树容器的层级开销）。
+按「不影响视觉效果」约束，改动已回退（`git checkout -- src/CkanUI.App/Views/UnmanagedPageView.axaml`）。
+要真正压下去只能减少行的可见数量（分页/懒展开），那是产品行为变更，不在本约束范围内。
