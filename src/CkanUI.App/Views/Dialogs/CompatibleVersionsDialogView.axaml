@@ -10,7 +10,7 @@
   <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,*,Auto,Auto" RowSpacing="12">
     <!-- 头部说明信息 -->
     <StackPanel Grid.Row="0" Spacing="4">
-      <TextBlock Text="配置当前实例追加的兼容游戏版本"
+      <TextBlock Text="{DynamicResource Ui_CompatibleVersionsDialog_Subtitle}"
                  FontSize="{DynamicResource CkanFontSizeHeading}"
                  FontWeight="SemiBold"
                  Foreground="{DynamicResource CkanTextPrimaryBrush}" />
@@ -25,7 +25,7 @@
             CornerRadius="{DynamicResource CkanCornerRadiusMedium}">
       <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-          <TextBlock Text="当前游戏实例:"
+          <TextBlock Text="{DynamicResource Ui_CompatibleVersionsDialog_CurrentInstance}"
                      FontWeight="SemiBold"
                      FontSize="{DynamicResource CkanFontSizeBody}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
@@ -35,7 +35,7 @@
                      Foreground="{DynamicResource CkanTextPrimaryBrush}" />
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-          <TextBlock Text="原生版本:"
+          <TextBlock Text="{DynamicResource Ui_CompatibleVersionsDialog_NativeVersion}"
                      FontWeight="SemiBold"
                      FontSize="{DynamicResource CkanFontSizeBody}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
@@ -54,22 +54,22 @@
     <!-- 工具栏：自定义版本添加与快捷全选 -->
     <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
       <TextBox Grid.Column="0"
-               PlaceholderText="手动添加版本 (例如 1.12 或 1.11.2)..."
+               PlaceholderText="{DynamicResource Ui_CompatibleVersionsDialog_Add_Placeholder}"
                Text="{Binding CustomVersionInput, Mode=TwoWay}"
                VerticalContentAlignment="Center" />
       <Button Grid.Column="1"
-              Content="添加"
+              Content="{DynamicResource Ui_Common_Add}"
               Command="{Binding AddCustomVersionCommand}"
               Padding="12,6" />
       <Button Grid.Column="2"
-              Content="全选"
+              Content="{DynamicResource Ui_Common_SelectAll}"
               Command="{Binding SelectAllCommand}">
         <Button.CommandParameter>
           <x:Boolean>true</x:Boolean>
         </Button.CommandParameter>
       </Button>
       <Button Grid.Column="3"
-              Content="重置"
+              Content="{DynamicResource Ui_Common_Reset}"
               Command="{Binding ResetToInitialCommand}" />
     </Grid>
 
@@ -96,12 +96,12 @@
                                FontWeight="SemiBold"
                                FontSize="{DynamicResource CkanFontSizeBody}"
                                Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                    <TextBlock Text="(原生)"
+                    <TextBlock Text="{DynamicResource Ui_CompatibleVersionsDialog_NativeTag}"
                                IsVisible="{Binding IsRealVersion}"
                                FontSize="{DynamicResource CkanFontSizeCaption}"
                                Foreground="{DynamicResource CkanPrimaryBrush}"
                                VerticalAlignment="Center" />
-                    <TextBlock Text="(通配符)"
+                    <TextBlock Text="{DynamicResource Ui_CompatibleVersionsDialog_WildcardTag}"
                                IsVisible="{Binding IsWildcard}"
                                FontSize="{DynamicResource CkanFontSizeCaption}"
                                Foreground="{DynamicResource CkanTextSecondaryBrush}"
@@ -152,11 +152,11 @@
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      TextWrapping="Wrap" />
           <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-            <Button Content="放弃修改"
+            <Button Content="{DynamicResource Ui_Common_Unsaved_Discard}"
                     Command="{Binding DismissWarningCommand}"
                     FontSize="{DynamicResource CkanFontSizeCaption}"
                     Padding="10,4" />
-            <Button Content="已知悉风险，继续保存"
+            <Button Content="{DynamicResource Ui_CompatibleVersionsDialog_ConfirmSave}"
                     Command="{Binding SaveCommand}"
                     Classes="warning"
                     FontSize="{DynamicResource CkanFontSizeCaption}"

@@ -7,6 +7,7 @@ using System.Windows.Input;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.ViewModels.Navigation;
+using CkanUI.ViewModels.Pages.Instances;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -27,6 +28,20 @@ public sealed record NavItem(string Key, string Title, string Glyph);
 /// <param name="RailItem">侧栏项本身（按引用做选中同步，不能与页面项混用）。</param>
 /// <param name="Tabs">组内页面，顺序即页签顺序。</param>
 public sealed record NavSection(string Key, string Title, NavItem RailItem, IReadOnlyList<NavItem> Tabs);
+
+/// <summary>
+/// 侧栏导航栏精简时的悬浮交互模式：
+/// <see cref="TabPopout"/> 光标悬浮于单个 Tab 时仅弹出该 Tab 独立卡片与快捷操作（默认）；
+/// <see cref="Drawer"/> 光标滑入侧栏时整体以抽屉式浮层滑开全部导航项。
+/// </summary>
+public enum NavHoverMode
+{
+    /// <summary>单Tab悬浮弹出独立卡片（默认）。</summary>
+    TabPopout,
+
+    /// <summary>完整侧边栏抽屉展开。</summary>
+    Drawer
+}
 
 /// <summary>页面区顶部页签：同一个入口下的平级页面。<see cref="IsActive"/> 供样式类绑定。</summary>
 public sealed partial class NavTab : ObservableObject
@@ -57,6 +72,7 @@ public sealed partial class ShellViewModel : ObservableObject
     private readonly Func<string, string> _translate;
     private readonly IInstanceService? _instances;
     private readonly IPluginService? _plugins;
+    private readonly IUiSettingsStore? _settingsStore;
     private readonly SynchronizationContext? _sync;
 
     /// <summary>内置导航项（不含插件页签），标题在构造时按当前语言解析。</summary>
@@ -122,12 +138,24 @@ public sealed partial class ShellViewModel : ObservableObject
         Func<string, string>? translate = null,
         Operations.OperationQueueViewModel? operationQueue = null,
         IInstanceService? instances = null,
-        IPluginService? plugins = null)
+        IPluginService? plugins = null,
+        IUiSettingsStore? settingsStore = null)
     {
         _navigation = navigation ?? throw new ArgumentNullException(nameof(navigation));
         OperationQueue = operationQueue;
         _instances = instances;
         _plugins = plugins;
+        _settingsStore = settingsStore;
+        // 页面缩放读回来时直接写字段：走属性 setter 会在构造期就把设置回写一遍文件。
+        _pageZoom = SnapPageZoom(settingsStore?.Current.PageZoom ?? DefaultPageZoom);
+        if (settingsStore is not null && string.Equals(settingsStore.Current.NavHoverMode, "drawer", StringComparison.OrdinalIgnoreCase))
+        {
+            _navHoverMode = NavHoverMode.Drawer;
+        }
+        else
+        {
+            _navHoverMode = NavHoverMode.TabPopout;
+        }
         // 插件激活/卸载可能发生在后台线程（发现插件目录是异步的），改集合必须回 UI 线程。
         // 视图模型层不引用 Avalonia（架构铁律 1），所以只捕获 BCL 的同步上下文。
         _sync = SynchronizationContext.Current;
@@ -157,7 +185,15 @@ public sealed partial class ShellViewModel : ObservableObject
             new("settings", _translate("Ui_NavRail_Settings"), "Settings"),
             // Mod 配置页（M9）：追加在末尾而不是插进中间——既有测试按数组下标断言导航项，
             // 插中间会让后面每一项整体位移。
-            new("modconfig", _translate("Ui_NavRail_ModConfig"), "Sliders")
+            new("modconfig", _translate("Ui_NavRail_ModConfig"), "Sliders"),
+            // 主菜单：同样追加在末尾保住既有下标；它在 SectionSpecs 里排第一，
+            // 于是 RailItems[0] 就是主页——启动默认页靠的就是这一条（App.axaml.cs 取 RailItems[0]）。
+            // 资产工作台（旗帜 / 飞船 / 加载图）：与游戏装在同一份目录里的「可换的皮」，
+            // 和存档一样挂在「实例」组下——脱离实例谈旗帜没有意义。
+            new("ships", _translate("Ui_NavRail_Ships"), "Rocket"),
+            new("flags", _translate("Ui_NavRail_Flags"), "Flag"),
+            new("loadingimages", _translate("Ui_NavRail_LoadingScreens"), "Image"),
+            new("home", _translate("Ui_NavRail_Home"), "Home")
         };
         NavItems = new ObservableCollection<NavItem>(_baseNavItems);
         Sections = BuildSections();
@@ -171,6 +207,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
         NavigateCommand = new AsyncRelayCommand<string>(ExecuteNavigateAsync);
         ToggleNavCollapsedCommand = new RelayCommand(ToggleNavCollapsed);
+        ToggleNavHoverModeCommand = new RelayCommand(ToggleNavHoverMode);
         ToggleLogDrawerCommand = new RelayCommand(() => LogDrawer?.ToggleCommand.Execute(null), () => LogDrawer is not null);
         BackCommand = new AsyncRelayCommand(ExecuteBackAsync);
         ForwardCommand = new AsyncRelayCommand(ExecuteForwardAsync);
@@ -219,7 +256,21 @@ public sealed partial class ShellViewModel : ObservableObject
             : drawer.Title
         : _translate("Ui_NavRail_Logs");
 
-    /// <summary>展开/收起底部日志抽屉（状态栏中段按钮与抽屉标题条共用同一条命令）。</summary>
+    /// <summary>
+    /// 顶栏日志小标记的未读计数（错误 + 警告）：只有抽屉收起且确有新日志时才非零。
+    /// 展开抽屉等于已读，计数由抽屉自己清零，外壳不另存一份真相。
+    /// </summary>
+    public int LogUnreadCount => LogDrawer is { HasBadge: true } drawer
+        ? drawer.NewErrorCount + drawer.NewWarningCount
+        : 0;
+
+    /// <summary>未读里是否含错误：顶栏徽标据此从警告色切到危险色。</summary>
+    public bool LogHasUnreadError => LogDrawer is { HasBadge: true, NewErrorCount: > 0 };
+
+    /// <summary>顶栏日志小标记是否点亮未读徽标。</summary>
+    public bool HasLogBadge => LogDrawer?.HasBadge == true;
+
+    /// <summary>展开/收起底部日志抽屉（顶栏小标记与抽屉标题条共用同一条命令）。</summary>
     public IRelayCommand ToggleLogDrawerCommand { get; }
 
     /// <summary>正在监听属性变化的抽屉实例（换实例时退订，避免旧抽屉继续推动外壳状态）。</summary>
@@ -244,14 +295,19 @@ public sealed partial class ShellViewModel : ObservableObject
         }
 
         ToggleLogDrawerCommand.NotifyCanExecuteChanged();
-        OnPropertyChanged(nameof(IsLogDrawerOpen));
-        OnPropertyChanged(nameof(LogStatusText));
+        RaiseLogMirrorChanged();
     }
 
-    private void OnLogDrawerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnLogDrawerPropertyChanged(object? sender, PropertyChangedEventArgs e) => RaiseLogMirrorChanged();
+
+    /// <summary>抽屉状态是唯一真相，外壳这侧只把镜像属性一并推给绑定。</summary>
+    private void RaiseLogMirrorChanged()
     {
         OnPropertyChanged(nameof(IsLogDrawerOpen));
         OnPropertyChanged(nameof(LogStatusText));
+        OnPropertyChanged(nameof(LogUnreadCount));
+        OnPropertyChanged(nameof(LogHasUnreadError));
+        OnPropertyChanged(nameof(HasLogBadge));
     }
 
     /// <summary>页面导航异步命令。</summary>
@@ -265,7 +321,7 @@ public sealed partial class ShellViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsNavExpanded))]
     [NotifyPropertyChangedFor(nameof(NavToggleToolTip))]
     [NotifyPropertyChangedFor(nameof(NavToggleGlyph))]
-    private bool _isNavCollapsed;
+    private bool _isNavCollapsed = true;
 
     /// <summary>侧栏是否展开；供视图做「只在展开时显示文字」的反向可见性绑定。</summary>
     public bool IsNavExpanded => !IsNavCollapsed;
@@ -278,6 +334,43 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>切换侧栏展开/收起（Ctrl+B 也走这条命令）。</summary>
     public IRelayCommand ToggleNavCollapsedCommand { get; }
+
+    /// <summary>
+    /// 导航栏精简时的悬浮交互模式：
+    /// <see cref="NavHoverMode.TabPopout"/> 光标悬浮于单个 Tab 时仅弹出该 Tab；
+    /// <see cref="NavHoverMode.Drawer"/> 光标滑入侧栏时整体以抽屉式浮层展开全部。
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTabPopoutHoverMode))]
+    [NotifyPropertyChangedFor(nameof(NavHoverModeTitle))]
+    [NotifyPropertyChangedFor(nameof(NavHoverModeToolTip))]
+    [NotifyPropertyChangedFor(nameof(NavHoverModeGlyph))]
+    [NotifyPropertyChangedFor(nameof(NavHoverModePathData))]
+    private NavHoverMode _navHoverMode = NavHoverMode.TabPopout;
+
+    /// <summary>是否为单Tab悬浮弹出模式。</summary>
+    public bool IsTabPopoutHoverMode => NavHoverMode == NavHoverMode.TabPopout;
+
+    /// <summary>当前悬停模式显示文本。</summary>
+    public string NavHoverModeTitle => NavHoverMode == NavHoverMode.TabPopout
+        ? _translate("Ui_NavRail_HoverMode_TabPopout")
+        : _translate("Ui_NavRail_HoverMode_Drawer");
+
+    /// <summary>模式切换按钮提示说明。</summary>
+    public string NavHoverModeToolTip => NavHoverMode == NavHoverMode.TabPopout
+        ? "悬停交互：单Tab弹出（点击切换为完整侧栏抽屉）"
+        : "悬停交互：侧栏抽屉（点击切换为单Tab弹出）";
+
+    /// <summary>模式切换按钮图标字形。</summary>
+    public string NavHoverModeGlyph => NavHoverMode == NavHoverMode.TabPopout ? "📑" : "🗂️";
+
+    /// <summary>模式切换按钮矢量路径数据（统一 Fluent 风格，杜绝彩色 Emoji）。</summary>
+    public string NavHoverModePathData => NavHoverMode == NavHoverMode.TabPopout
+        ? "M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"
+        : "M4 4h16v16H4V4zm2 2v12h4V6H6zm6 0v12h6V6h-6z";
+
+    /// <summary>在单Tab弹出与侧栏抽屉之间切换的命令。</summary>
+    public IRelayCommand ToggleNavHoverModeCommand { get; }
 
     /// <summary>回退命令（F-25）。</summary>
     public IAsyncRelayCommand BackCommand { get; }
@@ -313,9 +406,173 @@ public sealed partial class ShellViewModel : ObservableObject
         IsNavCollapsed = !IsNavCollapsed;
     }
 
+    /// <summary>在「单Tab悬浮弹出」与「侧栏整体抽屉」之间切换并持久化配置。</summary>
+    public void ToggleNavHoverMode()
+    {
+        SetNavHoverMode(NavHoverMode == NavHoverMode.TabPopout ? NavHoverMode.Drawer : NavHoverMode.TabPopout);
+    }
+
+    /// <summary>显式设定导航悬停模式并同步落盘。</summary>
+    public void SetNavHoverMode(NavHoverMode mode)
+    {
+        if (NavHoverMode == mode)
+        {
+            return;
+        }
+
+        NavHoverMode = mode;
+        if (_settingsStore is not null)
+        {
+            _settingsStore.Save(_settingsStore.Current with
+            {
+                NavHoverMode = mode == NavHoverMode.TabPopout ? "tabPopout" : "drawer"
+            });
+        }
+    }
+
+    /// <summary>页面缩放下限（75%）：再往下字已经糊、布局开始挤。</summary>
+    public const double MinPageZoom = 0.75d;
+
+    /// <summary>页面缩放上限（150%）：再往上单屏可见内容太少，滚动成本高于收益。</summary>
+    public const double MaxPageZoom = 1.5d;
+
+    /// <summary>默认页面缩放（100%）。</summary>
+    public const double DefaultPageZoom = 1.0d;
+
+    /// <summary>一档缩放步长（5%）：滑块吸附、Ctrl+滚轮、加/减命令共用同一档。</summary>
+    public const double PageZoomStep = 0.05d;
+
+    /// <summary>
+    /// 页面缩放比例（1.0 = 100%）。只缩放页面承载区：标题栏、侧栏、状态栏保持原尺寸，
+    /// 否则拖动滑块时滑块自己也在变大变小，用户抓不住目标。
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PageZoomPercent))]
+    [NotifyPropertyChangedFor(nameof(PageZoomPercentText))]
+    [NotifyPropertyChangedFor(nameof(CanZoomIn))]
+    [NotifyPropertyChangedFor(nameof(CanZoomOut))]
+    private double _pageZoom = DefaultPageZoom;
+
+    /// <summary>滑块绑定的百分比数值（75–150），与 <see cref="PageZoom"/> 同源、双向。</summary>
+    public double PageZoomPercent
+    {
+        get => PageZoom * 100d;
+        set
+        {
+            if (double.IsFinite(value))
+            {
+                PageZoom = SnapPageZoom(value / 100d);
+            }
+        }
+    }
+
+    /// <summary>状态栏读数，如 "110%"。</summary>
+    public string PageZoomPercentText => $"{Math.Round(PageZoom * 100d):0}%";
+
+    /// <summary>还能不能往上放大（到顶时禁用加号命令）。</summary>
+    public bool CanZoomIn => PageZoom < MaxPageZoom - 1e-9;
+
+    /// <summary>还能不能往下缩小（到底时禁用减号命令）。</summary>
+    public bool CanZoomOut => PageZoom > MinPageZoom + 1e-9;
+
+    /// <summary>放大一档。</summary>
+    [RelayCommand(CanExecute = nameof(CanZoomIn))]
+    private void ZoomIn() => PageZoom = SnapPageZoom(PageZoom + PageZoomStep);
+
+    /// <summary>缩小一档。</summary>
+    [RelayCommand(CanExecute = nameof(CanZoomOut))]
+    private void ZoomOut() => PageZoom = SnapPageZoom(PageZoom - PageZoomStep);
+
+    /// <summary>复位到 100%（Ctrl+0）。</summary>
+    [RelayCommand]
+    private void ResetPageZoom() => PageZoom = DefaultPageZoom;
+
+    /// <summary>Ctrl+滚轮入口：<paramref name="steps"/> 为正放大、为负缩小，一次一格。</summary>
+    public void NudgePageZoom(int steps)
+    {
+        if (steps != 0)
+        {
+            PageZoom = SnapPageZoom(PageZoom + (steps * PageZoomStep));
+        }
+    }
+
+    partial void OnPageZoomChanged(double value)
+    {
+        var normalized = SnapPageZoom(value);
+        if (!normalized.Equals(value))
+        {
+            // 越界或非吸附值：先归一，setter 会带着合法值再进来一次。
+            PageZoom = normalized;
+            return;
+        }
+
+        ZoomInCommand.NotifyCanExecuteChanged();
+        ZoomOutCommand.NotifyCanExecuteChanged();
+
+        // 与 NavHoverMode 同一套持久化口径：改一次落一次，设置文件小、写盘原子，不做额外去抖。
+        _settingsStore?.Save(_settingsStore.Current with { PageZoom = value });
+    }
+
+    /// <summary>把任意输入折到 5% 网格上并夹进 [75%, 150%]；非有限值退回默认。</summary>
+    private static double SnapPageZoom(double value)
+    {
+        if (!double.IsFinite(value))
+        {
+            return DefaultPageZoom;
+        }
+
+        var snapped = Math.Round(value / PageZoomStep, MidpointRounding.AwayFromZero) * PageZoomStep;
+        return Math.Clamp(Math.Round(snapped, 2), MinPageZoom, MaxPageZoom);
+    }
+
+    /// <summary>外壳动作：按启动命令启动当前实例的游戏。由视图注入（与主页/实例页同一套实现）。</summary>
+    public IInstanceShellLauncher? ShellLauncher { get; set; }
+
+    /// <summary>实例启动命令的持久化（<c>GUIConfig.json</c>）。由视图注入。</summary>
+    public IInstanceCommandStore? CommandStore { get; set; }
+
+    /// <summary>
+    /// 顶栏常驻启动按钮的可执行条件：有当前实例，且实例没被占用（游戏可能已经在跑）。
+    /// 顶栏是全页面常驻的唯一入口，条件必须与实例页保持一致，否则会出现「主页灰、顶栏亮」。
+    /// </summary>
+    public bool CanLaunchGame => _instances?.Current is { IsLocked: false };
+
+    /// <summary>
+    /// 顶栏常驻「启动游戏」：解析当前实例的启动命令并交给外壳拉起进程。
+    /// 顶栏没有错误条，一次性结果统一落 <see cref="StatusText"/>（与底部状态栏同一出口）。
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanLaunchGame))]
+    private async Task LaunchGameAsync()
+    {
+        if (_instances?.Current is not { } instance)
+        {
+            return;
+        }
+
+        if (ShellLauncher is not { } launcher)
+        {
+            StatusText = _translate("Ui_Home_ErrorLaunchMissing");
+            return;
+        }
+
+        var command = await InstanceLaunchCommandResolver.ResolveAsync(CommandStore, instance.GameDir).ConfigureAwait(true);
+        if (string.IsNullOrWhiteSpace(command))
+        {
+            StatusText = _translate("Ui_Home_ErrorNoLaunchCommand");
+            return;
+        }
+
+        var result = await launcher.LaunchGameAsync(instance.GameDir, command!).ConfigureAwait(true);
+        StatusText = result.IsSuccess
+            ? string.Format(_translate("Ui_Home_StatusLaunched"), command)
+            : result.Message ?? _translate("Ui_Home_ErrorLaunchFailed");
+    }
+
     private void OnInstanceChanged(InstanceInfo? instance)
     {
         UpdateTitleWithInstance(instance);
+        LaunchGameCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanLaunchGame));
     }
 
     private void UpdateTitleWithInstance(InstanceInfo? instance)
@@ -539,10 +796,15 @@ public sealed partial class ShellViewModel : ObservableObject
     /// </summary>
     private static readonly (string Root, string? TitleKey, string[] Keys)[] SectionSpecs =
     [
-        // 模组：装什么、装进去长什么样、哪些待应用、元数据打哪来、单个 mod 怎么配、界面文案怎么汉化。
-        ("mods", null, ["mods", "content", "changes", "repos", "modconfig", "modtext"]),
+        // 主菜单：应用启动后的落地页。排在第一位，RailItems[0] 因此恒为主页。
+        ("home", null, ["home"]),
+        // 模组：装什么、装进去长什么样、哪些待应用、元数据打哪来、单个 mod 怎么配。
+        ("mods", null, ["mods", "content", "changes", "repos", "modconfig"]),
+        // 模组翻译：独立侧栏入口（原为「模组」的第 6 个页签）。词条检索与人工覆盖是独立工作面，
+        // 挂在「模组」里既挤爆那排页签，也让「我在看哪个 mod」和「我在改哪条译文」混成一件事。
+        ("modtext", null, ["modtext"]),
         // 实例：一份安装本身 + 它衍生的存档、磁盘垃圾、历史与时长。
-        ("instances", null, ["instances", "saves", "unmanaged", "installhistory", "playtime"]),
+        ("instances", null, ["instances", "saves", "ships", "flags", "loadingimages", "unmanaged", "installhistory", "playtime"]),
         // 整合包：导入导出与直接编辑 .ckan。
         ("modpacks", null, ["modpacks", "modpack-editor"]),
         // 数据：本地缓存、下载统计、跨实例去重——都是「盘上的东西」，与模组列表无关。
@@ -577,7 +839,7 @@ public sealed partial class ShellViewModel : ObservableObject
         return result;
     }
 
-    /// <summary>重建侧栏入口列表：五个入口在前，插件自述页追加在后（日志与设置由外壳放进底部区）。</summary>
+    /// <summary>重建侧栏入口列表：六个入口在前，插件自述页追加在后（日志与设置由外壳放进底部区）。</summary>
     private void RefreshRailItems()
     {
         RailItems.Clear();
@@ -671,6 +933,9 @@ public sealed partial class ShellViewModel : ObservableObject
         ["Ui_NavRail_Instances"] = "游戏实例",
         ["Ui_NavRail_PlayTime"] = "游戏时长",
         ["Ui_NavRail_Saves"] = "存档",
+        ["Ui_NavRail_Ships"] = "飞船",
+        ["Ui_NavRail_Flags"] = "旗帜",
+        ["Ui_NavRail_LoadingScreens"] = "加载图",
         ["Ui_NavRail_Unmanaged"] = "未管理文件",
         ["Ui_NavRail_Cache"] = "下载缓存",
         ["Ui_NavRail_DownloadStats"] = "下载统计",
@@ -681,10 +946,21 @@ public sealed partial class ShellViewModel : ObservableObject
         ["Ui_NavRail_Logs"] = "日志",
         ["Ui_NavRail_Settings"] = "设置",
         ["Ui_NavRail_ModConfig"] = "Mod 配置",
+        ["Ui_NavRail_Home"] = "主页",
         ["Ui_NavRail_Data"] = "数据",
         ["Ui_NavRail_Tools"] = "工具",
         ["Ui_NavRail_Collapse"] = "收起侧栏",
         ["Ui_NavRail_Expand"] = "展开侧栏",
+        ["Ui_NavRail_HoverMode_TabPopout"] = "单Tab悬停弹出",
+        ["Ui_NavRail_HoverMode_Drawer"] = "侧边栏抽屉展开",
+        ["Ui_MainWindow_ExpandFullSidebar"] = "展开完整侧栏",
+        ["Ui_QueueOverlay_Title"] = "后台任务",
+        ["Ui_QueueOverlay_CancelAll"] = "全部取消",
+        ["Ui_QueueOverlay_ClearCompleted"] = "清除已完成",
+        ["Ui_QueueOverlay_CompactTip"] = "点击展开后台任务详细进度",
+        ["Ui_QueueOverlay_CollapseTip"] = "收起为紧凑小胶囊",
+        ["Ui_QueueOverlay_EmptyTip"] = "暂无后台任务",
+        ["Ui_QueueOverlay_EmptyDetail"] = "下载、安装或更新模组时，任务进度将在此实时呈现",
         ["Ui_Common_Nav_Back"] = "后退",
         ["Ui_Common_Nav_Forward"] = "前进",
         ["Ui_Common_Status_Ready"] = "就绪",

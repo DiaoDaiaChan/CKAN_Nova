@@ -1,4 +1,9 @@
+using System;
+using System.Diagnostics;
+using System.Threading.Tasks;
 using Avalonia.Controls;
+using CkanUI.Services.Abstractions;
+using CkanUI.ViewModels.Dialogs;
 
 namespace CkanUI.App.Views.Dialogs;
 
@@ -9,5 +14,45 @@ namespace CkanUI.App.Views.Dialogs;
 public sealed partial class ModDetailsView : UserControl
 {
     /// <summary>初始化视图。</summary>
-    public ModDetailsView() => InitializeComponent();
+    public ModDetailsView()
+    {
+        InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        if (DataContext is ModDetailsViewModel vm && vm.ShellLauncher is null)
+        {
+            vm.ShellLauncher = new ModDetailsShellLauncher(this);
+        }
+    }
+
+    private sealed class ModDetailsShellLauncher(Control owner) : IModDetailsShellLauncher
+    {
+        public async Task<OperationResult> OpenBrowserAsync(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return OperationResult.Fail("URL 为空");
+            }
+
+            var topLevel = TopLevel.GetTopLevel(owner);
+            if (topLevel?.Launcher is { } launcher && Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                var success = await launcher.LaunchUriAsync(uri).ConfigureAwait(true);
+                return success ? OperationResult.Ok() : OperationResult.Fail("启动浏览器失败");
+            }
+
+            try
+            {
+                using var process = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                return OperationResult.Ok();
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Fail(ex.Message);
+            }
+        }
+    }
 }

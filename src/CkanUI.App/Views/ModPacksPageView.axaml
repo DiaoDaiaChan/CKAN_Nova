@@ -11,13 +11,13 @@
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Grid.Column="0" Spacing="4">
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <TextBlock Text="导入导出" Classes="CkanPageTitle" VerticalAlignment="Center" />
+          <TextBlock Text="{DynamicResource Ui_NavRail_ModPacks}" Classes="CkanPageTitle" VerticalAlignment="Center" />
           <Button Classes="CkanHelper" VerticalAlignment="Center"
-                  ToolTip.Tip="把当前实例的模组列表导出成 .ckan，或者先预览再导入别人的列表；实例对比只读取，不改动任何实例。">
+                  ToolTip.Tip="{DynamicResource Ui_ModPacksPage_Header_Tip}">
             <PathIcon Data="{StaticResource CkanIconHelp}" />
           </Button>
         </StackPanel>
-        <TextBlock Text=".ckan 列表的互通与差异比对"
+        <TextBlock Text="{DynamicResource Ui_ModPacksPage_Subtitle}"
                    Classes="CkanCaption" TextWrapping="Wrap" />
       </StackPanel>
       <Border Grid.Column="1" Classes="CkanBadge" VerticalAlignment="Center"
@@ -27,7 +27,7 @@
       <Border Grid.Column="1" Classes="CkanBadge Warning" VerticalAlignment="Center"
               IsVisible="{Binding !HasInstance}"
               ToolTip.Tip="{Binding InstanceTitleText}">
-        <TextBlock Text="未选实例" />
+        <TextBlock Text="{DynamicResource Ui_ModPacksPage_NoInstanceSelected}" />
       </Border>
     </Grid>
 
@@ -40,18 +40,18 @@
       <StackPanel Spacing="10">
         <!-- 标题行统一走 CkanHelper 悬浮帮助（20 项页头同一范式），副标下沉到 ToolTip -->
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <TextBlock Text="导出配置" Classes="CkanCardTitle" VerticalAlignment="Center" />
+          <TextBlock Text="{DynamicResource Ui_ModPacksPage_ExportConfigHeader}" Classes="CkanCardTitle" VerticalAlignment="Center" />
           <Button Classes="CkanHelper" VerticalAlignment="Center"
-                  ToolTip.Tip="把当前实例已安装的模组写成 .ckan / 列表文件；勾选「同时打包 zip」才会把模组文件一起放进同名压缩包。">
+                  ToolTip.Tip="{DynamicResource Ui_ModPacksPage_Export_Tip}">
             <PathIcon Data="{StaticResource CkanIconHelp}" />
           </Button>
         </StackPanel>
         <StackPanel Spacing="4">
-          <TextBlock Text="目标文件路径"
+          <TextBlock Text="{DynamicResource Ui_ModPacksPage_TargetPath}"
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
           <TextBox Text="{Binding ExportForm.TargetPath, Mode=TwoWay}"
-                   PlaceholderText="例如 D:\CKAN\我的模组列表.ckan"
+                   PlaceholderText="{DynamicResource Ui_ModPacksPage_TargetPath_Placeholder}"
                    ToolTip.Tip="{Binding ExportForm.PathHint}" />
           <TextBlock Text="{Binding ExportForm.ValidationText}"
                      IsVisible="{Binding ExportForm.HasValidation}"
@@ -60,7 +60,7 @@
                      TextWrapping="Wrap" />
         </StackPanel>
         <StackPanel Spacing="4">
-          <TextBlock Text="导出格式"
+          <TextBlock Text="{DynamicResource Ui_ModPacksPage_ExportFormat}"
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
           <ComboBox ItemsSource="{Binding ExportForm.FormatOptions}"
@@ -69,18 +69,18 @@
         </StackPanel>
         <!-- 选项竖排（左栏只有 340px），主操作独占一行 -->
         <StackPanel Spacing="2" IsEnabled="{Binding ExportForm.CanConfigureModpackOptions}">
-          <CheckBox Content="锁定版本号" IsChecked="{Binding ExportForm.WithVersions, Mode=TwoWay}"
-                    ToolTip.Tip="勾选时写出每个模组的确切版本；不勾选只写模组标识（仅适用于 .ckan 格式）" />
-          <CheckBox Content="同时打包已下载的 zip" IsChecked="{Binding ExportForm.BundleDownloads, Mode=TwoWay}"
-                    ToolTip.Tip="把缓存里已有的下载包一起打进同名 .zip，换台机器也能离线装（仅适用于 .ckan 格式）" />
-          <CheckBox Content="用 recommends 语义" IsChecked="{Binding ExportForm.UseRecommends, Mode=TwoWay}"
-                    ToolTip.Tip="勾选时模组写进 recommends（可选依赖），不勾选写进 depends（必需依赖；仅适用于 .ckan 格式）" />
+          <CheckBox Content="{DynamicResource Ui_ModPacksPage_LockVersions}" IsChecked="{Binding ExportForm.WithVersions, Mode=TwoWay}"
+                    ToolTip.Tip="{DynamicResource Ui_ModPacksPage_LockVersions_Tip}" />
+          <CheckBox Content="{DynamicResource Ui_ModPacksPage_BundleZips}" IsChecked="{Binding ExportForm.BundleDownloads, Mode=TwoWay}"
+                    ToolTip.Tip="{DynamicResource Ui_ModPacksPage_BundleZips_Tip}" />
+          <CheckBox Content="{DynamicResource Ui_ModPacksPage_UseRecommends}" IsChecked="{Binding ExportForm.UseRecommends, Mode=TwoWay}"
+                    ToolTip.Tip="{DynamicResource Ui_ModPacksPage_UseRecommends_Tip}" />
         </StackPanel>
-        <Button Content="导出" Command="{Binding ExportCommand}"
+        <Button Content="{DynamicResource Ui_Common_Export}" Command="{Binding ExportCommand}"
                 Classes="CkanPrimary" HorizontalAlignment="Stretch"
                 HorizontalContentAlignment="Center"
                 IsEnabled="{Binding CanExport}"
-                ToolTip.Tip="把当前实例的已安装模组导出为指定格式文件" />
+                ToolTip.Tip="{DynamicResource Ui_ModPacksPage_ExportButton_Tip}" />
         <TextBlock Text="{Binding ExportResultText}" IsVisible="{Binding HasExportResult}"
                    TextWrapping="Wrap"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
@@ -99,7 +99,10 @@
     <TabControl Grid.Column="2" Background="Transparent">
 
       <!-- 导入 .ckan：先预览再执行 -->
-      <TabItem Header="导入 .ckan">
+      <TabItem>
+        <TabItem.Header>
+          <TextBlock Text="{DynamicResource Ui_ModPacksPage_ImportTabHeader}" />
+        </TabItem.Header>
         <Grid RowDefinitions="Auto,Auto,*" Margin="0,8,0,0">
 
           <Border Grid.Row="0" Classes="CkanCard" Padding="12">
@@ -110,32 +113,32 @@
                 <Border Classes="CkanStepDot" Classes.Active="{Binding IsIdle}">
                   <TextBlock Text="1" />
                 </Border>
-                <TextBlock Text="填路径" Classes="CkanStepLabel" />
+                <TextBlock Text="{DynamicResource Ui_ModPacksPage_StepFillPath}" Classes="CkanStepLabel" />
                 <TextBlock Classes="CkanStepArrow" />
                 <Border Classes="CkanStepDot" Classes.Active="{Binding HasPreviewRows}">
                   <TextBlock Text="2" />
                 </Border>
-                <TextBlock Text="预览核对" Classes="CkanStepLabel" />
+                <TextBlock Text="{DynamicResource Ui_ModPacksPage_StepPreview}" Classes="CkanStepLabel" />
                 <TextBlock Classes="CkanStepArrow" />
                 <Border Classes="CkanStepDot" Classes.Active="{Binding CanImport}">
                   <TextBlock Text="3" />
                 </Border>
-                <TextBlock Text="勾选执行" Classes="CkanStepLabel" />
+                <TextBlock Text="{DynamicResource Ui_ModPacksPage_StepExecute}" Classes="CkanStepLabel" />
               </StackPanel>
               <TextBox Text="{Binding ImportPathText, Mode=TwoWay}"
                        AcceptsReturn="True" Height="72"
                        TextWrapping="Wrap"
-                       PlaceholderText="例如：D:\CKAN\我的模组列表.ckan"
-                       ToolTip.Tip="每行一个 .ckan 路径，也接受分号分隔；先「预览导入」核对，再「执行导入」。" />
+                       PlaceholderText="{DynamicResource Ui_ModPacksPage_ImportPath_Placeholder}"
+                       ToolTip.Tip="{DynamicResource Ui_ModPacksPage_ImportPath_Tip}" />
               <WrapPanel Orientation="Horizontal">
-                <Button Content="预览导入" Command="{Binding PreviewImportCommand}"
+                <Button Content="{DynamicResource Ui_ModPacksPage_PreviewImport}" Command="{Binding PreviewImportCommand}"
                         Classes="CkanSecondary"
                         IsEnabled="{Binding IsIdle}" Margin="0,0,8,0"
-                        ToolTip.Tip="只解析 .ckan 并算清会装 / 会升 / 会冲突 / 找不到，不安装任何东西" />
-                <Button Content="执行导入" Command="{Binding ImportCommand}"
+                        ToolTip.Tip="{DynamicResource Ui_ModPacksPage_PreviewImport_Tip}" />
+                <Button Content="{DynamicResource Ui_ModPacksPage_ExecuteImport}" Command="{Binding ImportCommand}"
                         Classes="CkanPrimary"
                         IsEnabled="{Binding CanImport}" Margin="0,0,8,0"
-                        ToolTip.Tip="只安装勾选的条目，走与「变更」页相同的安装流水线" />
+                        ToolTip.Tip="{DynamicResource Ui_ModPacksPage_ExecuteImport_Tip}" />
               </WrapPanel>
               <TextBlock Text="{Binding PreviewSummaryText}" IsVisible="{Binding HasPreviewSummary}"
                          FontSize="{DynamicResource CkanFontSizeCaption}"
@@ -159,17 +162,17 @@
                     BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
               <Grid ColumnDefinitions="*,Auto">
               <Grid Grid.Column="0" ColumnDefinitions="40,*,2*,88,2*,2*">
-                <TextBlock Grid.Column="0" Text="选" FontSize="{DynamicResource CkanFontSizeCaption}"
+                <TextBlock Grid.Column="0" Text="{DynamicResource Ui_Common_CheckCol}" FontSize="{DynamicResource CkanFontSizeCaption}"
                            Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="1" Text="模组标识" FontSize="{DynamicResource CkanFontSizeCaption}"
+                <TextBlock Grid.Column="1" Text="{DynamicResource Ui_ModPacksPage_ModIdCol}" FontSize="{DynamicResource CkanFontSizeCaption}"
                            Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="2" Text="来源文件" FontSize="{DynamicResource CkanFontSizeCaption}"
+                <TextBlock Grid.Column="2" Text="{DynamicResource Ui_ModPacksPage_SourceFileCol}" FontSize="{DynamicResource CkanFontSizeCaption}"
                            Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="3" Text="状态" FontSize="{DynamicResource CkanFontSizeCaption}"
+                <TextBlock Grid.Column="3" Text="{DynamicResource Ui_Common_Status}" FontSize="{DynamicResource CkanFontSizeCaption}"
                            Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="4" Text="版本" FontSize="{DynamicResource CkanFontSizeCaption}"
+                <TextBlock Grid.Column="4" Text="{DynamicResource Ui_Common_Version}" FontSize="{DynamicResource CkanFontSizeCaption}"
                            Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="5" Text="原因" FontSize="{DynamicResource CkanFontSizeCaption}"
+                <TextBlock Grid.Column="5" Text="{DynamicResource Ui_Common_ReasonCol}" FontSize="{DynamicResource CkanFontSizeCaption}"
                            Foreground="{DynamicResource CkanTextSecondaryBrush}" />
               </Grid>
               <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
@@ -180,10 +183,10 @@
                 <TextBlock Text="{Binding SelectionText}" VerticalAlignment="Center"
                            FontSize="{DynamicResource CkanFontSizeCaption}"
                            Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                <Button Content="全选" Command="{Binding SelectAllEntriesCommand}"
+                <Button Content="{DynamicResource Ui_Common_SelectAll}" Command="{Binding SelectAllEntriesCommand}"
                         Classes="CkanGhost CkanSmall"
                         IsEnabled="{Binding HasPreviewRows}" />
-                <Button Content="清空勾选" Command="{Binding ClearSelectionCommand}"
+                <Button Content="{DynamicResource Ui_ModPacksPage_ClearChecks}" Command="{Binding ClearSelectionCommand}"
                         Classes="CkanGhost CkanSmall"
                         IsEnabled="{Binding HasPreviewRows}" />
               </StackPanel>
@@ -248,9 +251,9 @@
                              Foreground="{DynamicResource CkanTextSecondaryBrush}" />
                   <!-- 预览结果会告诉你什么：三枚静态徽章，把「点完能看到啥」提前交代 -->
                   <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" Margin="0,2,0,0">
-                    <Border Classes="CkanBadge"><TextBlock Text="会装 / 会升" /></Border>
-                    <Border Classes="CkanBadge"><TextBlock Text="会冲突" /></Border>
-                    <Border Classes="CkanBadge"><TextBlock Text="找不到" /></Border>
+                    <Border Classes="CkanBadge"><TextBlock Text="{DynamicResource Ui_ModPacksPage_WillInstallOrUpgrade}" /></Border>
+                    <Border Classes="CkanBadge"><TextBlock Text="{DynamicResource Ui_ModPacksPage_WillConflict}" /></Border>
+                    <Border Classes="CkanBadge"><TextBlock Text="{DynamicResource Ui_ModPacksPage_NotFound}" /></Border>
                   </StackPanel>
                 </StackPanel>
               </Panel>
@@ -260,7 +263,10 @@
       </TabItem>
 
       <!-- 实例对比 -->
-      <TabItem Header="实例对比">
+      <TabItem>
+        <TabItem.Header>
+          <TextBlock Text="{DynamicResource Ui_ModPacksPage_InstanceDiffTabHeader}" />
+        </TabItem.Header>
         <Grid RowDefinitions="Auto,Auto,*" Margin="0,8,0,0">
 
           <Border Grid.Row="0" Classes="CkanCard" Padding="12">
@@ -270,39 +276,39 @@
                 <Border Classes="CkanStepDot" Classes.Active="{Binding IsIdle}">
                   <TextBlock Text="1" />
                 </Border>
-                <TextBlock Text="选两个实例" Classes="CkanStepLabel" />
+                <TextBlock Text="{DynamicResource Ui_ModPacksPage_StepSelectTwo}" Classes="CkanStepLabel" />
                 <TextBlock Classes="CkanStepArrow" />
                 <Border Classes="CkanStepDot" Classes.Active="{Binding CanCompare}">
                   <TextBlock Text="2" />
                 </Border>
-                <TextBlock Text="开始对比" Classes="CkanStepLabel" />
+                <TextBlock Text="{DynamicResource Ui_ModPacksPage_StartDiff}" Classes="CkanStepLabel" />
                 <TextBlock Classes="CkanStepArrow" />
                 <Border Classes="CkanStepDot" Classes.Active="{Binding HasDiffRows}">
                   <TextBlock Text="3" />
                 </Border>
-                <TextBlock Text="查看差异" Classes="CkanStepLabel" />
+                <TextBlock Text="{DynamicResource Ui_ModPacksPage_StepViewDiff}" Classes="CkanStepLabel" />
               </StackPanel>
               <WrapPanel Orientation="Horizontal">
                 <StackPanel Spacing="4" Margin="0,0,16,0" MinWidth="200">
-                  <TextBlock Text="左侧实例" FontSize="{DynamicResource CkanFontSizeCaption}"
+                  <TextBlock Text="{DynamicResource Ui_ModPacksPage_LeftInstance}" FontSize="{DynamicResource CkanFontSizeCaption}"
                              Foreground="{DynamicResource CkanTextSecondaryBrush}" />
                   <ComboBox ItemsSource="{Binding InstanceNames}"
                             SelectedItem="{Binding LeftInstance, Mode=TwoWay}"
                             HorizontalAlignment="Stretch" />
                 </StackPanel>
                 <StackPanel Spacing="4" Margin="0,0,16,0" MinWidth="200">
-                  <TextBlock Text="右侧实例" FontSize="{DynamicResource CkanFontSizeCaption}"
+                  <TextBlock Text="{DynamicResource Ui_ModPacksPage_RightInstance}" FontSize="{DynamicResource CkanFontSizeCaption}"
                              Foreground="{DynamicResource CkanTextSecondaryBrush}" />
                   <ComboBox ItemsSource="{Binding InstanceNames}"
                             SelectedItem="{Binding RightInstance, Mode=TwoWay}"
                             HorizontalAlignment="Stretch" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Bottom">
-                  <Button Content="开始对比" Command="{Binding CompareCommand}"
+                  <Button Content="{DynamicResource Ui_ModPacksPage_StartDiff}" Command="{Binding CompareCommand}"
                           Classes="CkanPrimary"
                           IsEnabled="{Binding CanCompare}"
-                          ToolTip.Tip="比较两个实例的已安装模组：仅左侧有 / 仅右侧有 / 版本不同" />
-                  <Button Content="重新读取实例" Command="{Binding RefreshInstancesCommand}"
+                          ToolTip.Tip="{DynamicResource Ui_ModPacksPage_InstanceDiff_Tip}" />
+                  <Button Content="{DynamicResource Ui_ModPacksPage_ReloadInstances}" Command="{Binding RefreshInstancesCommand}"
                           Classes="CkanSecondary"
                           IsEnabled="{Binding IsIdle}" />
                 </StackPanel>
@@ -318,11 +324,11 @@
             <Border Grid.Row="0" Padding="8,4"
                     BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
               <Grid ColumnDefinitions="*,96,2*">
-                <TextBlock Grid.Column="0" Text="模组标识" FontSize="{DynamicResource CkanFontSizeCaption}"
+                <TextBlock Grid.Column="0" Text="{DynamicResource Ui_ModPacksPage_ModIdCol}" FontSize="{DynamicResource CkanFontSizeCaption}"
                            Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="1" Text="差异" FontSize="{DynamicResource CkanFontSizeCaption}"
+                <TextBlock Grid.Column="1" Text="{DynamicResource Ui_Common_Difference}" FontSize="{DynamicResource CkanFontSizeCaption}"
                            Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="2" Text="版本（左 → 右）" FontSize="{DynamicResource CkanFontSizeCaption}"
+                <TextBlock Grid.Column="2" Text="{DynamicResource Ui_ModPacksPage_VersionLeftToRight}" FontSize="{DynamicResource CkanFontSizeCaption}"
                            Foreground="{DynamicResource CkanTextSecondaryBrush}" />
               </Grid>
             </Border>
@@ -375,9 +381,9 @@
                              Foreground="{DynamicResource CkanTextSecondaryBrush}" />
                   <!-- 对比结果的三种口径，先看得到再点得到 -->
                   <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" Margin="0,2,0,0">
-                    <Border Classes="CkanBadge"><TextBlock Text="仅左侧有" /></Border>
-                    <Border Classes="CkanBadge"><TextBlock Text="仅右侧有" /></Border>
-                    <Border Classes="CkanBadge"><TextBlock Text="版本不同" /></Border>
+                    <Border Classes="CkanBadge"><TextBlock Text="{DynamicResource Ui_ModPacksPage_LeftOnly}" /></Border>
+                    <Border Classes="CkanBadge"><TextBlock Text="{DynamicResource Ui_ModPacksPage_RightOnly}" /></Border>
+                    <Border Classes="CkanBadge"><TextBlock Text="{DynamicResource Ui_ModPacksPage_VersionMismatch}" /></Border>
                   </StackPanel>
                 </StackPanel>
               </Panel>
@@ -402,7 +408,7 @@
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
           </StackPanel>
-          <Button Grid.Column="1" Content="关闭" Command="{Binding ClearErrorCommand}"
+          <Button Grid.Column="1" Content="{DynamicResource Ui_Cmd_Shortcuts_Close}" Command="{Binding ClearErrorCommand}"
                   Classes="CkanGhost CkanSmall"
                   VerticalAlignment="Top" Margin="8,0,0,0" />
         </Grid>

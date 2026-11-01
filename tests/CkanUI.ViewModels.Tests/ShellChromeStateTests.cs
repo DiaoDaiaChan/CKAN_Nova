@@ -71,6 +71,42 @@ public sealed class ShellChromeStateTests
     }
 
     [Test]
+    public void TopBadgeMirror_TracksUnreadCountAndErrorSeverity()
+    {
+        var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key);
+        var drawer = new LogDrawerViewModel();
+        shell.LogDrawer = drawer;
+
+        var pushed = new List<string?>();
+        shell.PropertyChanged += (_, e) => pushed.Add(e.PropertyName);
+
+        // 没有日志：顶栏小标记不点亮徽标。
+        Assert.That(shell.HasLogBadge, Is.False);
+        Assert.That(shell.LogUnreadCount, Is.Zero);
+        Assert.That(shell.LogHasUnreadError, Is.False);
+
+        // 只有警告：徽标亮起、计数为 3、颜色仍是警告色；三条镜像属性都要真的推给绑定。
+        drawer.NewWarningCount = 3;
+        Assert.That(shell.HasLogBadge, Is.True);
+        Assert.That(shell.LogUnreadCount, Is.EqualTo(3));
+        Assert.That(shell.LogHasUnreadError, Is.False);
+        Assert.That(pushed, Does.Contain(nameof(ShellViewModel.HasLogBadge)));
+        Assert.That(pushed, Does.Contain(nameof(ShellViewModel.LogUnreadCount)));
+        Assert.That(pushed, Does.Contain(nameof(ShellViewModel.LogHasUnreadError)));
+
+        // 掺进错误：计数相加，颜色升级为危险色。
+        drawer.NewErrorCount = 2;
+        Assert.That(shell.LogUnreadCount, Is.EqualTo(5));
+        Assert.That(shell.LogHasUnreadError, Is.True);
+
+        // 展开抽屉即已读：顶栏那组徽标整组熄灯。
+        drawer.Open();
+        Assert.That(shell.HasLogBadge, Is.False);
+        Assert.That(shell.LogUnreadCount, Is.Zero);
+        Assert.That(shell.LogHasUnreadError, Is.False);
+    }
+
+    [Test]
     public void UnsavedBar_IgnoresPagesWithoutTheContract()
     {
         var shell = new ShellViewModel(new NavigationService(_ => new object()), key => "T:" + key);

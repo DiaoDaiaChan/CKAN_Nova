@@ -11,10 +11,10 @@
   <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="12">
     <!-- 顶部说明（长解释收进帮助按钮，可见句只留结论） -->
     <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
-      <TextBlock Text="以下为尚未安装的推荐或建议模组："
+      <TextBlock Text="{DynamicResource Ui_AuditDialog_Title}"
                  FontSize="{DynamicResource CkanFontSizeBody}" />
       <Button Classes="CkanHelper" VerticalAlignment="Center"
-              ToolTip.Tip="以下是已安装模组声明推荐（recommends）或建议（suggests）、但当前尚未安装的模组（已按原发起模组分组呈现）：">
+              ToolTip.Tip="{DynamicResource Ui_AuditDialog_Header_Tip}">
         <PathIcon Data="{StaticResource CkanIconHelp}" />
       </Button>
     </StackPanel>
@@ -28,11 +28,11 @@
                  Foreground="{DynamicResource CkanTextSecondaryBrush}"
                  FontSize="{DynamicResource CkanFontSizeCaption}" />
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-        <Button Content="全选"
+        <Button Content="{DynamicResource Ui_Common_SelectAll}"
                 Command="{Binding CheckAllCommand}"
                 MinWidth="72"
                 HorizontalContentAlignment="Center" />
-        <Button Content="全不选"
+        <Button Content="{DynamicResource Ui_Common_SelectNone}"
                 Command="{Binding UncheckAllCommand}"
                 MinWidth="72"
                 HorizontalContentAlignment="Center" />
@@ -67,11 +67,11 @@
                                  VerticalAlignment="Center"
                                  Foreground="{DynamicResource CkanTextSecondaryBrush}"
                                  FontSize="{DynamicResource CkanFontSizeCaption}" />
-                      <Button Content="本组全选"
+                      <Button Content="{DynamicResource Ui_AuditDialog_SelectGroupAll}"
                               Command="{Binding SelectAllCommand}"
                               MinWidth="64"
                               HorizontalContentAlignment="Center" />
-                      <Button Content="本组清空"
+                      <Button Content="{DynamicResource Ui_AuditDialog_ClearGroup}"
                               Command="{Binding ClearSelectionCommand}"
                               MinWidth="64"
                               HorizontalContentAlignment="Center" />

@@ -117,7 +117,9 @@ M0 = ENV-01..05 + ARC-01..04 + INT-01..03，门禁六条：①`dotnet build` 0 �
 7. **页面之间的交接只走一个窄接口**：模组页把勾选翻译成 `ChangeRequest` 后灌进 `IChangeRequestSink`（`src/CkanUI.ViewModels/Pages/IChangeRequestSink.cs`），
    再经 `INavigationService.NavigateAsync("changes")` 跳转；`ChangesPageViewModel` 是唯一实现。
    理由：两页互相持有具体类型会让"哪个页面持有谁的引用"变成隐式耦合，也让 DI 循环；窄接口让两个页面各自可独立测。
-8. **导航项顺序固定为 mods → changes → repos → modpacks → instances → playtime → saves → unmanaged → cache → dedup → installhistory → plugins → settings**（十三项，`ShellViewModel.NavItems`），key 即 `PageTypes` 的键；
+8. **导航项顺序固定**（二十三项，`ShellViewModel.NavItems`）：mods → content → changes → repos → modpacks → modpack-editor → instances → playtime → saves → unmanaged → cache → downloadstats → dedup → installhistory → plugins → modtext → logs → settings → modconfig → ships → flags → loadingimages → home，key 即 `PageTypes` 的键；
+   侧栏分区在 `ShellViewModel.SectionSpecs` 里，**home 独占第一组**，所以 `RailItems[0]` 恒为主页——`src/CkanUI.App/App.axaml.cs` 的启动落地页就取这一条（`shell.RailItems[0].Key`）；
+   新页一律**追加**在 `NavItems` 末尾：测试按数组下标断言导航顺序是刻意的，插中间会让后面每一项整体位移；
    新增页面必须同时补 `LocalizationKeys` 与两份语言包（`i18n/packs/{zh-CN,en-US}.json`），否则 `ShellViewModelTests` 与 `verify-layout` 会红。
 9. **仓库管理的写事务封在 `IRepositoryStore` 后面**：`RegistryRepositoryStore` 是唯一碰 `Registry.RepositoriesSet` + `RegistryManager.Save()` 与网络的实现，
    校验/排序/重编号全在纯函数 `RepositoryCatalog`（可离线测）。`IRepositoryService` 的 8 个增量成员用 DIM（默认实现）追加，

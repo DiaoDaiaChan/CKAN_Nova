@@ -20,10 +20,10 @@ public sealed class ShellViewModelTests
     }
 
     [Test]
-    public void NavItems_HasNineteenConfiguredItems()
+    public void NavItems_HasTwentyThreeConfiguredItems()
     {
         var vm = new ShellViewModel();
-        Assert.That(vm.NavItems.Count, Is.EqualTo(19));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(23));
         Assert.That(vm.NavItems[0].Key, Is.EqualTo("mods"));
         Assert.That(vm.NavItems[1].Key, Is.EqualTo("content"));
         Assert.That(vm.NavItems[2].Key, Is.EqualTo("changes"));
@@ -44,6 +44,26 @@ public sealed class ShellViewModelTests
         Assert.That(vm.NavItems[17].Key, Is.EqualTo("settings"));
         // Mod 配置页追加在末尾：插在中间会让上面全部下标位移，测试按位置断言导航顺序是刻意的。
         Assert.That(vm.NavItems[18].Key, Is.EqualTo("modconfig"));
+        // 资产工作台（飞船/旗帜/加载图）同样追加在末尾，与存档同属「实例」分区。
+        Assert.That(vm.NavItems[19].Key, Is.EqualTo("ships"));
+        Assert.That(vm.NavItems[20].Key, Is.EqualTo("flags"));
+        Assert.That(vm.NavItems[21].Key, Is.EqualTo("loadingimages"));
+        // 主菜单同样追加在末尾；它在侧栏分区里排第一，所以 RailItems[0] 恒为主页。
+        Assert.That(vm.NavItems[22].Key, Is.EqualTo("home"));
+    }
+
+    [Test]
+    public void RailItems_PutHomeFirst_SoStartupLandsOnMainMenu()
+    {
+        var vm = new ShellViewModel();
+
+        Assert.That(vm.RailItems, Is.Not.Empty);
+        Assert.That(vm.RailItems[0].Key, Is.EqualTo("home"), "启动页取 RailItems[0]，主菜单必须排第一。");
+        // 主菜单独占一个分区：挂进「模组」就成了第 6 个页签，启动落地也就不再是主菜单。
+        Assert.That(vm.Sections[0].Key, Is.EqualTo("home"));
+        Assert.That(vm.Sections[0].Tabs.Select(tab => tab.Key), Is.EqualTo(new[] { "home" }));
+        // 日志与设置由外壳放进侧栏底部区，不占主入口列表。
+        Assert.That(vm.RailItems.Any(item => item.Key is "logs" or "settings"), Is.False);
     }
 
     [Test]
@@ -64,11 +84,15 @@ public sealed class ShellViewModelTests
         Assert.That(vm.NavItems[16].Title, Is.EqualTo("T:Ui_NavRail_Logs"));
         Assert.That(vm.NavItems[17].Title, Is.EqualTo("T:Ui_NavRail_Settings"));
         Assert.That(vm.NavItems[18].Title, Is.EqualTo("T:Ui_NavRail_ModConfig"));
-        Assert.That(vm.NavItems.Count, Is.EqualTo(19));
+        Assert.That(vm.NavItems[19].Title, Is.EqualTo("T:Ui_NavRail_Ships"));
+        Assert.That(vm.NavItems[20].Title, Is.EqualTo("T:Ui_NavRail_Flags"));
+        Assert.That(vm.NavItems[21].Title, Is.EqualTo("T:Ui_NavRail_LoadingScreens"));
+        Assert.That(vm.NavItems[22].Title, Is.EqualTo("T:Ui_NavRail_Home"));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(23));
     }
 
     [Test]
-    public async Task ModText_IsATabOfTheModsSection_NotTheToolsSection()
+    public async Task ModText_IsItsOwnRailEntry_NotATabOfMods()
     {
         var navService = new NavigationService(key => key switch
         {
@@ -80,14 +104,23 @@ public sealed class ShellViewModelTests
 
         var vm = new ShellViewModel(navService);
 
-        // 模组汉化属于「模组」这个对象，作为该入口的第 6 个页签，而不是塞进「工具」。
-        await vm.NavigateCommand.ExecuteAsync("modtext");
+        // 「模组」入口不再挂模组翻译页签：那排页签只留「同一对象的多个面」。
+        await vm.NavigateCommand.ExecuteAsync("mods");
         Assert.That(vm.ActiveSection?.Key, Is.EqualTo("mods"));
-        Assert.That(vm.SectionTabs.Any(tab => tab.Key == "modtext"), Is.True);
-        Assert.That(vm.HasSectionTabs, Is.True);
-        Assert.That(vm.ActiveSection!.Tabs[5].Key, Is.EqualTo("modtext"));
+        Assert.That(vm.SectionTabs.Any(tab => tab.Key == "modtext"), Is.False);
 
-        // 工具入口只剩插件一页，页签条不再出现。
+        // 模组翻译独立成侧栏入口：独占一个分区、单页签，页签条不再出现。
+        await vm.NavigateCommand.ExecuteAsync("modtext");
+        Assert.That(vm.ActiveSection?.Key, Is.EqualTo("modtext"));
+        Assert.That(vm.ActiveSection!.RailItem.Key, Is.EqualTo("modtext"));
+        Assert.That(vm.SectionTabs.Count, Is.EqualTo(1));
+        Assert.That(vm.SectionTabs[0].Key, Is.EqualTo("modtext"));
+        Assert.That(vm.HasSectionTabs, Is.False);
+        Assert.That(vm.RailItems.Any(item => item.Key == "modtext"), Is.True, "侧栏必须有模组翻译入口");
+        Assert.That(vm.RailItems.Count(item => item.Key == "modtext"), Is.EqualTo(1), "侧栏只应有一个模组翻译入口");
+        Assert.That(vm.SelectedNavItem?.Key, Is.EqualTo("modtext"));
+
+        // 工具入口同样只剩插件一页。
         await vm.NavigateCommand.ExecuteAsync("plugins");
         Assert.That(vm.ActiveSection?.Key, Is.EqualTo("plugins"));
         Assert.That(vm.SectionTabs.Count, Is.EqualTo(1));

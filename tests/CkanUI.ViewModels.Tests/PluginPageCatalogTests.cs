@@ -106,7 +106,7 @@ public sealed class PluginPageCatalogTests
         plugins.ActiveItems.Add(Plugin("Hello", Page("hello-page", "Hello 页")));
         var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key, plugins: plugins);
 
-        Assert.That(shell.NavItems, Has.Count.EqualTo(20));
+        Assert.That(shell.NavItems, Has.Count.EqualTo(24));
         Assert.That(shell.NavItems[14].Key, Is.EqualTo("plugins"));
         Assert.That(shell.NavItems[15].Key, Is.EqualTo("hello-page"));
         Assert.That(shell.NavItems[15].Title, Is.EqualTo("Hello 页"));
@@ -114,6 +114,10 @@ public sealed class PluginPageCatalogTests
         Assert.That(shell.NavItems[17].Key, Is.EqualTo("logs"));
         Assert.That(shell.NavItems[18].Key, Is.EqualTo("settings"));
         Assert.That(shell.NavItems[19].Key, Is.EqualTo("modconfig"));
+        Assert.That(shell.NavItems[20].Key, Is.EqualTo("ships"));
+        Assert.That(shell.NavItems[21].Key, Is.EqualTo("flags"));
+        Assert.That(shell.NavItems[22].Key, Is.EqualTo("loadingimages"));
+        Assert.That(shell.NavItems[23].Key, Is.EqualTo("home"));
     }
 
     [Test]
@@ -127,7 +131,7 @@ public sealed class PluginPageCatalogTests
         plugins.ActiveItems.Clear();
         plugins.RaiseChanged();
 
-        Assert.That(shell.NavItems, Has.Count.EqualTo(19));
+        Assert.That(shell.NavItems, Has.Count.EqualTo(23));
         Assert.That(shell.NavItems.Any(item => item.Key == "hello-page"), Is.False);
         Assert.That(shell.NavItems.Single(item => item.Key == "settings"), Is.SameAs(settingsItem));
     }
@@ -163,10 +167,10 @@ public sealed class PluginPageCatalogTests
     }
 
     [Test]
-    public void Shell_WithoutPluginService_HasNineteenItems()
+    public void Shell_WithoutPluginService_HasTwentyThreeItems()
     {
         var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key);
 
-        Assert.That(shell.NavItems, Has.Count.EqualTo(19));
+        Assert.That(shell.NavItems, Has.Count.EqualTo(23));
     }
 }

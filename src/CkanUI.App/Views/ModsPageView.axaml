@@ -30,134 +30,170 @@
   <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
         Background="Transparent">
 
-    <!-- 页面标题与主操作：把高频操作从筛选工具条中解放出来。 -->
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
-      <StackPanel Spacing="4" VerticalAlignment="Center">
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <TextBlock Text="模组管理" Classes="CkanPageTitle" VerticalAlignment="Center" />
-          <ui:FAInfoBadge Value="{Binding VisibleCount}"
-                          IsVisible="{Binding HasInstance}"
-                          VerticalAlignment="Center"
-                          Background="{DynamicResource CkanAccentBrush}"
-                          ToolTip.Tip="当前筛选下的模组数量" />
-          <Button Classes="CkanHelper" VerticalAlignment="Center"
-                  ToolTip.Tip="列表来自仓库索引（刷新需联网）；勾选只是加入变更集，点「应用变更」才写盘。">
-            <PathIcon Data="{StaticResource CkanIconHelp}" />
-          </Button>
-        </StackPanel>
-        <TextBlock Text="检索、筛选与应用变更集"
-                   Classes="CkanCaption" VerticalAlignment="Center" />
+    <!-- 页面标题与主操作：极简高效，释放垂直死区 -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <TextBlock Text="{DynamicResource Ui_ManageMods_Title}" Classes="CkanPageTitle" VerticalAlignment="Center" />
+        <ui:FAInfoBadge Value="{Binding VisibleCount}"
+                        IsVisible="{Binding HasInstance}"
+                        VerticalAlignment="Center"
+                        Background="{DynamicResource CkanAccentBrush}"
+                        ToolTip.Tip="{DynamicResource Ui_ModsPage_FilterCount_Tip}" />
       </StackPanel>
-      <Button Grid.Column="1" Command="{Binding ApplyChangesCommand}"
-              Classes="CkanPrimary" Padding="14,5" VerticalAlignment="Center"
-              IsVisible="{Binding HasInstance}"
-              ToolTip.Tip="审查并应用当前变更集">
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <PathIcon Width="13" Height="13"
-                    Data="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
-          <TextBlock Text="应用变更" VerticalAlignment="Center" />
-        </StackPanel>
-      </Button>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <!-- 紧凑/标准密度切换 -->
+        <Button Command="{Binding ToggleDensityCommand}"
+                Classes="CkanSecondary" Padding="8,4" VerticalAlignment="Center"
+                IsVisible="{Binding HasInstance}"
+                ToolTip.Tip="{DynamicResource Ui_Settings_Item_Density}">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <PathIcon Width="11" Height="11" Data="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+            <TextBlock Text="{Binding DensityButtonText}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <!-- 详情面板显隐开关 (Ctrl+I) -->
+        <ToggleButton IsChecked="{Binding IsDetailsPaneVisible, Mode=TwoWay}"
+                      Classes="CkanSecondary" Padding="8,4" VerticalAlignment="Center"
+                      IsVisible="{Binding HasInstance}"
+                      ToolTip.Tip="{DynamicResource Ui_ModsPage_ToggleDetails_Tip}">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <PathIcon Width="11" Height="11" Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM13 7h4v10h-4z" />
+            <TextBlock Text="{DynamicResource Ui_Common_Details}" VerticalAlignment="Center" />
+          </StackPanel>
+        </ToggleButton>
+        <!-- 应用变更 -->
+        <Button Command="{Binding ApplyChangesCommand}"
+                Classes="CkanPrimary" Padding="12,4" VerticalAlignment="Center"
+                IsVisible="{Binding HasInstance}"
+                ToolTip.Tip="{DynamicResource Ui_ModsPage_ApplyChanges_Tip}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Width="12" Height="12"
+                      Data="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
+            <TextBlock Text="{DynamicResource Ui_ModsPage_ApplyChanges}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
     </Grid>
 
-    <!-- Fluent v2 工具条：搜索与筛选左对齐，仓库与重置动作右对齐，消除右侧空洞。 -->
+    <!-- Fluent v2 工具条：单行超紧凑布局 + 折叠筛选抽屉，最大化表格有效显示面积 -->
     <Border Grid.Row="1" Classes="CkanToolbar stagger-card" Margin="0"
             IsVisible="{Binding HasInstance}">
-      <StackPanel Spacing="10">
+      <StackPanel Spacing="6">
         <Grid ColumnDefinitions="*,Auto">
-          <WrapPanel Grid.Column="0" Orientation="Horizontal" ItemSpacing="8" LineSpacing="8" VerticalAlignment="Center">
-            <TextBox x:Name="SearchBox" Width="320"
+          <WrapPanel Grid.Column="0" Orientation="Horizontal" ItemSpacing="6" LineSpacing="6" VerticalAlignment="Center">
+            <!-- 搜索框 -->
+            <TextBox x:Name="SearchBox" Width="260"
                      Classes="CkanSearchBox"
-                     AutomationProperties.Name="搜索模组"
+                     AutomationProperties.Name="{DynamicResource Ui_ModsPage_SearchMods_A11y}"
                      Text="{Binding SearchText, Mode=TwoWay}"
-                     PlaceholderText="名称 / @作者 / tag: / is:installed / -否定"
+                     PlaceholderText="{DynamicResource Ui_ModsPage_Search_Placeholder}"
                      KeyDown="OnSearchKeyDown">
               <TextBox.InnerRightContent>
                 <Button Classes="CkanIcon" Command="{Binding ClearSearchTextCommand}"
                         Margin="0,0,4,0"
                         IsVisible="{Binding SearchText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                        ToolTip.Tip="清空搜索（Esc）"
-                        AutomationProperties.Name="清空搜索" Focusable="False">
-                  <PathIcon Width="12" Height="12"
+                        ToolTip.Tip="{DynamicResource Ui_ModsPage_ClearSearch_Tip}"
+                        AutomationProperties.Name="{DynamicResource Ui_LogPage_ClearSearch}" Focusable="False">
+                  <PathIcon Width="11" Height="11"
                             Data="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                 </Button>
               </TextBox.InnerRightContent>
             </TextBox>
 
-            <!-- 组合搜索面板开关（F-20/F-21）：保留原命令与状态。 -->
-            <ToggleButton Classes="CkanPill"
-                          Content="{Binding SearchPanel.SummaryText}"
-                          IsChecked="{Binding SearchPanel.IsExpanded}"
-                          VerticalAlignment="Center"
-                          ToolTip.Tip="展开 / 收起组合搜索面板（18 个字段逐项筛选）"
-                          AutomationProperties.Name="{Binding SearchPanel.SummaryText}" />
-
+            <!-- 状态与兼容性筛选下拉菜单 -->
             <DropDownButton Classes="CkanSecondary" VerticalAlignment="Center"
-                            ToolTip.Tip="安装状态与兼容性筛选"
-                            AutomationProperties.Name="状态筛选">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Width="13" Height="13" Data="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z" />
-                <TextBlock Text="状态筛选" VerticalAlignment="Center" />
+                            ToolTip.Tip="{DynamicResource Ui_ModsPage_FilterStatus_Tip}"
+                            AutomationProperties.Name="{DynamicResource Ui_ModsPage_StatusFilter}">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <PathIcon Width="12" Height="12" Data="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z" />
+                <TextBlock Text="{DynamicResource Ui_ModsPage_StatusFilter}" VerticalAlignment="Center" />
               </StackPanel>
               <DropDownButton.Flyout>
                 <ui:FAMenuFlyout Placement="BottomEdgeAlignedLeft">
-                  <ui:FAMenuFlyoutSubItem Text="安装状态" IconSource="Filter">
-                    <MenuItem Header="全部" Click="OnInstallFilterClick" Tag="0" />
-                    <MenuItem Header="已装" Click="OnInstallFilterClick" Tag="1" />
-                    <MenuItem Header="未装" Click="OnInstallFilterClick" Tag="2" />
-                    <MenuItem Header="有更新" Click="OnInstallFilterClick" Tag="3" />
+                  <ui:FAMenuFlyoutSubItem Text="{DynamicResource Ui_DownloadStats_DimensionInstalled}" IconSource="Filter">
+                    <MenuItem Header="{DynamicResource Ui_ManageMods_FilterAll}" Click="OnInstallFilterClick" Tag="0" />
+                    <MenuItem Header="{DynamicResource Ui_ManageMods_FilterInstalled}" Click="OnInstallFilterClick" Tag="1" />
+                    <MenuItem Header="{DynamicResource Ui_ManageMods_FilterNotInstalled}" Click="OnInstallFilterClick" Tag="2" />
+                    <MenuItem Header="{DynamicResource Ui_ManageMods_FilterUpgradeable}" Click="OnInstallFilterClick" Tag="3" />
                   </ui:FAMenuFlyoutSubItem>
-                  <ui:FAMenuFlyoutSubItem Text="兼容性" IconSource="Accept">
-                    <MenuItem Header="全部" Click="OnCompatibilityFilterClick" Tag="0" />
-                    <MenuItem Header="仅兼容" Click="OnCompatibilityFilterClick" Tag="1" />
-                    <MenuItem Header="仅不兼容" Click="OnCompatibilityFilterClick" Tag="2" />
+                  <ui:FAMenuFlyoutSubItem Text="{DynamicResource Ui_Settings_Section_Compatibility}" IconSource="Accept">
+                    <MenuItem Header="{DynamicResource Ui_ManageMods_FilterAll}" Click="OnCompatibilityFilterClick" Tag="0" />
+                    <MenuItem Header="{DynamicResource Ui_ManageMods_FilterCompatibleOnly}" Click="OnCompatibilityFilterClick" Tag="1" />
+                    <MenuItem Header="{DynamicResource Ui_ManageMods_FilterIncompatibleOnly}" Click="OnCompatibilityFilterClick" Tag="2" />
                   </ui:FAMenuFlyoutSubItem>
                   <ui:FAMenuFlyoutSeparator />
-                  <ui:FAMenuFlyoutItem Text="重置筛选" IconSource="Refresh"
+                  <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_Common_ResetFilter}" IconSource="Refresh"
                                        Command="{Binding ResetFiltersCommand}" />
                 </ui:FAMenuFlyout>
               </DropDownButton.Flyout>
             </DropDownButton>
 
+            <!-- 排序下拉菜单 -->
             <DropDownButton Classes="CkanSecondary" VerticalAlignment="Center"
-                            ToolTip.Tip="选择排序依据"
-                            AutomationProperties.Name="选择排序依据">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Width="13" Height="13" Data="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z" />
-                <TextBlock Text="排序" VerticalAlignment="Center" />
+                            ToolTip.Tip="{DynamicResource Ui_ModsPage_SortBy_Tip}"
+                            AutomationProperties.Name="{DynamicResource Ui_ModsPage_SortBy_Tip}">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <PathIcon Width="12" Height="12" Data="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z" />
+                <TextBlock Text="{DynamicResource Ui_Common_Sort}" VerticalAlignment="Center" />
               </StackPanel>
               <DropDownButton.Flyout>
                 <ui:FAMenuFlyout Placement="BottomEdgeAlignedLeft">
-                  <MenuItem Header="名称" Click="OnSortColumnClick" Tag="0" />
-                  <MenuItem Header="标识符" Click="OnSortColumnClick" Tag="1" />
-                  <MenuItem Header="已装版本" Click="OnSortColumnClick" Tag="2" />
-                  <MenuItem Header="最新版本" Click="OnSortColumnClick" Tag="3" />
-                  <MenuItem Header="作者" Click="OnSortColumnClick" Tag="4" />
-                  <MenuItem Header="下载量" Click="OnSortColumnClick" Tag="5" />
-                  <MenuItem Header="体积" Click="OnSortColumnClick" Tag="6" />
-                  <MenuItem Header="已装状态" Click="OnSortColumnClick" Tag="7" />
+                  <MenuItem Header="{DynamicResource Ui_Common_Name}" Click="OnSortColumnClick" Tag="0" />
+                  <MenuItem Header="{DynamicResource Ui_Common_Identifier}" Click="OnSortColumnClick" Tag="1" />
+                  <MenuItem Header="{DynamicResource Ui_ModsPage_ColInstalledVersion}" Click="OnSortColumnClick" Tag="2" />
+                  <MenuItem Header="{DynamicResource Ui_ModsPage_ColLatestVersion}" Click="OnSortColumnClick" Tag="3" />
+                  <MenuItem Header="{DynamicResource Ui_ModPackEditor_LabelAuthor}" Click="OnSortColumnClick" Tag="4" />
+                  <MenuItem Header="{DynamicResource Ui_DownloadStatsPage_Downloads}" Click="OnSortColumnClick" Tag="5" />
+                  <MenuItem Header="{DynamicResource Ui_Common_Size}" Click="OnSortColumnClick" Tag="6" />
+                  <MenuItem Header="{DynamicResource Ui_ModsPage_ColInstallStatus}" Click="OnSortColumnClick" Tag="7" />
                   <Separator />
-                  <MenuItem Header="切换升序 / 降序" Command="{Binding ToggleSortCommand}" />
+                  <MenuItem Header="{DynamicResource Ui_ModsPage_SortDirection_Tip}" Command="{Binding ToggleSortCommand}" />
                 </ui:FAMenuFlyout>
               </DropDownButton.Flyout>
             </DropDownButton>
 
-            <!-- 排序方向按钮：采用统一 CkanSecondary 样式，平齐下拉按钮。 -->
-            <Button Classes="CkanSecondary" VerticalAlignment="Center"
+            <!-- 排序方向按钮 -->
+            <Button Classes="CkanSecondary" VerticalAlignment="Center" Padding="8,4"
                     Command="{Binding ToggleSortDirectionCommand}"
-                    ToolTip.Tip="切换升序 / 降序"
-                    AutomationProperties.Name="切换升序或降序">
-              <StackPanel Orientation="Horizontal" Spacing="5">
-                <PathIcon Width="12" Height="12" Data="M0 8l6-6 6 6z"
+                    ToolTip.Tip="{DynamicResource Ui_ModsPage_SortDirection_Tip}"
+                    AutomationProperties.Name="{DynamicResource Ui_ModsPage_SortDirection_A11y}">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <PathIcon Width="11" Height="11" Data="M0 8l6-6 6 6z"
                           IsVisible="{Binding SortAscending}" />
-                <PathIcon Width="12" Height="12" Data="M12 8l-6 6-6-6z"
+                <PathIcon Width="11" Height="11" Data="M12 8l-6 6-6-6z"
                           IsVisible="{Binding !SortAscending}" />
-                <TextBlock Text="升序" VerticalAlignment="Center"
-                           IsVisible="{Binding SortAscending}" />
-                <TextBlock Text="降序" VerticalAlignment="Center"
-                           IsVisible="{Binding !SortAscending}" />
               </StackPanel>
             </Button>
+
+            <!-- 分类与标签折叠筛选开关（将冗余的两整行胶囊收入抽屉） -->
+            <ToggleButton Classes="CkanSecondary"
+                          IsChecked="{Binding IsFiltersExpanded, Mode=TwoWay}"
+                          VerticalAlignment="Center" Padding="8,4"
+                          ToolTip.Tip="展开/收起分类与标签筛选面板">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <PathIcon Width="11" Height="11" Data="M3 4h18v2H3V4zm3 7h12v2H6v-2zm5 7h2v2h-2v-2z" />
+                <TextBlock Text="分类与标签" VerticalAlignment="Center" />
+                <Ellipse Width="6" Height="6" Fill="{DynamicResource CkanAccentBrush}"
+                         IsVisible="{Binding HasActiveCategoryOrLabelFilter}"
+                         VerticalAlignment="Center" Margin="2,0,0,0" />
+              </StackPanel>
+            </ToggleButton>
+
+            <!-- 组合搜索面板开关（F-20/F-21） -->
+            <ToggleButton Classes="CkanPill"
+                          Content="{Binding SearchPanel.SummaryText}"
+                          IsChecked="{Binding SearchPanel.IsExpanded}"
+                          VerticalAlignment="Center"
+                          ToolTip.Tip="{DynamicResource Ui_ModsPage_ToggleSearchPanel_Tip}"
+                          AutomationProperties.Name="{Binding SearchPanel.SummaryText}" />
+
+            <!-- 重置筛选按钮：只在有筛选生效时动态展现，不占冗余常驻位置 -->
+            <Button Classes="CkanGhost"
+                    Content="{DynamicResource Ui_Common_ResetFilter}"
+                    Command="{Binding ResetFiltersCommand}"
+                    IsVisible="{Binding HasActiveFilters}"
+                    VerticalAlignment="Center"
+                    ToolTip.Tip="{DynamicResource Ui_ModsPage_ClearAllFilters_Tip}" />
 
             <!-- 插件工具项（12 篇 F-17）：没有插件声明时整块不占位。 -->
             <ItemsControl VerticalAlignment="Center" IsVisible="{Binding HasPluginTools}"
@@ -177,62 +213,88 @@
             </ItemsControl>
           </WrapPanel>
 
-          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="12,0,0,0">
+          <!-- 右侧操作：刷新仓库与全部更新 -->
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="8,0,0,0">
             <Button Classes="CkanSecondary"
                     Command="{Binding RefreshRepositoriesCommand}"
-                    ToolTip.Tip="联网刷新仓库索引（Ctrl+R）">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Width="13" Height="13"
+                    ToolTip.Tip="{DynamicResource Ui_ModsPage_RefreshRepos_Tip}">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <PathIcon Width="12" Height="12"
                           Data="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
-                <TextBlock Text="刷新仓库" VerticalAlignment="Center" />
+                <TextBlock Text="{DynamicResource Ui_ModsPage_RefreshRepos}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
             <Button Classes="CkanSecondary"
                     Command="{Binding UpdateAllCommand}"
-                    ToolTip.Tip="勾选所有可更新模组">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Width="13" Height="13"
+                    ToolTip.Tip="{DynamicResource Ui_ModsPage_UpdateAll_Tip}">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <PathIcon Width="12" Height="12"
                           Data="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                <TextBlock Text="全量更新" VerticalAlignment="Center" />
+                <TextBlock Text="{DynamicResource Ui_ModsPage_UpdateAll}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
-            <Button Classes="CkanGhost"
-                    Content="重置筛选"
-                    Command="{Binding ResetFiltersCommand}"
-                    ToolTip.Tip="清除所有搜索词与筛选条件" />
           </StackPanel>
         </Grid>
 
-        <!-- 标签组筛选行：左标签胶囊、右管理动作，铺满工具条宽度 -->
-        <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasLabelService}">
-          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-            <TextBlock Text="标签组" Classes="CkanCaption" VerticalAlignment="Center" />
-            <ItemsControl ItemsSource="{Binding LabelFilters}" VerticalAlignment="Center">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <WrapPanel />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Button Classes="CkanChip"
-                          Classes.Active="{Binding IsActive}"
-                          Command="{Binding ToggleCommand}"
-                          Content="{Binding DisplayText}"
-                          Margin="0,0,6,0"
-                          ToolTip.Tip="{Binding ColorHex}" />
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
+        <!-- 折叠抽屉：核心分类与标签组（按需展开，默认收起，极大腾出垂直视觉空间） -->
+        <Border Classes="CkanSubtleCard" Padding="8,6" Margin="0,2,0,0"
+                IsVisible="{Binding IsFiltersExpanded}">
+          <StackPanel Spacing="6">
+            <!-- 核心分类筛选行 -->
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <TextBlock Grid.Column="0" Text="核心分类：" Classes="CkanCaption" VerticalAlignment="Center" Margin="0,0,6,0" />
+              <ItemsControl Grid.Column="1" ItemsSource="{Binding CategoryChips}" VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Button Classes="CkanChip"
+                            Classes.Active="{Binding IsActive}"
+                            Command="{Binding ToggleCommand}"
+                            Content="{Binding ButtonText}"
+                            Margin="0,0,4,2"
+                            ToolTip.Tip="{Binding StateText}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Button Grid.Column="2" Content="清除分类" Command="{Binding ClearCategoryFilterCommand}"
+                      Classes="CkanSmall" ToolTip.Tip="清除当前选中的分类筛选"
+                      IsVisible="{Binding HasCategoryFilter}" VerticalAlignment="Center" />
+            </Grid>
+
+            <!-- 标签组筛选行 -->
+            <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding HasLabelService}">
+              <TextBlock Grid.Column="0" Text="{DynamicResource Ui_ModsPage_LabelGroups}" Classes="CkanCaption" VerticalAlignment="Center" Margin="0,0,6,0" />
+              <ItemsControl Grid.Column="1" ItemsSource="{Binding LabelFilters}" VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Button Classes="CkanChip"
+                            Classes.Active="{Binding IsActive}"
+                            Command="{Binding ToggleCommand}"
+                            Content="{Binding DisplayText}"
+                            Margin="0,0,4,2"
+                            ToolTip.Tip="{Binding ColorHex}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <Button Content="{DynamicResource Ui_ModsPage_ClearLabelFilter}" Command="{Binding ResetLabelFiltersCommand}"
+                        Classes="CkanSmall" ToolTip.Tip="{DynamicResource Ui_ModsPage_ClearLabelFilter_Tip}" />
+                <Button Content="{DynamicResource Ui_ModsPage_ManageLabels}" Command="{Binding ManageLabelsCommand}"
+                        Classes="CkanSmall"
+                        ToolTip.Tip="{DynamicResource Ui_ModsPage_ManageLabels_Tip}" />
+              </StackPanel>
+            </Grid>
           </StackPanel>
-          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <Button Content="清除标签筛选" Command="{Binding ResetLabelFiltersCommand}"
-                    Classes="CkanSmall" ToolTip.Tip="取消全部标签组筛选" />
-            <Button Content="管理标签..." Command="{Binding ManageLabelsCommand}"
-                    Classes="CkanSmall"
-                    ToolTip.Tip="打开标签组管理对话框" />
-          </StackPanel>
-        </Grid>
+        </Border>
 
         <!-- 组合搜索面板（F-20/F-21）：DataContext 换成面板自身，展开状态与字段都在面板里 -->
         <modsViews:ModsSearchPanelView
@@ -243,8 +305,8 @@
       </StackPanel>
     </Border>
 
-    <!-- 主体区域：左侧表格 Card + 右侧详情 Card；空状态时整块让位给页面级空状态卡 -->
-    <Grid Grid.Row="2" ColumnDefinitions="*,8,400" Margin="0,12,0,0"
+    <!-- 主体区域：左侧表格 Card + 右侧详情 Card；详情卡折叠时表格自动吃满 100% 宽度 -->
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" Margin="0,8,0,0"
           IsVisible="{Binding !ShowEmptyState}">
 
       <!-- 左侧模组列表 Card -->
@@ -267,17 +329,17 @@
             <!-- 右键上下文菜单 -->
             <DataGrid.ContextMenu>
               <ContextMenu>
-                <MenuItem Header="重新安装" Command="{Binding ReinstallSelectedCommand}" IsEnabled="{Binding CanReinstallSelected}" />
+                <MenuItem Header="{DynamicResource Ui_ModsPage_CtxReinstall}" Command="{Binding ReinstallSelectedCommand}" IsEnabled="{Binding CanReinstallSelected}" />
                 <Separator />
-                <MenuItem Header="复制模组标识符" Command="{Binding CopySelectedIdentifierCommand}" />
-                <MenuItem Header="复制下载链接" Command="{Binding CopySelectedDownloadUrlCommand}" />
+                <MenuItem Header="{DynamicResource Ui_ModsPage_CtxCopyModId}" Command="{Binding CopySelectedIdentifierCommand}" />
+                <MenuItem Header="{DynamicResource Ui_ModsPage_CtxCopyDownloadUrl}" Command="{Binding CopySelectedDownloadUrlCommand}" />
                 <Separator />
-                <MenuItem Header="打开主页" Command="{Binding OpenSelectedHomepageCommand}" IsEnabled="{Binding CanOpenHomepage}" />
+                <MenuItem Header="{DynamicResource Ui_ModsPage_CtxOpenHomepage}" Command="{Binding OpenSelectedHomepageCommand}" IsEnabled="{Binding CanOpenHomepage}" />
               </ContextMenu>
             </DataGrid.ContextMenu>
             <DataGrid.Columns>
               <!-- 行首：已装状态指示条 + 变更集复选框 -->
-              <DataGridTemplateColumn Header="选" Width="38" CanUserResize="False">
+              <DataGridTemplateColumn Header="{DynamicResource Ui_Common_CheckCol}" Width="38" CanUserResize="False">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
                     <Grid>
@@ -286,14 +348,14 @@
                       <CheckBox IsChecked="{Binding IsSelected, Mode=OneWay}"
                                 Click="OnSelectionCheckBoxClick"
                                 HorizontalAlignment="Center" VerticalAlignment="Center"
-                                ToolTip.Tip="加入 / 移出变更集（Space）" />
+                                ToolTip.Tip="{DynamicResource Ui_ModsPage_ToggleChange_Tip}" />
                     </Grid>
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
 
               <!-- 名称 + 语义徽章 -->
-              <DataGridTemplateColumn Header="名称" Width="280">
+              <DataGridTemplateColumn Header="{DynamicResource Ui_Common_Name}" Width="280">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
                     <!-- 名称要能省略号截断：横向 StackPanel 以无限宽测量子元素，TextTrimming 会失效。 -->
@@ -302,33 +364,35 @@
                                  ToolTip.Tip="{Binding Name}"
                                  VerticalAlignment="Center" FontWeight="Medium" Margin="0,0,6,0" />
                       <Border Grid.Column="1" Classes="CkanBadge Accent" IsVisible="{Binding ShowUpdateBadge}" Margin="0,0,4,0">
-                        <TextBlock Text="↑ 更新" />
+                        <TextBlock Text="{DynamicResource Ui_ModsPage_TagUpdateAvailable}" />
                       </Border>
                       <Border Grid.Column="2" Classes="CkanBadge" IsVisible="{Binding ShowAutoBadge}" Margin="0,0,4,0">
-                        <TextBlock Text="自动" />
+                        <TextBlock Text="{DynamicResource Ui_ModsPage_TagAutoInstalled}" />
                       </Border>
                       <Border Grid.Column="3" Classes="CkanBadge Info" IsVisible="{Binding ShowDependencyBadge}" Margin="0,0,4,0">
-                        <TextBlock Text="依赖" />
+                        <TextBlock Text="{DynamicResource Ui_ModsPage_TagDependency}" />
                       </Border>
                       <Border Grid.Column="4" Classes="CkanBadge Warning" IsVisible="{Binding ShowIncompatibleBadge}">
-                        <TextBlock Text="⚠ 不兼容" />
+                        <TextBlock Text="{DynamicResource Ui_ModsPage_TagIncompatible}" />
                       </Border>
                     </Grid>
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
 
-              <DataGridTextColumn Header="已装" Width="90"
+              <DataGridTextColumn Header="{DynamicResource Ui_ManageMods_FilterInstalled}" Width="90"
                                   Binding="{Binding InstalledVersionText}" />
-              <DataGridTextColumn Header="最新" Width="90"
+              <DataGridTextColumn Header="{DynamicResource Ui_ModsPage_TagLatest}" Width="90"
                                   Binding="{Binding LatestVersionText}" />
-              <DataGridTextColumn Header="作者" Width="140"
+              <DataGridTextColumn Header="{DynamicResource Ui_ModPackEditor_LabelAuthor}" Width="140"
                                   Binding="{Binding AuthorText}" />
-              <DataGridTextColumn Header="下载量" Width="80"
+              <DataGridTextColumn Header="{DynamicResource Ui_DownloadStatsPage_Downloads}" Width="80"
                                   Binding="{Binding DownloadText}" />
-              <DataGridTextColumn Header="标签" Width="180"
+              <DataGridTextColumn Header="分类" Width="140"
+                                  Binding="{Binding CategoryBadgeText}" />
+              <DataGridTextColumn Header="{DynamicResource Ui_DownloadStats_DimensionTags}" Width="180"
                                   Binding="{Binding TagsText}" />
-              <DataGridTextColumn Header="大小" Width="70"
+              <DataGridTextColumn Header="{DynamicResource Ui_Common_Size}" Width="70"
                                   Binding="{Binding SizeText}" />
             </DataGrid.Columns>
           </DataGrid>
@@ -337,14 +401,15 @@
         </Grid>
       </Border>
 
-      <!-- 拖拽分割条 -->
-      <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
+      <!-- 拖拽分割条：仅当详情面板可见时生效 -->
+      <GridSplitter Grid.Column="1" Width="8" ResizeDirection="Columns"
+                    IsVisible="{Binding IsDetailsPaneVisible}" />
 
-      <!-- 右侧模组详情面板（F-26）：历史选择 + 标签组快开 + 四页签富详情 -->
-      <Border Grid.Column="2" Classes="CkanCard stagger-card" MinWidth="320" MaxWidth="640"
-              IsVisible="{Binding HasInstance}">
+      <!-- 右侧模组详情面板（F-26）：历史选择 + 标签组快开 + 四页签富详情，支持一键折叠收起 -->
+      <Border Grid.Column="2" Classes="CkanCard stagger-card" Width="400" MinWidth="320" MaxWidth="640"
+              IsVisible="{Binding IsDetailsPaneVisible}">
         <DockPanel>
-          <Border DockPanel.Dock="Top" Padding="0,0,0,10" Margin="0,0,0,6"
+          <Border DockPanel.Dock="Top" Padding="0,0,0,8" Margin="0,0,0,6"
                   BorderBrush="{DynamicResource CkanHairlineBrush}" BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="Auto,*,Auto">
               <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
@@ -352,36 +417,44 @@
                         IsEnabled="{Binding CanGoBackSelection}"
                         Classes="CkanSmall"
                         Padding="8,4"
-                        ToolTip.Tip="上一个选中模组"
-                        AutomationProperties.Name="上一个选中模组">
+                        ToolTip.Tip="{DynamicResource Ui_ModsPage_PrevSelected_Tip}"
+                        AutomationProperties.Name="{DynamicResource Ui_ModsPage_PrevSelected_Tip}">
                   <PathIcon Width="11" Height="11" Data="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
                 </Button>
                 <Button Command="{Binding GoForwardSelectionCommand}"
                         IsEnabled="{Binding CanGoForwardSelection}"
                         Classes="CkanSmall"
                         Padding="8,4"
-                        ToolTip.Tip="下一个选中模组"
-                        AutomationProperties.Name="下一个选中模组">
+                        ToolTip.Tip="{DynamicResource Ui_ModsPage_NextSelected_Tip}"
+                        AutomationProperties.Name="{DynamicResource Ui_ModsPage_NextSelected_Tip}">
                   <PathIcon Width="11" Height="11" Data="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
                 </Button>
               </StackPanel>
-              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
-                          IsVisible="{Binding HasLabelService}">
-                <ToggleButton Classes="CkanPill"
-                              Classes.is-active="{Binding DetailIsFavourite}"
-                              Content="收藏"
-                              Command="{Binding ToggleFavouriteCommand}"
-                              ToolTip.Tip="加入 / 移出收藏标签组" />
-                <ToggleButton Classes="CkanPill"
-                              Classes.is-active="{Binding DetailIsHidden}"
-                              Content="隐藏"
-                              Command="{Binding ToggleHiddenCommand}"
-                              ToolTip.Tip="加入 / 移出隐藏标签组（隐藏组默认不在其它过滤器里显示）" />
-                <ToggleButton Classes="CkanPill"
-                              Classes.is-active="{Binding DetailIsHeld}"
-                              Content="锁定版本"
-                              Command="{Binding ToggleHeldCommand}"
-                              ToolTip.Tip="加入 / 移出锁定版本标签组（不参与升级）" />
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasLabelService}">
+                  <ToggleButton Classes="CkanPill"
+                                Classes.is-active="{Binding DetailIsFavourite}"
+                                Content="{DynamicResource Ui_ManageMods_LabelFavourite}"
+                                Command="{Binding ToggleFavouriteCommand}"
+                                ToolTip.Tip="{DynamicResource Ui_ModsPage_ToggleFavorite_Tip}" />
+                  <ToggleButton Classes="CkanPill"
+                                Classes.is-active="{Binding DetailIsHidden}"
+                                Content="{DynamicResource Ui_ManageMods_LabelHidden}"
+                                Command="{Binding ToggleHiddenCommand}"
+                                ToolTip.Tip="{DynamicResource Ui_ModsPage_ToggleHidden_Tip}" />
+                  <ToggleButton Classes="CkanPill"
+                                Classes.is-active="{Binding DetailIsHeld}"
+                                Content="{DynamicResource Ui_ManageMods_LabelHeld}"
+                                Command="{Binding ToggleHeldCommand}"
+                                ToolTip.Tip="{DynamicResource Ui_ModsPage_ToggleHoldVersion_Tip}" />
+                </StackPanel>
+                <Button Classes="CkanIcon" Command="{Binding ToggleDetailsPaneCommand}"
+                        Margin="4,0,0,0"
+                        ToolTip.Tip="{DynamicResource Ui_ModsPage_CollapseDetails_Tip}"
+                        AutomationProperties.Name="{DynamicResource Ui_ModsPage_CollapseDetails_Name}">
+                  <PathIcon Width="11" Height="11"
+                            Data="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                </Button>
               </StackPanel>
             </Grid>
           </Border>
@@ -426,11 +499,11 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
         <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" Margin="0,8,0,0">
-          <Button Content="清除过滤条件" Command="{Binding ResetFiltersCommand}"
+          <Button Content="{DynamicResource Ui_ModsPage_ClearFiltersBtn}" Command="{Binding ResetFiltersCommand}"
                   Classes="CkanSecondary" IsVisible="{Binding HasInstance}" />
-          <Button Content="立即刷新" Command="{Binding RefreshRepositoriesCommand}"
+          <Button Content="{DynamicResource Ui_Common_RefreshNow}" Command="{Binding RefreshRepositoriesCommand}"
                   Classes="CkanPrimary" IsVisible="{Binding CanRefreshFromEmptyState}" />
-          <Button Content="添加 KSP 实例"
+          <Button Content="{DynamicResource Ui_DedupPage_AddInstance}"
                   Command="{Binding $parent[Window].DataContext.NavigateCommand}"
                   CommandParameter="instances"
                   Classes="CkanPrimary" IsVisible="{Binding !HasInstance}" />
@@ -442,14 +515,14 @@
           <Button Grid.Column="0" Classes="CkanGuide"
                   Command="{Binding $parent[Window].DataContext.NavigateCommand}"
                   CommandParameter="instances"
-                  ToolTip.Tip="到「实例」页点「从 Steam 库导入」，自动登记本机所有 KSP 安装">
+                  ToolTip.Tip="{DynamicResource Ui_ModsPage_ImportSteamHint_Tip}">
             <Grid ColumnDefinitions="*,Auto">
               <StackPanel Grid.Column="0" Spacing="7">
                 <Border Classes="CkanIconTile">
                   <PathIcon Data="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z" />
                 </Border>
-                <TextBlock Classes="GuideTitle" Text="自动扫描本机安装" />
-                <TextBlock Classes="GuideDesc" Text="读 Steam 库里的 KSP 目录，一次登记完成。" />
+                <TextBlock Classes="GuideTitle" Text="{DynamicResource Ui_ModsPage_ScanSteamTitle}" />
+                <TextBlock Classes="GuideDesc" Text="{DynamicResource Ui_ModsPage_ScanSteamSubtitle}" />
               </StackPanel>
               <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
                         Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
@@ -458,14 +531,14 @@
           <Button Grid.Column="2" Classes="CkanGuide"
                   Command="{Binding $parent[Window].DataContext.NavigateCommand}"
                   CommandParameter="instances"
-                  ToolTip.Tip="到「实例」页点「手动添加目录」，直接指向 KSP 根目录">
+                  ToolTip.Tip="{DynamicResource Ui_ModsPage_AddManualHint_Tip}">
             <Grid ColumnDefinitions="*,Auto">
               <StackPanel Grid.Column="0" Spacing="7">
                 <Border Classes="CkanIconTile">
                   <PathIcon Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                 </Border>
-                <TextBlock Classes="GuideTitle" Text="手动选择目录" />
-                <TextBlock Classes="GuideDesc" Text="已知安装路径？直接指向 KSP 根目录即可。" />
+                <TextBlock Classes="GuideTitle" Text="{DynamicResource Ui_ModsPage_AddManualTitle}" />
+                <TextBlock Classes="GuideDesc" Text="{DynamicResource Ui_ModsPage_KnownPathHint}" />
               </StackPanel>
               <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
                         Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
@@ -474,14 +547,14 @@
           <Button Grid.Column="4" Classes="CkanGuide"
                   Command="{Binding $parent[Window].DataContext.NavigateCommand}"
                   CommandParameter="modpacks"
-                  ToolTip.Tip="到「导入导出」页把 .ckan 模组列表导入进来">
+                  ToolTip.Tip="{DynamicResource Ui_ModsPage_ImportPackHint_Tip}">
             <Grid ColumnDefinitions="*,Auto">
               <StackPanel Grid.Column="0" Spacing="7">
                 <Border Classes="CkanIconTile Muted">
                   <PathIcon Data="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm0 2.5L18.5 9H14V4.5zM6 20V4h6v6h6v10H6z" />
                 </Border>
-                <TextBlock Classes="GuideTitle" Text="导入 Modpack" />
-                <TextBlock Classes="GuideDesc" Text="已经有一份 .ckan？先导入列表再装模组。" />
+                <TextBlock Classes="GuideTitle" Text="{DynamicResource Ui_ModsPage_ImportPackTitle}" />
+                <TextBlock Classes="GuideDesc" Text="{DynamicResource Ui_ModsPage_ImportPackSubtitle}" />
               </StackPanel>
               <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
                         Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
@@ -492,8 +565,8 @@
       </Panel>
     </Border>
 
-    <!-- 底部状态与操作栏 -->
-    <Border Grid.Row="3" Classes="CkanPageFooter" Margin="0,12,0,0" Padding="12,8"
+    <!-- 底部状态与操作栏：紧凑边距，释放更多垂直表格高度 -->
+    <Border Grid.Row="3" Classes="CkanPageFooter" Margin="0,6,0,0" Padding="10,6"
             IsVisible="{Binding HasInstance}">
     <Grid ColumnDefinitions="*,Auto">
       <TextBlock Grid.Column="0" Text="{Binding StatusText}" Classes="CkanCaption"
@@ -505,13 +578,13 @@
         <Button Command="{Binding PreviewChangesCommand}" Classes="CkanSecondary">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <PathIcon Width="12" Height="12" Data="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
-            <TextBlock Text="预览变更" VerticalAlignment="Center" />
+            <TextBlock Text="{DynamicResource Ui_ModsPage_PreviewChanges}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <Button Command="{Binding ReviewChangesCommand}" Classes="CkanPrimary">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <PathIcon Width="12" Height="12" Data="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z" />
-            <TextBlock Text="去变更集" VerticalAlignment="Center" />
+            <TextBlock Text="{DynamicResource Ui_ModsPage_GoToChangesPage}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
       </StackPanel>

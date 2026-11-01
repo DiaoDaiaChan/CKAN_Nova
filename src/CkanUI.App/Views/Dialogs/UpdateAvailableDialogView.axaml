@@ -38,10 +38,18 @@
                 CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
                 Padding="8">
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <SelectableTextBlock Text="{Binding ReleaseNotes, TargetNullValue='暂无更新日志说明。'}"
-                                     FontSize="{DynamicResource CkanFontSizeBody}"
-                                     Foreground="{DynamicResource CkanTextPrimaryBrush}"
-                                     TextWrapping="Wrap" />
+                <Panel>
+                    <TextBlock Text="{DynamicResource Ui_UpdateAvailableDialog_NoReleaseNotes}"
+                               IsVisible="{Binding ReleaseNotes, Converter={x:Static StringConverters.IsNullOrEmpty}}"
+                               FontSize="{DynamicResource CkanFontSizeBody}"
+                               Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                               TextWrapping="Wrap" />
+                    <SelectableTextBlock Text="{Binding ReleaseNotes}"
+                                         IsVisible="{Binding ReleaseNotes, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                         FontSize="{DynamicResource CkanFontSizeBody}"
+                                         Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                                         TextWrapping="Wrap" />
+                </Panel>
             </ScrollViewer>
         </Border>
 
@@ -81,7 +89,7 @@
                 </StackPanel>
             </Border>
 
-            <TextBlock Text="更新包已就位，请重启应用以完成更新。"
+            <TextBlock Text="{DynamicResource Ui_UpdateAvailableDialog_Subtitle}"
                        IsVisible="{Binding HasRestartHint}"
                        Foreground="{DynamicResource CkanSuccessBrush}"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
@@ -98,27 +106,30 @@
 
         <!-- 底部操作按钮 -->
         <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,16,0,0">
-            <TextBlock Grid.Column="0"
-                       VerticalAlignment="Center"
-                       Text="{Binding LatestVersion, StringFormat='新版本: {0}'}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                       FontSize="{DynamicResource CkanFontSizeCaption}" />
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="{DynamicResource Ui_UpdateAvailableDialog_NewVersionPrefix}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}" />
+                <TextBlock Text="{Binding LatestVersion}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}" />
+            </StackPanel>
 
             <Button Grid.Column="1"
-                    Content="安装此更新"
+                    Content="{DynamicResource Ui_UpdateAvailableDialog_InstallUpdate}"
                     Command="{Binding InstallCommand}"
                     IsEnabled="{Binding CanInstall}"
-                    ToolTip.Tip="下载更新包并校验 SHA256，替换前自动备份旧文件；失败会自动回滚"
+                    ToolTip.Tip="{DynamicResource Ui_UpdateAvailableDialog_InstallUpdate_Tip}"
                     Margin="0,0,8,0" />
 
             <Button Grid.Column="2"
-                    Content="取消安装"
+                    Content="{DynamicResource Ui_UpdateAvailableDialog_CancelInstall}"
                     Command="{Binding CancelInstallCommand}"
                     IsVisible="{Binding CanCancelInstall}"
                     Margin="0,0,8,0" />
 
             <Button Grid.Column="3"
-                    Content="前往下载 / 查看 Release"
+                    Content="{DynamicResource Ui_UpdateAvailableDialog_OpenRelease}"
                     Command="{Binding OpenReleaseUrlCommand}"
                     Margin="0,0,8,0" />
 

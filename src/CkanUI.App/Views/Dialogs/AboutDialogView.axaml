@@ -27,7 +27,7 @@
             <TextBlock Text="GUI" />
           </Border>
         </StackPanel>
-        <TextBlock Text="The Comprehensive Kerbal Archive Network"
+        <TextBlock Text="{DynamicResource Ui_About_NetworkSubtitle}"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
       </StackPanel>

@@ -12,13 +12,13 @@
     <StackPanel Grid.Row="0" Spacing="12">
     <StackPanel Spacing="4">
       <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-        <TextBlock Text="游戏实例" Classes="CkanPageTitle" VerticalAlignment="Center" />
+        <TextBlock Text="{DynamicResource Ui_InstancesPage_Title}" Classes="CkanPageTitle" VerticalAlignment="Center" />
         <Button Classes="CkanHelper" VerticalAlignment="Center"
-                ToolTip.Tip="同一时刻只有一个当前实例；「遗忘此实例」只移除实例记录，不会删除游戏文件。">
+                ToolTip.Tip="{DynamicResource Ui_InstancesPage_Header_Tip}">
           <PathIcon Data="{StaticResource CkanIconHelp}" />
         </Button>
       </StackPanel>
-      <TextBlock Text="多份 KSP 安装的注册与切换" Classes="CkanCaption" TextWrapping="Wrap" />
+      <TextBlock Text="{DynamicResource Ui_InstancesPage_Subtitle}" Classes="CkanCaption" TextWrapping="Wrap" />
     </StackPanel>
     <Border Padding="4,2" CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
             Background="{DynamicResource CkanCardBackgroundBrush}"
@@ -28,33 +28,33 @@
       <ui:FACommandBar DefaultLabelPosition="Right" ItemsAlignment="Left" OverflowButtonVisibility="Auto"
                        Background="Transparent" BorderThickness="0">
         <ui:FACommandBar.PrimaryCommands>
-          <ui:FACommandBarButton IconSource="Add" Label="添加实例" Command="{Binding AddCommand}"
-                                 ToolTip.Tip="选择一个 KSP 安装目录并注册为实例" />
-          <ui:FACommandBarButton IconSource="Download" Label="从 Steam 库导入" Command="{Binding ImportFromSteamCommand}"
-                                 ToolTip.Tip="扫描 Steam 库中的 KSP 安装目录" />
-          <ui:FACommandBarButton IconSource="Refresh" Label="刷新" Command="{Binding RefreshCommand}"
-                                 ToolTip.Tip="重新扫描实例列表（F5）" />
+          <ui:FACommandBarButton IconSource="Add" Label="{DynamicResource Ui_Instances_EmptyAction}" Command="{Binding AddCommand}"
+                                 ToolTip.Tip="{DynamicResource Ui_InstancesPage_AddDirectory_Tip}" />
+          <ui:FACommandBarButton IconSource="Download" Label="{DynamicResource Ui_Instances_SteamDialogTitle}" Command="{Binding ImportFromSteamCommand}"
+                                 ToolTip.Tip="{DynamicResource Ui_InstancesPage_ScanSteam_Tip}" />
+          <ui:FACommandBarButton IconSource="Refresh" Label="{DynamicResource Ui_Common_Refresh}" Command="{Binding RefreshCommand}"
+                                 ToolTip.Tip="{DynamicResource Ui_InstancesPage_Refresh_Tip}" />
           <ui:FACommandBarSeparator />
-          <ui:FACommandBarButton IconSource="Accept" Label="设为当前" Command="{Binding SwitchCommand}"
+          <ui:FACommandBarButton IconSource="Accept" Label="{DynamicResource Ui_InstancesPage_SetCurrentShort}" Command="{Binding SwitchCommand}"
                                  IsEnabled="{Binding CanSwitchSelected}"
-                                 ToolTip.Tip="切换当前游戏实例（不可并发）" />
-          <ui:FACommandBarButton IconSource="Play" Label="启动游戏" Command="{Binding LaunchCommand}"
+                                 ToolTip.Tip="{DynamicResource Ui_InstancesPage_SetCurrent_Tip}" />
+          <ui:FACommandBarButton IconSource="Play" Label="{DynamicResource Ui_InstancesPage_LaunchGame}" Command="{Binding LaunchCommand}"
                                  IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="{Binding LaunchToolTip}" />
         </ui:FACommandBar.PrimaryCommands>
         <ui:FACommandBar.SecondaryCommands>
-          <ui:FACommandBarButton IconSource="Copy" Label="克隆此实例" Command="{Binding BeginCloneCommand}"
-                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="复制该实例的游戏目录为新实例" />
-          <ui:FACommandBarButton IconSource="Rename" Label="重命名" Command="{Binding BeginRenameCommand}"
-                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="只改实例记录中的名称" />
-          <ui:FACommandBarButton IconSource="OpenFolder" Label="打开游戏目录" Command="{Binding OpenFolderCommand}"
-                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="在文件管理器中打开游戏目录" />
-          <ui:FACommandBarButton IconSource="Edit" Label="编辑启动命令" Command="{Binding EditCommandsCommand}"
-                                 IsEnabled="{Binding CanEditCommands}" ToolTip.Tip="编辑该实例的启动命令列表" />
+          <ui:FACommandBarButton IconSource="Copy" Label="{DynamicResource Ui_InstancesPage_CloneInstance}" Command="{Binding BeginCloneCommand}"
+                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="{DynamicResource Ui_InstancesPage_Clone_Tip}" />
+          <ui:FACommandBarButton IconSource="Rename" Label="{DynamicResource Ui_InstancesPage_RenameShort}" Command="{Binding BeginRenameCommand}"
+                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="{DynamicResource Ui_InstancesPage_Rename_Tip}" />
+          <ui:FACommandBarButton IconSource="OpenFolder" Label="{DynamicResource Ui_InstancesPage_OpenGameDir}" Command="{Binding OpenFolderCommand}"
+                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="{DynamicResource Ui_InstancesPage_OpenDirectory_Tip}" />
+          <ui:FACommandBarButton IconSource="Edit" Label="{DynamicResource Ui_InstancesPage_EditLaunchCommands}" Command="{Binding EditCommandsCommand}"
+                                 IsEnabled="{Binding CanEditCommands}" ToolTip.Tip="{DynamicResource Ui_InstancesPage_EditLaunchCmds_Tip}" />
           <ui:FACommandBarSeparator />
-          <ui:FACommandBarButton IconSource="Repair" Label="实例自检" Command="{Binding DiagnoseCommand}"
-                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="只读检查锁、注册表与版本兼容性" />
-          <ui:FACommandBarButton IconSource="Delete" Label="遗忘此实例" Command="{Binding ForgetCommand}"
-                                 IsEnabled="{Binding CanForgetSelected}" ToolTip.Tip="只移除实例记录，不会删除游戏文件" />
+          <ui:FACommandBarButton IconSource="Repair" Label="{DynamicResource Ui_InstancesPage_InstanceAuditTitle}" Command="{Binding DiagnoseCommand}"
+                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="{DynamicResource Ui_InstancesPage_SelfCheck_Tip}" />
+          <ui:FACommandBarButton IconSource="Delete" Label="{DynamicResource Ui_InstancesPage_ForgetInstance}" Command="{Binding ForgetCommand}"
+                                 IsEnabled="{Binding CanForgetSelected}" ToolTip.Tip="{DynamicResource Ui_InstancesPage_Forget_Tip}" />
         </ui:FACommandBar.SecondaryCommands>
       </ui:FACommandBar>
     </Border>
@@ -77,7 +77,7 @@
           <TextBlock Text="{Binding ErrorDetail}" Foreground="{DynamicResource CkanDangerBrush}" Opacity="0.85"
                      FontSize="{DynamicResource CkanFontSizeCaption}" TextWrapping="Wrap" IsVisible="{Binding HasErrorDetail}" MaxHeight="48" />
         </StackPanel>
-        <Button Grid.Column="2" Content="关闭" Command="{Binding ClearErrorCommand}"
+        <Button Grid.Column="2" Content="{DynamicResource Ui_Cmd_Shortcuts_Close}" Command="{Binding ClearErrorCommand}"
                 Classes="CkanSmall" Margin="12,0,0,0"
                 VerticalAlignment="Center" />
       </Grid>
@@ -116,42 +116,42 @@
             <!-- 三条入口卡片：把"黑洞"填成可选动作，每张都能直接点 -->
             <Grid ColumnDefinitions="*,10,*,10,*">
               <Button Grid.Column="0" Classes="CkanGuide" Command="{Binding ImportFromSteamCommand}"
-                      ToolTip.Tip="扫描 Steam 库里的 KSP 安装目录并登记为实例。CKAN 只读取版本号与已装模组数量，不会修改任何游戏文件。">
+                      ToolTip.Tip="{DynamicResource Ui_InstancesPage_ScanSteamCard_Tip}">
                 <Grid ColumnDefinitions="*,Auto">
                   <StackPanel Grid.Column="0" Spacing="7">
                     <Border Classes="CkanIconTile">
                       <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
                     </Border>
-                    <TextBlock Classes="GuideTitle" Text="从 Steam 库导入" />
-                    <TextBlock Classes="GuideDesc" Text="自动找出本机所有 KSP 安装，一次登记完成。" />
+                    <TextBlock Classes="GuideTitle" Text="{DynamicResource Ui_Instances_SteamDialogTitle}" />
+                    <TextBlock Classes="GuideDesc" Text="{DynamicResource Ui_InstancesPage_ScanSteamCardSubtitle}" />
                   </StackPanel>
                   <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
                             Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
                 </Grid>
               </Button>
               <Button Grid.Column="2" Classes="CkanGuide" Command="{Binding AddCommand}"
-                      ToolTip.Tip="手动选择一个 KSP 安装目录。">
+                      ToolTip.Tip="{DynamicResource Ui_InstancesPage_AddManualCard_Tip}">
                 <Grid ColumnDefinitions="*,Auto">
                   <StackPanel Grid.Column="0" Spacing="7">
                     <Border Classes="CkanIconTile">
                       <PathIcon Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                     </Border>
-                    <TextBlock Classes="GuideTitle" Text="手动添加目录" />
-                    <TextBlock Classes="GuideDesc" Text="已知安装路径？直接指向 KSP 根目录即可。" />
+                    <TextBlock Classes="GuideTitle" Text="{DynamicResource Ui_InstancesPage_AddManual}" />
+                    <TextBlock Classes="GuideDesc" Text="{DynamicResource Ui_ModsPage_KnownPathHint}" />
                   </StackPanel>
                   <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
                             Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
                 </Grid>
               </Button>
               <Button Grid.Column="4" Classes="CkanGuide" Command="{Binding RefreshCommand}"
-                      ToolTip.Tip="重新扫描本机实例（F5）。">
+                      ToolTip.Tip="{DynamicResource Ui_InstancesPage_RefreshListCard_Tip}">
                 <Grid ColumnDefinitions="*,Auto">
                   <StackPanel Grid.Column="0" Spacing="7">
                     <Border Classes="CkanIconTile Muted">
                       <PathIcon Data="M17.65 6.35A7.958 7.958 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
                     </Border>
-                    <TextBlock Classes="GuideTitle" Text="刷新列表" />
-                    <TextBlock Classes="GuideDesc" Text="已经装过？刷新一次就能把现有实例读回来。" />
+                    <TextBlock Classes="GuideTitle" Text="{DynamicResource Ui_InstancesPage_RefreshList}" />
+                    <TextBlock Classes="GuideDesc" Text="{DynamicResource Ui_InstancesPage_RefreshListCardSubtitle}" />
                   </StackPanel>
                   <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
                             Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
@@ -186,11 +186,11 @@
                     BorderBrush="{DynamicResource CkanBorderBrush}"
                     BorderThickness="0,0,0,1">
               <Grid ColumnDefinitions="3,*,104,64,104,84">
-                <TextBlock Grid.Column="1" Text="名称" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="2" Text="游戏版本" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="3" Text="模组数" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="4" Text="锁定" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="5" Text="状态" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="1" Text="{DynamicResource Ui_Common_Name}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="2" Text="{DynamicResource Ui_Common_GameVersion}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="3" Text="{DynamicResource Ui_DownloadStatsPage_ModCount}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="4" Text="{DynamicResource Ui_InstancesPage_LockedBadge}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="5" Text="{DynamicResource Ui_Common_Status}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
               </Grid>
             </Border>
 
@@ -217,11 +217,11 @@
                                  ToolTip.Tip="{Binding Name}"
                                  VerticalAlignment="Center" FontWeight="Medium" Margin="0,0,6,0" />
                       <Border Grid.Column="1" Classes="CkanBadge Accent" IsVisible="{Binding IsDefault}" Margin="0,0,4,0">
-                        <TextBlock Text="默认" />
+                        <TextBlock Text="{DynamicResource Ui_InstancesPage_DefaultBadge}" />
                       </Border>
                       <!-- 异常态：目录不存在 -->
                       <Border Grid.Column="2" Classes="CkanBadge Danger" IsVisible="{Binding IsPathMissing}">
-                        <TextBlock Text="⚠ 目录不存在" />
+                        <TextBlock Text="{DynamicResource Ui_InstancesPage_DirectoryMissingBadge}" />
                       </Border>
                     </Grid>
                     <TextBlock Grid.Column="2" Text="{Binding VersionText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
@@ -263,9 +263,9 @@
                         HorizontalAlignment="Center" VerticalAlignment="Center"
                         Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
             </Border>
-            <TextBlock Text="未选择实例" FontWeight="SemiBold" FontSize="{DynamicResource CkanFontSizeSubtitle}"
+            <TextBlock Text="{DynamicResource Ui_Instances_SelectionNone}" FontWeight="SemiBold" FontSize="{DynamicResource CkanFontSizeSubtitle}"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" HorizontalAlignment="Center" />
-            <TextBlock Text="在左侧列表中选择一个实例，即可查看详情或启动游戏"
+            <TextBlock Text="{DynamicResource Ui_InstancesPage_SelectInstanceHint}"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}"
                        TextAlignment="Center" TextWrapping="Wrap" />
@@ -281,35 +281,47 @@
             <TextBlock Text="{Binding SelectionRoleText}" FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextTertiaryBrush}" />
             <Separator Margin="0,4" Background="{DynamicResource CkanBorderBrush}" Height="1" />
-            <TextBlock Text="{Binding SelectionVersionText, StringFormat='游戏版本：{0}'}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Text="{Binding SelectionModuleText, StringFormat='已装模组：{0}'}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Text="{Binding SelectionLockText, StringFormat='锁状态：{0}'}" TextWrapping="Wrap" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Text="{Binding SelectionPath, StringFormat='游戏目录：{0}'}" TextWrapping="Wrap" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <StackPanel Orientation="Horizontal" Spacing="2">
+              <TextBlock Text="{DynamicResource Ui_InstancesPage_SelectionGameVersion}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Text="{Binding SelectionVersionText}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="2">
+              <TextBlock Text="{DynamicResource Ui_InstancesPage_SelectionInstalledMods}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Text="{Binding SelectionModuleText}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="2">
+              <TextBlock Text="{DynamicResource Ui_InstancesPage_SelectionLockStatus}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Text="{Binding SelectionLockText}" TextWrapping="Wrap" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="2">
+              <TextBlock Text="{DynamicResource Ui_InstancesPage_SelectionGamePath}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Text="{Binding SelectionPath}" TextWrapping="Wrap" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </StackPanel>
             <TextBlock Text="{Binding SelectionPathStatus}" FontSize="12" TextWrapping="Wrap"
                        Foreground="{DynamicResource CkanDangerBrush}" />
             <Separator Margin="0,6" Background="{DynamicResource CkanBorderBrush}" Height="1" />
             <StackPanel Spacing="8">
               <!-- 主操作：常显两个，其余收进官方 FAMenuFlyout -->
               <Grid ColumnDefinitions="*,8,Auto">
-                <Button Grid.Column="0" Content="启动游戏" Command="{Binding LaunchCommand}"
+                <Button Grid.Column="0" Content="{DynamicResource Ui_InstancesPage_LaunchGame}" Command="{Binding LaunchCommand}"
                         IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Center" Classes="CkanPrimary"
                         ToolTip.Tip="{Binding LaunchToolTip}" />
-                <Button Grid.Column="2" Content="更多操作" Classes="CkanSecondary" HorizontalContentAlignment="Center">
+                <Button Grid.Column="2" Content="{DynamicResource Ui_InstancesPage_MoreActions}" Classes="CkanSecondary" HorizontalContentAlignment="Center">
                   <Button.Flyout>
                     <ui:FAMenuFlyout Placement="Bottom">
-                      <ui:FAMenuFlyoutItem Text="设为当前实例" IconSource="Accept"
+                      <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_InstancesPage_SetAsCurrent}" IconSource="Accept"
                                           Command="{Binding SwitchCommand}" />
-                      <ui:FAMenuFlyoutItem Text="克隆此实例" IconSource="Copy"
+                      <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_InstancesPage_CloneInstance}" IconSource="Copy"
                                           Command="{Binding BeginCloneCommand}" />
-                      <ui:FAMenuFlyoutItem Text="重命名此实例" IconSource="Rename"
+                      <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_InstancesPage_RenameInstance}" IconSource="Rename"
                                           Command="{Binding BeginRenameCommand}" />
-                      <ui:FAMenuFlyoutItem Text="打开游戏目录" IconSource="OpenFolder"
+                      <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_InstancesPage_OpenGameDir}" IconSource="OpenFolder"
                                           Command="{Binding OpenFolderCommand}" />
-                      <ui:FAMenuFlyoutItem Text="编辑启动命令" IconSource="Edit"
+                      <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_InstancesPage_EditLaunchCommands}" IconSource="Edit"
                                           Command="{Binding EditCommandsCommand}" />
                       <ui:FAMenuFlyoutSeparator />
-                      <ui:FAMenuFlyoutItem Text="遗忘此实例" IconSource="Delete"
+                      <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_InstancesPage_ForgetInstance}" IconSource="Delete"
                                           Command="{Binding ForgetCommand}" />
                     </ui:FAMenuFlyout>
                   </Button.Flyout>
@@ -319,13 +331,13 @@
             <!-- 实例自检与故障处置（F-08）：锁探测 / 强制解锁 / 坏注册表隔离 -->
             <Separator Margin="0,6" Background="{DynamicResource CkanBorderBrush}" Height="1" />
             <StackPanel Spacing="6">
-              <TextBlock Text="实例自检" FontSize="{DynamicResource CkanFontSizeCaption}" FontWeight="SemiBold"
+              <TextBlock Text="{DynamicResource Ui_InstancesPage_InstanceAuditTitle}" FontSize="{DynamicResource CkanFontSizeCaption}" FontWeight="SemiBold"
                          Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-              <Button Content="自检（锁与注册表）" Command="{Binding DiagnoseCommand}"
+              <Button Content="{DynamicResource Ui_InstancesPage_SelfCheckBtn}" Command="{Binding DiagnoseCommand}"
                       IsEnabled="{Binding CanOpenSelected}" HorizontalAlignment="Stretch"
                       HorizontalContentAlignment="Center"
                       Classes="CkanSecondary" Padding="10,6"
-                      ToolTip.Tip="只读检查：实例是否被锁定、registry.json 能否解析、CKAN 与游戏版本是否过旧" />
+                      ToolTip.Tip="{DynamicResource Ui_InstancesPage_AuditReadOnly_Tip}" />
               <TextBlock Text="{Binding DiagnosisSummary}" FontSize="11" TextWrapping="Wrap"
                          Foreground="{DynamicResource CkanTextTertiaryBrush}" />
               <ItemsControl ItemsSource="{Binding RepairIssues}" IsVisible="{Binding HasRepairIssues}">
@@ -345,16 +357,16 @@
               </ItemsControl>
               <TextBlock Text="{Binding RepairAdvice}" IsVisible="{Binding HasRepairIssues}"
                          FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource CkanAccentBrush}" />
-              <Button Content="强制解锁（游戏未运行）" Command="{Binding ForceUnlockCommand}"
+              <Button Content="{DynamicResource Ui_InstancesPage_ForceUnlock}" Command="{Binding ForceUnlockCommand}"
                       IsEnabled="{Binding CanForceUnlock}" HorizontalAlignment="Stretch"
                       HorizontalContentAlignment="Center"
                       Classes="CkanDanger" Padding="10,6"
-                      ToolTip.Tip="删除 CKAN/registry.locked 并把操作写入本地记录；不会动注册表、模组与存档" />
-              <Button Content="隔离损坏的注册表" Command="{Binding QuarantineRegistryCommand}"
+                      ToolTip.Tip="{DynamicResource Ui_InstancesPage_ForceUnlock_Tip}" />
+              <Button Content="{DynamicResource Ui_Instances_IsolateTitle}" Command="{Binding QuarantineRegistryCommand}"
                       IsEnabled="{Binding CanQuarantineRegistry}" HorizontalAlignment="Stretch"
                       HorizontalContentAlignment="Center"
                       Classes="CkanSecondary" Padding="10,6"
-                      ToolTip.Tip="把解析不了的 registry.json 改名成 registry.json.corrupt-时间戳（内容保留）" />
+                      ToolTip.Tip="{DynamicResource Ui_InstancesPage_RecoverData_Tip}" />
             </StackPanel>
             <Separator Margin="0,6" Background="{DynamicResource CkanBorderBrush}" Height="1" />
             <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource CkanTextTertiaryBrush}"
@@ -381,7 +393,7 @@
               ToolTip.Tip="{Binding TrimModeHint}">
         <TextBlock Text="{Binding TrimModeText}" />
       </Border>
-      <Button Grid.Column="4" Classes="CkanGhost CkanSmall" Content="恢复数据" Margin="8,0,0,0"
+      <Button Grid.Column="4" Classes="CkanGhost CkanSmall" Content="{DynamicResource Ui_InstancesPage_RecoverData}" Margin="8,0,0,0"
               Command="{Binding RestoreTrimModeCommand}" IsVisible="{Binding IsTrimMode}"
               ToolTip.Tip="{Binding TrimModeHint}" />
       <TextBlock Grid.Column="5" Text="{Binding StatusText}" FontSize="12" Margin="14,0,0,0"

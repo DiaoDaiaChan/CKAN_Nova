@@ -66,6 +66,7 @@ public static class DefaultCommands
     {
         new("show-palette", "Ui_Cmd_Action_ShowPalette", new[] { "命令", "command", "palette", "搜索", "跳转" }, PaletteShortcut, false),
         new("show-shortcuts", "Ui_Cmd_Action_ShowShortcuts", new[] { "快捷键", "shortcut", "shortcuts", "键位" }, ShortcutsShortcut, false),
+        new("open-onboarding-guide", "Ui_Cmd_Action_OpenOnboardingGuide", new[] { "指引", "引导", "新手", "高亮", "帮助", "guide", "onboarding", "tour" }, "F1", false),
         new("go-back", "Ui_Cmd_Action_GoBack", new[] { "后退", "back", "返回" }, "", false),
         new("go-forward", "Ui_Cmd_Action_GoForward", new[] { "前进", "forward" }, "", false),
         new("open-instance-folder", "Ui_Cmd_Action_OpenInstanceFolder", new[] { "打开", "目录", "folder", "实例" }, "", true),
@@ -199,6 +200,7 @@ public static class DefaultCommands
         ["Ui_NavRail_ModConfig"] = "Mod 配置",
         ["Ui_Cmd_Action_ShowPalette"] = "命令面板",
         ["Ui_Cmd_Action_ShowShortcuts"] = "快捷键目录",
+        ["Ui_Cmd_Action_OpenOnboardingGuide"] = "功能指引",
         ["Ui_Cmd_Action_GoBack"] = "后退",
         ["Ui_Cmd_Action_GoForward"] = "前进",
         ["Ui_Cmd_Action_OpenInstanceFolder"] = "打开游戏实例目录",

@@ -39,8 +39,7 @@ public sealed class MotionSkeletonTests
     {
         var xaml = Read("src", "CkanUI.App", "MainWindow.axaml");
 
-        Assert.That(xaml, Does.Contain("ToggleLogDrawerCommand"), "状态栏中段是日志抽屉的开关入口");
-        Assert.That(xaml, Does.Contain("LogStatusText"));
+        Assert.That(xaml, Does.Contain("StatusBarTaskPillButton"), "状态栏右侧直接嵌入后台任务微件");
         Assert.That(xaml, Does.Contain("x:Name=\"StatusVersionText\""));
         Assert.That(xaml, Does.Contain("RowDefinitions=\"*,28\""), "三明治结构：内容 + 固定 28px 状态栏");
     }

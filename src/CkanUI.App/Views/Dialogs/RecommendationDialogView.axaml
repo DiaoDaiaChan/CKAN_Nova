@@ -22,11 +22,11 @@
                  Foreground="{DynamicResource CkanTextSecondaryBrush}"
                  FontSize="{DynamicResource CkanFontSizeCaption}" />
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-        <Button Content="全选"
+        <Button Content="{DynamicResource Ui_Common_SelectAll}"
                 Command="{Binding CheckAllCommand}"
                 MinWidth="72"
                 HorizontalContentAlignment="Center" />
-        <Button Content="全不选"
+        <Button Content="{DynamicResource Ui_Common_SelectNone}"
                 Command="{Binding UncheckAllCommand}"
                 MinWidth="72"
                 HorizontalContentAlignment="Center" />
@@ -53,11 +53,11 @@
                                VerticalAlignment="Center"
                                Foreground="{DynamicResource CkanTextSecondaryBrush}"
                                FontSize="{DynamicResource CkanFontSizeCaption}" />
-                    <Button Content="全选"
+                    <Button Content="{DynamicResource Ui_Common_SelectAll}"
                             Command="{Binding SelectAllCommand}"
                             MinWidth="56"
                             HorizontalContentAlignment="Center" />
-                    <Button Content="全不选"
+                    <Button Content="{DynamicResource Ui_Common_SelectNone}"
                             Command="{Binding ClearSelectionCommand}"
                             MinWidth="56"
                             HorizontalContentAlignment="Center" />
@@ -116,7 +116,7 @@
     </StackPanel>
 
     <CheckBox Grid.Row="4"
-              Content="总是取消全选（记住这个选择）"
+              Content="{DynamicResource Ui_RecommendationDialog_AlwaysDeselectAll}"
               IsChecked="{Binding SuppressRecommendations, Mode=TwoWay}" />
 
     <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">

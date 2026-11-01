@@ -43,7 +43,7 @@
         <Grid ColumnDefinitions="Auto,*,Auto">
           <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
             <Button Classes="drawerButton" Content="{Binding Title}" Command="{Binding ToggleCommand}"
-                    ToolTip.Tip="展开或收起日志抽屉" />
+                    ToolTip.Tip="{DynamicResource Ui_LogDrawer_Toggle_Tip}" />
             <Border IsVisible="{Binding IsBadgeVisible}"
                     Background="{DynamicResource CkanWarningBrush}"
                     CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="6,0">
@@ -58,10 +58,10 @@
                      Margin="12,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
 
           <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
-            <Button Classes="drawerButton" Content="刷新" Command="{Binding RefreshCommand}" />
-            <Button Classes="drawerButton" Content="展开日志页" Command="{Binding OpenPageCommand}"
-                    ToolTip.Tip="打开完整日志审查视图（过滤 / 搜索 / 聚合）" />
-            <Button Classes="drawerButton" Content="收起" Command="{Binding CloseCommand}"
+            <Button Classes="drawerButton" Content="{DynamicResource Ui_Common_Refresh}" Command="{Binding RefreshCommand}" />
+            <Button Classes="drawerButton" Content="{DynamicResource Ui_LogDrawer_ExpandPage}" Command="{Binding OpenPageCommand}"
+                    ToolTip.Tip="{DynamicResource Ui_LogDrawer_OpenFull_Tip}" />
+            <Button Classes="drawerButton" Content="{DynamicResource Ui_LogDrawer_Collapse}" Command="{Binding CloseCommand}"
                     IsVisible="{Binding IsOpen}" />
           </StackPanel>
         </Grid>

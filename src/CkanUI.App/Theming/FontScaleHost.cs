@@ -23,29 +23,29 @@ public sealed class FontScaleHost : IDisposable
 {
     private static readonly ILog Log = LogManager.GetLogger(typeof(FontScaleHost));
 
-    /// <summary>小字 token（基准 12）。</summary>
+    /// <summary>小字 token（基准 11）。</summary>
     public const string CaptionKey = "CkanFontSizeCaption";
 
-    /// <summary>正文 token（基准 13）。</summary>
+    /// <summary>正文 token（基准 12）。</summary>
     public const string BodyKey = "CkanFontSizeBody";
 
-    /// <summary>副标题 token（基准 15）。</summary>
+    /// <summary>副标题 token（基准 13）。</summary>
     public const string SubtitleKey = "CkanFontSizeSubtitle";
 
-    /// <summary>小标题 token（基准 17）。</summary>
+    /// <summary>小标题 token（基准 14.5）。</summary>
     public const string HeadingKey = "CkanFontSizeHeading";
 
-    /// <summary>标题 token（基准 26）。</summary>
+    /// <summary>标题 token（基准 17）。</summary>
     public const string TitleKey = "CkanFontSizeTitle";
 
     /// <summary>token 与 Tokens.axaml 里的基准字号一一对应（顺序即覆盖顺序）。</summary>
     private static readonly (string Key, double BaseSize)[] Tokens =
     {
-        (CaptionKey, 12),
-        (BodyKey, 13),
-        (SubtitleKey, 15),
-        (HeadingKey, 17),
-        (TitleKey, 26),
+        (CaptionKey, 11),
+        (BodyKey, 12),
+        (SubtitleKey, 13),
+        (HeadingKey, 14.5),
+        (TitleKey, 17),
     };
 
     private readonly IUiSettingsStore _settings;

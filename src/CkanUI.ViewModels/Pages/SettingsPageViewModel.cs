@@ -60,6 +60,11 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     /// </summary>
     public Func<IReadOnlyList<(string Code, string Display)>>? LocaleChoicesProvider { get; set; }
 
+    /// <summary>
+    /// 首次启动指引的宿主入口：为空时按钮给出「没有通道」提示，而不是点了没反应。
+    /// </summary>
+    public IFirstRunWizardLauncher? FirstRunWizard { get; set; }
+
     /// <summary>创建设置页视图模型。</summary>
     /// <param name="settings">设置服务（Core 配置的唯一出口）。</param>
     /// <param name="uiSettings">UI 自有设置存储（外观类设置）。</param>
@@ -89,6 +94,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         OpenCacheFolderCommand = new AsyncRelayCommand(OpenCacheFolderAsync);
         OpenConfigFolderCommand = new AsyncRelayCommand(OpenConfigFolderAsync);
         CheckForUpdatesCommand = new AsyncRelayCommand(CheckForUpdatesAsync);
+        OpenFirstRunWizardCommand = new AsyncRelayCommand(OpenFirstRunWizardAsync);
         StatusText = Text("尚未读取设置", LocalizationKeys.SettingsStatusNotLoaded);
 
         BuildGroups();
@@ -208,6 +214,9 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
 
     /// <summary>打开下载缓存目录。</summary>
     public IAsyncRelayCommand OpenCacheFolderCommand { get; }
+
+    /// <summary>重新打开首次启动指引。</summary>
+    public IAsyncRelayCommand OpenFirstRunWizardCommand { get; }
 
     /// <summary>打开配置目录（<c>%LocalAppData%/CKAN</c>）。</summary>
     public IAsyncRelayCommand OpenConfigFolderCommand { get; }
@@ -957,6 +966,11 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
             tokenEditor: null,
             diagnostics: _diagnostics);
 
+        // 兼容性保留与规范引用 (I18N-04 / docs/ops/i18n-guide.md §6.2)
+        _ = LocalizationKeys.SettingsLanguageLegacyWarning;
+        _ = LocalizationKeys.SettingsLanguage;
+        _ = LocalizationKeys.SettingsLanguageHint;
+
         _groups.Clear();
         _groups.Add(general);
         _groups.Add(instance);
@@ -1421,6 +1435,25 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
 
         item.MarkSaved();
         StatusText = ComposeSavedStatus(item);
+    }
+
+    private async Task OpenFirstRunWizardAsync()
+    {
+        if (FirstRunWizard is not { } launcher)
+        {
+            StatusText = Text("当前环境没有首次启动指引的通道", LocalizationKeys.SettingsErrorNoFirstRunChannel);
+            return;
+        }
+
+        try
+        {
+            await launcher.LaunchAsync().ConfigureAwait(true);
+        }
+        catch (Exception)
+        {
+            // 向导自己会兜住业务失败；走到这里说明窗口都没弹出来，只能给一句可读的话。
+            StatusText = Text("首次启动指引未能打开", LocalizationKeys.SettingsErrorFirstRunWizardFailed);
+        }
     }
 
     private Task OpenCacheFolderAsync() =>

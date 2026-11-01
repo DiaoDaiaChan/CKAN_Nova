@@ -45,6 +45,8 @@
 | [design/preferred-hosts.md](design/preferred-hosts.md) | F-15 首选下载主机管理：优先级排序、主机拖拽/上下移与 Core 配置持久化（UI-30） |
 | [design/install-filters.md](design/install-filters.md) | F-16 安装文件过滤器编辑器：全局与实例规则、预设规则导入与配置校验（UI-31） |
 | [design/update-check.md](design/update-check.md) | F-52 自动更新与新版本检查器设计与实现（UI-27） |
+| [ops/perf-baseline.md](ops/perf-baseline.md) | 优化前性能基线：功能/内存/冷启动三探针的复测口径与判定阈值 |
+| [audit/i18n-audit-report.md](audit/i18n-audit-report.md) | i18n 穿透性审计：键覆盖率、XAML 中文字面量与回退链的取证快照 |
 | [ops/i18n-guide.md](ops/i18n-guide.md) | 本地化指南：语言包格式、回退链、App 侧接线契约（§6） |
 | [ops/release.md](ops/release.md) | 发布操作手册：一条命令出包、两种包怎么选、未签名分发与回滚、冒烟检查单 |
 | [design/packaging.md](design/packaging.md) | 打包与版本决策：单一版本真源、便携包布局、确定性 zip、manifest schema |

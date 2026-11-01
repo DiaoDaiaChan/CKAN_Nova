@@ -45,7 +45,8 @@ public static class ModDetailsSnapshotBuilder
             ToRelations(facts.DependsOn, ModRelationKind.Dependency, IsSatisfied),
             ToRelations(facts.Recommends, ModRelationKind.Recommendation, IsSatisfied),
             ToRelations(facts.ConflictsWith, ModRelationKind.Conflict, IsSatisfied),
-            data.IsCompatible);
+            data.IsCompatible,
+            SpacedockUrl: facts.SpacedockUrl);
     }
 
     /// <summary>

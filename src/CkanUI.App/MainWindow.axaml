@@ -4,11 +4,13 @@
         xmlns:local="using:CkanUI.App"
         xmlns:conv="using:CkanUI.App.Converters"
         xmlns:ui="using:FluentAvalonia.UI.Controls"
+        xmlns:uip="using:FluentAvalonia.UI.Controls.Primitives"
         xmlns:ops="using:CkanUI.App.Views.Operations"
         xmlns:logs="using:CkanUI.App.Views.Logs"
         xmlns:views="using:CkanUI.App.Views"
         xmlns:controls="using:CkanUI.App.Controls"
         xmlns:diag="using:CkanUI.App.Diagnostics"
+        xmlns:sys="using:System"
         x:Class="CkanUI.App.MainWindow"
         x:DataType="vm:ShellViewModel"
         Title="{Binding Title}"
@@ -18,23 +20,37 @@
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaTitleBarHeightHint="-1"
         WindowDecorations="BorderOnly"
-        Background="Transparent">
+        Background="Transparent"
+        Cursor="None">
   <Window.DataTemplates>
     <local:ViewLocator />
   </Window.DataTemplates>
+
+  <Window.Resources>
+    <!-- 平衡 FluentAvalonia SplitView 开合动画时长（默认 Close 只有 0.1s 导致肉眼觉得没有折叠动画） -->
+    <sys:TimeSpan x:Key="SplitViewPaneAnimationOpenDuration">00:00:00.22</sys:TimeSpan>
+    <sys:TimeSpan x:Key="SplitViewPaneAnimationCloseDuration">00:00:00.22</sys:TimeSpan>
+  </Window.Resources>
 
   <Window.KeyBindings>
     <!-- 侧栏折叠：Ctrl+B 是主流编辑器/IDE 的肌肉记忆；Alt+左/右 = 前进后退。 -->
     <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleNavCollapsedCommand}" />
     <KeyBinding Gesture="Alt+Left" Command="{Binding BackCommand}" />
     <KeyBinding Gesture="Alt+Right" Command="{Binding ForwardCommand}" />
+    <!-- 页面缩放复位：Ctrl+0 与浏览器/编辑器一致；加减档走底栏滑块与 Ctrl+滚轮。 -->
+    <KeyBinding Gesture="Ctrl+0" Command="{Binding ResetPageZoomCommand}" />
   </Window.KeyBindings>
 
   <Window.Styles>
+    <!-- 自定义高精度动效光标接管指针渲染：隐藏全窗及所有子元素原生光标 -->
+    <Style Selector=":is(InputElement)">
+      <Setter Property="Cursor" Value="None" />
+    </Style>
+
     <!--
       导航栏走 FluentAvalonia 的 FANavigationView（官方标准用法）：
       分组标题、底部固定项、单根滑动选中指示器都由它自带，外壳不再手画 ListBox。
-      展开/收起靠 PaneDisplayMode 在 Left ↔ LeftCompact 之间切换（代码里跟着 IsNavCollapsed 走）。
+      展开/收起在 LeftCompact 下由 IsPaneOpen 平滑过渡（保持 220ms 双向开合动画）。
     -->
     <Style Selector="ui|FANavigationView">
       <Setter Property="Background" Value="Transparent" />
@@ -44,6 +60,45 @@
       <Setter Property="IsSettingsVisible" Value="False" />
       <Setter Property="IsBackButtonVisible" Value="False" />
       <Setter Property="IsPaneToggleButtonVisible" Value="False" />
+    </Style>
+
+    <!-- 保持收起动画平滑：避免 :listsizecompact 在收起第 0 帧把内容区截断为 52px 或隐藏 Header 导致折叠动画丢失 -->
+    <Style Selector="ui|FANavigationView:listsizecompact /template/ SplitView Grid#PaneContentGrid">
+      <Setter Property="Width" Value="256" />
+    </Style>
+    <Style Selector="ui|FANavigationView:listsizecompact /template/ SplitView ContentControl#PaneHeaderContentBorder">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="ui|FANavigationView /template/ SplitView /template/ Panel#PART_PaneRoot">
+      <Setter Property="ClipToBounds" Value="True" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Width" Duration="00:00:00.25" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="ui|FANavigationView /template/ SplitView:open /template/ Panel#PART_PaneRoot">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Width" Duration="00:00:00.25" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="ui|FANavigationView /template/ SplitView:closed /template/ Panel#PART_PaneRoot">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Width" Duration="00:00:00.25" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="ui|FANavigationView /template/ SplitView Grid#PaneContentGrid">
+      <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+
+    <!-- 钉住常驻展开时，让 LightDismissLayer 不拦截内容区点击 -->
+    <Style Selector="ui|FANavigationView.PanePinned /template/ SplitView /template/ Rectangle#LightDismissLayer">
+      <Setter Property="IsVisible" Value="False" />
+      <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
     <!-- 自绘窗口按钮：贴近 Fluent 的 46x32 命中区，悬停给浅底、关闭给红底。 -->
     <Style Selector="Button.CkanCaption">
@@ -73,12 +128,32 @@
       <Setter Property="Foreground" Value="{DynamicResource CkanTextInverseBrush}" />
     </Style>
 
-    <!-- 折叠态下取消品牌文字与按钮文案，只留图标（宽度 52 装不下字）。 -->
+    <!-- 折叠态下平滑淡出品牌文字，结合 PaneRoot 裁剪呈现丝滑收起动画。 -->
     <Style Selector="ui|FANavigationView TextBlock.BrandLabel">
-      <Setter Property="IsVisible" Value="True" />
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationFast}" />
+        </Transitions>
+      </Setter>
     </Style>
     <Style Selector="ui|FANavigationView.Collapsed TextBlock.BrandLabel">
-      <Setter Property="IsVisible" Value="False" />
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+
+    <!-- 折叠精简态下平滑淡出导航项文本，彻底根除 52px 紧凑轨右侧边缘露出的文字残影。 -->
+    <Style Selector="ui|FANavigationView uip|FANavigationViewItemPresenter /template/ ContentPresenter#ContentPresenter">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationFast}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="ui|FANavigationView.Collapsed uip|FANavigationViewItemPresenter /template/ ContentPresenter#ContentPresenter">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="ui|FANavigationView.PaneOpen uip|FANavigationViewItemPresenter /template/ ContentPresenter#ContentPresenter">
+      <Setter Property="Opacity" Value="1" />
     </Style>
   </Window.Styles>
 
@@ -108,7 +183,9 @@
 
     <Grid>
       <ui:FANavigationView x:Name="NavView"
-                           PaneDisplayMode="Left"
+                           PaneDisplayMode="LeftCompact"
+                           IsPaneOpen="False"
+                           Classes="Collapsed"
                            SelectionChanged="OnNavSelectionChanged">
         <!-- 品牌区：Fluent 折叠态会把 PaneHeader 一起收掉，正好省掉一套 Collapsed 样式。 -->
         <ui:FANavigationView.PaneHeader>
@@ -119,9 +196,11 @@
                       Background="Transparent"
                       PointerPressed="OnTitleBarPointerPressed">
             <Border Width="28" Height="28"
+                    Classes="CkanIconHost"
                     CornerRadius="8"
                     Background="{DynamicResource CkanAccentBrush}"
-                    BoxShadow="{DynamicResource CkanElevationLow}">
+                    BoxShadow="{DynamicResource CkanElevationLow}"
+                    ToolTip.Tip="{DynamicResource Ui_MainWindow_LogoTooltip}">
               <PathIcon Data="M13.13 2.87a9.984 9.984 0 0 0-4.04 4.05L4.54 11.47a1.5 1.5 0 0 0-.25.43L2.09 17.5a.75.75 0 0 0 .91.91l5.6-2.2a1.5 1.5 0 0 0 .43-.25l4.55-4.55a9.984 9.984 0 0 0 4.05-4.04l.43-.86a.75.75 0 0 0-.8-.99l-2.45.35-.41-.41.35-2.45a.75.75 0 0 0-.99-.8l-.86.43zm-1.8 7.39l-4.14 4.14-3.56 1.4 1.4-3.56 4.14-4.14a8.47 8.47 0 0 1 2.16 2.16z"
                         Foreground="{DynamicResource CkanTextInverseBrush}"
                         Width="15" Height="15"
@@ -136,7 +215,7 @@
                          FontWeight="Bold"
                          LetterSpacing="0.5" />
               <TextBlock Classes="BrandLabel"
-                         Text="MOD MANAGER"
+                         Text="{DynamicResource Ui_MainWindow_AppSubtitle}"
                          Foreground="{DynamicResource CkanTextTertiaryBrush}"
                          FontSize="9"
                          FontWeight="SemiBold"
@@ -145,40 +224,74 @@
           </StackPanel>
         </ui:FANavigationView.PaneHeader>
 
-        <!-- 底部自定义区：关于入口 + 折叠开关（与 Ctrl+B 同一个命令，两个入口不会打架）。 -->
+        <ui:FANavigationView.ContextMenu>
+          <ContextMenu>
+            <MenuItem Header="{Binding NavHoverModeTitle}" IsEnabled="False" />
+            <Separator />
+            <MenuItem Header="{DynamicResource Ui_MainWindow_ToggleNavHoverMode}"
+                      Command="{Binding ToggleNavHoverModeCommand}" />
+          </ContextMenu>
+        </ui:FANavigationView.ContextMenu>
+
+        <!-- 底部自定义区：关于入口 + 悬停模式切换 + 折叠开关（与 Ctrl+B 同一个命令）。 -->
         <ui:FANavigationView.PaneFooter>
-          <Grid ColumnDefinitions="*,Auto" Margin="6,6" HorizontalAlignment="Stretch">
-            <Button Grid.Column="0"
-                    Click="OnAboutClick"
-                    Classes="CkanGhost"
-                    IsVisible="{Binding IsNavExpanded}"
-                    HorizontalAlignment="Stretch"
-                    HorizontalContentAlignment="Left">
-              <StackPanel Orientation="Horizontal" Spacing="8">
+          <Panel Margin="6,6">
+            <!-- 展开态：水平排列 (关于 / 模式切换 / 收起) -->
+            <Grid ColumnDefinitions="*,Auto,Auto" HorizontalAlignment="Stretch"
+                  IsVisible="{Binding #NavView.IsPaneOpen}">
+              <Button Grid.Column="0"
+                      Click="OnAboutClick"
+                      Classes="CkanGhost"
+                      HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Left">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <PathIcon Data="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"
+                            Width="13" Height="13"
+                            Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <TextBlock Text="{DynamicResource Ui_MainWindow_About}" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <!-- 悬停交互模式切换按钮（单Tab弹出 ↔ 侧栏抽屉，仅在展开态或抽屉内显示，避免精简轨重叠） -->
+              <Button Grid.Column="1"
+                      Classes="CkanIcon"
+                      Command="{Binding ToggleNavHoverModeCommand}"
+                      ToolTip.Tip="{Binding NavHoverModeToolTip}"
+                      AutomationProperties.Name="{Binding NavHoverModeToolTip}"
+                      Margin="2,0">
+                <PathIcon Data="{Binding NavHoverModePathData}"
+                          Width="12" Height="12"
+                          Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              </Button>
+              <Button Grid.Column="2"
+                      Classes="CkanIcon"
+                      Content="{Binding NavToggleGlyph}"
+                      Command="{Binding ToggleNavCollapsedCommand}"
+                      ToolTip.Tip="{Binding NavToggleToolTip}"
+                      AutomationProperties.Name="{Binding NavToggleToolTip}"
+                      HorizontalAlignment="Right" />
+            </Grid>
+
+            <!-- 精简收起态：垂直居中排列 (关于 / 展开侧栏按钮) -->
+            <StackPanel Orientation="Vertical" Spacing="4"
+                        HorizontalAlignment="Center"
+                        IsVisible="{Binding !#NavView.IsPaneOpen}">
+              <Button x:Name="AboutCompactButton"
+                      Classes="CkanIcon"
+                      Click="OnAboutClick"
+                      ToolTip.Tip="{DynamicResource Ui_MainWindow_About}"
+                      AutomationProperties.Name="{DynamicResource Ui_MainWindow_About}">
                 <PathIcon Data="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"
                           Width="13" Height="13"
                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Text="关于" VerticalAlignment="Center" />
-              </StackPanel>
-            </Button>
-            <Button Grid.Column="0"
-                    Classes="CkanIcon"
-                    Click="OnAboutClick"
-                    IsVisible="{Binding IsNavCollapsed}"
-                    ToolTip.Tip="关于"
-                    AutomationProperties.Name="关于">
-              <PathIcon Data="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"
-                        Width="13" Height="13"
-                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            </Button>
-            <Button Grid.Column="1"
-                    Classes="CkanIcon"
-                    Content="{Binding NavToggleGlyph}"
-                    Command="{Binding ToggleNavCollapsedCommand}"
-                    ToolTip.Tip="{Binding NavToggleToolTip}"
-                    AutomationProperties.Name="{Binding NavToggleToolTip}"
-                    HorizontalAlignment="Right" />
-          </Grid>
+              </Button>
+              <Button x:Name="ExpandCompactButton"
+                      Classes="CkanIcon"
+                      Content="{Binding NavToggleGlyph}"
+                      Command="{Binding ToggleNavCollapsedCommand}"
+                      ToolTip.Tip="{Binding NavToggleToolTip}"
+                      AutomationProperties.Name="{Binding NavToggleToolTip}" />
+            </StackPanel>
+          </Panel>
         </ui:FANavigationView.PaneFooter>
 
         <!--
@@ -191,25 +304,36 @@
           <!-- 内容层：顶部拖拽条 + 入口页签条 + 页面宿主。 -->
           <Grid Grid.Row="0" RowDefinitions="34,Auto,*">
             <!--
-              顶部现代一体化标题拖拽区：左侧放前进/后退（贴近内容，鼠标移动距离最短），
+              顶部现代一体化标题拖拽区：左侧放侧栏开关与前进/后退（贴近内容，鼠标移动距离最短），
               中间是窗口标题，右侧 150px 留给原生系统按钮避让。
             -->
             <Grid Grid.Row="0"
                   Height="34"
                   Background="Transparent"
-                  ColumnDefinitions="Auto,Auto,*,Auto"
+                  ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto"
                   PointerPressed="OnTitleBarPointerPressed">
+              <!-- 侧栏展开/收起按钮：顶栏常驻入口，直达完整侧边栏 -->
               <Button Grid.Column="0"
+                      x:Name="TitleBarNavToggleButton"
+                      Classes="CkanIcon"
+                      Command="{Binding ToggleNavCollapsedCommand}"
+                      ToolTip.Tip="{Binding NavToggleToolTip}"
+                      AutomationProperties.Name="{Binding NavToggleToolTip}"
+                      Width="26" Height="26" MinWidth="0" Padding="0"
+                      Margin="8,0,2,0">
+                <PathIcon Data="M3 4h18v16H3V4zm2 2v12h4V6H5zm6 0v12h8V6h-8z" Width="12" Height="12" />
+              </Button>
+              <Button Grid.Column="1"
                       Classes="CkanIcon"
                       Command="{Binding BackCommand}"
                       IsEnabled="{Binding CanGoBack}"
                       ToolTip.Tip="{Binding BackToolTip}"
                       AutomationProperties.Name="{Binding BackToolTip}"
                       Width="26" Height="26" MinWidth="0" Padding="0"
-                      Margin="10,0,2,0">
+                      Margin="2,0,2,0">
                 <PathIcon Data="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" Width="11" Height="11" />
               </Button>
-              <Button Grid.Column="1"
+              <Button Grid.Column="2"
                       Classes="CkanIcon"
                       Command="{Binding ForwardCommand}"
                       IsEnabled="{Binding CanGoForward}"
@@ -219,7 +343,8 @@
                       Margin="0,0,4,0">
                 <PathIcon Data="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" Width="11" Height="11" />
               </Button>
-              <TextBlock Grid.Column="2"
+              <TextBlock Grid.Column="3"
+                         x:Name="WindowTitleTextBlock"
                          Text="{Binding Title}"
                          Foreground="{DynamicResource CkanTextTertiaryBrush}"
                          FontSize="{DynamicResource CkanFontSizeCaption}"
@@ -232,19 +357,115 @@
                 窗口按钮：ChromeHints=NoChrome 之后系统不再画标题与按钮（否则 DWM 会把窗口标题
                 画在左上角、压在品牌区上），所以三个按钮由外壳自绘，尺寸对齐 Fluent 的 46x32。
               -->
-              <StackPanel Grid.Column="3" Orientation="Horizontal"
+              <!--
+                顶栏常驻小标记：日志抽屉开关（带未读计数）与 FPS 读数。
+                两枚 20px 小胶囊挂在窗口按钮左侧的独立 Auto 列：标题（Column 3, *）挤窄时它们不让位，
+                但永远不会压到标题或窗口按钮上；点日志开合抽屉，点 FPS 开关 F12 性能探针。
+                Column 5 是常驻「启动游戏」主按钮，Column 6 才是系统窗口按钮（顺序即视觉顺序）。
+              -->
+              <StackPanel Grid.Column="4"
+                          x:Name="TopQuickStatusHost"
+                          Orientation="Horizontal"
+                          Spacing="6"
+                          VerticalAlignment="Center"
+                          Margin="0,0,6,0">
+                <Button x:Name="TopLogStatusButton"
+                        Classes="CkanGhost"
+                        Command="{Binding ToggleLogDrawerCommand}"
+                        Padding="7,2"
+                        MinHeight="20"
+                        CornerRadius="4"
+                        VerticalAlignment="Center"
+                        Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                        ToolTip.Tip="{DynamicResource Ui_LogDrawer_Toggle_Tip}"
+                        AutomationProperties.Name="{DynamicResource Ui_LogDrawer_Toggle_Tip}">
+                  <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                    <PathIcon Data="M4 4h16v2H4zM4 9h16v2H4zM4 14h10v2H4zM4 19h16v2H4z"
+                              Width="10" Height="10"
+                              Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    <TextBlock Text="{DynamicResource Ui_NavRail_Logs}"
+                               FontSize="11"
+                               Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                               VerticalAlignment="Center" />
+                    <Border x:Name="TopLogBadge"
+                            Classes="CkanBadge Warning"
+                            Classes.Danger="{Binding LogHasUnreadError}"
+                            Padding="5,0"
+                            IsVisible="{Binding HasLogBadge}"
+                            VerticalAlignment="Center">
+                      <TextBlock Text="{Binding LogUnreadCount}" FontSize="10" />
+                    </Border>
+                  </StackPanel>
+                </Button>
+
+                <Button x:Name="TopFpsStatusButton"
+                        Classes="CkanGhost"
+                        Click="OnTogglePerformanceMonitorClick"
+                        Padding="7,2"
+                        MinHeight="20"
+                        CornerRadius="4"
+                        VerticalAlignment="Center"
+                        Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                        ToolTip.Tip="{DynamicResource Ui_MainWindow_PerfMonitor_Tip}"
+                        AutomationProperties.Name="{DynamicResource Ui_MainWindow_PerfMonitor}">
+                  <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                    <Ellipse x:Name="TopFpsStatusDot"
+                             Width="6" Height="6"
+                             Fill="{DynamicResource CkanSuccessBrush}"
+                             VerticalAlignment="Center" />
+                    <!-- 等宽数字 + 右侧预留最小宽度：读数从 9.9 跳到 261.1 时胶囊不许跟着变宽，否则整条顶栏跟着抖。 -->
+                    <TextBlock x:Name="TopFpsStatusText"
+                               Text="-- fps"
+                               FontSize="11"
+                               FontFeatures="tnum"
+                               MinWidth="54"
+                               TextAlignment="Right"
+                               Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                               VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+              </StackPanel>
+
+              <!--
+                常驻「启动游戏」：贴在窗口按钮左侧的固定强调色主按钮。它是 shell 唯一的主动作，
+                位置不随导航漂移（Fitts' Law：右上角可盲点），全页面可用；
+                没有当前实例或实例被占用时由 CanLaunchGame 自动灰掉，一次性结果落底部状态栏。
+              -->
+              <Button x:Name="TopLaunchGameButton"
+                      Grid.Column="5"
+                      Classes="CkanPrimary"
+                      Command="{Binding LaunchGameCommand}"
+                      Padding="10,3"
+                      MinHeight="22"
+                      CornerRadius="11"
+                      VerticalAlignment="Center"
+                      Margin="0,0,8,0"
+                      ToolTip.Tip="{DynamicResource Ui_MainWindow_LaunchGame_Tip}"
+                      AutomationProperties.Name="{DynamicResource Ui_MainWindow_LaunchGame}">
+                <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                  <PathIcon Data="M4 2l10 6-10 6z"
+                            Width="9" Height="9"
+                            Foreground="{DynamicResource CkanAccentTextBrush}" />
+                  <TextBlock Text="{DynamicResource Ui_MainWindow_LaunchGame}"
+                             FontSize="11"
+                             VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+
+              <StackPanel Grid.Column="6" Orientation="Horizontal"
+                          HorizontalAlignment="Right"
                           VerticalAlignment="Stretch" Margin="0,0,0,0">
                 <Button Classes="CkanCaption" Click="OnMinimizeClick"
-                        ToolTip.Tip="最小化" AutomationProperties.Name="最小化">
+                        ToolTip.Tip="{DynamicResource Ui_MainWindow_Minimize}" AutomationProperties.Name="{DynamicResource Ui_MainWindow_Minimize}">
                   <PathIcon Data="M4 11h12v1.6H4z" Width="10" Height="10" />
                 </Button>
                 <Button x:Name="MaximizeButton" Classes="CkanCaption" Click="OnMaximizeRestoreClick"
-                        ToolTip.Tip="最大化" AutomationProperties.Name="最大化">
+                        ToolTip.Tip="{DynamicResource Ui_MainWindow_Maximize}" AutomationProperties.Name="{DynamicResource Ui_MainWindow_Maximize}">
                   <PathIcon x:Name="MaximizeGlyph" Data="M4.5 4.5h11v11h-11z M6 6v8h8V6z"
                             Width="10" Height="10" />
                 </Button>
                 <Button Classes="CkanCaption Close" Click="OnCloseClick"
-                        ToolTip.Tip="关闭" AutomationProperties.Name="关闭">
+                        ToolTip.Tip="{DynamicResource Ui_Cmd_Shortcuts_Close}" AutomationProperties.Name="{DynamicResource Ui_Cmd_Shortcuts_Close}">
                   <PathIcon Data="M6.4 5.6L12 11.2l5.6-5.6 1.2 1.2-5.6 5.6 5.6 5.6-1.2 1.2L12 13.6l-5.6 5.6-1.2-1.2 5.6-5.6L5.2 6.8z"
                             Width="10" Height="10" />
                 </Button>
@@ -281,14 +502,11 @@
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
                       <Border Classes="CkanTabUnderline" Classes.Active="{Binding IsActive}">
-                        <Panel>
-                          <Button Classes="CkanTab"
-                                  Content="{Binding Title}"
-                                  Command="{Binding $parent[Window].DataContext.NavigateCommand}"
-                                  CommandParameter="{Binding Key}"
-                                  AutomationProperties.Name="{Binding Title}" />
-                          <Border Classes="CkanTabIndicator" IsHitTestVisible="False" />
-                        </Panel>
+                        <Button Classes="CkanTab"
+                                Content="{Binding Title}"
+                                Command="{Binding $parent[Window].DataContext.NavigateCommand}"
+                                CommandParameter="{Binding Key}"
+                                AutomationProperties.Name="{Binding Title}" />
                       </Border>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
@@ -307,22 +525,22 @@
               </Panel>
             </Border>
 
-            <!-- 页面承载区：内容本体零位移（彻底根绝边框与文字亚像素抖动），顶部配极光氛围洗光与天际线光束扫掠。 -->
+            <!-- 页面承载区：内容本体零位移、恒定不透明度（杜绝任何亮度闪烁与亚像素抖动），顶部配 1px 细光流。 -->
             <Panel Grid.Row="2" ClipToBounds="True">
-              <TransitioningContentControl x:Name="PageHost"
-                                           Content="{Binding CurrentPage}" />
-              <Border x:Name="TabSwitchAuroraWash"
-                      Classes="CkanTabAuroraWash"
-                      VerticalAlignment="Top"
-                      HorizontalAlignment="Stretch"
-                      Height="56"
-                      Opacity="0"
-                      IsHitTestVisible="False" />
+              <!-- 页面缩放：LayoutTransformControl 会把 ScaleTransform 折进测量，放大时内容按「视口/scale」重排，
+                   所以文字/间距/图标是真缩放而不是位图拉伸。ScaleTransform 由代码侧创建（Transform 不在逻辑树里，
+                   拿不到 DataContext），换值时挂 DoubleTransition 让缩放走动画。 -->
+              <LayoutTransformControl x:Name="PageZoomHost"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch">
+                <TransitioningContentControl x:Name="PageHost"
+                                             Content="{Binding CurrentPage}" />
+              </LayoutTransformControl>
               <Border x:Name="TabSwitchHorizonBeam"
                       Classes="CkanTabHorizonBeam"
                       VerticalAlignment="Top"
                       HorizontalAlignment="Stretch"
-                      Height="2"
+                      Height="1"
                       Opacity="0"
                       IsHitTestVisible="False">
                 <Border.RenderTransform>
@@ -400,56 +618,109 @@
                            VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" />
               </StackPanel>
-              <Button Grid.Column="1"
-                      Classes="CkanGhost"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center"
-                      Padding="8,2"
-                      MinHeight="0"
-                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                      Command="{Binding ToggleLogDrawerCommand}"
-                      ToolTip.Tip="{Binding LogStatusText}"
-                      AutomationProperties.Name="{Binding LogStatusText}">
-                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                  <PathIcon Data="M20 8h-2.81c-.45-.78-1.07-1.45-1.82-1.96L17 4.41 15.59 3l-2.17 2.17C12.96 5.06 12.49 5 12 5c-.49 0-.96.06-1.41.17L8.41 3 7 4.41l1.62 1.63C7.88 6.55 7.26 7.22 6.81 8H4v2h2.09c-.05.33-.09.66-.09 1v1H4v2h2v1c0 .34.04.67.09 1H4v2h2.81c1.04 1.79 2.97 3 5.19 3s4.15-1.21 5.19-3H20v-2h-2.09c.05-.33.09-.66.09-1v-1h2v-2h-2v-1c0-.34-.04-.67-.09-1H20V8zm-6 8h-4v-2h4v2zm0-4h-4v-2h4v2z"
-                            Width="10" Height="10"
-                            Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                            VerticalAlignment="Center" />
-                  <TextBlock Text="{Binding LogStatusText}"
-                             FontSize="{DynamicResource CkanFontSizeCaption}"
-                             VerticalAlignment="Center"
-                             TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-              </Button>
-              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                <!-- 性能探针 FPS 胶囊：点击或按 F12 切换性能 HUD -->
-                <Button x:Name="FpsStatusButton"
+              <!-- 中间：页面缩放控件。只缩放页面承载区，外壳尺寸不变——否则拖动时滑块自己也在缩放里，抓不住目标。 -->
+              <StackPanel x:Name="PageZoomCluster"
+                          Grid.Column="1"
+                          Orientation="Horizontal"
+                          Spacing="2"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center"
+                          ToolTip.Tip="{DynamicResource Ui_MainWindow_Zoom_Tip}">
+                <Button x:Name="PageZoomOutButton"
                         Classes="CkanGhost"
-                        Padding="6,1"
-                        MinHeight="0"
-                        MinWidth="0"
+                        Command="{Binding ZoomOutCommand}"
+                        Width="18" Height="18" MinWidth="18" MinHeight="18"
+                        Padding="0"
                         CornerRadius="4"
-                        Click="OnTogglePerformanceMonitorClick"
-                        ToolTip.Tip="GUI 性能监控器与 FPS 探针 (F12)"
-                        AutomationProperties.Name="性能监控器">
-                  <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                    <Ellipse x:Name="FpsStatusDot" Width="6" Height="6"
-                             Fill="{DynamicResource CkanSuccessBrush}"
-                             VerticalAlignment="Center" />
-                    <TextBlock x:Name="FpsStatusText"
-                               Text="60.0 fps"
-                               FontSize="11"
-                               FontFamily="{DynamicResource CkanCodeFontFamily}"
-                               Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                               VerticalAlignment="Center" />
-                  </StackPanel>
+                        AutomationProperties.Name="{DynamicResource Ui_MainWindow_ZoomOut}">
+                  <PathIcon Data="M4 11h16v2H4z"
+                            Width="8" Height="8"
+                            Foreground="{DynamicResource CkanTextSecondaryBrush}" />
                 </Button>
+                <Slider x:Name="PageZoomSlider"
+                        Width="112"
+                        Height="18"
+                        MinHeight="18"
+                        VerticalAlignment="Center"
+                        Minimum="75"
+                        Maximum="150"
+                        TickFrequency="5"
+                        IsSnapToTickEnabled="True"
+                        Value="{Binding PageZoomPercent, Mode=TwoWay}"
+                        AutomationProperties.Name="{DynamicResource Ui_MainWindow_Zoom}" />
+                <Button x:Name="PageZoomInButton"
+                        Classes="CkanGhost"
+                        Command="{Binding ZoomInCommand}"
+                        Width="18" Height="18" MinWidth="18" MinHeight="18"
+                        Padding="0"
+                        CornerRadius="4"
+                        AutomationProperties.Name="{DynamicResource Ui_MainWindow_ZoomIn}">
+                  <PathIcon Data="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z"
+                            Width="8" Height="8"
+                            Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                </Button>
+                <TextBlock x:Name="PageZoomValueText"
+                           Text="{Binding PageZoomPercentText}"
+                           FontSize="11"
+                           FontFeatures="tnum"
+                           MinWidth="36"
+                           TextAlignment="Right"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           VerticalAlignment="Center" />
+              </StackPanel>
+              <!-- 中间留空，移除日志按钮，保持底栏整洁呼吸感 -->
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <!-- 嵌入底栏的后台任务微件胶囊（悬浮紧凑，点击展开详细卡片） -->
+                <Border x:Name="StatusBarTaskPillBorder"
+                        Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                        BorderBrush="{DynamicResource CkanGlassBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        VerticalAlignment="Center">
+                  <Button x:Name="StatusBarTaskPillButton"
+                          DataContext="{Binding OperationQueue}"
+                          Command="{Binding ToggleExpandCommand}"
+                          Classes="CkanGhost"
+                          Padding="8,2"
+                          MinHeight="20"
+                          CornerRadius="4"
+                          ToolTip.Tip="{DynamicResource Ui_QueueOverlay_CompactTip}"
+                          AutomationProperties.Name="{DynamicResource Ui_QueueOverlay_CompactTip}">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                      <Border Width="14" Height="14" CornerRadius="7"
+                              Background="{DynamicResource CkanAccentSubtleBrush}"
+                              VerticalAlignment="Center">
+                        <PathIcon Data="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"
+                                  Width="8" Height="8"
+                                  Foreground="{DynamicResource CkanAccentBrush}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <TextBlock Text="{Binding SummaryText}"
+                                 FontSize="11"
+                                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                 VerticalAlignment="Center"
+                                 MaxWidth="160"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding OverallPercentText}"
+                                 FontSize="11"
+                                 FontWeight="SemiBold"
+                                 Foreground="{DynamicResource CkanAccentBrush}"
+                                 IsVisible="{Binding HasActiveOperations}"
+                                 VerticalAlignment="Center" />
+                      <PathIcon Data="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"
+                                Width="8" Height="8"
+                                Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                </Border>
 
+                <!-- 软件版本号 -->
                 <Border Background="{DynamicResource CkanSubtleBackgroundBrush}"
                         CornerRadius="4"
                         Padding="6,1"
                         VerticalAlignment="Center"
-                        Margin="6,0,0,0">
+                        Margin="4,0,0,0">
                   <TextBlock x:Name="StatusVersionText"
                              Foreground="{DynamicResource CkanTextTertiaryBrush}"
                              FontSize="11"
@@ -479,6 +750,14 @@
         点击涟漪（纯装饰层）：整窗覆盖，自身 IsHitTestVisible=false 且不裁剪，
         压在 ZIndex 15 —— 低于命令面板（20），弹面板时涟漪仍在遮罩之下，不抢层次。
       -->
+      <!--
+        指针光环（纯装饰层）：整窗覆盖，不参与命中测试。压在 ZIndex 14 ——
+        低于点击涟漪（15），所以一次点击后是高光先收、涟漪再散，层次不会打架。
+      -->
+      <controls:DragTrailLayer x:Name="DragTrail" ZIndex="13" />
+
+      <controls:PointerAuraLayer x:Name="PointerAura" ZIndex="14" />
+
       <controls:ClickRippleLayer x:Name="ClickRipple" ZIndex="15" />
 
       <views:CommandPaletteView x:Name="CommandPaletteHost" ZIndex="20" />
@@ -492,6 +771,90 @@
             ZIndex="25">
         <diag:PerformanceMonitorHud x:Name="PerformanceHud" />
       </Grid>
+
+      <!-- 新手高亮指引浮层（ZIndex 40，遮罩与卡片覆盖全窗） -->
+      <views:OnboardingTourOverlay x:Name="OnboardingOverlay" ZIndex="40" />
+
+      <!-- 悬停单 Tab 弹出卡片（ZIndex 30，单 Tab 悬浮模式下跟随光标悬停弹出） -->
+      <Canvas x:Name="NavPopoutCanvas" IsHitTestVisible="True" ZIndex="30">
+        <Border x:Name="NavTabPopoutCard"
+                Canvas.Left="56"
+                Canvas.Top="0"
+                Width="236"
+                CornerRadius="10"
+                Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+                BorderBrush="{DynamicResource CkanGlassBorderBrush}"
+                BorderThickness="1"
+                BoxShadow="{DynamicResource CkanElevationHigh}"
+                Opacity="0"
+                IsVisible="False"
+                ClipToBounds="True"
+                PointerEntered="OnNavPopoutCardPointerEntered"
+                PointerExited="OnNavPopoutCardPointerExited">
+          <Border.Transitions>
+            <Transitions>
+              <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationFast}" />
+              <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}" />
+            </Transitions>
+          </Border.Transitions>
+          <StackPanel Margin="10" Spacing="6">
+            <!-- 头部：图标 + 标题 + 副标题 + 选中状态 -->
+            <Button x:Name="NavPopoutHeaderButton"
+                    Classes="CkanGhost"
+                    Padding="6,6"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Left"
+                    Click="OnNavPopoutHeaderClicked">
+              <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                <Border Grid.Column="0" Width="28" Height="28" CornerRadius="6"
+                        Background="{DynamicResource CkanAccentSubtleBrush}"
+                        Margin="0,0,10,0">
+                  <PathIcon x:Name="NavPopoutIcon" Width="14" Height="14"
+                            Foreground="{DynamicResource CkanAccentBrush}"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                  <TextBlock x:Name="NavPopoutTitle"
+                             FontWeight="SemiBold"
+                             FontSize="{DynamicResource CkanFontSizeBody}"
+                             Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                  <TextBlock x:Name="NavPopoutSubtitle"
+                             FontSize="{DynamicResource CkanFontSizeCaption}"
+                             Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                </StackPanel>
+                <Border x:Name="NavPopoutActiveBadge" Grid.Column="2"
+                        CornerRadius="4" Padding="6,2"
+                        Background="{DynamicResource CkanAccentBrush}"
+                        IsVisible="False" VerticalAlignment="Center">
+                  <TextBlock Text="{DynamicResource Ui_MainWindow_NavCurrentBadge}" FontSize="9" FontWeight="SemiBold"
+                             Foreground="{DynamicResource CkanTextInverseBrush}" />
+                </Border>
+              </Grid>
+            </Button>
+
+            <!-- 子页面快捷列表（如数据组内的 7 个页面） -->
+            <StackPanel x:Name="NavPopoutSubTabsHost" Spacing="2" Margin="0,2,0,0" IsVisible="False" />
+
+            <!-- 底部：展开完整侧栏快捷入口 -->
+            <Border Height="1" Background="{DynamicResource CkanGlassBorderBrush}" Margin="2,4,2,2" />
+            <Button Classes="CkanGhost"
+                    Command="{Binding ToggleNavCollapsedCommand}"
+                    ToolTip.Tip="{Binding NavToggleToolTip}"
+                    Padding="6,4"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Left">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <PathIcon Data="M3 4h18v16H3V4zm2 2v12h4V6H5zm6 0v12h8V6h-8z" Width="11" Height="11"
+                          Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                <TextBlock Text="{DynamicResource Ui_MainWindow_ExpandFullSidebar}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+        </Border>
+      </Canvas>
     </Grid>
   </Panel>
 </Window>

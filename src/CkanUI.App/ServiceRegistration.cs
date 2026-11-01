@@ -11,6 +11,7 @@ using CkanUI.Platform.Dialogs;
 using CkanUI.Platform.Threading;
 using CkanUI.Services;
 using CkanUI.Services.Abstractions;
+using CkanUI.Services.Onboarding;
 using CkanUI.Services.Abstractions.Commands;
 using CkanUI.Services.Bootstrap;
 using CkanUI.Services.Commands;
@@ -29,6 +30,7 @@ using CkanUI.Services.Abstractions.ModConfig;
 using CkanUI.Services.Abstractions.Mods;
 using CkanUI.Services.Abstractions.Update;
 using CkanUI.ViewModels.Pages;
+using CkanUI.ViewModels.Pages.Assets;
 using CkanUI.ViewModels.Pages.Logs;
 using CkanUI.ViewModels.Pages.Settings;
 using CkanUI.ViewModels.Shell;
@@ -51,7 +53,6 @@ public static class ServiceRegistration
         ArgumentNullException.ThrowIfNull(ownerProvider);
 
         var services = new ServiceCollection();
-        configure?.Invoke(services);
 
         // 表现层基础设施：IDispatcher 与 IErrorReporter 是所有服务的共同依赖。
         services.AddSingleton<IDispatcher>(new AvaloniaDispatcher());
@@ -151,6 +152,8 @@ public static class ServiceRegistration
         services.AddSingleton<IContentTargetProvider>(sp =>
             new ModsSelectionContentTarget(sp.GetRequiredService<ModsPageViewModel>()));
         services.AddSingleton<ContentPageViewModel>();
+        // 主菜单页：启动器与命令存储是宿主能力，由视图的 ??= 注入；容器只给服务契约。
+        services.AddSingleton<HomePageViewModel>();
         services.AddSingleton<ReposPageViewModel>();
         services.AddSingleton<ModPacksPageViewModel>();
         services.AddSingleton<ModPackEditorPageViewModel>();
@@ -167,6 +170,10 @@ public static class ServiceRegistration
             return page;
         });
         services.AddSingleton<SavesPageViewModel>();
+        // 资产工作台：三页各自持一个 VM 实例，服务层共用同一套扫描/写入实现。
+        services.AddSingleton<ShipsPageViewModel>();
+        services.AddSingleton<FlagsPageViewModel>();
+        services.AddSingleton<LoadingImagesPageViewModel>();
         services.AddSingleton<UnmanagedPageViewModel>();
         services.AddSingleton<CachePageViewModel>();
         services.AddSingleton<DownloadStatsPageViewModel>();
@@ -225,6 +232,9 @@ public static class ServiceRegistration
                 .ToList();
             page.RefreshLocaleChoices();
 
+            // 首次启动指引的手动重入：用户跳过代理那里之后再也没别的入口，这条必须接上。
+            page.FirstRunWizard = sp.GetService<IFirstRunWizardLauncher>();
+
             // F-52 更新弹窗：VM 只发委托，真实弹窗与「打开发布页」的浏览器通道都在 App 侧接。
             // 不接的话更新弹窗永远不会出现——用户只能看到状态栏里一句「发现新版本」，点不到安装。
             page.OpenExternalUrlAsync = CreateUrlLauncher(ownerProvider);
@@ -271,6 +281,18 @@ public static class ServiceRegistration
             return catalog;
         });
         services.AddSingleton<CommandPaletteViewModel>();
+        services.AddSingleton<CkanUI.ViewModels.Onboarding.OnboardingTourViewModel>(sp =>
+        {
+            var uiSettings = sp.GetRequiredService<IUiSettingsStore>();
+            var translate = sp.GetRequiredService<Func<string, string>>();
+            return new CkanUI.ViewModels.Onboarding.OnboardingTourViewModel(
+                translate,
+                onCompleted: () =>
+                {
+                    var current = uiSettings.Load();
+                    uiSettings.Save(current with { HasSeenOnboardingTour = true });
+                });
+        });
 
         // 导航与外壳。
         // 导航服务顺便把本地化解析器挂到每个被解析出来的页面上（页面文案 i18n 的统一入口）：
@@ -291,6 +313,24 @@ public static class ServiceRegistration
             sp.GetService<IInstanceService>(),
             key => PageTypes.TryGetValue(key, out var pageType) ? sp.GetService(pageType) : null));
 
+        // 首次启动指引（02 篇 §1 Ⅱ-⑪）：安装目录扫描复用现有的 Steam 库定位器，
+        // 免得 libraryfolders.vdf 的三种写法要维护两遍。
+        // 代理必须是单例：它在构造时抓一次「系统默认值」用于回退，多实例会各自快照、互相覆盖。
+        services.AddSingleton<IKspInstallScanner>(_ => new KspInstallScanner(new Services.Platform.SteamLibraryLocator()));
+        services.AddSingleton<IProxyConfigurator>(_ => new ProxyConfigurator());
+        // 首启指引：自动弹出与「设置 → 首次启动指引」重入共用同一个启动器，装配只有一份。
+        services.AddSingleton<IFirstRunWizardLauncher>(sp => new Onboarding.FirstRunWizardLauncher(
+            ownerProvider,
+            sp.GetRequiredService<IInstanceService>(),
+            sp.GetRequiredService<IKspInstallScanner>(),
+            sp.GetRequiredService<IProxyConfigurator>(),
+            sp.GetRequiredService<ICompatibleVersionsService>(),
+            sp.GetRequiredService<IRepositoryService>(),
+            sp.GetRequiredService<IChangeSetService>(),
+            sp.GetRequiredService<IInstallerService>(),
+            sp.GetRequiredService<IUiSettingsStore>(),
+            sp.GetRequiredService<Func<string, string>>()));
+
         // 托盘（12 篇 F-51 / UI-26）：VM 只描述菜单，图标与原生菜单由 App 层的 TrayHost 装。
         services.AddSingleton<TrayHostActions>(sp => new TrayHostActions(
             ownerProvider,
@@ -307,6 +347,8 @@ public static class ServiceRegistration
             sp.GetRequiredService<TrayMenuViewModel>(),
             sp.GetRequiredService<IUiSettingsStore>(),
             sp.GetRequiredService<IDispatcher>()));
+
+        configure?.Invoke(services);
 
         return services.BuildServiceProvider(new ServiceProviderOptions
         {
@@ -342,6 +384,9 @@ public static class ServiceRegistration
         ["modpack-editor"] = typeof(ModPackEditorPageViewModel),
         ["instances"] = typeof(InstancesPageViewModel),
         ["saves"] = typeof(SavesPageViewModel),
+        ["ships"] = typeof(ShipsPageViewModel),
+        ["flags"] = typeof(FlagsPageViewModel),
+        ["loadingimages"] = typeof(LoadingImagesPageViewModel),
         ["unmanaged"] = typeof(UnmanagedPageViewModel),
         ["cache"] = typeof(CachePageViewModel),
         ["downloadstats"] = typeof(DownloadStatsPageViewModel),
@@ -353,6 +398,7 @@ public static class ServiceRegistration
         ["modtext"] = typeof(ModTextPageViewModel),
         ["modconfig"] = typeof(ModConfigPageViewModel),
         ["settings"] = typeof(SettingsPageViewModel),
+        ["home"] = typeof(HomePageViewModel),
     };
 
     private static Func<string, object?> CreatePageFactory(IServiceProvider services)

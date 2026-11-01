@@ -23,7 +23,7 @@
                  Foreground="{DynamicResource CkanTextSecondaryBrush}"
                  FontSize="{DynamicResource CkanFontSizeCaption}" />
       <Button Grid.Column="1"
-              Content="复制全部错误信息"
+              Content="{DynamicResource Ui_DownloadErrorsDialog_CopyAll}"
               Command="{Binding CopyErrorsCommand}"
               FontSize="{DynamicResource CkanFontSizeCaption}"
               HorizontalContentAlignment="Center" />
@@ -88,10 +88,10 @@
                             Orientation="Horizontal"
                             Spacing="12"
                             VerticalAlignment="Center">
-                  <RadioButton Content="重试"
+                  <RadioButton Content="{DynamicResource Ui_Common_Retry}"
                                IsChecked="{Binding IsRetry, Mode=TwoWay}"
                                GroupName="{Binding FileName}" />
-                  <RadioButton Content="跳过"
+                  <RadioButton Content="{DynamicResource Ui_Common_Skip}"
                                IsChecked="{Binding IsSkip, Mode=TwoWay}"
                                GroupName="{Binding FileName}" />
                 </StackPanel>
@@ -117,7 +117,7 @@
     <!-- 底部按钮栏 -->
     <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto">
       <Button Grid.Column="0"
-              Content="按所选继续"
+              Content="{DynamicResource Ui_DownloadErrorsDialog_ContinueSelected}"
               Command="{Binding ConfirmCustomCommand}"
               MinWidth="100"
               HorizontalContentAlignment="Center" />
@@ -128,7 +128,7 @@
                 Classes="accent"
                 MinWidth="100"
                 HorizontalContentAlignment="Center" />
-        <Button Content="跳过失败项继续"
+        <Button Content="{DynamicResource Ui_DownloadErrorsDialog_SkipFailed}"
                 Command="{Binding SkipFailedCommand}"
                 MinWidth="120"
                 HorizontalContentAlignment="Center" />

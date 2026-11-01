@@ -23,6 +23,7 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
     private readonly IChangeSetService? _changeSets;
     private readonly IChangeRequestSink? _changeSink;
     private readonly INavigationService? _navigation;
+    private readonly ISpacedockImageService? _spacedockImageService;
     private string? _identifier;
     private ModRowData? _row;
     private InstalledModuleInfo? _installed;
@@ -38,12 +39,14 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
     /// </param>
     /// <param name="changeSink">变更集页落点（可选）：算好预览后把请求灌给它，由变更集页确认安装。</param>
     /// <param name="navigation">页面导航服务（可选）：页签四跳转全局 ZIP 内容预览页（F-29）。</param>
+    /// <param name="spacedockImageService">SpaceDock 截图抓取服务（可选）：按需懒加载模组截图与背景预览。</param>
     public ModDetailsViewModel(
         IRepositoryService repository,
         IRegistryService registry,
         IChangeSetService? changeSets = null,
         IChangeRequestSink? changeSink = null,
-        INavigationService? navigation = null)
+        INavigationService? navigation = null,
+        ISpacedockImageService? spacedockImageService = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(registry);
@@ -53,6 +56,7 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
         _changeSets = changeSets;
         _changeSink = changeSink;
         _navigation = navigation;
+        _spacedockImageService = spacedockImageService;
     }
 
     private bool _isUpdatingTolerance;
@@ -63,6 +67,11 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
     /// 为 null 时详情面板只显示快照里已有的字段。用属性而不是构造参数，避免要求容器注册新契约。
     /// </summary>
     public Func<string, ModDetailsSnapshot?>? DetailsProvider { get; set; }
+
+    /// <summary>
+    /// 模组详情面板外壳启动器（打开浏览器等）。由视图在 DataContext 变化时注入。
+    /// </summary>
+    public IModDetailsShellLauncher? ShellLauncher { get; set; }
 
     /// <summary>
     /// 单模组稳定性容忍度覆盖选项列表（继承全局默认 / stable / testing / development）。
@@ -185,6 +194,91 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
 
     /// <summary>是否有主页链接。</summary>
     public bool HasHomepage => !string.IsNullOrWhiteSpace(HomepageText);
+
+    /// <summary>SpaceDock 网页链接（空表示不是 SpaceDock 模组）。</summary>
+    public string SpacedockUrl => _details?.SpacedockUrl ?? string.Empty;
+
+    /// <summary>是否有 SpaceDock 链接。</summary>
+    public bool HasSpacedockUrl => !string.IsNullOrWhiteSpace(SpacedockUrl);
+
+    private byte[]? _spacedockImageBytes;
+    private bool _isLoadingSpacedockImage;
+    private string? _spacedockImageError;
+
+    /// <summary>已下载的 SpaceDock 截图原始字节（未加载或加载失败时为 null）。</summary>
+    public byte[]? SpacedockImageBytes
+    {
+        get => _spacedockImageBytes;
+        private set
+        {
+            if (ReferenceEquals(_spacedockImageBytes, value)) return;
+            _spacedockImageBytes = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasSpacedockImage));
+        }
+    }
+
+    /// <summary>是否已成功加载截图。</summary>
+    public bool HasSpacedockImage => _spacedockImageBytes is not null && _spacedockImageBytes.Length > 0;
+
+    /// <summary>是否正在拉取 SpaceDock 截图。</summary>
+    public bool IsLoadingSpacedockImage
+    {
+        get => _isLoadingSpacedockImage;
+        private set
+        {
+            if (_isLoadingSpacedockImage == value) return;
+            _isLoadingSpacedockImage = value;
+            OnPropertyChanged();
+            LoadSpacedockImageCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    /// <summary>SpaceDock 截图加载失败时的错误文案（成功或未加载时为空）。</summary>
+    public string SpacedockImageError
+    {
+        get => _spacedockImageError ?? string.Empty;
+        private set
+        {
+            if (string.Equals(_spacedockImageError, value, StringComparison.Ordinal)) return;
+            _spacedockImageError = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasSpacedockImageError));
+        }
+    }
+
+    /// <summary>是否有截图加载错误。</summary>
+    public bool HasSpacedockImageError => !string.IsNullOrWhiteSpace(SpacedockImageError);
+
+    /// <summary>SpaceDock 卡片标题。</summary>
+    public string SpacedockSectionTitle => "SpaceDock 页面";
+
+    /// <summary>引导前往 SpaceDock 官方界面的按钮文案。</summary>
+    public string SpacedockOpenButtonText => "前往 SpaceDock 页面 ↗";
+
+    /// <summary>拉取 SpaceDock 截图的按钮文案（已关闭外部抓取，保留接口兼容）。</summary>
+    public string SpacedockLoadButtonText => "加载 SpaceDock 截图";
+
+    /// <summary>SpaceDock 页面引导提示文案（免爬取外链，直达官方）。</summary>
+    public string SpacedockLazyHintText => "点击按钮在浏览器中打开该模组在 SpaceDock 的官方主页，浏览完整截图、图文详情与社区发布。";
+
+    /// <summary>正在加载 SpaceDock 截图的提示文案。</summary>
+    public string SpacedockLoadingText => "正在从 SpaceDock 加载截图...";
+
+    /// <summary>重试拉取 SpaceDock 截图的按钮文案。</summary>
+    public string SpacedockRetryButtonText => "重试加载";
+
+    /// <summary>模组核心分类定义（8 大分类系统）。</summary>
+    public CkanUI.ModText.ModCategoryDefinition? Category =>
+        _identifier is not null
+            ? CkanUI.ModText.ModTaxonomyEngine.Classify(_identifier, Name, Tags, AbstractText, DescriptionText)
+            : null;
+
+    /// <summary>核心分类徽章展示文案：🎨 视觉与音效美化</summary>
+    public string CategoryBadgeText => Category?.DisplayTitle ?? string.Empty;
+
+    /// <summary>核心分类描述说明</summary>
+    public string CategoryDescription => Category?.Description ?? string.Empty;
 
     /// <summary>标签（详情优先，其次列表行）。</summary>
     public IReadOnlyList<string> Tags => _details?.Tags ?? _row?.Tags ?? Array.Empty<string>();
@@ -603,6 +697,7 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
         SetInstallStatus(string.Empty, isError: false);
         LastChangeSet = null;
         ContentNavigationStatusText = string.Empty;
+        ResetSpacedockImageState();
         Refresh();
     }
 
@@ -871,7 +966,93 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
         SetInstallStatus(string.Empty, isError: false);
         LastChangeSet = null;
         ContentNavigationStatusText = string.Empty;
+        ResetSpacedockImageState();
     }
+
+    /// <summary>
+    /// 重置 SpaceDock 截图状态（清空下载字节、错误提示与加载中状态）。
+    /// </summary>
+    private void ResetSpacedockImageState()
+    {
+        SpacedockImageBytes = null;
+        IsLoadingSpacedockImage = false;
+        SpacedockImageError = string.Empty;
+    }
+
+    /// <summary>
+    /// 按需加载当前选中模组的 SpaceDock 截图。
+    /// 默认不加载，减轻网络压力；用户点击加载按钮后再触发。
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanLoadSpacedockImage))]
+    private async Task LoadSpacedockImageAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SpacedockUrl) || _spacedockImageService is null)
+        {
+            SpacedockImageError = "当前环境没有可用的 SpaceDock 图片抓取服务。";
+            return;
+        }
+
+        IsLoadingSpacedockImage = true;
+        SpacedockImageError = string.Empty;
+
+        try
+        {
+            var result = await _spacedockImageService.FetchScreenshotAsync(SpacedockUrl).ConfigureAwait(true);
+            if (result.IsSuccess && result.Value is { Length: > 0 } bytes)
+            {
+                SpacedockImageBytes = bytes;
+            }
+            else
+            {
+                SpacedockImageError = string.IsNullOrWhiteSpace(result.Message)
+                    ? "未能从 SpaceDock 获取到预览截图"
+                    : result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            SpacedockImageError = "拉取截图失败: " + ex.Message;
+        }
+        finally
+        {
+            IsLoadingSpacedockImage = false;
+        }
+    }
+
+    private bool CanLoadSpacedockImage() => HasSpacedockUrl && !IsLoadingSpacedockImage;
+
+    /// <summary>
+    /// 引导用户前往 SpaceDock 官方网页页面。
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanOpenSpacedockUrl))]
+    private async Task OpenSpacedockUrlAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SpacedockUrl))
+        {
+            return;
+        }
+
+        if (ShellLauncher is not null)
+        {
+            await ShellLauncher.OpenBrowserAsync(SpacedockUrl).ConfigureAwait(true);
+        }
+        else
+        {
+            try
+            {
+                using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(SpacedockUrl)
+                {
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                // 忽略浏览器拉起失败
+            }
+        }
+    }
+
+    private bool CanOpenSpacedockUrl() => HasSpacedockUrl;
 
     private ModRowData? FindRow(string identifier)
     {

@@ -64,6 +64,13 @@ public static class Program
             return 0;
         }
 
+        // --pages：全 tab 结构成本普查（不跑门禁）
+        if (Array.Exists(args, a => string.Equals(a, "--pages", StringComparison.OrdinalIgnoreCase)))
+        {
+            BenchmarkRunner.RunPageSweep();
+            return 0;
+        }
+
         // --micro：首屏样式成本拆解（不跑门禁）
         if (Array.Exists(args, a => string.Equals(a, "--micro", StringComparison.OrdinalIgnoreCase)))
         {

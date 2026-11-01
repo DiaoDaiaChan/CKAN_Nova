@@ -13,6 +13,7 @@ using CkanUI.Services.Abstractions.Logs;
 using CkanUI.Services.Commands;
 using CkanUI.Services.Logs;
 using CkanUI.ViewModels;
+using CkanUI.ViewModels.Pages;
 using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Shell;
 using log4net;
@@ -41,6 +42,8 @@ public sealed partial class App : Application
     private LogPipeline? _logPipeline;
     private LogExceptionRouter? _logRouter;
     private bool _shutdownDone;
+    private MainWindow? _mainWindow;
+    private bool _firstRunWizardShown;
 
     /// <summary>启动计时：从 XAML 加载前到首个窗口可交互，一次启动只打一行总账与各阶段耗时。</summary>
     /// <remarks>
@@ -183,6 +186,7 @@ public sealed partial class App : Application
             shell.LogDrawer.OpenPageRequested += (_, _) => shell.NavigateCommand.Execute("logs");
 
             var window = new MainWindow { DataContext = shell };
+            _mainWindow = window;
             Mark("main-window-new");
 
             // 命令面板（UI-27）：键位与「命令 Id → 动作」的映射留在外壳，这里只交 VM、目录与动作落点。
@@ -191,6 +195,10 @@ public sealed partial class App : Application
                 _services.GetRequiredService<ICommandCatalog>(),
                 _services.GetRequiredService<Func<string, string>>(),
                 HandlePaletteAction);
+
+            // 首次启动高亮指引（Onboarding Tour）：遮罩高亮引导用户使用软件。
+            window.AttachOnboardingTour(
+                _services.GetRequiredService<CkanUI.ViewModels.Onboarding.OnboardingTourViewModel>());
 
             desktop.MainWindow = window;
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
@@ -315,6 +323,7 @@ public sealed partial class App : Application
         var errors = services.GetRequiredService<IErrorReporter>();
         try
         {
+            ApplySavedProxy(services);
             TraceStartup($"[启动计时] bootstrap-called={_startupWatch.ElapsedMilliseconds}ms");
             var result = await services.GetRequiredService<IAppBootstrapper>()
                                        .StartupAsync(CancellationToken.None)
@@ -326,6 +335,9 @@ public sealed partial class App : Application
                 : localizer.Format("Ui_Common_Status_StartupIncomplete", result.Message);
             if (!result.IsSuccess) Log.Warn($"启动未完成：{result.Message} {result.Detail}");
             await dispatcher.InvokeAsync(() => shell.StatusText = status).ConfigureAwait(false);
+
+            // 首次启动指引与高亮导览：
+            await dispatcher.InvokeAsync(() => { _ = MaybeShowFirstRunWizardAndOnboardingAsync(); }).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -365,6 +377,90 @@ public sealed partial class App : Application
             {
                 Log.Warn("首屏兜底导航失败。", ex);
             }
+        }
+    }
+
+    /// <summary>
+    /// 把磁盘上的下载代理装到进程上（首启指引第 3 步保存的也是同一份配置）。
+    /// </summary>
+    /// <remarks>
+    /// 必须赶在任何一次仓库刷新之前：Core 的下载器走 WebClient，只认 .NET 的全局代理，
+    /// 没有「按请求指定代理」的入口。晚一步，首启拉索引就还是直连。
+    /// </remarks>
+    private void ApplySavedProxy(IServiceProvider services)
+    {
+        try
+        {
+            var configurator = services.GetService<IProxyConfigurator>();
+            var uiSettings = services.GetService<IUiSettingsStore>()?.Current;
+            if (configurator is null || uiSettings is null)
+            {
+                return;
+            }
+
+            var mode = uiSettings.ProxyMode switch
+            {
+                "direct" => ProxyMode.Direct,
+                "manual" => ProxyMode.Manual,
+                _ => ProxyMode.System,
+            };
+            configurator.Apply(new ProxySettings(mode, uiSettings.ProxyServer, uiSettings.ProxyBypass));
+        }
+        catch (Exception ex)
+        {
+            // 代理配置坏了只该降级成「直连也能用」，不能拖垮启动。
+            Log.Warn("应用已保存的下载代理失败。", ex);
+        }
+    }
+
+    /// <summary>
+    /// 按需弹出首次启动指引：没有任何实例、且从未走完过向导时才出现。
+    /// </summary>
+    private async Task MaybeShowFirstRunWizardAndOnboardingAsync()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var uiSettings = _services.GetRequiredService<IUiSettingsStore>();
+
+            // 等待主窗口可见
+            if (_mainWindow is { IsVisible: false } waiting)
+            {
+                var opened = new TaskCompletionSource();
+                void OnOpened(object? sender, EventArgs e)
+                {
+                    waiting.Opened -= OnOpened;
+                    opened.TrySetResult();
+                }
+
+                waiting.Opened += OnOpened;
+                await opened.Task.ConfigureAwait(true);
+            }
+
+            // 1. 若从未走完过向导且无实例，先弹配置向导
+            if (!_firstRunWizardShown && !uiSettings.Current.FirstRunCompleted && _services.GetRequiredService<IInstanceService>().Instances.Count == 0)
+            {
+                _firstRunWizardShown = true;
+                await _services.GetRequiredService<IFirstRunWizardLauncher>()
+                               .LaunchAsync()
+                               .ConfigureAwait(true);
+            }
+
+            // 2. 若从未展示过软件功能高亮导览，则自动启动高亮导览
+            if (!uiSettings.Current.HasSeenOnboardingTour && _mainWindow is MainWindow mw)
+            {
+                // 稍微延时 300ms 让首帧布局稳定渲染完成后再高亮
+                await Task.Delay(300).ConfigureAwait(true);
+                mw.ShowOnboardingGuide();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("首次启动指引或高亮导览未能显示。", ex);
         }
     }
 
@@ -418,6 +514,15 @@ public sealed partial class App : Application
         {
             CycleUiSetting(DensityCycle, settings => settings.Density, (settings, value) => settings with { Density = value }, "密度");
             return true;
+        }
+
+        if (id == DefaultCommands.ActionId("open-onboarding-guide"))
+        {
+            if (_mainWindow is MainWindow mw)
+            {
+                mw.ShowOnboardingGuide();
+                return true;
+            }
         }
 
         return false;

@@ -139,9 +139,10 @@
   （`SettingsKeyNames.AccentScope`）切到全局时会把实例键删掉并把当前生效色搬回 `AccentColor`，
   所以「切回全局」看起来是接着用当前色，而不是跳回一个没人记得的旧值。
 
-### 4.2 THM-03 材质与透明（Mica / Acrylic）
+### 4.2 THM-03 材质与透明（Mica / Acrylic，已落地控件级玻璃）
 - **降级链路**：`Mica` (Win11 build ≥ 22000) → `AcrylicBlur` (Win10 `win10-x64` 构建) → 纯色 (`None`)。
 - **Token 联动**：新增 `Ui.Material.WindowBackdrop` 资源槽位；当材质生效时，`CkanSurfaceBackgroundBrush` 的 Alpha 透明度动态调整，同时禁用投影高度以免界面变脏。
+- **控件级落地（本轮）**：窗口级 Mica 之外，按钮/胶囊/列表行/页签/菜单/输入框统一取 `CkanGlass*` 系列（见 §5.2.1）——不依赖平台材质，三套主题都能表达「玻璃面」；高对比度降级为纯黑不透明 + 纯白描边。
 
 ### 4.3 THM-04 圆角尺度三档切换
 - **扩展点**：通过设置项倍率（0 / 1 / 2）整体驱动 `CkanCornerRadiusSmall`、`Medium`、`Large`。
@@ -234,6 +235,22 @@
 
 > 高对比度下一律归零：HC 的层级靠 1px 纯白描边表达，阴影只会把文字边缘糊掉。
 > 三档数值都写进 token 而不是留 `BoxShadow="..."` 字面量，理由与 §1.1 同：主题包与高对比度要能整体改写。
+
+### 5.2.1 磨砂玻璃材质 Token（MAT，三变体）
+
+| Token Key | 语义说明 | 浅色 | 深色 | 高对比度 |
+|---|---|---|---|---|
+| `CkanGlassFillBrush` | 玻璃面默认填充（半透明，让下层背景透上来） | `#8CFFFFFF` | `#14FFFFFF` | `#000000` |
+| `CkanGlassFillHoverBrush` | 玻璃面悬停填充（比默认更亮一档） | `#B8FFFFFF` | `#24FFFFFF` | `#111111` |
+| `CkanGlassBorderBrush` | 顶亮底暗的 1px 渐变描边（亚克力厚度感） | 白→黑 三段 | 白→白 三段 | `#FFFFFF` 纯色 |
+| `CkanGlassBorderHoverBrush` | 悬停描边（转向强调色） | 强调蓝三段 | 强调蓝三段 | `#FFFF00` 纯色 |
+| `CkanGlassShadow` | 玻璃面海拔（内顶光 + 柔外影） | 见 Tokens.axaml | 见 Tokens.axaml | 全零 |
+| `CkanGlassShadowHover` | 悬停海拔（内顶光更亮、外影更沉） | 见 Tokens.axaml | 见 Tokens.axaml | 全零 |
+| `CkanGlassShadowAccent` | 强调色按钮专用（外影带强调色） | 见 Tokens.axaml | 见 Tokens.axaml | 全零 |
+
+> 高对比度下玻璃必须退化：半透明填充在纯黑底上会变成一层灰雾，HC 直接把填充压成不透明、描边压成纯白。
+> 按钮不直接吃 `CkanGlassShadow`——`Button` 没有 `BoxShadow` 属性，投影只能挂在 `Border` 上；本轮的实际观感来自「半透明填充 + 渐变描边」，阴影只用于卡片/浮层。
+
 
 ### 5.3 新增非主题 Token（尺寸与节奏）
 
@@ -407,9 +424,14 @@ Avalonia 的 `SpringEasing` 实现 `IEasing.Ease(double progress)`，引擎把 `
 
 #### 5.9.6 校验冲量轻颤（`src/CkanUI.App/Animations/MotionFeedback.cs`）
 
-`ShakeAsync(target)` = 加 `is-invalid`（挂上档位 4 的弹簧过渡）→ 加 `shake-impulse`（过渡置空，瞬间拉到 +8px）→
-等 16 ms（一帧）→ 摘掉 `shake-impulse`：弹簧从 +8px 释放回 0，自动跑出 3 次衰减摆动，无需关键帧。
+`ShakeAsync(target)` = 加 `is-invalid`（换红描边）→ 对控件的位移通道踢一记 10 px 冲量
+（`TransformSpring.For(target, SpringSpec.Impulse).Kick(10)`，与样式里档位 4 的 `k650 c14 v0=30` 同参数）。
+冲量由帧驱动弹簧自己衰减（首峰接近请求幅度、约 3 次摆动后停），**不再有「加类 → 等 16 ms → 摘类」那套猜帧机制**：
+那套做法靠「瞬间拉偏再放手」骗出冲量，帧没对齐时会漏拍。方法签名照旧返回 `Task`，但已经同步完成，调用方 `await` 不会让出线程。
 
+- `Control.shake-impulse`（`translate(8px,0px)` + `Transitions={x:Null}`）**保留但不再驱动视觉**：
+  `tests/CkanUI.Architecture.Tests/MotionSkeletonTests.cs` 把这条选择器钉成动效骨骼契约，删样式会让门禁红；
+  真正产生位移的是弹簧引擎。`Control.is-invalid` 同理只留描边语义。
 - **modpack 编辑器**：`ModPackEditorPageViewModel.ApplyIssues` 收集 `Severity==Error` 的 `Field` 到
   `InvalidFields`（去重、剔空字段，且列进 `IsInfrastructureProperty` 白名单——校验反馈不能把表单标脏）→
   `ModPackEditorPageView.axaml.cs` 订阅这条通知，用 `Tag` 上的字段名在可视树里找输入框：命中 `ShakeAsync`，未命中 `ClearInvalid`。
@@ -422,16 +444,25 @@ Avalonia 的 `SpringEasing` 实现 `IEasing.Ease(double progress)`，引擎把 `
 `ui:FANavigationView`，选中高亮是控件模板内的 `Border#SelectionIndicator`，由
 `FANavigationView.AnimateSelectionChanged`（`external/_fa-tmp/src/FluentAvalonia/UI/Controls/NavigationView/FANavigationView.cs:3282`，
 `PlayIndicatorAnimations` 在 `:3484`）以固定的 **600 ms 组合动画**驱动，**时长与 Easing 都不对外暴露**。
-因此这里只做我们能控制的那一层：导航项自身挂 `nav-catch-up`（`translate(4px,0px)`，110 ms 后摘掉）表达"追赶"，
+因此这里只做我们能控制的那一层：导航项被选中时给它的位移通道踢一记 6 px 冲量
+（`MotionFeedback.PulseNav(item)` → `TransformSpring.For(item, SpringSpec.Snappy).Kick(6)`）表达"追赶"，
 指示器的滑动沿用 FluentAvalonia 原生动画。若将来要真正拿到弹簧滑动，得自绘导航列表（放弃 `FANavigationView` 的分组与溢出行为）。
-追赶位移用**代数守卫**（`MainWindow._navPulseGeneration`）：连点同一项时只有最新一次有权摘类，否则早到的 `Task.Delay`
-会把新一次刚挂上的类提前摘掉；换项时则先摘掉上一项的类，避免它 110 ms 后回来误摘当前项。
+冲量是自衰减的，**没有延时、没有代数守卫**：原来那套 `_navPulseGeneration` + `Task.Delay(110 ms)` 摘类的写法
+（连点同一项时，早到的延时会把新一次刚挂上的类提前摘掉，所以不得不用代数比较）随 `nav-catch-up` 一起退场；
+现在连点只会叠加冲量，不会打断当前摆动。`ui|FANavigationViewItem.nav-catch-up` 仍被门禁钉着，保留但不驱动视觉。
 
 #### 5.9.8 可打断性
 
-`TransformOperationsTransition` / `DoubleTransition` 在属性变更时会从**当前插值位置**接着跑，所以抽屉半空中反向点击、
-导航快速扫过都不会跳变；页面的错峰入场由 `CancellationTokenSource` 取消上一轮（换页即中止，并在 `finally` 复位）。
-物理动画只改 `RenderTransform` / `Opacity`，**不触发 Measure/Arrange**，连点时表单与列表尺寸不动。
+*`TransformOperationsTransition` 在目标值二次变化时会从**当前插值位置**接着跑* ——这句以前写在这里，实测是**错的**：
+Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时、速度归零**。位置是连续的（所以不跳），
+但观感是"顿一下再起步"——这正是"没有完整的中断、不流畅"的机制层根因（`DoubleTransition` 同理）。
+
+所以位移与形变的"可打断"改由**代码帧驱动**接管（§5.9.10）：`SpringChannel.Retarget` 只换目标、保留速度，
+胶囊被连点页签半路拦截时是"被接住拐弯"而不是急停再起步。样式里的 `Transitions` 继续负责抽屉 / 浮条 / 导航项的
+悬停与显隐（单程过渡，不会在半空被反向），页面错峰入场由 `CancellationTokenSource` 取消上一轮。
+帧驱动只写 `RenderTransform` 的**子对象属性**（`TranslateTransform.X` / `ScaleTransform.ScaleX`），
+既不触发 Measure/Arrange，也不会被样式里的 `TransformOperationsTransition` 当成新目标反复重启。
+注意：`Transitions` 挂/摘的旧套路（"瞬间拉偏→等一帧→放手"）本身就是在猜帧，已随 `MotionFeedback` 改写一并删除。
 
 #### 5.9.9 外壳三明治、防裁剪、未保存数据链
 
@@ -457,6 +488,241 @@ Avalonia 的 `SpringEasing` 实现 `IEasing.Ease(double progress)`，引擎把 `
   命中 `Button` 祖先的事件直接返回（前进/后退不是拖窗）、`e.ClickCount == 2` 切最大化/还原、最大化状态下拖动先还原；
   由 `tests/CkanUI.Architecture.Tests/WindowChromeTests.cs` 锁住这段接线（删掉即整窗不可移动）。
 - **豁免**：`Theming/SkeletonPulse.cs` 的骨架屏脉动只循环 `Opacity`、不位移不参与布局，属于加载态表现，不算物理动画。
+
+#### 5.9.10 帧驱动弹簧引擎（`src/CkanUI.App/Animations/`）
+
+样式里的 `SpringEasing` 只能给出"从 A 到 B 的一条曲线"，目标中途一变就重新计时（§5.9.8）。
+要真正可打断，位移必须由**自己的时间基准**积分。三个文件分工：
+
+| 文件 | 职责 | 关键常量 |
+| --- | --- | --- |
+| `SpringChannel.cs` | 一根标量弹簧（位置 / 速度 / 目标）；`Retarget` 保留速度，`Kick` 反解初速让首峰等于设计幅度 | `MaxSubstep = 1/960 s`、`MaxFrameSlice = 0.05 s`、静止阈值 0.25 px + 4 px/s（缩放通道 0.0004 + 0.005） |
+| `MotionFramePump.cs` | 每个 `TopLevel` 一台泵：`RequestAnimationFrame` 循环，`dt` 实测（首帧 1/60、封顶 1/30），没有活跃轨道就停止排帧 | `ConditionalWeakTable<TopLevel, MotionFramePump>` |
+| `TransformSpring.cs` | 把 2~4 根通道接到控件的 `RenderTransform`：**只在构造时**赋一次 `TransformGroup`，之后每帧只改子属性 | `For(control, spec)` 每控件一根，连点叠加冲量 |
+
+弹簧预设（代码侧，与样式里的四档同源）：
+
+| 预设 | Mass | Stiffness | Damping | ζ | 实测 0→300 px |
+| --- | --- | --- | --- | --- | --- |
+| `SpringSpec.Glide` | 1 | 380 | 39 | 1.00（实测过冲 −0.30 px） | 0.483 s 停 |
+| `SpringSpec.Snappy` | 1 | 420 | 30 | 0.73（过冲 9.55 px ≈ 3.2%） | 0.483 s 停 |
+| `SpringSpec.Bounce` | 1 | 560 | 26 | 0.55（过冲 36.6 px） | 0.567 s 停 |
+| `SpringSpec.Impulse` | 1 | 650 | 14 | 0.27（与档位 4 同参） | 只用于冲量，不用于归位 |
+
+- **顶栏胶囊与激光条**：`MainWindow.ApplySectionTabIndicatorGeometry` 不再拼 `TransformOperations.Parse("translate(...) scaleX(...)")`，
+  改为 `_pillSpring.MoveTo(x: x, scaleX: pillScale)` / `_barSpring.MoveTo(x: barX, scaleX: barScale)`：
+  位移走 `Glide`（零过冲，胶囊不会啃到相邻页签的文字），宽度走 `Snappy`（回弹感只留给形变）。
+  首次定位（`_indicatorPlaced == false`）传 `snap: true` 直接落位，否则冷启动时胶囊会从 0 处横穿整条页签栏飞过来。
+  页签条尚未完成首次排版（`Bounds.Width <= 0`）时，沿用 `DispatcherPriority.Loaded` 补一次定位。
+- **动效强度三档**由 `MotionBudget` 从资源 token 反推（`page > 0` → 完整；否则 `fast > 0` → 精简；都为零 → 关闭）：
+  `none` 一律瞬时落位、不排帧、不留半截中间态；`reduced` 把位移与冲量压到 **45%**（`ReducedAmplitudeScale`），
+  并取消页面级编排与排队入场——"有反馈但不铺开"，与 `UiMotionScale` 的口径一致。token 未注入（设计期、单测没有
+  `Application`）时按完整处理，避免把"没配"误判成"关掉动效"。
+- **离开可视树**：`Advance` 发现控件已不在树上就 `SnapAll` 并返回 false，帧泵立刻摘掉该轨道——页面切走后不会有幽灵帧泵拖着跑。
+- **门禁**：`tests/CkanUI.App.Tests/SpringChannelTests.cs`（12 项：换目标保速度、打断后无瞬移且不是一两帧落位、临界阻尼不过冲、
+  欠阻尼必须有可见回弹、0.5 s 内收敛、冲量首峰等于设计值、连点叠加不重启、`SnapTo` 立即停、帧率无关、
+  排队期间不走不攒速度且到时自己出发、换目标不带等待时清掉排队）；
+  `tests/CkanUI.App.Tests/TransformSpringTests.cs`（位移/形变只写在子属性上、`RenderTransform` 本身只赋值一次、
+  不透明度通道会夹到 [0,1] 且只在传了 `opacity` 时才写、缩放以中心为原点、每控件复用同一根）。
+- **整页过渡仍然不挂**（`PageHost.PageTransition = null`，注释里记录了三种整页过渡的实测缺陷：双影、亮度 38.3→28.6→34.7 的
+  凹陷、叠化重影）。它们共同的病根是"两页同时在屏幕上"；换场表现改由**单页编排**承担（§5.9.11）——换页仍瞬时替换，
+  只有新内容浮入，屏幕上永远只有一页，所以既无重影也无亮度凹陷。
+
+#### 5.9.11 交互反馈编排：让"有反应"看得见（`MotionBudget` / `InteractionMotion` / `EntranceChoreographer`）
+
+上一版只把"不流畅"修好了，观感仍偏弱：单帧幅度小、页面入场根本没有、按压没有任何触感。
+这一层补的是**看得见**，同时保证三档强度都受同一个预算约束。
+
+| 文件 | 职责 | 关键常量 |
+| --- | --- | --- |
+| `MotionBudget.cs` | 从 `CkanMotionDurationPage/Fast` 反推档位（完整 / 精简 / 关闭），给出幅度系数与是否允许页面编排 | `ReducedAmplitudeScale = 0.45` |
+| `InteractionMotion.cs` | 按下时让**可交互表面**往中心收一点，松手弹回；表面识别复用 `PointerAuraLayer.FindSurface`（按钮、页签、树项、列表项、卡片…），数据行与菜单项不参与 | `PressedScale = 0.95`（`SpringSpec.Tactile`）、`PressInsetPixels = 12` |
+| `PageRevealSpec.cs` | 把页签索引差翻译成换页起点姿态：横切以水平 28 px 为主轴（左切镜像）、一级导航换页只上浮 22 px；三档统一走 `MotionBudget` | `DirectionalHorizontalPixels = 28`、`DirectionalVerticalPixels = 10`、`LiftOnlyPixels = 22`、`StartScale = 0.986`、`DirectionalStartOpacity = 0.30`、`LiftOnlyStartOpacity = 0.34` |
+| `EntranceChoreographer.cs` | 从 `PageHost` 往下六层找到第一层"有 ≥2 个可见子元素"的容器，最多取 8 个，按 30 ms 错峰上浮；无需给页面标 class，也不参与布局 | `OffsetPixels = 18`、`StepMilliseconds = 30`、`ReducedOffsetPixels = 4` |
+
+- **排队而不是定时器**：错峰不是"等 30 ms 再改目标"，而是让弹簧自己扣等待时间——`SpringChannel.Retarget(target, holdSeconds)`
+  在排队期间只扣时长、不积分、不攒速度，到点自己出发（`IsHeld` 可观测，`IsMoving` 仍为真以保持帧泵存活）。
+  好处是掉帧不会让队列错位，也不会出现"排到第三个时前两个已经停了"的空档；取消排队只需再 `Retarget` 一次不带 `hold`。
+- **页面入场（带方向、只淡一次）**：`MainWindow.PlayPageReveal(int direction)` 先让 `PageHost` 同步落到
+  `PageRevealSpec.For(direction)` 给出的姿态，再交给 `Glide` 弹簧回到 `0 / 0 / 1 / 1`。
+  **两个方向两条姿态**：同组页签横切（`direction = ±1`）走 `+28 / -28 px` 水平主轴、垂直只剩 10 px、不透明度 0.30——
+  位移主轴跟着指示器方向走，宽屏上一眼看出"往哪边切了"；一级导航换页（`direction = 0`）没有横向可读的参照，改成 22 px 纯上浮 + 0.34，
+  不硬塞假方向。两条都缩放 0.986。
+  水平上限取 28 px 是因为 `PageHost` 所在 Panel 不裁剪：再大，低不透明度的边缘会压到侧栏上；横切时同时给满垂直分量会像"斜着甩进来"，所以只留 10 px。
+  一级元素随后只做**位移**错峰（`Play(..., includeOpacity: false)`），不再压一次透明度——
+  两层一起淡会变成"淡两次"，中间那一段反而更闷。起点与第一次目标切换在同一个调度回合里完成，渲染前就已落位，不会闪一帧原位。
+  仅完整档执行整页与块级编排；精简档跳过这两层，只留文字的轻量淡入（§5.9.12）。
+- **按压触感**：只在 `PointerPressed`/`Released`/`Exited` 上驱动，不改模板、不碰布局；`SpringSpec.Tactile`（`900/45/1`，ζ=0.75、
+  过冲约 2.8%）让松手有一点回弹但不至于弹成玩具。缩放下限按尺寸算：`ScaleFor(width, height)` 取
+  `clamp(1 - 12px / max(w,h), 0.95, 1)`——小按钮按 5% 收（看得出"按下"），1000px 宽的卡片只收 12px 边
+  （否则整块塌 32px，像被压扁）。悬停中的卡片样式已把 `RenderTransform` 换成 `TransformOperations`，
+  按压仍然接管它（按下这一瞬间的触感优先于 +2px 的悬停抬升），松手后由样式重新接管。
+- **样式抢走 RenderTransform 的兜底**：可点卡片的 `pointerover` 会把 `RenderTransform` 换成 `TransformOperations`。
+  `TransformSpring.MoveTo`/`Kick` 每次显式触发时把 `TransformGroup` 收回来一次（`ReclaimRenderTransform`），
+  但**不**逐帧重赋——逐帧赋正是"越动越僵"的老病因（§5.9.8）。
+- **幅度口径**：导航追赶冲量 4 → **6 px**；校验抖动与导航追赶都过 `MotionBudget.Amplitude(...)`，精简档只有 45%，关闭档为零。
+- **门禁**：`tests/CkanUI.App.Tests/MotionChoreographyTests.cs`（档位由 token 反推、完整档真正排队且最终全部归位、
+  精简档一起出发且只留 4 px、关闭档一次编排都不发生）、`tests/CkanUI.App.Tests/MotionFramePumpTests.cs`（真控件上的打断连续性）、
+  `tests/CkanUI.App.Tests/TextRevealChoreographerTests.cs`（文字按 7 px / 12 ms 逐行淡入、精简档一起淡且只留 2 px、
+  关闭档不动、空白与隐藏文本不占队列、重复入场从 0 重来）。
+- **不做的事**：仍不改任何被 `MotionSkeletonTests` / `SpringConvergenceTests` 钉住的样式；错峰与按压全部走 `RenderTransform`
+  子属性，不动 `Margin`/`Height`/`Width`/`Padding`，不触发 Measure。
+
+#### 5.9.12 文字逐行上屏（`TextRevealChoreographer`）
+
+页面切到另一页签时，先由 §5.9.11 把整页与块级容器浮入，再由这一层让**文字自己快速逐行出现**：
+按视觉顺序（前序深度优先）取页面里的 `TextBlock`，每个先落到"上浮 7 px + 不透明度 0"，再交
+`SpringSpec.Glide` 淡回原位，行间节拍 12 ms。20 行文字 0.23 s 扫完，是"内容正在加载"的观感，不是逐字蹦。
+
+| 项 | 口径 |
+| --- | --- |
+| 收集范围 | `PageHost` 往下 10 层、最多 48 行、扫描上限 2400 个可视节点 |
+| 跳过 | 不可见、`Opacity <= 0`、空白文本（`Text` 与 `Inlines` 都为空）、`DataGridRow` 内的单元格文字（表格行错落会像抖动） |
+| 完整档 | 上浮 7 px，节拍 12 ms |
+| 精简档 | 上浮 2 px，不排队（全部一起淡） |
+| 关闭档 | 一次都不发生 |
+| 与块级的关系 | 块先动、字后到；两层各用自己的 `TransformGroup`，互不覆盖（父级位移叠加子级位移，属预期） |
+
+- **节拍为什么比块级快**：文字是密集对象，按块级的 30 ms 排 20 行要 0.6 s，看起来像卡顿；12 ms 才有"快速扫过"的速度感。
+- **模板晚一拍**：`PlayPageReveal()` 里同步调用一次，返回 0（`TextBlock` 还没实例化）时在 `DispatcherPriority.Loaded` 重试一次，
+  避免整页文字静默出现在屏幕上。
+- **淡出不单独做**：换页仍是瞬时替换（§5.9.10 已说明两页同屏的三种缺陷），旧页没有淡出帧；观感上的"淡入淡出"
+  来自新页低不透明度起步 + 文字逐行跟上，而不是两页交叉淡化。
+
+#### 5.9.13 提示条入场（`BannerMotion`）
+
+`Border.CkanInfoBanner` 的显隐由 `IsVisible` 绑定控制：控件从不在树上到在树上是一次硬切换，
+样式里那条 `DoubleTransition Opacity` 从来没有中间帧（透明度没有机会变）。这一层监听 `IsVisible` 变 true 的那一刻，
+先压到"上浮 8 px + 不透明度 0"，再交 `SpringSpec.Glide` 淡回原位——错误提示、警告条出现时有了"因果感"。
+
+| 项 | 口径 |
+| --- | --- |
+| 挂载点 | `MainWindow.PlayPageReveal()`：每次换页对 `PageHost` 扫一遍提示条 |
+| 已可见的提示条 | 挂载时立即入场一次（页面带着错误状态打开也看得见） |
+| 完整档 | 上浮 8 px |
+| 精简档 | 上浮 3 px |
+| 关闭档 | 只挂监听，不做任何写入（不透明度与 `RenderTransform` 保持原样） |
+| 订阅去重 | `ConditionalWeakTable` 保证每个提示条只订阅一次；处理器是静态方法，控件销毁后无反向引用 |
+
+- **为什么要摘掉 `Transitions`**：样式给提示条挂了 `DoubleTransition(Opacity)`，逐帧写不透明度会被过渡再平滑一次，
+  起点永远落不下去（读出来还是 1）。提示条本身没有可交互状态，摘掉过渡不影响其它观感；这正是 §5.9.8「过渡与逐帧驱动不能共存」的又一例。
+- **门禁**：`tests/CkanUI.App.Tests/BannerMotionTests.cs`（出现时真的从 0 淡入且不是一帧落位、挂载时已可见的也入场、
+  精简档只抬 3 px、关闭档不动、重复挂载不叠成两点出发）。
+
+#### 5.9.14 浮层弹簧接管（`SurfaceMotion`）
+
+底部日志抽屉（`Border.overlay-drawer`）与未保存浮条（`Border.floating-pill-bar`）原本靠样式里的
+`TransformOperationsTransition + SpringEasing` 播 260 px / 40 px 的位移。这条通道只有一个目标值：收起途中又点开，
+过渡从 t=0 重算、速度归零——而抽屉恰恰最容易被连点。这一层只监听 `Classes` 里的 `is-open`，XAML 与绑定一行不改，
+位移与不透明度改由弹簧通道带速度反向。
+
+| 项 | 口径 |
+| --- | --- |
+| 接管范围 | `overlay-drawer`（`SpringSpec.Glide`，260 px）与 `floating-pill-bar`（`SpringSpec.Snappy`，40 px + 0.96 缩放） |
+| 接入点 | `MainWindow.PlayPageReveal()` 首行 `SurfaceMotion.Attach(this)`，`ConditionalWeakTable` 去重 |
+| 状态源 | 仍只看 `is-open` 类；`IsVisible`、`IsHitTestVisible` 绑定不动 |
+| 三档 | 完整档 260/40 px；精简档按 45% 收（117/18 px）；关闭档直接落位、不排帧 |
+| 首次接管 | 先摘 `Transitions`（本地值压过样式），再按当前类 `snap` 到目标，避免首帧闪一下 |
+
+- **为什么只接管这两个**：它们是窗口级单例、位移量固定、最容易连点；`view-layer` 分散在十几处、部分还叠着悬停类，
+  由 §5.9.15 单独处理（跳过悬停类，其余逐个按类接管）。
+- **门禁**：`tests/CkanUI.App.Tests/SurfaceMotionTests.cs`（开合真的走帧、反向时不瞬移、浮条缩放跟着长大、
+  关闭档不排帧、重复挂载不加订阅）。
+
+#### 5.9.15 视图层弹簧接管（`ViewLayerMotion`）
+
+页面内的“同格叠放层”——空态 ↔ 数据态、未选中 ↔ 已选中——用 `Control.view-layer` + `is-active` 互斥。
+样式给的是 6 px 上浮 + 0.98 缩放 + 不透明度 0→1，走 `TransformOperationsTransition`。这类切换最容易被打断：
+先渲染空态、请求回来再叠数据态，过渡每次都从 t=0 重算，观感是“停一下再重新起步”。
+
+| 项 | 口径 |
+| --- | --- |
+| 接管范围 | 带 `view-layer` 的控件（`InstancesPageView` 四处、`ModsPageView`、`ModsSearchPanelView`、`ModDetailsView` 两处） |
+| 状态源 | 只看 `Classes` 里的 `is-active`；`Classes.is-active` 绑定（如 `ModDetailsView` 的 `IsEmpty`/`HasSelection`）一行不改 |
+| 几何 | 未激活 → `y = 6 px`、`scale = 0.98`、`opacity = 0`；激活 → `0 / 1 / 1`，`SpringSpec.Glide` |
+| 三档 | 完整档 6 px / 0.98；精简档按 45% 收（2.7 px / 0.991）；关闭档直接落位 |
+| 接入点 | `MainWindow.PlayPageReveal()` 里 `BannerMotion.Attach(PageHost)` 之后，`ConditionalWeakTable` 去重 |
+
+- **跳过的类**：`CkanCardInteractive`（`:pointerover` 自己写 `translateY(-2px)`、`:pressed` 写 `scale(0.995)`）、
+  `stagger-card`、`overlay-drawer`、`floating-pill-bar`。接管这些会把悬停/按压位移吃掉，所以放行给样式。
+- **为什么先摘 `Transitions`**：与 §5.9.13 同理——挂着 `TransformOperationsTransition` 时逐帧写 `RenderTransform`
+  会被过渡再平滑一次，弹簧几乎冻结。视图层没有别的过渡需要保留（不透明度也由同一通道接管）。
+- **首帧不闪**：接管时先按当前类 `snap` 一次，再开始监听；绑定晚一拍的 `is-active` 由 `Classes.CollectionChanged` 接住。
+- **门禁**：`tests/CkanUI.App.Tests/ViewLayerMotionTests.cs`（隐藏层从 0.98/6 px/0 出发、激活真的长大淡入并落位、
+  反向时不瞬移、带 `CkanCardInteractive` 的不接管且 `RenderTransform` 同一实例、关闭档落位、重复挂载不加订阅）。
+
+#### 5.9.16 对话框内容编排（`DialogWindow`）
+
+对话框本身已有入场/退场（`CubicEaseOut` 200 ms：不透明度 0→1、缩放 0.96→1，实现在
+`src/CkanUI.App/Views/Dialogs/DialogWindow.cs` 的 `OnOpened`/`OnClosing`）。这一层只补“正文自己浮上来”：
+窗口整体放大淡入的同时，块级元素与文字各做一段**纯位移**的错峰——不再压透明度，否则窗口淡一次、文字再淡一次，
+中间那段会闷掉（与 §5.9.7 整页“只淡一次”同一口径）。
+
+| 项 | 口径 |
+| --- | --- |
+| 挂载点 | `DialogWindow.OnOpened` → `DispatcherPriority.Loaded` → `DialogEntrance.Play(this)`（内部 = `EntranceChoreographer.Play(..., includeOpacity: false)` + `TextRevealChoreographer.Play(..., includeOpacity: false)`） |
+| 为什么排到 Loaded | `OnOpened` 时模板刚套上，同步扫可视树常常还扫不到正文 `TextBlock` |
+| 三档 | 与页面一致：完整档块级 18 px / 文字 7 px；精简档 45%；关闭档两个编排都直接返回 |
+| 不重复淡入 | 窗口 `Opacity` 由关键帧动画负责，正文只做位移 |
+
+- **门禁**：`tests/CkanUI.App.Tests/DialogEntranceTests.cs`（正文先落位移起点且不压不透明度、60 帧后回零；关闭档正文 `RenderTransform` 保持 `null`）。
+- **已知覆盖缺口**：`DialogWindow.Show()` 在无头 NUnit 线程上会因既有的 `Animation.RunAsync` 抛
+  `The current SynchronizationContext may not be used as a TaskScheduler`（与本次改动无关，改动前就有），
+  所以门禁测的是 `DialogEntrance.Play` 本身，窗口接线靠代码评审与真机观感。
+
+#### 5.9.17 卡片悬停弹簧（`HoverLiftMotion`）
+
+样式里 `Border.CkanCardInteractive:pointerover` 用 `TransformOperationsTransition` + `CkanMotionDurationFast`
+（90 ms）播 2 px 抬升。鼠标横着扫过一排卡片时，每张卡都要先把上一段速度清零再起步，抬升看起来是一段段“顶上去”。
+这一层按类接管这 2 px，位移之间共享速度：
+
+| 项 | 口径 |
+| --- | --- |
+| 范围 | `Classes.Contains("CkanCardInteractive")` 的控件（`MaxDepth=12`、`MaxVisited=3000`），命中即 `PointerEntered`/`PointerExited` 接弹簧 |
+| 幅度 | 完整档 `LiftPixels=2` 向上（`y: -2`），精简档 45%，关闭档直接返回 |
+| 规格 | `SpringSpec.Glide`（与浮层、视图层同一曲线，避免同屏两套手感的观感差） |
+| 与 `:pressed` 共存 | 样式的 `:pressed` 与 `InteractionMotion` 改缩放通道，本类只改 `translateY`，互不覆盖；本地值优先于样式，所以样式那条 90 ms 过渡不再生效 |
+| 与样式悬停共存 | 样式还给了背景刷与阴影（`CkanElevatedCardHoverBrush`/`CkanElevationMedium`），这部分照旧由样式过渡播，只有位移被接管 |
+
+- **门禁**：`tests/CkanUI.App.Tests/HoverLiftMotionTests.cs`（悬停抬到 -2 后落回 0；反向时单帧位移 < 0.4 且仍在负值区，证明带速回位；精简档 45%；关闭档 `RenderTransform` 保持同一实例；`Attach` 只认带类卡片且第二次返回 0）。
+- **未做**：FluentAvalonia 3.1.0 的导航选择指示器动画时长写死在库内（其 XML 文档无相关公开 API），要接管只能自绘覆盖层胶囊并做坐标映射，风险高于收益，暂不做。
+
+#### 5.9.18 滚动入场（`ScrollRevealMotion`）
+
+设置页、模组列表这类信息流一页放不下：页面入场只编排"换页那一刻"已经存在的元素，继续往下滚，新露出来的行是硬出现的。
+这一层挂在滚动容器上，元素**各自**补一次入场，滚动快时多条弹簧并行，不等前一条演完：
+
+| 项 | 口径 |
+| --- | --- |
+| 挂载点 | `MainWindow.PlayPageReveal(int direction)` → `ScrollRevealMotion.Attach(PageHost)`（每个 `ScrollViewer` 只订阅一次）；`DialogEntrance.Play` 里同样挂一次，对话框内的长列表一起覆盖 |
+| 触发 | `ScrollViewer.ScrollChanged`：元素**底边**跨进 `Viewport.Height + 32 px` 阈值即算露出来 |
+| 幅度 | 完整档下移 12 px + 不透明度 0 → `Glide` 弹簧回位；精简档 3 px；关闭档整层不挂（`Attach` 返回 0） |
+| 只演一次 | 演过写进 `ConditionalWeakTable`；回滚再下来不重演，滚过顶边的元素直接登记为"看过" |
+| 首屏不重演 | 挂载时的首轮扫描只登记、不播放——首屏由页面入场负责，两层都演会变成"淡两次" |
+| 范围 | 从 `ScrollViewer.Content` 往下六层找第一层"有 ≥2 个可见子元素"的容器（信息流自己的行），最多 400 个，跳过不可见项 |
+| 与虚拟化共存 | 只处理已经实现的容器；容器被回收后再次实现时按新控件登记，不会漏演也不会重复订阅 |
+| 挂载时机 | `Attach` 当场扫一遍，之后跟着根节点的 `LayoutUpdated` 补扫（节流 8 Hz）：页面模板、数据与滚动容器常晚于内容切换成形，只赌换页那一拍会一个容器都扫不到 |
+| 首屏登记 | 视口高度还是 0（布局未完成）时不登记任何“看过”，等布局就绪的那次补扫再登记，否则会把后面的行一起标掉 |
+
+- **门禁**：`tests/CkanUI.App.Tests/ScrollRevealMotionTests.cs`（跨进底边的行确实还在下移位置且半透明、45 帧后落位；首屏元素不被滚动层碰；回滚再下来不重演；仍在视口下方的行不动；关闭档 `Attach` 返回 0 且不写变换）与 `ScrollRevealAttachTests.cs`（换页后才挂载/才布局的滚动容器同样接上；布局前挂载不会把首屏之后的行误标为看过）。
+- **为什么不用 `EntranceChoreographer` 的 hold 队列**：滚动触发的元素是"谁露出来谁演"，彼此不在同一时间轴上；硬排队会让快速滚动时后面的行明显滞后于手指。
+
+#### 5.9.19 数据到达入场（`FeedArrivalMotion`）
+
+页面换页那一刻列表通常还是空的，数据是异步回来的：页面入场演完，行才“啪”地整块出现。
+这一层订阅 `ItemsControl` 的数据源增删，数据到达后按 10 行一批、24 ms 间隔错峰浮上来。
+
+| 项 | 口径 |
+| --- | --- |
+| 挂载点 | `MainWindow.PlayPageReveal(int direction)` 里 `ScrollRevealMotion.Attach` 之后；`DialogEntrance.Play` 同样挂 |
+| 触发 | `ItemsSource` 的 `CollectionChanged`，按 `DispatcherPriority.Loaded` 合并成一次（同一批 add 只演一遍）；数据先到容器后实现时补试一次 |
+| 幅度 | 完整档下移 14 px + 不透明度 0 → `Glide` 弹簧；精简档 4 px、无错峰；关闭档不挂（`Attach` 返回 0） |
+| 只演新行 | 容器演过写进 `ConditionalWeakTable`；筛选/追加只动新容器，老行不重演 |
+| 跳过 | `ComboBox` 的下拉项不是信息流；不可见或尚未实现的容器跳过（`ContainerFromIndex` 为 null） |
+| 上限 | 单次最多 10 行，超出的直接显示——错峰是节奏，不是排队 |
+
+- **门禁**：`tests/CkanUI.App.Tests/FeedArrivalMotionTests.cs`（三行同时到达时最后一行确实落在第一行后面、60 帧全部落位；后加一行只演新行；关闭档 `Attach` 返回 0 且不写变换）。
+- **hold 单位**：`SpringChannel.Retarget(target, holdSeconds)` 收的是**秒**；编排层把 `StepMilliseconds` 先 `/ 1000d` 再乘序号，别直接塞毫秒（塞 24 会变成 24 秒）。
 
 ### 5.10 表面分层（第 2 阶段 P1）
 

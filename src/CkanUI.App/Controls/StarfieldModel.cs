@@ -213,19 +213,52 @@ public sealed class StarfieldModel
     private static readonly double[] MeteorLanePhases = [-MeteorTravelSeconds / 3, 1.2];
 
     /// <summary>
-    /// 星座的几种连线模板：每颗星按种子挑一种，启动时的星座形状才不会千篇一律。
-    /// 节点永远是 <see cref="NodesPerFigure"/> 个（下标 0–4），模板只决定哪些点之间连线。
+    /// 星座经典天文学形态骨架与连线配置：
+    /// 抛弃刻板的圆周均分点，采用真实天文学中的折线流、十字架、长勺、弓矢与菱形风筝形态。
     /// </summary>
-    private static readonly ConstellationEdge[][] FigureTemplates =
+    private readonly struct ConstellationArchetype
+    {
+        public readonly (double X, double Y)[] LocalCoords;
+        public readonly ConstellationEdge[] Edges;
+
+        public ConstellationArchetype((double X, double Y)[] coords, ConstellationEdge[] edges)
+        {
+            LocalCoords = coords;
+            Edges = edges;
+        }
+    }
+
+    private static readonly ConstellationArchetype[] ConstellationArchetypes =
     [
-        // 闭合五边形 + 一条弦：最像传统星座图。
-        [new(0, 1), new(1, 2), new(2, 3), new(3, 4), new(4, 0), new(1, 4)],
-        // 开放折线带一条分叉：半边散开，像北冕那种走向。
-        [new(0, 1), new(1, 2), new(2, 3), new(3, 4), new(1, 3)],
-        // 风筝：两个三角共一条边。
-        [new(0, 1), new(1, 2), new(2, 3), new(3, 0), new(0, 2), new(2, 4)],
-        // 五角星骨架：外圈 + 两条对角线。
-        [new(0, 1), new(1, 2), new(2, 3), new(3, 4), new(4, 0), new(0, 2), new(2, 4)],
+        // 1. 仙后座 / W 形或折线流 (Cassiopeia / Zigzag stream)：起伏舒展的 5 点主干折线
+        new(
+            [(-1.0, 0.25), (-0.45, -0.45), (0.05, 0.35), (0.55, -0.30), (1.0, 0.40)],
+            [new(0, 1), new(1, 2), new(2, 3), new(3, 4)]),
+
+        // 2. 北斗小勺 / 斗魁与斗柄 (Little Dipper / Ladle)：斗身 4 点闭环 + 斗柄引出
+        new(
+            [(-0.75, -0.35), (-0.15, -0.45), (-0.05, 0.25), (-0.65, 0.30), (0.75, 0.50)],
+            [new(0, 1), new(1, 2), new(2, 3), new(3, 0), new(2, 4)]),
+
+        // 3. 天鹅十字 / 南十字座 (Northern Cross / Cygnus)：中心亮星 + 纵横舒展的十字飞翼
+        new(
+            [(0.0, 0.0), (0.0, -0.90), (0.0, 0.85), (-0.75, -0.15), (0.75, -0.15)],
+            [new(1, 0), new(0, 2), new(3, 0), new(0, 4)]),
+
+        // 4. 猎户弓矢 / 箭镞形态 (Orion Arrow / Chevron)：主干脊柱 + 优雅的后掠折角
+        new(
+            [(0.0, -0.80), (-0.65, -0.10), (0.65, -0.10), (0.0, 0.30), (0.0, 0.90)],
+            [new(0, 1), new(0, 2), new(1, 3), new(2, 3), new(3, 4)]),
+
+        // 5. 菱形风筝与星尾 (Diamond Kite with Streamer)：双三角菱形 + 尾随摆动星
+        new(
+            [(0.0, -0.75), (-0.55, 0.0), (0.55, 0.0), (0.0, 0.50), (0.45, 0.95)],
+            [new(0, 1), new(0, 2), new(1, 3), new(2, 3), new(1, 2), new(3, 4)]),
+
+        // 6. 皇冠月牙弧形 (Corona Arc / Crescent)：优雅的微曲抛物线星弧
+        new(
+            [(-0.90, 0.40), (-0.50, -0.10), (0.0, -0.35), (0.50, -0.10), (0.90, 0.40)],
+            [new(0, 1), new(1, 2), new(2, 3), new(3, 4)]),
     ];
 
     private readonly List<StarPoint> _stars = [];
@@ -595,33 +628,82 @@ public sealed class StarfieldModel
 
     private void BuildFigures(int figureCount, ref Rng rng)
     {
-        var cellWidth = FigureSpread / FigureGridColumns;
-        var cellHeight = FigureSpread / FigureGridRows;
+        // 允许星座部分超出屏幕边界，让星空在边缘更有延伸感与深邃感（-0.08 到 1.08）
+        const double boundMin = -0.08;
+        const double boundMax = 1.08;
 
+        // 候选网格点生成，扩大分布空间并跳过左上角星轨强遮盖区
+        var candidateCenters = new List<(double X, double Y)>();
+        const int gridCols = 5;
+        const int gridRows = 4;
+        var stepX = (boundMax - boundMin) / gridCols;
+        var stepY = (boundMax - boundMin) / gridRows;
+
+        for (var c = 0; c < gridCols; c++)
+        {
+            for (var r = 0; r < gridRows; r++)
+            {
+                var cellCenterX = boundMin + ((c + 0.5) * stepX);
+                var cellCenterY = boundMin + ((r + 0.5) * stepY);
+                var distToCornerOrigin = Math.Sqrt(Math.Pow(cellCenterX + CornerPoleOffsetX, 2) + Math.Pow(cellCenterY + CornerPoleOffsetY, 2));
+
+                // 彻底避让左上角星轨覆盖区：星轨最外层半径达 0.72，留足 0.82 安全距离，且扇区 (x < 0.55 且 y < 0.55) 均排除
+                var inCornerTrailFan = cellCenterX < 0.55 && cellCenterY < 0.55 && distToCornerOrigin < 0.82;
+                // 同时避让右下角大型追踪站天线区域
+                var inTrackingStationZone = cellCenterX > 0.68 && cellCenterY > 0.52;
+
+                if (!inCornerTrailFan && !inTrackingStationZone)
+                {
+                    candidateCenters.Add((cellCenterX, cellCenterY));
+                }
+            }
+        }
+
+        // 洗牌候选格子以保证离散且随机分布
+        for (var i = candidateCenters.Count - 1; i > 0; i--)
+        {
+            var j = (int)(rng.NextDouble() * (i + 1)) % (i + 1);
+            (candidateCenters[i], candidateCenters[j]) = (candidateCenters[j], candidateCenters[i]);
+        }
+
+        var chosenCount = Math.Min(figureCount, candidateCenters.Count);
         for (var f = 0; f < figureCount; f++)
         {
-            var col = f % FigureGridColumns;
-            var row = f / FigureGridColumns;
-            var centerX = FigureMargin + (col * cellWidth) + (cellWidth * (0.25 + (0.5 * rng.NextDouble())));
-            var centerY = FigureMargin + (row * cellHeight) + (cellHeight * (0.25 + (0.5 * rng.NextDouble())));
-            var baseAngle = rng.NextDouble() * Math.Tau;
-            var spread = 0.048 + (0.045 * rng.NextDouble());
-            var template = FigureTemplates[(int)(rng.NextDouble() * FigureTemplates.Length) % FigureTemplates.Length];
+            var baseCenter = candidateCenters[f % candidateCenters.Count];
+            // 在格内施加 ±0.35 步长的有机扰动，避免机械对齐感
+            var jitterX = (rng.NextDouble() - 0.5) * stepX * 0.7;
+            var jitterY = (rng.NextDouble() - 0.5) * stepY * 0.7;
+            var centerX = baseCenter.X + jitterX;
+            var centerY = baseCenter.Y + jitterY;
 
+            var rotAngle = rng.NextDouble() * Math.Tau;
+            var cosR = Math.Cos(rotAngle);
+            var sinR = Math.Sin(rotAngle);
+            var scaleX = 0.050 + (0.040 * rng.NextDouble());
+            var scaleY = scaleX * (0.80 + (0.45 * rng.NextDouble()));
+
+            var archetype = ConstellationArchetypes[(int)(rng.NextDouble() * ConstellationArchetypes.Length) % ConstellationArchetypes.Length];
             var nodes = new List<int>(NodesPerFigure);
+
             for (var i = 0; i < NodesPerFigure; i++)
             {
-                var angle = baseAngle + (i * Math.Tau / NodesPerFigure) + ((rng.NextDouble() - 0.5) * 0.28);
-                var radius = spread * (0.72 + (0.55 * rng.NextDouble()));
-                var x = Clamp(centerX + (Math.Cos(angle) * radius), NodeMargin, 1 - NodeMargin);
-                var y = Clamp(centerY + (Math.Sin(angle) * radius), NodeMargin, 1 - NodeMargin);
+                var (lx, ly) = archetype.LocalCoords[i];
+                // 适度微抖动，使同种形态每次生成依然具备独特性
+                var jx = lx + ((rng.NextDouble() - 0.5) * 0.14);
+                var jy = ly + ((rng.NextDouble() - 0.5) * 0.14);
+
+                var px = (jx * scaleX * cosR) - (jy * scaleY * sinR);
+                var py = (jx * scaleX * sinR) + (jy * scaleY * cosR);
+
+                var x = Clamp(centerX + px, -0.12, 1.12);
+                var y = Clamp(centerY + py, -0.12, 1.12);
 
                 nodes.Add(_stars.Count);
                 _stars.Add(new StarPoint(
                     x,
                     y,
-                    1.05 + (0.5 * rng.NextDouble()),
-                    0.5 + (0.22 * rng.NextDouble()),
+                    1.10 + (0.55 * rng.NextDouble()),
+                    0.52 + (0.25 * rng.NextDouble()),
                     rng.NextDouble() * Math.Tau,
                     0.5 + (0.7 * rng.NextDouble()),
                     rng.NextDouble() * 0.45));
@@ -629,7 +711,7 @@ public sealed class StarfieldModel
 
             _figures.Add(new ConstellationFigure(
                 nodes,
-                template,
+                archetype.Edges,
                 rng.NextDouble() * Math.Tau,
                 8.5 + (3 * rng.NextDouble())));
         }

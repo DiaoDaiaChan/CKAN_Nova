@@ -40,15 +40,15 @@
 
       <!-- 列表操作 -->
       <StackPanel Orientation="Horizontal" Spacing="8">
-        <Button Content="添加" Command="{Binding AddCommand}" ToolTip.Tip="添加一条启动命令" />
-        <Button Content="修改" Command="{Binding EditCommand}" IsEnabled="{Binding CanEdit}" />
-        <Button Content="删除" Command="{Binding RemoveCommand}" IsEnabled="{Binding CanRemove}"
-                ToolTip.Tip="至少保留一条启动命令" />
-        <Button Content="上移" Command="{Binding MoveUpCommand}" IsEnabled="{Binding CanMoveUp}" />
-        <Button Content="下移" Command="{Binding MoveDownCommand}" IsEnabled="{Binding CanMoveDown}" />
-        <Button Content="重置为默认" Command="{Binding ResetToDefaultsCommand}"
+        <Button Content="{DynamicResource Ui_Common_Add}" Command="{Binding AddCommand}" ToolTip.Tip="{DynamicResource Ui_LaunchCommands_AddCommand_Tip}" />
+        <Button Content="{DynamicResource Ui_Common_Modify}" Command="{Binding EditCommand}" IsEnabled="{Binding CanEdit}" />
+        <Button Content="{DynamicResource Ui_Common_Delete}" Command="{Binding RemoveCommand}" IsEnabled="{Binding CanRemove}"
+                ToolTip.Tip="{DynamicResource Ui_LaunchCommands_KeepOne_Tip}" />
+        <Button Content="{DynamicResource Ui_Common_MoveUp}" Command="{Binding MoveUpCommand}" IsEnabled="{Binding CanMoveUp}" />
+        <Button Content="{DynamicResource Ui_Common_MoveDown}" Command="{Binding MoveDownCommand}" IsEnabled="{Binding CanMoveDown}" />
+        <Button Content="{DynamicResource Ui_LaunchCommands_ResetDefault}" Command="{Binding ResetToDefaultsCommand}"
                 IsEnabled="{Binding CanResetToDefaults}"
-                ToolTip.Tip="恢复为该实例的默认启动命令" />
+                ToolTip.Tip="{DynamicResource Ui_LaunchCommands_ResetDefault_Tip}" />
       </StackPanel>
 
       <!-- 校验 / 操作错误 -->
@@ -64,8 +64,8 @@
                    VerticalAlignment="Center"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-          <Button Content="取消" Command="{Binding CancelCommand}" />
-          <Button Content="接受" Command="{Binding AcceptCommand}" IsEnabled="{Binding CanAccept}" />
+          <Button Content="{DynamicResource Ui_Common_Cancel}" Command="{Binding CancelCommand}" />
+          <Button Content="{DynamicResource Ui_Common_Accept}" Command="{Binding AcceptCommand}" IsEnabled="{Binding CanAccept}" />
         </StackPanel>
       </Grid>
     </StackPanel>

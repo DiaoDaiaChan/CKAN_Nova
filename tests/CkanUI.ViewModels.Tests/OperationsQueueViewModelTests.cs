@@ -233,6 +233,24 @@ public sealed class OperationsQueueViewModelTests
         Assert.That(vm.Items[0].StateText, Is.EqualTo("进行中"));
     }
 
+
+    [Test]
+    public void EmptyQueue_WhenUserExpandsManually_DoesNotCollapseOnTimerSnapshot()
+    {
+        var vm = CreateViewModel();
+        Assert.That(vm.IsExpanded, Is.False, "默认初始无任务时不展开");
+
+        // 用户主动点击底栏胶囊展开详细窗口
+        vm.ToggleExpandCommand.Execute(null);
+        Assert.That(vm.IsExpanded, Is.True, "点击后展开");
+
+        // 模拟后台定时器 100ms 推动的空快照
+        _queue.Publish();
+
+        // 断言：空任务快照绝不能强行把用户手动展开的窗口关掉
+        Assert.That(vm.IsExpanded, Is.True, "用户手动点开查看时，空队列快照不能强行关闭窗口");
+    }
+
     [Test]
     public void EmptyQueue_AfterLastTaskLeaves_CollapsesAndResetsPercent()
     {

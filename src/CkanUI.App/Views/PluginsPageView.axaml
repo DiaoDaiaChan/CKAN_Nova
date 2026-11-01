@@ -10,37 +10,37 @@
     <!-- 页头 -->
     <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
       <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-        <TextBlock Text="插件" Classes="CkanPageTitle" VerticalAlignment="Center" />
+        <TextBlock Text="{DynamicResource Ui_NavRail_Plugins}" Classes="CkanPageTitle" VerticalAlignment="Center" />
         <Button Classes="CkanHelper" VerticalAlignment="Center"
-                ToolTip.Tip="放进插件目录的 dll 仅被加载但不会自动启用，需显式激活。插件与宿主同进程运行，不做沙箱隔离，请使用受信任的插件。">
+                ToolTip.Tip="{DynamicResource Ui_PluginsPage_Header_Tip}">
           <PathIcon Data="{StaticResource CkanIconHelp}" />
         </Button>
       </StackPanel>
-      <TextBlock Text="扩展 dll 的加载与启用状态"
+      <TextBlock Text="{DynamicResource Ui_PluginsPage_Subtitle}"
                  Classes="CkanCaption" TextWrapping="Wrap" />
     </StackPanel>
 
     <!-- 工具条（F-17：新增 / 激活 / 停用 / 重载 / 卸载 / 扫描） -->
     <Border Grid.Row="1" Classes="CkanToolbar stagger-card">
       <WrapPanel Orientation="Horizontal">
-        <Button Content="新增插件…" Command="{Binding AddNewCommand}"
+        <Button Content="{DynamicResource Ui_PluginsPage_AddPlugin}" Command="{Binding AddNewCommand}"
                 IsEnabled="{Binding CanAddNew}" Classes="CkanPrimary" Margin="0,0,8,0"
-                ToolTip.Tip="选一个插件 dll，复制进插件目录并加载（不激活）" />
-        <Button Content="激活" Command="{Binding ActivateCommand}"
+                ToolTip.Tip="{DynamicResource Ui_PluginsPage_AddPlugin_Tip}" />
+        <Button Content="{DynamicResource Ui_PluginsPage_Activate}" Command="{Binding ActivateCommand}"
                 IsEnabled="{Binding CanActivate}" Classes="CkanSecondary" Margin="0,0,8,0"
-                ToolTip.Tip="调用插件的 Initialize，让它出现在导航里" />
-        <Button Content="停用" Command="{Binding DeactivateCommand}"
+                ToolTip.Tip="{DynamicResource Ui_PluginsPage_Activate_Tip}" />
+        <Button Content="{DynamicResource Ui_PluginsPage_Deactivate}" Command="{Binding DeactivateCommand}"
                 IsEnabled="{Binding CanDeactivate}" Classes="CkanSecondary" Margin="0,0,8,0"
-                ToolTip.Tip="调用插件的 Deinitialize，保留在内存里以便再次激活" />
-        <Button Content="重载" Command="{Binding ReloadCommand}"
+                ToolTip.Tip="{DynamicResource Ui_PluginsPage_Deactivate_Tip}" />
+        <Button Content="{DynamicResource Ui_PluginsPage_Reload}" Command="{Binding ReloadCommand}"
                 IsEnabled="{Binding CanReload}" Classes="CkanSecondary" Margin="0,0,8,0"
-                ToolTip.Tip="卸载旧程序集再重新加载，用于替换 dll 后生效" />
-        <Button Content="卸载" Command="{Binding UnloadCommand}"
+                ToolTip.Tip="{DynamicResource Ui_PluginsPage_Reload_Tip}" />
+        <Button Content="{DynamicResource Ui_PluginsPage_Unload}" Command="{Binding UnloadCommand}"
                 IsEnabled="{Binding CanUnload}" Classes="CkanDanger" Margin="0,0,8,0"
-                ToolTip.Tip="从宿主移除并释放程序集；dll 仍留在插件目录里" />
-        <Button Content="扫描目录" Command="{Binding RefreshCommand}"
+                ToolTip.Tip="{DynamicResource Ui_PluginsPage_Unload_Tip}" />
+        <Button Content="{DynamicResource Ui_PluginsPage_ScanDirectory}" Command="{Binding RefreshCommand}"
                 IsEnabled="{Binding CanRefresh}" Classes="CkanGhost"
-                ToolTip.Tip="重新扫描插件目录，加载新增的 dll（不激活）" />
+                ToolTip.Tip="{DynamicResource Ui_PluginsPage_ScanDirectory_Tip}" />
       </WrapPanel>
     </Border>
 
@@ -57,7 +57,7 @@
                      IsVisible="{Binding HasErrorDetail}"
                      Classes="CkanCaption" />
         </StackPanel>
-        <Button Grid.Column="1" Content="关闭" Command="{Binding ClearErrorCommand}"
+        <Button Grid.Column="1" Content="{DynamicResource Ui_Cmd_Shortcuts_Close}" Command="{Binding ClearErrorCommand}"
                 Classes="CkanGhost" VerticalAlignment="Top" Margin="8,0,0,0"
                 FontSize="{DynamicResource CkanFontSizeCaption}" />
       </Grid>
@@ -70,8 +70,8 @@
       <Border Grid.Column="0" Classes="CkanCard" Padding="14,12">
         <Grid RowDefinitions="Auto,*">
           <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
-            <TextBlock Grid.Column="0" Text="已激活的插件" FontWeight="SemiBold"
-                       ToolTip.Tip="激活的插件正在向宿主提供页签 / 工具项，卸载或停用后会从导航里消失。"
+            <TextBlock Grid.Column="0" Text="{DynamicResource Ui_PluginsPage_ActivePluginsHeader}" FontWeight="SemiBold"
+                       ToolTip.Tip="{DynamicResource Ui_PluginsPage_ActivePlugins_Tip}"
                        VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeSubtitle}"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
@@ -95,7 +95,7 @@
                                Foreground="{DynamicResource CkanTextPrimaryBrush}" />
                     <ToggleSwitch Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
                                   IsChecked="True" OnContent="" OffContent=""
-                                  ToolTip.Tip="关掉即停用这个插件：它会从导航页签与工具项里消失。"
+                                  ToolTip.Tip="{DynamicResource Ui_PluginsPage_ToggleDeactivate_Tip}"
                                   IsCheckedChanged="OnActivePluginToggled" />
                   </Grid>
                   <TextBlock Text="{Binding DescriptionText}" TextWrapping="Wrap"
@@ -111,10 +111,10 @@
           <StackPanel Grid.Row="1" Spacing="6" VerticalAlignment="Center"
                       HorizontalAlignment="Center" MaxWidth="280"
                       IsVisible="{Binding HasNoActive}">
-            <TextBlock Text="还没有激活的插件" HorizontalAlignment="Center"
+            <TextBlock Text="{DynamicResource Ui_PluginsPage_NoActiveTitle}" HorizontalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeBody}" FontWeight="Medium"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Text="到右侧把插件的开关拨开，它就会加载并注册页签。"
+            <TextBlock Text="{DynamicResource Ui_PluginsPage_NoActiveSubtitle}"
                        TextWrapping="Wrap" TextAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextTertiaryBrush}" />
@@ -126,8 +126,8 @@
       <Border Grid.Column="2" Classes="CkanCard" Padding="14,12">
         <Grid RowDefinitions="Auto,*">
           <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
-            <TextBlock Grid.Column="0" Text="未激活的插件" FontWeight="SemiBold"
-                       ToolTip.Tip="dll 已加载但插件没有运行；选中后点「激活」才会调用它的 Initialize。"
+            <TextBlock Grid.Column="0" Text="{DynamicResource Ui_PluginsPage_InactivePluginsHeader}" FontWeight="SemiBold"
+                       ToolTip.Tip="{DynamicResource Ui_PluginsPage_InactivePlugins_Tip}"
                        VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeSubtitle}"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
@@ -151,7 +151,7 @@
                                Foreground="{DynamicResource CkanTextPrimaryBrush}" />
                     <ToggleSwitch Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
                                   IsChecked="False" OnContent="" OffContent=""
-                                  ToolTip.Tip="打开即激活这个插件：会调用它的 Initialize 并注册页签。"
+                                  ToolTip.Tip="{DynamicResource Ui_PluginsPage_ToggleActivate_Tip}"
                                   IsCheckedChanged="OnDormantPluginToggled" />
                   </Grid>
                   <TextBlock Text="{Binding DescriptionText}" TextWrapping="Wrap"
@@ -167,10 +167,10 @@
           <StackPanel Grid.Row="1" Spacing="6" VerticalAlignment="Center"
                       HorizontalAlignment="Center" MaxWidth="280"
                       IsVisible="{Binding HasNoDormant}">
-            <TextBlock Text="插件目录里没有可加载的 dll" HorizontalAlignment="Center"
+            <TextBlock Text="{DynamicResource Ui_PluginsPage_NoDllTitle}" HorizontalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeBody}" FontWeight="Medium"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Text="把插件 dll 放进插件目录（或点「新增插件…」），再点「扫描目录」。"
+            <TextBlock Text="{DynamicResource Ui_PluginsPage_NoDllSubtitle}"
                        TextWrapping="Wrap" TextAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextTertiaryBrush}" />
@@ -198,7 +198,7 @@
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0"
                   VerticalAlignment="Center">
-        <TextBlock Text="插件目录：" Classes="CkanCaption"
+        <TextBlock Text="{DynamicResource Ui_PluginsPage_DirectoryLabel}" Classes="CkanCaption"
                    Foreground="{DynamicResource CkanTextTertiaryBrush}" VerticalAlignment="Center" />
         <TextBlock Text="{Binding PluginsDirectory}"
                    MaxWidth="320" TextTrimming="CharacterEllipsis"

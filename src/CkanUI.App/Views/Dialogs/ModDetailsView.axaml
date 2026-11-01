@@ -2,8 +2,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
              xmlns:relations="clr-namespace:CkanUI.App.Views.Relations"
+             xmlns:conv="using:CkanUI.App.Converters"
              x:Class="CkanUI.App.Views.Dialogs.ModDetailsView"
              x:DataType="vm:ModDetailsViewModel">
+  <UserControl.Resources>
+    <conv:BytesToBitmapConverter x:Key="BytesToBitmap" />
+  </UserControl.Resources>
+
   <UserControl.Styles>
     <!-- 列表行：沿用 ReposPageView 的做法，hover 与选中都用语义 token（3 篇 §9 不只靠颜色表达状态）。
          全局 ListBoxItem 只管背景，这里补圆角与内边距，让版本行/文件行读起来像列表条目。 -->
@@ -66,7 +71,7 @@
                  Foreground="{DynamicResource CkanTextPrimaryBrush}"
                  HorizontalAlignment="Center"
                  TextWrapping="Wrap" />
-      <TextBlock Text="在左侧列表点选任意模组，即可查看版本、依赖树与安装文件。"
+      <TextBlock Text="{DynamicResource Ui_ModDetails_SelectModHint}"
                  Classes="CkanCaption"
                  HorizontalAlignment="Center"
                  TextAlignment="Center"
@@ -100,6 +105,11 @@
                       Classes.Danger="{Binding !IsCompatible}">
                 <TextBlock Text="{Binding CompatibilityText}" />
               </Border>
+              <Border Classes="CkanBadge Info"
+                      IsVisible="{Binding CategoryBadgeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                      ToolTip.Tip="{Binding CategoryDescription}">
+                <TextBlock Text="{Binding CategoryBadgeText}" />
+              </Border>
             </StackPanel>
 
             <TextBlock Text="{Binding AbstractText}"
@@ -128,6 +138,28 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
+            </Border>
+
+            <!-- SpaceDock 官方页面引导卡片（不爬取外部图片，减免客户端网络开销与速率限制，纯净直达官方） -->
+            <Border Classes="CkanSubtleCard" Padding="12,10" IsVisible="{Binding HasSpacedockUrl}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="2">
+                  <TextBlock Text="{Binding SpacedockSectionTitle}"
+                             FontWeight="SemiBold"
+                             FontSize="{DynamicResource CkanFontSizeBody}" />
+                  <TextBlock Text="{Binding SpacedockLazyHintText}"
+                             Classes="CkanCaption"
+                             Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Classes="CkanChip"
+                        VerticalAlignment="Center"
+                        Margin="8,0,0,0"
+                        Content="{Binding SpacedockOpenButtonText}"
+                        Command="{Binding OpenSpacedockUrlCommand}"
+                        ToolTip.Tip="{Binding SpacedockUrl}" />
+              </Grid>
             </Border>
 
             <!-- 单模组稳定性容忍度覆盖（F-13 / UI-07 / UI-29） -->
@@ -275,7 +307,7 @@
                           Margin="12,0,0,0"
                           VerticalAlignment="Center"
                           Classes="CkanChip"
-                          Content="安装此版本"
+                          Content="{DynamicResource Ui_ModDetails_InstallThisVersion}"
                           IsVisible="{Binding !IsInstalled}"
                           Command="{Binding $parent[ListBox].((vm:ModDetailsViewModel)DataContext).InstallVersionCommand}"
                           CommandParameter="{Binding}" />

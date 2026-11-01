@@ -35,11 +35,7 @@ public sealed class StarfieldBackground : Control
     /// <summary>星星与连线的透明度分档数：把连续透明度量化成可复用的画笔，避免每帧 new 画刷。</summary>
     private const int AlphaSteps = 32;
 
-    /// <summary>星轨条数。</summary>
-    private const int TrailArcCount = 4;
 
-    /// <summary>每条星轨切成多少段（分段是为了做两端淡出）。</summary>
-    private const int TrailSegments = 26;
 
     /// <summary>左上角星轨每条切成多少段：分段是为了两端淡出。</summary>
     private const int CornerArcSegments = 22;
@@ -211,6 +207,7 @@ public sealed class StarfieldBackground : Control
         DrawStarTrails(context, size, intensity);
         DrawFigures(context, intensity);
         DrawPointerLinks(context, intensity);
+        DrawTrackingStation(context, size, intensity);
         DrawMeteors(context, size, intensity);
         DrawStars(context, intensity);
     }
@@ -303,7 +300,6 @@ public sealed class StarfieldBackground : Control
     {
         if (_trailLayerUnavailable)
         {
-            DrawTrails(context, size, intensity);
             DrawCornerTrails(context, size, intensity);
             return;
         }
@@ -317,7 +313,6 @@ public sealed class StarfieldBackground : Control
         {
             if (!TryRenderTrailLayer(size, intensity))
             {
-                DrawTrails(context, size, intensity);
                 DrawCornerTrails(context, size, intensity);
                 return;
             }
@@ -361,12 +356,10 @@ public sealed class StarfieldBackground : Control
             {
                 // 位图按物理像素开、绘制坐标仍是 DIP：这一层缩放把两者对齐，高 DPI 下细线才不会糊。
                 using var scale = layerContext.PushTransform(Matrix.CreateScale(scaling, scaling));
-                DrawTrails(layerContext, size, intensity);
                 DrawCornerTrails(layerContext, size, intensity);
             }
             else
             {
-                DrawTrails(layerContext, size, intensity);
                 DrawCornerTrails(layerContext, size, intensity);
             }
 
@@ -396,44 +389,8 @@ public sealed class StarfieldBackground : Control
         _trailStamp = long.MinValue;
     }
 
-    private void DrawTrails(DrawingContext context, Size size, double intensity)
-    {
-        // 虚拟极点放在画布右上角外：所有星轨都是绕它的同心弧，扫过来的那一截才落在窗内。
-        var poleX = size.Width * 1.06;
-        var poleY = -size.Height * 0.22;
-        var unit = Math.Min(size.Width, size.Height);
-
-        for (var arc = 0; arc < TrailArcCount; arc++)
-        {
-            var radius = unit * (1.05 - (arc * 0.18));
-            var direction = (arc % 2) == 0 ? 1 : -1;
-            var start = 2.18 + (_model.Time * 0.014 * direction) + (arc * 0.06);
-            var sweep = 0.42 + (arc * 0.05);
-            var peak = 0.125 * (1 - (arc * 0.16)) * intensity * _model.TrailBreath();
-
-            for (var segment = 0; segment < TrailSegments; segment++)
-            {
-                var t0 = (double)segment / TrailSegments;
-                var t1 = (double)(segment + 1) / TrailSegments;
-                var fade = Math.Sin(Math.PI * (t0 + t1) * 0.5);
-                var alpha = peak * Math.Max(0, fade);
-                if (alpha < 0.002)
-                {
-                    continue;
-                }
-
-                var pen = LinePen(AlphaIndex(alpha));
-                var from = PointOnCircle(poleX, poleY, radius, start + (sweep * t0));
-                var to = PointOnCircle(poleX, poleY, radius, start + (sweep * t1));
-                context.DrawLine(StrokePen(StrokeLevel(2.4), AlphaIndex(alpha * 0.28)), from, to);
-                context.DrawLine(pen, from, to);
-            }
-        }
-    }
-
     /// <summary>
     /// 左上角那族延时星轨：极点略微落在窗外左上，九条同心弧从极点方向扫出来。
-    /// 与右上角的 <see cref="DrawTrails"/> 互不影响——那族是远景，这族才是长曝光的主角。
     /// </summary>
     private void DrawCornerTrails(DrawingContext context, Size size, double intensity)
     {
@@ -707,4 +664,216 @@ public sealed class StarfieldBackground : Control
         new(
             from.X + ((to.X - from.X) * progress),
             from.Y + ((to.Y - from.Y) * progress));
+
+    /// <summary>
+    /// 右下角追踪站大型抛物面天线（大锅盖）简笔画（强透视仰视 + 截断出镜 1/3 + 深空工程感）：
+    /// 整体尺度放大，右侧 1/3 自然截断于视口之外，仅展现左侧 2/3 壮丽结构与耸入星空的馈源架；
+    /// 塔架从屏幕底边以 10:1 极端透视比向上急剧收敛，呈现强烈的地对空广角仰望视效。
+    /// </summary>
+    private void DrawTrackingStation(DrawingContext context, Size size, double intensity)
+    {
+        if (intensity <= 0 || size.Width < 280 || size.Height < 240)
+        {
+            return;
+        }
+
+        // 强透视大比例：纵深跨度占据视口约 72%
+        var boxHeight = Math.Clamp(size.Height * 0.74, 440.0, 780.0);
+        var scale = boxHeight / 520.0;
+
+        // 截断式构图：枢轴靠近右边缘，让锅盖右半部约 1/3 自然截断出镜
+        var pivotX = size.Width - (42.0 * scale);
+        var pivotY = size.Height - (165.0 * scale);
+        var pivot = new Point(pivotX, pivotY);
+
+        // 轻量工程线框半透明度（即便放大也依然优雅深邃，不喧宾夺主）
+        var coreAlpha = 0.088 * intensity;
+        var faintAlpha = 0.040 * intensity;
+        var haloAlpha = 0.020 * intensity;
+
+        var corePen = StrokePen(StrokeLevel(1.2), AlphaIndex(coreAlpha));
+        var faintPen = LinePen(AlphaIndex(faintAlpha));
+        var haloPen = StrokePen(StrokeLevel(1.8), AlphaIndex(haloAlpha));
+
+        // 1. 极端仰角强透视塔架 (Ultra Wide-Angle Perspective Truncated Tower)
+        // 底部地基宽度极大 (跨度近 300px)，向上急剧收敛到枢轴 (仅 32px)，形成强烈的近大远小纵深感
+        var bottomY = size.Height + (16.0 * scale);
+        var pLeft = new Point(pivotX - (175.0 * scale), bottomY);
+        var pRight = new Point(pivotX + (115.0 * scale), bottomY); // 右立柱底部直接延伸截断在右下边缘外
+        var pCenter = new Point(pivotX - (25.0 * scale), bottomY);
+
+        var tLeft = new Point(pivotX - (26.0 * scale), pivotY + (16.0 * scale));
+        var tRight = new Point(pivotX + (26.0 * scale), pivotY + (16.0 * scale));
+        var tCenter = new Point(pivotX - (3.0 * scale), pivotY + (16.0 * scale));
+
+        // 主桁架立柱
+        context.DrawLine(corePen, pLeft, tLeft);
+        context.DrawLine(corePen, pRight, tRight);
+        context.DrawLine(faintPen, pCenter, tCenter);
+
+        // 5 层强烈透视递减的横向桁架与 X 支撑网格 (底部间距宽、顶部急速密集)
+        const int towerStages = 5;
+        Point prevL = pLeft;
+        Point prevR = pRight;
+        Point prevC = pCenter;
+        for (var s = 1; s <= towerStages; s++)
+        {
+            // 非线性几何级数透视（透视收敛更陡峭）
+            var f = Math.Pow((double)s / towerStages, 0.72);
+            var curL = new Point(pLeft.X + ((tLeft.X - pLeft.X) * f), pLeft.Y + ((tLeft.Y - pLeft.Y) * f));
+            var curR = new Point(pRight.X + ((tRight.X - pRight.X) * f), pRight.Y + ((tRight.Y - pRight.Y) * f));
+            var curC = new Point(pCenter.X + ((tCenter.X - pCenter.X) * f), pCenter.Y + ((tCenter.Y - pCenter.Y) * f));
+
+            context.DrawLine(corePen, curL, curR);
+            context.DrawLine(faintPen, prevL, curC);
+            context.DrawLine(faintPen, prevC, curL);
+            context.DrawLine(faintPen, prevC, curR);
+            context.DrawLine(faintPen, prevR, curC);
+
+            prevL = curL;
+            prevR = curR;
+            prevC = curC;
+        }
+
+        // 枢轴回转台基与耳轴机构
+        context.DrawLine(corePen, new Point(pivotX - (38.0 * scale), pivotY + (16.0 * scale)), new Point(pivotX + (38.0 * scale), pivotY + (16.0 * scale)));
+        context.DrawLine(corePen, tLeft, pivot);
+        context.DrawLine(corePen, tRight, pivot);
+        context.DrawEllipse(null, corePen, pivot, 6.0 * scale, 6.0 * scale);
+        context.DrawEllipse(LineBrush(AlphaIndex(coreAlpha)), null, pivot, 2.5 * scale, 2.5 * scale);
+
+        // 2. 深空指向轴与平缓仰俯跟踪微动 (Tracking Elevation Angle)
+        var t = _model.Time;
+        var angleDelta = (Math.Sin(t * 0.20) * 0.050) + (Math.Sin(t * 0.08) * 0.022);
+        var angle = -2.28 + angleDelta; // 仰指向左上方星空深处 (~131度)
+
+        var nx = Math.Cos(angle);
+        var ny = Math.Sin(angle);
+        var tx = -ny;
+        var ty = nx;
+
+        // 俯仰摇臂与平衡配重结构
+        var hubDist = 34.0 * scale;
+        var cweightDist = 26.0 * scale;
+        var hub = new Point(pivot.X + (nx * hubDist), pivot.Y + (ny * hubDist));
+        var cweight = new Point(pivot.X - (nx * cweightDist), pivot.Y - (ny * cweightDist));
+        context.DrawLine(corePen, pivot, hub);
+        context.DrawLine(faintPen, pivot, cweight);
+        context.DrawEllipse(LineBrush(AlphaIndex(coreAlpha)), null, cweight, 7.0 * scale, 7.0 * scale);
+
+        // 3. 巨型主抛物面口径几何（大幅放大，右侧 1/3 出镜截断，仅露出左侧 2/3）
+        var radius = 205.0 * scale;       // 锅盖半口径放大至 >400px 全口径
+        var depth = 62.0 * scale;         // 抛物面凹深大幅增加，增强立体碗状纵深
+        var minorRadius = radius * 0.38;  // 仰角透视椭圆短半轴
+        var rimCenter = new Point(hub.X + (nx * depth), hub.Y + (ny * depth));
+
+        Point ParabolaPt(double param) => new(
+            hub.X + (tx * (radius * param)) + (nx * (depth * param * param)),
+            hub.Y + (ty * (radius * param)) + (ny * (depth * param * param)));
+
+        Point RimPt(double theta) => new(
+            rimCenter.X + (tx * (radius * Math.Cos(theta))) + (nx * (minorRadius * Math.Sin(theta))),
+            rimCenter.Y + (ty * (radius * Math.Cos(theta))) + (ny * (minorRadius * Math.Sin(theta))));
+
+        // 抛物面背面深沉外轮廓 (深碗底弧线)
+        const int bowlSegments = 28;
+        var prevBowl = ParabolaPt(-1.0);
+        for (var i = 1; i <= bowlSegments; i++)
+        {
+            var pVal = -1.0 + (2.0 * i / bowlSegments);
+            var currBowl = ParabolaPt(pVal);
+            context.DrawLine(haloPen, prevBowl, currBowl);
+            context.DrawLine(corePen, prevBowl, currBowl);
+            prevBowl = currBowl;
+        }
+
+        // 巨型锅盖外口径椭圆圈 (Dish aperture rim)
+        const int rimSegments = 36;
+        var prevRim = RimPt(0);
+        for (var i = 1; i <= rimSegments; i++)
+        {
+            var theta = 2.0 * Math.PI * i / rimSegments;
+            var currRim = RimPt(theta);
+            context.DrawLine(haloPen, prevRim, currRim);
+            context.DrawLine(corePen, prevRim, currRim);
+            prevRim = currRim;
+        }
+
+        // 锅盖内部 18 条辐射加强桁架肋线 (18 Radial Truss Ribs)
+        const int ribCount = 18;
+        for (var r = 0; r < ribCount; r++)
+        {
+            var theta = r * 2.0 * Math.PI / ribCount;
+            var pt = RimPt(theta);
+            context.DrawLine(faintPen, hub, pt);
+        }
+
+        // 3 层同心加固环网格 (Triple Concentric Structural Rings)
+        for (var ring = 1; ring <= 3; ring++)
+        {
+            var rFrac = ring * 0.25;
+            var ringCenter = new Point(hub.X + (nx * (depth * rFrac * rFrac)), hub.Y + (ny * (depth * rFrac * rFrac)));
+            var prevRingPt = new Point(ringCenter.X + (tx * (radius * rFrac)), ringCenter.Y + (ty * (radius * rFrac)));
+            for (var i = 1; i <= 28; i++)
+            {
+                var theta = 2.0 * Math.PI * i / 28.0;
+                var currRingPt = new Point(
+                    ringCenter.X + (tx * (radius * rFrac * Math.Cos(theta))) + (nx * (minorRadius * rFrac * Math.Sin(theta))),
+                    ringCenter.Y + (ty * (radius * rFrac * Math.Cos(theta))) + (ny * (minorRadius * rFrac * Math.Sin(theta))));
+                context.DrawLine(faintPen, prevRingPt, currRingPt);
+                prevRingPt = currRingPt;
+            }
+        }
+
+        // 4. 超长仰角四脚馈源支架与副反射器 (High-Altitude Feed Horn & Quadripod)
+        // 馈源焦点高高耸入左上方星空深处
+        var focusDist = depth + (108.0 * scale);
+        var focus = new Point(hub.X + (nx * focusDist), hub.Y + (ny * focusDist));
+
+        // 4 根长跨度仰视斜拉撑杆汇聚于苍穹焦点
+        context.DrawLine(faintPen, RimPt(0), focus);
+        context.DrawLine(faintPen, RimPt(Math.PI * 0.5), focus);
+        context.DrawLine(faintPen, RimPt(Math.PI), focus);
+        context.DrawLine(faintPen, RimPt(Math.PI * 1.5), focus);
+
+        // 馈源头部卡塞格伦副反射面与馈源圆锥头
+        var capW = 18.0 * scale;
+        var cap0 = new Point(focus.X - (tx * capW), focus.Y - (ty * capW));
+        var cap1 = new Point(focus.X + (tx * capW), focus.Y + (ty * capW));
+        var feedTip = new Point(focus.X - (nx * (15.0 * scale)), focus.Y - (ny * (15.0 * scale)));
+        context.DrawLine(corePen, cap0, cap1);
+        context.DrawLine(faintPen, cap0, feedTip);
+        context.DrawLine(faintPen, cap1, feedTip);
+
+        // 5. 追踪站深空测控射电波束脉冲 (Faint Pulsing Microwave Waves)
+        var waveProg = (t * 0.32) % 1.0;
+        for (var w = 0; w < 3; w++)
+        {
+            var p = (waveProg + (w * 0.333)) % 1.0;
+            var waveR = (36.0 * scale) + (p * 140.0 * scale);
+            var waveAlpha = (1.0 - p) * 0.052 * intensity;
+            if (waveAlpha > 0.003)
+            {
+                var wavePen = LinePen(AlphaIndex(waveAlpha));
+                var arcSpan = 0.35;
+                var prevArc = PointOnCircle(focus.X, focus.Y, waveR, angle - arcSpan);
+                for (var seg = 1; seg <= 10; seg++)
+                {
+                    var a = angle - arcSpan + (2.0 * arcSpan * seg / 10.0);
+                    var nextArc = PointOnCircle(focus.X, focus.Y, waveR, a);
+                    context.DrawLine(wavePen, prevArc, nextArc);
+                    prevArc = nextArc;
+                }
+            }
+        }
+
+        // 馈源微弱指示微光
+        var beaconBreath = 0.2 + (0.8 * Math.Pow(Math.Max(0, Math.Sin(t * 1.5)), 2));
+        context.DrawEllipse(
+            LineBrush(AlphaIndex(beaconBreath * 0.15 * intensity)),
+            null,
+            focus,
+            3.5 * scale,
+            3.5 * scale);
+    }
 }

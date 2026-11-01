@@ -36,7 +36,7 @@ public sealed class ShortcutsCatalogViewModelTests
     {
         var viewModel = new ShortcutsCatalogViewModel(CreateCatalogWithDefaultActions());
 
-        Assert.That(viewModel.Entries.Count, Is.EqualTo(7), "内置动作里 Ctrl+K / Ctrl+/ 也要进目录");
+        Assert.That(viewModel.Entries.Count, Is.EqualTo(8), "内置动作里 Ctrl+K / Ctrl+/ / F1 也要进目录");
         Assert.That(viewModel.Entries[0].Gesture, Is.EqualTo("Ctrl+K"));
         Assert.That(viewModel.Entries[0].Description, Is.EqualTo("命令面板"));
         Assert.That(viewModel.Entries[0].Category, Is.EqualTo("全局"));
@@ -53,7 +53,7 @@ public sealed class ShortcutsCatalogViewModelTests
 
         viewModel.Filter = "ctrl";
 
-        Assert.That(viewModel.Entries.Count, Is.EqualTo(7), "未过滤全集不受过滤词影响");
+        Assert.That(viewModel.Entries.Count, Is.EqualTo(8), "未过滤全集不受过滤词影响");
         Assert.That(viewModel.FilteredEntries.Count, Is.EqualTo(2), "过滤不区分大小写");
         Assert.That(viewModel.HasEntries, Is.True);
         Assert.That(viewModel.TotalCountText, Is.EqualTo("共 2 项"));
@@ -91,7 +91,7 @@ public sealed class ShortcutsCatalogViewModelTests
 
         viewModel.Filter = "   ";
 
-        Assert.That(viewModel.FilteredEntries.Count, Is.EqualTo(7), "只有空白时按未过滤处理");
+        Assert.That(viewModel.FilteredEntries.Count, Is.EqualTo(8), "只有空白时按未过滤处理");
     }
 
     [Test]
@@ -102,7 +102,7 @@ public sealed class ShortcutsCatalogViewModelTests
         var report = viewModel.BuildPlainTextReport();
 
         Assert.That(report, Does.Contain("快捷键目录"), "首行是标题");
-        Assert.That(report, Does.Contain("共 7 项"));
+        Assert.That(report, Does.Contain("共 8 项"));
         Assert.That(report, Does.Contain("[全局]"), "每个分类一段");
         Assert.That(report, Does.Contain("Ctrl+K    命令面板"), "手势与说明之间用 4 个空格对齐");
         Assert.That(report, Does.Contain("↑    上一条"));

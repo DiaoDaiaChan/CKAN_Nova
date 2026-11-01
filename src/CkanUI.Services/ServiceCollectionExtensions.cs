@@ -1,8 +1,11 @@
 using CkanUI.Services.Abstractions;
+using CkanUI.Services.Abstractions.Assets;
+using CkanUI.Services.Assets;
 using CkanUI.Services.Bootstrap;
 using CkanUI.Services.Cache;
 using CkanUI.Services.ChangeSets;
 using CkanUI.Services.Cleanup;
+using CkanUI.Services.Compatibility;
 using CkanUI.Services.Content;
 using CkanUI.Services.Dedup;
 using CkanUI.Services.Downloads;
@@ -49,6 +52,9 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IInstanceService, InstanceService>();
         services.TryAddSingleton<IRegistryService, RegistryService>();
 
+        // 主菜单「游戏截图」页签：只枚举 GameDir/Screenshots 里的图片文件，解码留给 App 层。
+        services.TryAddSingleton<IGameScreenshotService, GameScreenshotService>();
+
         // 版本目录（F-30）：详情页「全部版本」的数据源。跨所有已加载仓库取同一标识符的全部版本，
         // 数据是内存里的 CkanModule 对象图（不联网、不读盘），因此和注册表快照一样始终在线。
         services.TryAddSingleton<Abstractions.Mods.IModVersionCatalog>(provider => new Mods.CkanModVersionCatalog(
@@ -77,6 +83,9 @@ public static class ServiceCollectionExtensions
 
         // Mod 元数据翻译服务（17 篇 E5）：纯内存查找器 + 语言包扫描与仓库联动。
         services.TryAddSingleton<CkanUI.ModText.IModTextService, ModText.ModTextService>();
+
+        // SpaceDock 图片抓取服务：按需懒加载模组截图与背景预览。
+        services.TryAddSingleton<ISpacedockImageService, Spacedock.SpacedockImageService>();
 
         // 标签组（F-24）：读写上游 ModuleLabelList，落盘交给 Core 的 Save(path)，不自写 JSON。
         services.TryAddSingleton<ILabelService>(provider => new LabelService(
@@ -154,6 +163,17 @@ public static class ServiceCollectionExtensions
 
         // 自动更新与新版本检查器（F-52 / UI-27）。
         services.TryAddSingleton<IUpdateCheckService, Update.UpdateCheckService>();
+
+        // 兼容版本服务（02 篇 §1 Ⅱ-⑪）：供兼容版本设置对话框与首启向导解析兼容性。
+        services.TryAddSingleton<ICompatibleVersionsService>(provider => new CkanCompatibleVersionsService(
+            new Lazy<GameInstanceManager>(() => provider.GetRequiredService<GameInstanceManager>()),
+            provider.GetService<IRegistryService>(),
+            provider.GetService<IRepositoryService>()));
+
+        // 资产工作台（载具库、旗帜库、加载图库）。
+        services.TryAddSingleton<ICraftLibraryService, CraftLibraryService>();
+        services.TryAddSingleton<IFlagLibraryService, FlagLibraryService>();
+        services.TryAddSingleton<ILoadingImageService, LoadingImageService>();
 
         // 实例可靠性处置（F-08）：构造参数全可选（探针/时钟/记录路径），
         // 所以必须用工厂注册 —— 直接 AddSingleton<接口,实现> 会让 DI 去解析可选参数而失败。

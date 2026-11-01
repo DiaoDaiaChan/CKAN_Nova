@@ -102,11 +102,11 @@
       <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
         <TextBlock Text="{Binding Title}" Classes="CkanPageTitle" VerticalAlignment="Center" />
         <Button Classes="CkanHelper" VerticalAlignment="Center"
-                ToolTip.Tip="内核日志、用户消息、未捕获异常、子进程四条来源；导出诊断包会先脱敏再打包。">
+                ToolTip.Tip="{DynamicResource Ui_LogPage_Header_Tip}">
           <PathIcon Data="{StaticResource CkanIconHelp}" />
         </Button>
       </StackPanel>
-      <TextBlock Text="四路来源的只读运行记录" Classes="CkanCaption" TextWrapping="Wrap" />
+      <TextBlock Text="{DynamicResource Ui_LogPage_Subtitle}" Classes="CkanCaption" TextWrapping="Wrap" />
     </StackPanel>
 
     <!--
@@ -120,47 +120,49 @@
         <Grid ColumnDefinitions="*,Auto">
           <TextBox Grid.Column="0" Classes="CkanSearchBox"
                    Text="{Binding Filters.SearchText}" MinHeight="32"
-                   PlaceholderText="搜索日志：子串，或 族:net 级别:error 源:user mod:&lt;id&gt;"
-                   AutomationProperties.Name="搜索日志" />
+                   PlaceholderText="{DynamicResource Ui_LogPage_Search_Placeholder}"
+                   AutomationProperties.Name="{DynamicResource Ui_LogPage_Search}" />
 
           <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
                       Margin="10,0,0,0" VerticalAlignment="Center">
             <Button Classes="CkanIcon" Command="{Binding FindPreviousCommand}"
-                    ToolTip.Tip="上一个匹配（Shift+F3）">
+                    ToolTip.Tip="{DynamicResource Ui_LogPage_FindPrev_Tip}">
               <PathIcon Data="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
             </Button>
             <Button Classes="CkanIcon" Command="{Binding FindNextCommand}"
-                    ToolTip.Tip="下一个匹配（F3）">
+                    ToolTip.Tip="{DynamicResource Ui_LogPage_FindNext_Tip}">
               <PathIcon Data="M8.59 16.59 10 18l6-6-6-6-1.41 1.41L13.17 12z" />
             </Button>
-            <TextBlock Classes="caption" VerticalAlignment="Center" MinWidth="48"
-                       Text="{Binding CurrentMatchOrdinal, StringFormat='命中 {0}'}" />
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" MinWidth="48">
+              <TextBlock Classes="caption" Text="{DynamicResource Ui_LogPage_MatchPrefix}" />
+              <TextBlock Classes="caption" Text="{Binding CurrentMatchOrdinal, StringFormat=' {0}'}" />
+            </StackPanel>
 
             <Border Classes="Divider" />
 
-            <ToggleButton Classes="CkanPill" Content="跟随末尾"
+            <ToggleButton Classes="CkanPill" Content="{DynamicResource Ui_LogPage_FollowTail}"
                           IsChecked="{Binding IsFollowTail, Mode=OneWay}"
                           Command="{Binding ToggleFollowTailCommand}"
-                          ToolTip.Tip="新日志到达时自动滚到底部" />
-            <ToggleButton Classes="CkanPill" Content="聚合"
+                          ToolTip.Tip="{DynamicResource Ui_LogPage_FollowTail_Tip}" />
+            <ToggleButton Classes="CkanPill" Content="{DynamicResource Ui_LogPage_Aggregate}"
                           IsChecked="{Binding IsAggregated, Mode=OneWay}"
                           Command="{Binding ToggleAggregateCommand}"
-                          ToolTip.Tip="把连续相同指纹的行折叠成 ×N" />
+                          ToolTip.Tip="{DynamicResource Ui_LogPage_Aggregate_Tip}" />
 
-            <Button Classes="CkanPrimary" Content="导出诊断包"
+            <Button Classes="CkanPrimary" Content="{DynamicResource Ui_Cmd_Action_ExportDiagnostics}"
                     Command="{Binding ExportDefaultCommand}"
-                    ToolTip.Tip="脱敏后打包成可分享的压缩包" />
-            <Button Classes="CkanSecondary" Content="更多">
+                    ToolTip.Tip="{DynamicResource Ui_LogPage_ExportZip_Tip}" />
+            <Button Classes="CkanSecondary" Content="{DynamicResource Ui_Common_More}">
               <Button.Flyout>
                 <ui:FAMenuFlyout>
-                  <ui:FAMenuFlyoutItem Text="刷新" Command="{Binding RefreshCommand}" />
-                  <ui:FAMenuFlyoutItem Text="请 AI 分析这段日志" Command="{Binding RequestAiAnalysisCommand}" />
+                  <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_Common_Refresh}" Command="{Binding RefreshCommand}" />
+                  <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_LogPage_AiAnalyze}" Command="{Binding RequestAiAnalysisCommand}" />
                   <ui:FAMenuFlyoutSeparator />
-                  <ui:FAMenuFlyoutItem Text="仅显示错误" Command="{Binding ShowOnlyErrorsCommand}" />
-                  <ui:FAMenuFlyoutItem Text="恢复默认筛选" Command="{Binding ResetFiltersCommand}" />
-                  <ui:FAMenuFlyoutItem Text="清空搜索" Command="{Binding Filters.ClearSearchCommand}" />
+                  <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_LogPage_ErrorsOnly}" Command="{Binding ShowOnlyErrorsCommand}" />
+                  <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_LogPage_ResetFilters}" Command="{Binding ResetFiltersCommand}" />
+                  <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_LogPage_ClearSearch}" Command="{Binding Filters.ClearSearchCommand}" />
                   <ui:FAMenuFlyoutSeparator />
-                  <ui:FAMenuFlyoutItem Text="清空缓冲" Command="{Binding ClearCommand}" />
+                  <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_LogPage_ClearBuffer}" Command="{Binding ClearCommand}" />
                 </ui:FAMenuFlyout>
               </Button.Flyout>
             </Button>
@@ -169,10 +171,10 @@
 
         <!-- 筛选默认收起：默认全选就是「什么都看」，不占版面；要看某一族再展开 -->
         <Expander IsExpanded="False" HorizontalAlignment="Stretch"
-                  ToolTip.Tip="按来源 / 级别 / 日志族收窄">
+                  ToolTip.Tip="{DynamicResource Ui_LogPage_FilterDrawer_Tip}">
           <Expander.Header>
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-              <TextBlock Text="筛选" Classes="caption" FontWeight="SemiBold" />
+              <TextBlock Text="{DynamicResource Ui_Common_Filter}" Classes="caption" FontWeight="SemiBold" />
               <TextBlock Text="{Binding Filters.Description}" Classes="caption"
                          MaxWidth="620" TextTrimming="CharacterEllipsis" />
             </StackPanel>
@@ -180,7 +182,7 @@
 
           <StackPanel Spacing="6" Margin="0,6,0,0">
             <WrapPanel Orientation="Horizontal">
-              <TextBlock Classes="caption" Text="来源" Margin="0,0,8,0" Width="34" />
+              <TextBlock Classes="caption" Text="{DynamicResource Ui_LogPage_Source}" Margin="0,0,8,0" Width="34" />
               <ItemsControl ItemsSource="{Binding Filters.Sources}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
@@ -196,7 +198,7 @@
             </WrapPanel>
 
             <WrapPanel Orientation="Horizontal">
-              <TextBlock Classes="caption" Text="级别" Margin="0,0,8,0" Width="34" />
+              <TextBlock Classes="caption" Text="{DynamicResource Ui_LogPage_Level}" Margin="0,0,8,0" Width="34" />
               <ItemsControl ItemsSource="{Binding Filters.Levels}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
@@ -217,7 +219,7 @@
             </WrapPanel>
 
             <WrapPanel Orientation="Horizontal">
-              <TextBlock Classes="caption" Text="日志族" Margin="0,0,8,0" Width="34" />
+              <TextBlock Classes="caption" Text="{DynamicResource Ui_LogPage_Family}" Margin="0,0,8,0" Width="34" />
               <ItemsControl ItemsSource="{Binding Filters.Families}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
@@ -331,7 +333,7 @@
             <Border Classes="CkanIconTile Muted" HorizontalAlignment="Center">
               <PathIcon Data="M4 4h16v2H4V4zm0 5h16v2H4V9zm0 5h10v2H4v-2zm0 5h7v2H4v-2z" />
             </Border>
-            <TextBlock Text="未选中日志行" HorizontalAlignment="Center"
+            <TextBlock Text="{DynamicResource Ui_Logs_NoSelection}" HorizontalAlignment="Center"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
           </StackPanel>
@@ -380,7 +382,7 @@
           <TextBlock Text="{Binding AggregateHint}" IsVisible="{Binding IsAggregated}"
                      Foreground="{DynamicResource CkanTextTertiaryBrush}" />
           <Button Classes="CkanIcon" Width="20" Height="20" Command="{Binding DismissMessageCommand}"
-                  IsVisible="{Binding HasMessage}" ToolTip.Tip="关掉提示">
+                  IsVisible="{Binding HasMessage}" ToolTip.Tip="{DynamicResource Ui_LogPage_DismissBanner_Tip}">
             <PathIcon Data="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
           </Button>
         </StackPanel>

@@ -314,6 +314,14 @@ public partial class ModsPageView : UserControl
 
                     e.Handled = true;
                     break;
+                case Key.I:
+                    if (vm.ToggleDetailsPaneCommand.CanExecute(null))
+                    {
+                        vm.ToggleDetailsPaneCommand.Execute(null);
+                    }
+
+                    e.Handled = true;
+                    break;
                 default:
                     break;
             }

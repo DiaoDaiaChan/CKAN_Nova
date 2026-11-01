@@ -13,20 +13,20 @@
       <!-- 标题行 + 清空条件 -->
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <TextBlock Text="逐字段筛选"
+          <TextBlock Text="{DynamicResource Ui_ModsSearchPanel_Title}"
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      FontWeight="SemiBold"
                      VerticalAlignment="Center"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                     ToolTip.Tip="多个值以空格分隔；前缀 - 表示排除；所有条件同时满足" />
-          <TextBlock Text="空格分隔，- 排除"
+                     ToolTip.Tip="{DynamicResource Ui_ModsSearchPanel_Help_Tip}" />
+          <TextBlock Text="{DynamicResource Ui_ModsSearchPanel_HelpText}"
                      Classes="CkanCaption" VerticalAlignment="Center" TextWrapping="Wrap" />
         </StackPanel>
-        <Button Grid.Column="1" Content="清空条件"
+        <Button Grid.Column="1" Content="{DynamicResource Ui_ModsSearchPanel_ClearConditions}"
                 Command="{Binding ClearAllCommand}"
                 IsEnabled="{Binding HasActiveFilters}"
                 Classes="CkanSmall"
-                ToolTip.Tip="清空面板里的全部字段" />
+                ToolTip.Tip="{DynamicResource Ui_ModsSearchPanel_ClearConditions_Tip}" />
       </Grid>
 
       <!-- 18 个字段：文本 / 三态 -->
@@ -49,9 +49,9 @@
                         MinHeight="30"
                         IsVisible="{Binding IsState}"
                         ToolTip.Tip="{Binding Hint}">
-                <ComboBoxItem>不限</ComboBoxItem>
-                <ComboBoxItem>是</ComboBoxItem>
-                <ComboBoxItem>否</ComboBoxItem>
+                <ComboBoxItem Content="{DynamicResource Ui_Common_Any}"/>
+                <ComboBoxItem Content="{DynamicResource Ui_Common_Yes}"/>
+                <ComboBoxItem Content="{DynamicResource Ui_Common_No}"/>
               </ComboBox>
             </StackPanel>
           </DataTemplate>
@@ -60,7 +60,7 @@
 
       <!-- 生成的查询文本：让用户看得见「点选条件」与「敲语法」是同一件事 -->
       <Grid ColumnDefinitions="Auto,*">
-        <TextBlock Grid.Column="0" Text="当前条件：" Classes="CkanCaption" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="0" Text="{DynamicResource Ui_ModsSearchPanel_CurrentConditions}" Classes="CkanCaption" VerticalAlignment="Center" />
         <SelectableTextBlock Grid.Column="1"
                              Text="{Binding Preview}"
                              Classes="CkanCaption"

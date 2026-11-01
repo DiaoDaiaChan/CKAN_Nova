@@ -15,13 +15,13 @@
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Grid.Column="0" Spacing="4">
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <TextBlock Text="Mod 配置" Classes="CkanPageTitle" VerticalAlignment="Center" />
+          <TextBlock Text="{DynamicResource Ui_ModConfig_PageTitle}" Classes="CkanPageTitle" VerticalAlignment="Center" />
           <Button Classes="CkanHelper" VerticalAlignment="Center"
-                  ToolTip.Tip="适配器驱动的图形化配置：改值只更新目标行，保存时逐文件写盘（含写前快照与写后自校验）；颜色与按键组合当前为只读模式。">
+                  ToolTip.Tip="{DynamicResource Ui_ModConfigPage_Header_Tip}">
             <PathIcon Data="{StaticResource CkanIconHelp}" />
           </Button>
         </StackPanel>
-        <TextBlock Text="按适配器编辑 cfg 字段"
+        <TextBlock Text="{DynamicResource Ui_ModConfigPage_Subtitle}"
                    Classes="CkanCaption" TextWrapping="Wrap" />
       </StackPanel>
       <Border Grid.Column="1" Classes="CkanBadge" VerticalAlignment="Center" Margin="12,0,0,0"
@@ -57,19 +57,19 @@
         <TextBox Text="{Binding SearchText, Mode=TwoWay}"
                  Classes="CkanSearchBox"
                  Width="240" Margin="0,0,8,0"
-                 PlaceholderText="按名称 / 分组筛选…"
-                 ToolTip.Tip="按键名、显示名、注释三路匹配" />
-        <Button Content="清空" Command="{Binding ClearSearchCommand}" Classes="CkanGhost" Margin="0,0,12,0" />
-        <CheckBox Content="仅看已改" IsChecked="{Binding OnlyModified, Mode=TwoWay}" Margin="0,0,12,0"
-                  ToolTip.Tip="只显示与适配器声明默认值不同的字段" />
-        <Button Content="刷新" Command="{Binding LoadCommand}"
+                 PlaceholderText="{DynamicResource Ui_ModConfigPage_Filter_Placeholder}"
+                 ToolTip.Tip="{DynamicResource Ui_ModConfigPage_Filter_Tip}" />
+        <Button Content="{DynamicResource Ui_Common_Clear}" Command="{Binding ClearSearchCommand}" Classes="CkanGhost" Margin="0,0,12,0" />
+        <CheckBox Content="{DynamicResource Ui_ModConfigPage_ModifiedOnly}" IsChecked="{Binding OnlyModified, Mode=TwoWay}" Margin="0,0,12,0"
+                  ToolTip.Tip="{DynamicResource Ui_ModConfigPage_ModifiedOnly_Tip}" />
+        <Button Content="{DynamicResource Ui_Common_Refresh}" Command="{Binding LoadCommand}"
                 IsEnabled="{Binding CanLoad}" Classes="CkanSecondary" Margin="0,0,8,0"
-                ToolTip.Tip="重新读取当前实例的 mod 配置文件（未保存的输入会保留）" />
-        <Button Content="重新加载适配器" Command="{Binding ReloadAdaptersCommand}" Classes="CkanSecondary" Margin="0,0,8,0"
-                ToolTip.Tip="用户目录里新增 adapter.json 后不用重启程序" />
-        <Button Content="导入 adapter…" Command="{Binding ImportAdapterCommand}"
+                ToolTip.Tip="{DynamicResource Ui_ModConfigPage_Refresh_Tip}" />
+        <Button Content="{DynamicResource Ui_ModConfigPage_ReloadAdapters}" Command="{Binding ReloadAdaptersCommand}" Classes="CkanSecondary" Margin="0,0,8,0"
+                ToolTip.Tip="{DynamicResource Ui_ModConfigPage_ReloadAdapters_Tip}" />
+        <Button Content="{DynamicResource Ui_ModConfigPage_ImportAdapter}" Command="{Binding ImportAdapterCommand}"
                 IsVisible="{Binding CanImportAdapter}" Classes="CkanPrimary" Margin="0,0,12,0"
-                ToolTip.Tip="从本地 .json 或 .zip 包安装第三方适配器（包内有 sha256 校验清单），装完自动重扫目录" />
+                ToolTip.Tip="{DynamicResource Ui_ModConfigPage_ImportAdapter_Tip}" />
         <TextBlock Text="{Binding VisibleCountText}" VerticalAlignment="Center" Margin="0,0,12,0"
                    Classes="CkanCaption" />
       </WrapPanel>
@@ -89,7 +89,7 @@
           <Border Grid.Row="0" Padding="10,8"
                   BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Grid.Column="0" Text="Mod（有适配器的）"
+              <TextBlock Grid.Column="0" Text="{DynamicResource Ui_ModConfigPage_ModWithAdapterHeader}"
                          FontWeight="SemiBold"
                          FontSize="{DynamicResource CkanFontSizeCaption}"
                          Foreground="{DynamicResource CkanTextSecondaryBrush}" />
@@ -146,19 +146,19 @@
               <Border Classes="CkanIconTile Muted" HorizontalAlignment="Left">
                 <PathIcon Data="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
               </Border>
-              <TextBlock Text="还没有可编辑的配置"
+              <TextBlock Text="{DynamicResource Ui_ModConfigPage_NoConfigsTitle}"
                          TextWrapping="Wrap"
                          FontWeight="SemiBold"
                          Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-              <TextBlock Text="先选择实例以加载 mod 列表。"
+              <TextBlock Text="{DynamicResource Ui_ModConfigPage_NoConfigsSubtitle}"
                          TextWrapping="Wrap"
                          Classes="CkanCaption" />
-              <Button Content="前往实例页"
+              <Button Content="{DynamicResource Ui_ModConfigPage_GoToInstancesPage}"
                       Classes="CkanSecondary CkanSmall"
                       HorizontalAlignment="Left"
                       Command="{Binding $parent[Window].DataContext.NavigateCommand}"
                       CommandParameter="instances"
-                      ToolTip.Tip="在「实例」页选中或添加一个 KSP 实例，回来才有可编辑的配置" />
+                      ToolTip.Tip="{DynamicResource Ui_ModConfigPage_SelectInstanceFirst_Tip}" />
             </StackPanel>
           </Border>
 
@@ -224,7 +224,7 @@
               <Border Classes="CkanIconTile Lg" HorizontalAlignment="Center">
                 <PathIcon Data="M4 4h16v2H4V4zm0 5h16v2H4V9zm0 5h10v2H4v-2zm0 5h7v2H4v-2z" />
               </Border>
-              <TextBlock Text="未选择 mod" FontSize="{DynamicResource CkanFontSizeSubtitle}"
+              <TextBlock Text="{DynamicResource Ui_ModConfig_NoModSelected}" FontSize="{DynamicResource CkanFontSizeSubtitle}"
                          FontWeight="SemiBold" HorizontalAlignment="Center"
                          Foreground="{DynamicResource CkanTextPrimaryBrush}" />
               <TextBlock Text="{Binding NoSelectionHintText}"
@@ -234,14 +234,14 @@
               <Button Classes="CkanGuide" HorizontalAlignment="Stretch"
                       Command="{Binding $parent[Window].DataContext.NavigateCommand}"
                       CommandParameter="mods"
-                      ToolTip.Tip="在「模组」页选中一个 mod，再回到这里配置它">
+                      ToolTip.Tip="{DynamicResource Ui_ModConfigPage_SelectModFirst_Tip}">
                 <Grid ColumnDefinitions="*,Auto">
                   <StackPanel Grid.Column="0" Spacing="6">
                     <Border Classes="CkanIconTile">
                       <PathIcon Data="M4 5h16v2H4V5zm0 6h16v2H4v-2zm0 6h10v2H4v-2z" />
                     </Border>
-                    <TextBlock Classes="GuideTitle" Text="挑一个 mod" />
-                    <TextBlock Classes="GuideDesc" Text="去模组页选中它，右侧就会出现可编辑的配置项。" />
+                    <TextBlock Classes="GuideTitle" Text="{DynamicResource Ui_ModConfigPage_PickModTitle}" />
+                    <TextBlock Classes="GuideDesc" Text="{DynamicResource Ui_ModConfigPage_PickModSubtitle}" />
                   </StackPanel>
                   <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
                             Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
@@ -250,14 +250,14 @@
               <Button Classes="CkanGuide" HorizontalAlignment="Stretch"
                       Command="{Binding $parent[Window].DataContext.NavigateCommand}"
                       CommandParameter="instances"
-                      ToolTip.Tip="适配器只在实例加载完成后才可用">
+                      ToolTip.Tip="{DynamicResource Ui_ModConfigPage_InstanceMustBeReady_Tip}">
                 <Grid ColumnDefinitions="*,Auto">
                   <StackPanel Grid.Column="0" Spacing="6">
                     <Border Classes="CkanIconTile Muted">
                       <PathIcon Data="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
                     </Border>
-                    <TextBlock Classes="GuideTitle" Text="先让实例就绪" />
-                    <TextBlock Classes="GuideDesc" Text="实例没加载完时左侧适配器是空的，去实例页确认一下。" />
+                    <TextBlock Classes="GuideTitle" Text="{DynamicResource Ui_ModConfigPage_InstanceNotReadyTitle}" />
+                    <TextBlock Classes="GuideDesc" Text="{DynamicResource Ui_ModConfigPage_InstanceNotReadySubtitle}" />
                   </StackPanel>
                   <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
                             Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
@@ -310,27 +310,27 @@
                                            VerticalAlignment="Center"
                                            FontSize="{DynamicResource CkanFontSizeCaption}"
                                            Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                                <CheckBox Content="开" IsVisible="{Binding ShowToggle}"
+                                <CheckBox Content="{DynamicResource Ui_Common_On}" IsVisible="{Binding ShowToggle}"
                                           IsChecked="{Binding IsToggleOn, Mode=TwoWay}"
                                           MinWidth="72" />
                                 <ComboBox IsVisible="{Binding ShowDropdown}"
                                           ItemsSource="{Binding Choices}"
                                           SelectedItem="{Binding EditValue, Mode=TwoWay}"
                                           MinWidth="160"
-                                          PlaceholderText="未设置" />
+                                          PlaceholderText="{DynamicResource Ui_Common_NotSet}" />
                                 <TextBox IsVisible="{Binding ShowTextEditor}"
                                          Text="{Binding EditValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                          KeyDown="OnEditorKeyDown"
                                          AcceptsReturn="{Binding IsMultilineEditor}"
                                          MinWidth="200" MaxWidth="320"
                                          TextWrapping="Wrap"
-                                         PlaceholderText="未设置" />
+                                         PlaceholderText="{DynamicResource Ui_Common_NotSet}" />
                                 <!-- 路径字段的「浏览…」：挑到目录就填进草稿，取消保留原值。 -->
                                 <Button Classes="CkanGhost CkanSmall"
-                                        Content="浏览…"
+                                        Content="{DynamicResource Ui_Common_Browse}"
                                         Command="{Binding BrowseCommand}"
                                         IsVisible="{Binding CanBrowse}"
-                                        ToolTip.Tip="选择一个目录，填进这个路径字段" />
+                                        ToolTip.Tip="{DynamicResource Ui_ModConfigPage_BrowseDir_Tip}" />
                                 <!-- 取色字段：色块预览 + 十六进制文本（写法不受限，识别不了仍按原文写入）。 -->
                                 <StackPanel Orientation="Horizontal" Spacing="6"
                                             IsVisible="{Binding ShowColorEditor}">
@@ -351,7 +351,7 @@
                                          KeyDown="OnKeyCaptureKeyDown"
                                          MinWidth="160" MaxWidth="220"
                                          PlaceholderText="Ctrl+K"
-                                         ToolTip.Tip="直接输入键名，或按住 Ctrl/Alt 再按键捕获；Esc 清空" />
+                                         ToolTip.Tip="{DynamicResource Ui_ModConfigPage_KeyCapture_Tip}" />
                                 <TextBlock Text="{Binding ValueText}"
                                            IsVisible="{Binding ShowReadOnlyValue}"
                                            FontWeight="SemiBold"
@@ -392,11 +392,11 @@
                                            IsVisible="{Binding HasHint}"
                                            FontSize="{DynamicResource CkanFontSizeCaption}"
                                            Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                                <TextBlock Text="已改"
+                                <TextBlock Text="{DynamicResource Ui_ModConfigPage_ModifiedTag}"
                                            IsVisible="{Binding IsModified}"
                                            FontSize="{DynamicResource CkanFontSizeCaption}"
                                            Foreground="{DynamicResource CkanWarningBrush}" />
-                                <TextBlock Text="待保存"
+                                <TextBlock Text="{DynamicResource Ui_ModConfigPage_PendingSaveTag}"
                                            IsVisible="{Binding HasPendingChange}"
                                            FontSize="{DynamicResource CkanFontSizeCaption}"
                                            FontWeight="SemiBold"
@@ -427,12 +427,12 @@
                      Foreground="{DynamicResource CkanTextPrimaryBrush}" />
           <Button Content="{Binding SaveButtonText}" Command="{Binding SaveCommand}"
                   IsEnabled="{Binding CanSave}" Classes="CkanPrimary" Margin="0,0,8,0"
-                  ToolTip.Tip="Ctrl+S：保存时逐文件写盘，写前快照、写后重新解析自校验；某个文件失败时只报它，其余改动与输入都保留。" />
-          <Button Content="放弃未保存的改动" Command="{Binding DiscardPendingCommand}"
+                  ToolTip.Tip="{DynamicResource Ui_ModConfigPage_Save_Tip}" />
+          <Button Content="{DynamicResource Ui_ModConfigPage_DiscardChanges}" Command="{Binding DiscardPendingCommand}"
                   IsEnabled="{Binding CanDiscardPending}" Classes="CkanDanger" Margin="0,0,8,0" />
           <Button Content="{Binding RestoreButtonText}" Command="{Binding RestoreBackupsCommand}"
                   IsEnabled="{Binding CanRestoreBackups}" Classes="CkanSecondary"
-                  ToolTip.Tip="把上一次写盘前的 .bak 快照恢复回去" />
+                  ToolTip.Tip="{DynamicResource Ui_ModConfigPage_DiscardChanges_Tip}" />
         </WrapPanel>
         <TextBlock Text="{Binding BackupHintText}" IsVisible="{Binding HasBackups}"
                    TextWrapping="Wrap"

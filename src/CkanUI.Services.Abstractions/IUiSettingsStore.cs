@@ -38,6 +38,12 @@ public sealed record UiSettings
     /// <summary>字号缩放（20 篇 P-09）：90 / 100 / 110 / 120 / 130（百分比），只作用于界面文案。</summary>
     public string? FontScale { get; init; } = "100";
 
+    /// <summary>
+    /// 页面缩放比例（1.0 = 100%，75%–150%）：底栏滑块驱动，缩放整个页面承载区（文字、图标、间距一起变），
+    /// 与只动字号的 <see cref="FontScale"/> 是两件事，可叠加。外壳（标题栏/侧栏/状态栏）不缩放。
+    /// </summary>
+    public double PageZoom { get; init; } = 1.0;
+
     /// <summary>界面背景（20 篇 P-06）：纯色 / 渐变 / 本机图片，含填充、暗化、模糊、不透明度。</summary>
     public BackgroundProfile? Background { get; init; }
 
@@ -75,6 +81,36 @@ public sealed record UiSettings
     /// <summary>关闭到托盘（12 篇 F-51）：点关闭按钮时隐藏窗口而不退出进程。默认关闭。</summary>
     public bool CloseToTray { get; init; }
 
+    /// <summary>模组页是否显示右侧详情面板（折叠后表格铺满全屏，展示更多模组）。默认开启。</summary>
+    public bool ShowModDetailsPane { get; init; } = true;
+
+    /// <summary>
+    /// 首次启动指引是否已走完（02 篇 §1 Ⅱ-⑪）。置位后不再自动弹向导；
+    /// 「设置 → 重新运行首次启动指引」仍可手动打开（只删本标志，不动其他设置）。
+    /// </summary>
+    public bool FirstRunCompleted { get; init; }
+
+    /// <summary>
+    /// 是否已展示过首次启动高亮指引（介绍软件界面与核心模块）。默认 false。
+    /// </summary>
+    public bool HasSeenOnboardingTour { get; init; }
+
+    /// <summary>下载代理模式：direct / system / manual（与 <c>ProxyMode</c> 的 JSON 名一一对应，小写存储）。</summary>
+    public string ProxyMode { get; init; } = "system";
+
+    /// <summary>手动代理地址（<c>http://主机:端口</c>）；非 manual 模式下保留但不用。</summary>
+    public string? ProxyServer { get; init; }
+
+    /// <summary>代理分流列表（逗号/分号分隔），仅手动模式使用。</summary>
+    public string? ProxyBypass { get; init; }
+
+    /// <summary>
+    /// 导航栏悬浮交互模式：
+    /// "tabPopout" - 光标滑过单个 Tab 自动弹出独立卡片（默认）
+    /// "drawer" - 光标滑过侧边栏自动抽屉式展开整个侧边栏
+    /// </summary>
+    public string NavHoverMode { get; init; } = "tabPopout";
+
     public IReadOnlyDictionary<string, double> ColumnWidths { get; init; } =
         new Dictionary<string, double>();
 
@@ -98,6 +134,7 @@ public sealed record UiSettings
         && string.Equals(MotionIntensity, other.MotionIntensity, StringComparison.Ordinal)
         && string.Equals(BackdropKind, other.BackdropKind, StringComparison.Ordinal)
         && string.Equals(FontScale, other.FontScale, StringComparison.Ordinal)
+        && PageZoom.Equals(other.PageZoom)
         && Equals(Background, other.Background)
         && BackgroundsEqual(BackgroundByInstance, other.BackgroundByInstance)
         && ReleaseTier == other.ReleaseTier
@@ -107,6 +144,13 @@ public sealed record UiSettings
         && SuppressRecommendations == other.SuppressRecommendations
         && MinimizeToTray == other.MinimizeToTray
         && CloseToTray == other.CloseToTray
+        && ShowModDetailsPane == other.ShowModDetailsPane
+        && FirstRunCompleted == other.FirstRunCompleted
+        && HasSeenOnboardingTour == other.HasSeenOnboardingTour
+        && string.Equals(ProxyMode, other.ProxyMode, StringComparison.Ordinal)
+        && string.Equals(ProxyServer, other.ProxyServer, StringComparison.Ordinal)
+        && string.Equals(ProxyBypass, other.ProxyBypass, StringComparison.Ordinal)
+        && string.Equals(NavHoverMode, other.NavHoverMode, StringComparison.Ordinal)
         && ColumnWidthsEqual(ColumnWidths, other.ColumnWidths);
 
     public override int GetHashCode()
@@ -126,6 +170,7 @@ public sealed record UiSettings
         hash.Add(MotionIntensity, StringComparer.Ordinal);
         hash.Add(BackdropKind, StringComparer.Ordinal);
         hash.Add(FontScale, StringComparer.Ordinal);
+        hash.Add(PageZoom);
         hash.Add(Background);
         hash.Add(ReleaseTier);
         hash.Add(HideVersionEpoch);
@@ -134,6 +179,13 @@ public sealed record UiSettings
         hash.Add(SuppressRecommendations);
         hash.Add(MinimizeToTray);
         hash.Add(CloseToTray);
+        hash.Add(ShowModDetailsPane);
+        hash.Add(FirstRunCompleted);
+        hash.Add(HasSeenOnboardingTour);
+        hash.Add(ProxyMode, StringComparer.Ordinal);
+        hash.Add(ProxyServer, StringComparer.Ordinal);
+        hash.Add(ProxyBypass, StringComparer.Ordinal);
+        hash.Add(NavHoverMode, StringComparer.Ordinal);
 
         // 字典无序：逐项哈希异或，保证顺序无关。
         var columns = 0;

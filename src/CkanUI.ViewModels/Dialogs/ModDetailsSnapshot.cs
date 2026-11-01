@@ -26,7 +26,8 @@ public sealed record ModDetailsSnapshot(
     IReadOnlyList<ModRelationItem>? Conflicts = null,
     bool IsCompatible = true,
     IReadOnlyList<ModVersionItemDto>? Versions = null,
-    IReadOnlyList<string>? InstalledFiles = null);
+    IReadOnlyList<string>? InstalledFiles = null,
+    string? SpacedockUrl = null);
 
 /// <summary>
 /// 已装文件行（详情面板「文件与内容」页签的列表项）。

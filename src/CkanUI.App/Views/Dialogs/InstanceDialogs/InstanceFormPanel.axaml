@@ -23,16 +23,16 @@
 
       <!-- 实例名称 -->
       <StackPanel Spacing="4">
-        <TextBlock Text="实例名称" FontSize="12" Opacity="0.7" />
+        <TextBlock Text="{DynamicResource Ui_InstanceForm_InstanceName}" FontSize="12" Opacity="0.7" />
         <TextBox Text="{Binding Name, Mode=TwoWay}" MinWidth="380"
-                 PlaceholderText="例如 My KSP 1.12" />
+                 PlaceholderText="{DynamicResource Ui_InstanceForm_InstanceName_Placeholder}" />
       </StackPanel>
 
       <!-- 游戏目录（仅新增模式可填） -->
       <StackPanel Spacing="4" IsVisible="{Binding ShowsPath}">
-        <TextBlock Text="游戏目录" FontSize="12" Opacity="0.7" />
+        <TextBlock Text="{DynamicResource Ui_InstanceForm_GameDirectory}" FontSize="12" Opacity="0.7" />
         <TextBox Text="{Binding Path, Mode=TwoWay}" MinWidth="380"
-                 PlaceholderText="KSP 安装目录的绝对路径" />
+                 PlaceholderText="{DynamicResource Ui_InstanceForm_GameDirectory_Placeholder}" />
       </StackPanel>
 
       <TextBlock Text="{Binding HintText}" FontSize="12" Opacity="0.7" TextWrapping="Wrap" MaxWidth="420" />
@@ -42,7 +42,7 @@
                  IsVisible="{Binding HasValidationError}" />
 
       <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-        <Button Content="取消" Command="{Binding CancelCommand}" />
+        <Button Content="{DynamicResource Ui_Common_Cancel}" Command="{Binding CancelCommand}" />
         <Button Content="{Binding PrimaryButtonText}" Command="{Binding SubmitCommand}" />
       </StackPanel>
     </StackPanel>

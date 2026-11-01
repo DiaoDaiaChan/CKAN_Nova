@@ -191,6 +191,39 @@ dotnet run --project tools/verify-layout -- --all   # 期望「结论: 绿」
 | 验证 | App 段 **239/239**（StarfieldModelTests 37 例：拓扑多样性、启动种子共享、显式种子覆盖、星轨呼吸区间、alpha×breath 不破顶、远景呼吸、呼吸随时钟停、星座明灭幅度，以及「整族同向转动 + 视差只拉间距」与「转一圈 420–600 秒」）；ViewModels 1535 / Architecture 27 / Localization 76 全绿；构建 0 警告 0 错误；19/19 快照；verify-layout 阻断 0 · 警告 0 |
 | 像素复核 | `artifacts/tmp/arcband.cjs <基线> <新图>`：沿 9 条弧的半径取环带均值（极点 `(−0.06w, −0.10h)`、半径 `unit·(0.12+0.075i)`），并取半径 +0.028·unit 的对照环带。page_01 环带 28.79 → **34.85**（+6.05），对照环带 30.34 → 30.29（−0.05）；page_18 环带 26.80 → **32.93**（+6.13），对照 29.99 → 29.95（−0.04）。抬亮只落在弧线半径上，背景没被一起拉亮 |
 
-### 6.7 结档时仍然打开的项
+### 6.7 指针交互层（2026-11-01）
+
+用户要求「鼠标光标与界面各种元素的交互效果」。本轮只动 `src/CkanUI.App/Resources/FluentStyles.axaml`，把散落的 pointer 状态收成一张矩阵，并用无头真实指针事件做回归（不是断言样式文本）。
+
+| 项 | 结果 |
+| --- | --- |
+| 手型光标 | `Button` 基类、`ListBoxItem`、`MenuItem` 显式写 `Cursor=Hand`；`Button.CkanHelper` 特异性更高（\`:1279` 之后定义）仍为 `Help`；`Border.CkanCardInteractive` 与 `TabItem` 原本已有 |
+| 悬浮 | Button 保留原 `translateY(-1px)`；ListBoxItem / DataGridRow 保留 `translate(2px,0)` + `CkanSubtleBackgroundBrush`；新增 `TreeViewItem:pointerover` → `CkanSubtleBackgroundBrush` + `translate(2px,0)`；`CheckBox / RadioButton / ToggleSwitch:pointerover` → `Foreground=CkanAccentBrush` |
+| 按压 | 新增 `ListBoxItem:pressed` / `DataGridRow:pressed` → `translate(1px,0)`（比悬浮回撤 1px，形成「按下去」的手感）；`CheckBox / RadioButton / ToggleSwitch:pressed` → `scale(0.995)`；Button 原有 SpringCrisp 回弹未动 |
+| 勾选类与树 | 三者与 `TreeViewItem` 统一补上 `RenderTransform` / `Background` / `Foreground` 过渡，避免状态切换是硬跳变；全仓 32 处 CheckBox、2 处 RadioButton、3 处 ToggleSwitch、各页树视图因此一次性生效 |
+| 刻意不加的样式 | 曾起草 `Border.CkanIconTile.Interactive` 与 `Border.CkanStatCard.Interactive`，核对后删除：38 处 `CkanIconTile` 全是空状态装饰图标、3 处 `CkanStatCard` 是只读统计，没有可点用法，留着就是死样式 |
+| 回归 | `tests/CkanUI.App.Tests/HoverInteractionTests.cs` 4 例：Button / ListBoxItem / CheckBox / TreeViewItem 各一条——`HeadlessAppHost.CreateTestWindow` + `window.MouseMove` + `PumpJobs`，断言 `IsPointerOver`、`RenderTransform` 位移（`ITransform.M31/M32`）与光标类型 |
+| 验证 | App 段 **243/243**（原 239 + 4 例）；ViewModels 1535 / Architecture 27 / Localization 76 全绿；构建 0 警告 0 错误；19/19 快照；verify-layout 阻断 0 · 警告 0 |
+
+两条测试侧的坑记在这里：`Cursor` 没有值相等（`Is.EqualTo(new Cursor(StandardCursorType.Hand))` 即使双方都是 Hand 也失败），只能比 `Cursor?.ToString()`；`Application.Current.FindResource("CkanAccentBrush")` 会抛 `InvalidCastException`（资源在主题字典而非 `Application.Resources`），改成「悬浮前后取色必须不同」。
+
+### 6.8 结档时仍然打开的项
 
 §4 现有 9 条：第四轮关掉了 2 条的后半段（第 3 条 L4 工作集归还已接 psapi，只剩真机量化；第 6 条背景「游戏截图」来源已接，只剩 v2 自动轮换），其余仍打开——真实下载端到端（第 1 条）、实例重命名不搬目录「已定取舍」（第 2 条）、托盘手测（第 4 条）、插件页签视图自带 + 工具项落点单一「设计约束」（第 5 条）、发布链路的真机性能/端到端与安装器签名体积（第 7 条）、i18n 子 VM（第 8 条）、沙箱写权限复核（第 9 条）；另有插件文档 §9 那批「需要 Lead 落地」条目其实已经落地，本轮只标注不清删。
+
+### 6.9 磨砂玻璃材质 + 指针响应 + 拖动细线（2026-11-01）
+
+用户三轮口径：①「指针与界面各种元素的交互效果」（§6.7）；②「光标移动到按钮等元素上时，以光标为半径元素响应高光/纹理，并且所有按钮等元素都应用磨砂玻璃/亚克力质感」；③「不是这种效果，回退，应该是一条细线，此外要使用无头调试不要弹出窗口控制鼠标」。第③轮把拖动效果从「流星＋火星＋头部光斑」回退成一条 1.6px 的细线，并取消光标中心的大光斑（光环只照亮光标半径内的元素表面）。
+
+| 项 | 结果 |
+| --- | --- |
+| 玻璃 Token | `src/CkanUI.App/Resources/Tokens.axaml` 三变体各加 7 个：`CkanGlassFillBrush` / `CkanGlassFillHoverBrush` / `CkanGlassBorderBrush`（顶亮底暗渐变）/ `CkanGlassBorderHoverBrush` / `CkanGlassShadow` / `CkanGlassShadowHover` / `CkanGlassShadowAccent`；高对比度全部退化为纯黑填充 + 纯白描边 + 阴影归零 |
+| 控件覆盖 | `src/CkanUI.App/Resources/FluentStyles.axaml`：Button 基类、`CkanPrimary` / `CkanSecondary` / `CkanGhost` / `CkanIcon` / `CkanHelper` / `CkanTab` / `CkanChip`、ListBoxItem / DataGridRow、MenuItem、CheckBox / RadioButton、TextBox / ComboBox、TreeViewItem、TabItem（模板内 `PART_TabSurface`） |
+| 硬约束 | Avalonia 12 的 `Button` / `ContentPresenter` **没有 `BoxShadow` 属性**，写入 Setter 直接 AVLN2000；按钮观感只能靠「半透明填充 + 渐变描边」，投影留给 Border 系元素 |
+| 指针光环 | `PointerAuraModel`（半径 168d、淡入 0.09s / 淡出 0.22s、峰值 alpha 0.18、smoothstep 衰减、7d 确定性纹理）+ `PointerAuraLayer`（`FindSurface` 从命中元素上溯到最近的可响应表面）；只照亮元素表面，不在光标处画独立光斑 |
+| 定时器缺陷 | `PointerAuraLayer.UpdateTimerState` 原先只看 `IsActive`，而刚 Track 那帧 `Alpha=0` → 计时器永不启动、淡入永不发生（「不见效果」的真因）。改为 `!_model.IsActive && !_model.HasTarget` 才停表 |
+| 拖动细线 | `src/CkanUI.App/Controls/DragTrailModel.cs`（容量 512 点、最小采样距 1.2d、抬手淡出 0.45s、单步夹 0.1s）+ `DragTrailLayer.cs`（1.6px→0.8px 渐细、`PeakAlpha 0.62`、圆头圆角、拖动中由 Move 直接重绘，抬手才起 16ms 表）；接线在 `MainWindow.axaml` 的 `DragTrail`（ZIndex 13）与 `MainWindow.axaml.cs` 的 Pressed / Moved / Released / Exited / Deactivated |
+| 无头像素回归 | 新增 `DragTrailRenderTests` 2 例：`HeadlessAppHost` 改用 `UseSkia()` + `UseHeadlessDrawing=false`，`window.CaptureRenderedFrame()` 抓真帧——断言拖动后强调色像素 > 200 且竖直截面 ≤ 4px（真·细线），`Clear()` 后同一帧零强调色像素。全程不开窗口、不控制物理鼠标 |
+| 验证 | 构建 0 警告 0 错误（修掉并行会话遗留的 `NavAnimationDiagnosticsTests` 编译错误）；App 段 287 例中 285 通过，2 例失败均来自并行会话进行中的导航过渡工作（`NavAnimationDiagnosticsTests.InspectSplitViewTransitions`、`SpringConvergenceTests.EveryStateClassOwnsTransitions`，`FluentStyles.axaml` 正被另一会话改写），与本轮拖动/光环无关；19/19 快照；verify-layout 阻断 0 警告 0 |
+
+三个坑记在这里：① 无头抓帧要 `UseSkia()` + `UseHeadlessDrawing=false`，否则 `CaptureRenderedFrame` 只有桩渲染；SkiaSharp 的原生库在 TestRunner 宿主里不在输出目录，会退到 PATH 命中机器上旧版 `libSkiaSharp`（实测报 native 88.1 / managed 3.119.4），`HeadlessAppHost` 现在把测试程序集旁的 `runtimes/<rid>/native` 提到 PATH 最前面；② 不要把 `Avalonia.Skia` 加进 `tests/CkanUI.TestRunner`：那会把 Avalonia 12.1.4 拖进宿主自己的 ALC，页面初始化时 `Avalonia.Controls.ColorPicker`（FluentAvalonia 依赖的 12.1.0）加载不上，App 段直接 8 例 `FileNotFoundException`——Skia 只加在 `CkanUI.App.Tests`，原生库由 `HeadlessAppHost.PrependNativeAssetDirectory()` 解决；③ `PointerAuraModel` 用假 dispatcher 就地执行时会在自动保存续体线程上取 `Application.ActualThemeVariant` 抛异常，测试必须用真实排队语义；④ 像素回归只证明控件画得对，**不证明窗口接上了线**：`OnWindowPointerMoved` 最初漏了 `trail.Move(...)`，控件测试全绿而实际拖动只有起点——接线程要单独核对（本轮已补 `Move`、`PointerExited` 收尾）；⑤ 已挂 visual parent 的 Button 不能再塞进新 Panel，像素/命中测试要一开始就 `new Panel { Children = { button, layer } }`。

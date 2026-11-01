@@ -1,0 +1,114 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:CkanUI.App.Controls"
+             xmlns:vm="using:CkanUI.ViewModels.Onboarding"
+             x:Class="CkanUI.App.Views.OnboardingTourOverlay"
+             x:DataType="vm:OnboardingTourViewModel"
+             x:CompileBindings="False"
+             IsVisible="{Binding IsActive, FallbackValue=False}">
+
+  <UserControl.Styles>
+    <Style Selector="Button.onboardingBtn">
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Padding" Value="14,6" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- 顶层 Canvas，承载全屏镂空聚光灯遮罩与可自由定位的卡片 -->
+  <Canvas x:Name="OverlayCanvas"
+          HorizontalAlignment="Stretch"
+          VerticalAlignment="Stretch">
+
+    <!-- 聚光灯遮罩层，占满整个 Canvas -->
+    <controls:SpotlightMask x:Name="Spotlight"
+                            Width="{Binding #OverlayCanvas.Bounds.Width}"
+                            Height="{Binding #OverlayCanvas.Bounds.Height}"
+                            CornerRadius="8" />
+
+    <!-- 引导卡片 -->
+    <Border x:Name="CardBorder"
+            Width="380"
+            CornerRadius="{DynamicResource CkanCornerRadiusLarge}"
+            BorderThickness="1"
+            BoxShadow="{DynamicResource CkanElevationHigh}"
+            Background="{DynamicResource CkanDialogBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanCardBorderBrush}"
+            Padding="20">
+      <Border.Transitions>
+        <Transitions>
+          <DoubleTransition Property="Canvas.Left" Duration="0:0:0.25" Easing="CubicEaseOut" />
+          <DoubleTransition Property="Canvas.Top" Duration="0:0:0.25" Easing="CubicEaseOut" />
+        </Transitions>
+      </Border.Transitions>
+
+      <Grid RowDefinitions="Auto,Auto,Auto,Auto">
+
+        <!-- 顶部徽标与步骤计数与跳过按钮 -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,12">
+          <Border Grid.Column="0"
+                  CornerRadius="4"
+                  Padding="6,2"
+                  Background="{DynamicResource CkanAccentSubtleBrush}">
+            <TextBlock Text="{DynamicResource Ui_Onboarding_Badge}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource CkanAccentBrush}" />
+          </Border>
+
+          <TextBlock Grid.Column="1"
+                     Text="{Binding StepProgressText}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                     VerticalAlignment="Center"
+                     Margin="10,0,0,0" />
+
+          <Button Grid.Column="2"
+                  Classes="CkanGhost"
+                  Content="{DynamicResource Ui_Onboarding_Skip}"
+                  Command="{Binding SkipCommand}"
+                  FontSize="{DynamicResource CkanFontSizeCaption}"
+                  Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                  Padding="4,2" />
+        </Grid>
+
+        <!-- 标题 -->
+        <TextBlock Grid.Row="1"
+                   Text="{Binding CurrentTitle}"
+                   FontSize="{DynamicResource CkanFontSizeTitle}"
+                   FontWeight="Bold"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,8" />
+
+        <!-- 说明正文 -->
+        <TextBlock Grid.Row="2"
+                   Text="{Binding CurrentDescription}"
+                   FontSize="{DynamicResource CkanFontSizeBody}"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                   TextWrapping="Wrap"
+                   LineHeight="20"
+                   Margin="0,0,0,18" />
+
+        <!-- 操作按钮栏 -->
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto">
+          <Button Grid.Column="1"
+                  Classes="onboardingBtn CkanGhost"
+                  Content="{DynamicResource Ui_Onboarding_Back}"
+                  Command="{Binding PreviousCommand}"
+                  IsVisible="{Binding CanGoBack}"
+                  Margin="0,0,8,0" />
+
+          <Button Grid.Column="2"
+                  Classes="onboardingBtn CkanAccent"
+                  Content="{Binding NextButtonText}"
+                  Command="{Binding NextCommand}" />
+        </Grid>
+
+      </Grid>
+    </Border>
+
+  </Canvas>
+</UserControl>

@@ -43,6 +43,13 @@ public sealed record ModsRowView(ModRowData Data)
     /// <summary>安装体积。</summary>
     public string SizeText => ModsFormatter.Bytes(Data.SizeBytes);
 
+    /// <summary>模组核心分类定义（8 大分类系统）。</summary>
+    public CkanUI.ModText.ModCategoryDefinition Category =>
+        CkanUI.ModText.ModTaxonomyEngine.Classify(Data.Identifier, Data.Name, Data.Tags, Data.Facts.Abstract, Data.Facts.Description);
+
+    /// <summary>核心分类徽章展示文案：🎨 视觉与音效美化</summary>
+    public string CategoryBadgeText => Category.DisplayTitle;
+
     /// <summary>标签摘要：最多 4 个，其余折叠成 "+n"（03 篇 §3.2）。</summary>
     public string TagsText
     {

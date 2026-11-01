@@ -11,6 +11,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Transformation;
@@ -20,13 +21,18 @@ using Avalonia.VisualTree;
 using CkanUI.App.Animations;
 using CkanUI.App.Branding;
 using CkanUI.App.Diagnostics;
+using CkanUI.App.Controls;
 using CkanUI.App.Converters;
+using CkanUI.App.Views;
 using CkanUI.App.Views.Dialogs;
+using CkanUI.Localization;
 using CkanUI.Services.Abstractions.Commands;
 using CkanUI.Services.Commands;
 using CkanUI.ViewModels;
 using CkanUI.ViewModels.CommandPalette;
 using CkanUI.ViewModels.Dialogs;
+using CkanUI.ViewModels.Onboarding;
+using CkanUI.ViewModels.Pages.Instances;
 using FluentAvalonia.UI.Controls;
 using log4net;
 
@@ -43,6 +49,8 @@ public sealed partial class MainWindow : Window
     /// 插件自述页在侧栏里是独立入口，统一归在这个标题下；业务页不再分「核心 / 工具」两组——
     /// 同一对象的多个面已经收进一个入口，再用小组标题套一层只会多两级层级。
     /// </summary>
+    private const string CoreHeaderKey = "Ui_NavGroup_Core";
+    private const string ToolsHeaderKey = "Ui_NavGroup_Tools";
     private const string ExtensionsHeaderKey = "Ui_NavGroup_Extensions";
 
     /// <summary>底部固定项：日志与设置是「随时要看」的常驻入口，不适合混在业务分组里。</summary>
@@ -51,26 +59,62 @@ public sealed partial class MainWindow : Window
     /// <summary>分组标题的中文兜底（本地化键还没进语言包时不至于显示键名）。</summary>
     private static readonly Dictionary<string, string> NavGroupFallbacks = new(StringComparer.Ordinal)
     {
+        [CoreHeaderKey] = "核心",
+        [ToolsHeaderKey] = "高级工具箱",
         [ExtensionsHeaderKey] = "扩展",
     };
 
     private static readonly ILog Log = LogManager.GetLogger(typeof(MainWindow));
 
-    /// <summary>当前处于「追赶位移」拉伸态的导航项。</summary>
-    private Control? _navPulseTarget;
+    /// <summary>顶栏共享胶囊的位移 + 宽度弹簧（首帧定位后才创建）。</summary>
+    private TransformSpring? _pillSpring;
 
-    /// <summary>追赶位移的代数：只有最后一次脉冲有权摘类。</summary>
-    private int _navPulseGeneration;
+    /// <summary>顶栏激光条的位移 + 宽度弹簧。</summary>
+    private TransformSpring? _barSpring;
+
+    /// <summary>指示器是否已经定过位（首次定位置不播动画）。</summary>
+    private bool _indicatorPlaced;
+
+    /// <summary>页面内容本体的入场弹簧（换页时淡入 + 上浮落位）。</summary>
+    private TransformSpring? _pageReveal;
 
     /// <summary>上一次激活的页面键，用来判断同组页签是向左切还是向右切。</summary>
     private string? _lastPageKey;
 
+    /// <summary>页面缩放的变换（首次应用缩放时创建）：LayoutTransformControl 靠它把缩放折进测量。</summary>
+    private ScaleTransform? _pageZoomTransform;
+
+    /// <summary>缩放补间的弹簧通道：滑块逐格拖动时不希望整页布局硬跳，用临界阻尼弹簧收口、不过冲。</summary>
+    private SpringChannel? _pageZoomSpring;
+
+    /// <summary>上一帧的时间戳；null 表示这是一段补间的第一帧。</summary>
+    private TimeSpan? _pageZoomLastStamp;
+
+    /// <summary>是否已经排了一帧补间（避免同一帧里重复排）。</summary>
+    private bool _pageZoomFramePending;
+
+    /// <summary>Ctrl+滚轮隧道处理器是否已挂（AttachShell 可能因 DataContext 变更被多次调用）。</summary>
+    private bool _pageZoomWheelHooked;
+
     private CommandPaletteViewModel? _palette;
     private ICommandCatalog? _commands;
     private Func<string, string>? _translate;
+    private OnboardingTourViewModel? _onboarding;
 
     /// <summary>外壳视图模型（导航项的来源）。</summary>
     private ShellViewModel? _shell;
+
+    /// <summary>抽屉自动收起防抖计时器（移出后 180ms 优雅关闭，防止光标掠过边缘时频繁抖动）。</summary>
+    private readonly DispatcherTimer _navDrawerCloseTimer = new() { Interval = TimeSpan.FromMilliseconds(180) };
+
+    /// <summary>单 Tab 悬浮弹出卡片关闭防抖计时器（移出后 160ms 优雅关闭）。</summary>
+    private readonly DispatcherTimer _popoutCloseTimer = new() { Interval = TimeSpan.FromMilliseconds(160) };
+
+    private NavItem? _currentPopoutNavItem;
+    private object? _currentPopoutSender;
+
+    /// <summary>最近一次导航项被点击的时间戳（Environment.TickCount64），用于抑制切页瞬间误触重新弹开。</summary>
+    private long _lastNavInvokedTime;
 
     /// <summary>代码里改选中项时置真，避免 SelectionChanged 又来改一遍视图模型（会打架）。</summary>
     private bool _syncingNav;
@@ -81,6 +125,12 @@ public sealed partial class MainWindow : Window
     /// （托盘动作、诊断包、更新检查、主题与密度），所以由宿主注入。
     /// </summary>
     private Func<string, bool>? _paletteActionHost;
+
+    /// <summary>
+    /// 光标指针效果层：挂载于全窗 VisualLayerManager 顶层（ZIndex = int.MaxValue），
+    /// 确保始终覆盖一切弹窗、右键菜单、Flyout 与浮层（解决 PopupOverlayLayer 覆盖底层内容的问题）。
+    /// </summary>
+    public CursorPointerLayer? CursorPointer { get; private set; }
 
     public MainWindow()
     {
@@ -103,6 +153,7 @@ public sealed partial class MainWindow : Window
         // 点击涟漪同理由窗口转交：覆盖层不参与命中测试，收不到自己的按下事件。
         // 同样 handledEventsToo: 按钮、列表行内部的按下已标记 Handled，这里仍要放环。
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerReleasedEvent, OnWindowPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
         PointerExited += OnWindowPointerExited;
         Deactivated += OnWindowDeactivated;
 
@@ -116,8 +167,47 @@ public sealed partial class MainWindow : Window
         // 页内 TabControl（模组详情、整合包导入导出等）切换 TabItem 时同步驱动方向性弹簧过渡。
         AddHandler(SelectingItemsControl.SelectionChangedEvent, OnAnyTabControlSelectionChanged, RoutingStrategies.Bubble);
 
+        _navDrawerCloseTimer.Tick += (_, _) =>
+        {
+            _navDrawerCloseTimer.Stop();
+            if (NavView is null || _shell is null)
+            {
+                return;
+            }
+
+            if (_shell.IsNavCollapsed && NavView.IsPaneOpen)
+            {
+                NavView.IsPaneOpen = false;
+            }
+        };
+
+        _popoutCloseTimer.Tick += (_, _) =>
+        {
+            _popoutCloseTimer.Stop();
+            HideTabPopout(immediate: false);
+        };
+
+        if (AboutCompactButton is not null)
+        {
+            AboutCompactButton.PointerEntered += OnAboutPointerEntered;
+            AboutCompactButton.PointerExited += OnAboutPointerExited;
+        }
+
+        if (NavView is not null)
+        {
+            NavView.PropertyChanged += OnNavViewPropertyChanged;
+        }
+
         ApplyStatusBarFacts();
         InitializePerformanceMonitor();
+    }
+
+    private void OnNavViewPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == FANavigationView.IsPaneOpenProperty)
+        {
+            UpdateNavPaneClasses();
+        }
     }
 
     /// <summary>
@@ -125,6 +215,34 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OnWindowPointerMoved(object? sender, PointerEventArgs e)
     {
+        TrackNavDrawerHover(e);
+
+        // 细线：按住左键时每个移动事件补一个采样点；键已松开但没收到 Released（例如指针移出窗口）就收尾。
+        if (DragTrail is { IsVisible: true } trail && trail.IsDragging)
+        {
+            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            {
+                trail.Move(e.GetPosition(trail));
+            }
+            else
+            {
+                trail.End();
+            }
+        }
+
+        // 光标指针与光环：划过可交互元素（按钮/卡片/列表项等）时指针平滑微倾斜，光环亮起
+        var surface = PointerAuraLayer.FindSurface(e.Source as Visual, this);
+        var aura = PointerAura;
+        if (aura is not null && aura.IsVisible)
+        {
+            aura.Track(e.GetPosition(aura), surface);
+        }
+
+        if (CursorPointer is { IsVisible: true } cursor)
+        {
+            cursor.Track(e.GetPosition(cursor), isOverInteractive: surface is not null);
+        }
+
         var starfield = BackgroundStarfield;
         if (starfield is null || !starfield.IsVisible)
         {
@@ -149,12 +267,6 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        var ripple = ClickRipple;
-        if (ripple is null || !ripple.IsVisible || !ripple.IsMotionEnabled)
-        {
-            return;
-        }
-
         var point = e.GetCurrentPoint(this);
         if (!point.Properties.IsLeftButtonPressed)
         {
@@ -170,10 +282,74 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        ripple.Spawn(position);
+        // 光标指针按下缩小动效
+        if (CursorPointer is { IsVisible: true } cursor)
+        {
+            cursor.Press(e.GetPosition(cursor));
+        }
+
+        // 按住左键拖动 → 一条跟着指针走的细线。和涟漪彼此独立：涟漪关掉也照样有线。
+        if (DragTrail is { IsVisible: true } trail && trail.IsMotionEnabled)
+        {
+            var origin = e.GetPosition(trail);
+            if (origin.X >= 0 && origin.Y >= 0 && origin.X <= trail.Bounds.Width && origin.Y <= trail.Bounds.Height)
+            {
+                trail.Begin(origin);
+            }
+        }
+
+        if (NavTabPopoutCard?.IsVisible == true)
+        {
+            var popoutPos = e.GetPosition(NavTabPopoutCard);
+            bool insidePopout = popoutPos.X >= 0 && popoutPos.X <= NavTabPopoutCard.Bounds.Width &&
+                                popoutPos.Y >= 0 && popoutPos.Y <= NavTabPopoutCard.Bounds.Height;
+            if (!insidePopout)
+            {
+                HideTabPopout(immediate: false);
+            }
+        }
+
+        var ripple = ClickRipple;
+        if (ripple is { IsVisible: true, IsMotionEnabled: true })
+        {
+            ripple.Spawn(position);
+        }
+
+        // 按下的那一帧控件往中心塌一点，松手由弹簧弹回（与涟漪、光标指针互不影响）。
+        InteractionMotion.Press(e, this);
     }
 
-    private void OnWindowPointerExited(object? sender, PointerEventArgs e) => BackgroundStarfield?.TrackPointer(null);
+    private void OnWindowPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (e.InitialPressMouseButton == MouseButton.Left)
+        {
+            DragTrail?.End();
+
+            if (CursorPointer is { IsVisible: true } cursor)
+            {
+                cursor.Release(e.GetPosition(cursor));
+            }
+
+            InteractionMotion.Release();
+        }
+    }
+
+    private void OnWindowPointerExited(object? sender, PointerEventArgs e)
+    {
+        BackgroundStarfield?.TrackPointer(null);
+        PointerAura?.Clear();
+        CursorPointer?.Hide();
+        DragTrail?.End();
+        InteractionMotion.Release();
+
+        HideTabPopout(immediate: true);
+
+        if (_shell?.IsNavCollapsed == true && NavView?.IsPaneOpen == true)
+        {
+            _navDrawerCloseTimer.Stop();
+            NavView.IsPaneOpen = false;
+        }
+    }
 
     private void OnWindowDeactivated(object? sender, EventArgs e)
     {
@@ -181,6 +357,16 @@ public sealed partial class MainWindow : Window
 
         // 失焦后计时器没必要继续跑：环已经没人看，清掉省掉一路 60fps 的重绘。
         ClickRipple?.Clear();
+        PointerAura?.Clear();
+        CursorPointer?.Clear();
+
+        HideTabPopout(immediate: true);
+
+        if (_shell?.IsNavCollapsed == true && NavView?.IsPaneOpen == true)
+        {
+            _navDrawerCloseTimer.Stop();
+            NavView.IsPaneOpen = false;
+        }
     }
 
     /// <summary>
@@ -226,6 +412,25 @@ public sealed partial class MainWindow : Window
 
     /// <summary>自绘窗口按钮：关闭。</summary>
     private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
+
+    /// <inheritdoc />
+    protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
+    {
+        base.OnApplyTemplate(e);
+
+        if (CursorPointer is null)
+        {
+            var vlm = e.NameScope.Find<VisualLayerManager>("PART_VisualLayerManager");
+            if (vlm is not null)
+            {
+                CursorPointer = new CursorPointerLayer();
+                var addLayerMethod = typeof(VisualLayerManager).GetMethod(
+                    "AddLayer",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                addLayerMethod?.Invoke(vlm, new object[] { CursorPointer, int.MaxValue });
+            }
+        }
+    }
 
     /// <summary>窗口状态变化时换图标与提示：最大化后显示「还原」的双层方块。</summary>
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -280,11 +485,17 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        // 顶栏常驻启动按钮复用主页/实例页那套外壳实现：视图层注入，VM 层不引用 App 层。
+        _shell.ShellLauncher ??= new ShellInstanceLauncher();
+        _shell.CommandStore ??= new LaunchCommandFile();
+
         _shell.NavItems.CollectionChanged += OnNavItemsChanged;
         _shell.PropertyChanged += OnShellPropertyChanged;
 
         RebuildNavigation();
         ApplyPaneState(_shell.IsNavExpanded);
+        ApplyPageZoom(_shell.PageZoom, animate: false);
+        HookPageZoomWheel();
         SyncSelectedNavItem();
         UpdateShellStatusDot(_shell.StatusText);
         _lastPageKey = _shell.SelectedNavItem?.Key;
@@ -316,9 +527,95 @@ public sealed partial class MainWindow : Window
                 _lastPageKey = newKey;
 
                 SyncSectionTabIndicator();
-                TriggerTabSwitchAtmosphere(PageHost, direction);
+                TriggerTabSwitchAtmosphere(direction);
+                PlayPageReveal(direction);
             },
             DispatcherPriority.Send);
+    }
+
+    /// <summary>
+    /// 换页入场：内容本体「按页签方向落到偏下偏一侧的起点，再交给弹簧浮回原位」，一级元素随后错峰补位。
+    /// </summary>
+    /// <remarks>
+    /// <para>与 <see cref="ApplyPageTransition"/> 里被否掉的三种整页过渡不是一回事：那三种都让**两页同时在屏幕上**，
+    /// 所以才有双影与亮度凹陷。这里换页仍是瞬时替换，只有新内容参与入场，屏幕上永远只有一页。</para>
+    /// <para>起点与第一次目标切换在同一个调度回合里完成，渲染前就已经落到起点，不会闪一帧原位。</para>
+    /// </remarks>
+    private void PlayPageReveal(int direction)
+    {
+        // 抽屉/浮条是窗口级浮层，与换页无关；挂在窗口上，只在首次调用时接管（ConditionalWeakTable 去重）。
+        SurfaceMotion.Attach(this);
+
+        if (PageHost is null || MotionBudget.IsCollapsed)
+        {
+            return;
+        }
+
+        // 提示条按 IsVisible 显隐，样式的 Opacity 过渡没有中间帧；这里挂上"出现即上浮淡入"。
+        BannerMotion.Attach(PageHost);
+
+        // 空态 ↔ 数据态这类同格叠放层互斥切换，样式过渡会从 t=0 重来；接管成交互可打断的弹簧。
+        ViewLayerMotion.Attach(PageHost);
+
+        // 卡片悬停抬升改由弹簧帧驱动：鼠标扫过一排卡片时位移之间带速度，而不是每张都从零起步。
+        HoverLiftMotion.Attach(PageHost);
+
+        // 一页放不下的信息流：滚动时刚跨进底边的元素各自补一次入场，所有页面自动生效。
+        ScrollRevealMotion.Attach(PageHost);
+
+        // 列表数据晚于换页到达：行按 10 行一批错峰浮上来，而不是整块"啪"地出现。
+        FeedArrivalMotion.Attach(PageHost);
+
+        if (!MotionBudget.AllowsPageChoreography)
+        {
+            // 精简档不做整页与块级编排，只保留文字的轻量淡入（幅度由 TextRevealChoreographer 自己按档位收）。
+            TextRevealChoreographer.Play(PageHost);
+            return;
+        }
+
+        _pageReveal ??= new TransformSpring(PageHost, SpringSpec.Glide, SpringSpec.Glide);
+
+        // 位移带着页签方向：向右切页时内容从右侧 18 px 处补进来，向左切则相反，同组首次只上浮。
+        var pose = PageRevealSpec.For(direction);
+        _pageReveal.MoveTo(
+            x: pose.OffsetX,
+            y: pose.OffsetY,
+            scaleX: pose.StartScale,
+            scaleY: pose.StartScale,
+            opacity: pose.StartOpacity,
+            snap: true);
+        _pageReveal.MoveTo(x: 0d, y: 0d, scaleX: 1d, scaleY: 1d, opacity: 1d);
+
+        // 一级元素只做错峰上浮，不再压一次透明度：整页已经淡入，两层一起淡会看着更闷。
+        // 同步调用而不是排到 Loaded：可视树在 Content 赋值时就已建好，先落起点才能保证首帧不闪。
+        if (EntranceChoreographer.Play(PageHost, includeOpacity: false) == 0)
+        {
+            // 模板还没套上（例如首次显示）时退一步，等排版完成再补一次。
+            Dispatcher.UIThread.Post(
+                () =>
+                {
+                    if (PageHost is not null)
+                    {
+                        EntranceChoreographer.Play(PageHost, includeOpacity: false);
+                    }
+                },
+                DispatcherPriority.Loaded);
+        }
+
+        // 文字逐行上屏：块级编排之外再给"正在加载内容"一个可读的节奏。
+        // 模板可能晚一拍才实例化出 TextBlock，返回 0 时在 Loaded 补一次，避免整页文字静默出现。
+        if (TextRevealChoreographer.Play(PageHost) == 0)
+        {
+            Dispatcher.UIThread.Post(
+                () =>
+                {
+                    if (PageHost is not null)
+                    {
+                        TextRevealChoreographer.Play(PageHost);
+                    }
+                },
+                DispatcherPriority.Loaded);
+        }
     }
 
     private void SyncSectionTabIndicator()
@@ -383,15 +680,21 @@ public sealed partial class MainWindow : Window
         var barX = x + (w - barWidth) * 0.5;
 
         SectionTabActivePill.Opacity = 1;
-        SectionTabActivePill.RenderTransform = TransformOperations.Parse(
-            FormattableString.Invariant($"translate({x:0.##}px, 0px) scaleX({pillScale:0.####})"));
-
         SectionTabActiveBar.Opacity = 1;
-        SectionTabActiveBar.RenderTransform = TransformOperations.Parse(
-            FormattableString.Invariant($"translate({barX:0.##}px, 0px) scaleX({barScale:0.####})"));
+
+        // 位移走临界阻尼（胶囊过冲会啃到相邻页签的文字），宽度走欠阻尼（回弹感只留给形变）。
+        // 两个控件各自一根弹簧：跨页签连点时目标换向，速度留着 —— 胶囊是被"接住拐弯"，不是急停再起步。
+        _pillSpring ??= new TransformSpring(SectionTabActivePill, SpringSpec.Glide, SpringSpec.Snappy);
+        _barSpring ??= new TransformSpring(SectionTabActiveBar, SpringSpec.Glide, SpringSpec.Snappy);
+
+        // 首次定位直接落位：否则冷启动时胶囊会从 0 处横穿整条页签栏飞过来。
+        var snap = !_indicatorPlaced;
+        _pillSpring.MoveTo(x: x, scaleX: pillScale, snap: snap);
+        _barSpring.MoveTo(x: barX, scaleX: barScale, snap: snap);
+        _indicatorPlaced = true;
     }
 
-    private void TriggerTabSwitchAtmosphere(Control? contentTarget, int direction)
+    private void TriggerTabSwitchAtmosphere(int direction)
     {
         if (Application.Current?.Resources.TryGetResource(Theming.MotionHost.SpringSoftKey, null, out var durationObj) == true &&
             durationObj is TimeSpan ts && ts <= TimeSpan.Zero)
@@ -399,25 +702,13 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (contentTarget is not null)
-        {
-            contentTarget.Classes.Remove("is-revealing");
-            contentTarget.Classes.Add("is-revealing");
-        }
-
-        if (TabSwitchHorizonBeam is not null)
+        if (TabSwitchHorizonBeam is not null && direction != 0)
         {
             TabSwitchHorizonBeam.RenderTransformOrigin = direction < 0
                 ? new RelativePoint(1, 0.5, RelativeUnit.Relative)
                 : new RelativePoint(0, 0.5, RelativeUnit.Relative);
             TabSwitchHorizonBeam.Classes.Remove("is-sweeping");
             TabSwitchHorizonBeam.Classes.Add("is-sweeping");
-        }
-
-        if (TabSwitchAuroraWash is not null)
-        {
-            TabSwitchAuroraWash.Classes.Remove("is-sweeping");
-            TabSwitchAuroraWash.Classes.Add("is-sweeping");
         }
     }
 
@@ -457,28 +748,8 @@ public sealed partial class MainWindow : Window
 
     private void OnAnyTabControlSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (e.Source is not TabControl tabControl || e.RemovedItems.Count == 0 || e.AddedItems.Count == 0)
-        {
-            return;
-        }
-
-        var oldIndex = tabControl.Items.IndexOf(e.RemovedItems[0]);
-        var newIndex = tabControl.Items.IndexOf(e.AddedItems[0]);
-        if (oldIndex < 0 || newIndex < 0 || oldIndex == newIndex)
-        {
-            return;
-        }
-
-        var contentHost = tabControl
-            .GetVisualDescendants()
-            .OfType<ContentPresenter>()
-            .FirstOrDefault(p => p.Name == "PART_SelectedContentHost");
-
-        if (contentHost is not null)
-        {
-            contentHost.Classes.Remove("is-revealing");
-            contentHost.Classes.Add("is-revealing");
-        }
+        // 页内 TabControl 的切换动画完全由 TabItem 模板内的 PART_TabUnderline 弹簧展开驱动，
+        // 内容承载区保持恒定不透明度与零位移，避免闪烁与抖动。
     }
 
     private void UpdateShellStatusDot(string? status)
@@ -515,9 +786,151 @@ public sealed partial class MainWindow : Window
         {
             UpdateShellStatusDot(_shell.StatusText);
         }
+        else if (e.PropertyName == nameof(ShellViewModel.PageZoom))
+        {
+            ApplyPageZoom(_shell?.PageZoom ?? ShellViewModel.DefaultPageZoom, animate: true);
+        }
+        else if (e.PropertyName == nameof(ShellViewModel.NavHoverMode))
+        {
+            if (_shell?.NavHoverMode == NavHoverMode.Drawer)
+            {
+                HideTabPopout(immediate: true);
+            }
+            else if (NavView?.IsPaneOpen == true)
+            {
+                NavView.IsPaneOpen = false;
+            }
+        }
 
         // 日志抽屉与未保存提示条的显隐完全由 XAML 绑定（Classes.is-open + is-active）驱动，
         // 代码侧不再插手：第二阶段只留骨骼，第三阶段的过渡写在样式里，不需要事件。
+    }
+
+    /// <summary>Ctrl+滚轮接管页面缩放：隧道阶段装处理器，页面里的 ScrollViewer 抢不到。</summary>
+    private void HookPageZoomWheel()
+    {
+        if (PageZoomHost is null || _pageZoomWheelHooked)
+        {
+            return;
+        }
+
+        _pageZoomWheelHooked = true;
+        PageZoomHost.AddHandler(PointerWheelChangedEvent, OnPageZoomWheel, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    private void OnPageZoomWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (_shell is null || !e.KeyModifiers.HasFlag(KeyModifiers.Control) || Math.Abs(e.Delta.Y) < 0.01)
+        {
+            return;
+        }
+
+        _shell.NudgePageZoom(e.Delta.Y > 0 ? 1 : -1);
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// 把缩放比例落到页面承载区。<paramref name="animate"/> 为 false 时直接落位——
+    /// 接管外壳时不该看见整页从 100% 弹过来。
+    /// </summary>
+    private void ApplyPageZoom(double zoom, bool animate)
+    {
+        if (PageZoomHost is null)
+        {
+            return;
+        }
+
+        _pageZoomTransform ??= AttachPageZoomTransform();
+
+        var target = Math.Clamp(zoom, ShellViewModel.MinPageZoom, ShellViewModel.MaxPageZoom);
+        if (!animate || MotionBudget.IsCollapsed)
+        {
+            // 动效关闭：不排帧，缩放直接落位（减少动效档位下布局也不该逐帧重排）。
+            _pageZoomSpring?.SnapTo(target);
+            SetPageZoomScale(target);
+            return;
+        }
+
+        // 缩放专用弹簧：临界阻尼（ζ=1，不过冲——过一次冲整页会跟着抖两下），ω≈30 rad/s 约 200ms 收口；
+        // 静止阈值压到 0.05% 量级，否则默认的 0.25 会让缩放停在离目标 20% 的地方。
+        _pageZoomSpring ??= new SpringChannel(
+            _pageZoomTransform.ScaleX,
+            new SpringSpec(1d, 900d, 60d),
+            restPosition: 0.0005d,
+            restVelocity: 0.01d);
+        _pageZoomSpring.Retarget(target);
+        RequestPageZoomFrame();
+    }
+
+    private ScaleTransform AttachPageZoomTransform()
+    {
+        var transform = new ScaleTransform(1d, 1d);
+        PageZoomHost!.LayoutTransform = transform;
+        return transform;
+    }
+
+    private void SetPageZoomScale(double scale)
+    {
+        if (_pageZoomTransform is null)
+        {
+            return;
+        }
+
+        _pageZoomTransform.ScaleX = scale;
+        _pageZoomTransform.ScaleY = scale;
+    }
+
+    private void RequestPageZoomFrame()
+    {
+        if (_pageZoomFramePending)
+        {
+            return;
+        }
+
+        if (TopLevel.GetTopLevel(this) is not { } topLevel)
+        {
+            // 还没挂进可视树：没有 VSync 可等，直接把弹簧推到目标，别让页面停在中间比例。
+            var settled = _pageZoomSpring?.Target ?? _pageZoomTransform?.ScaleX ?? ShellViewModel.DefaultPageZoom;
+            _pageZoomSpring?.SnapTo(settled);
+            SetPageZoomScale(settled);
+            return;
+        }
+
+        _pageZoomFramePending = true;
+        _pageZoomLastStamp = null;
+        topLevel.RequestAnimationFrame(OnPageZoomFrame);
+    }
+
+    private void OnPageZoomFrame(TimeSpan timestamp)
+    {
+        _pageZoomFramePending = false;
+
+        if (_pageZoomSpring is null)
+        {
+            return;
+        }
+
+        // 与 MotionFramePump 同一口径：首帧按 60Hz 起步，掉帧时封顶 1/30s，
+        // 否则一次 200ms 停顿会把弹簧按真实时间整段推过去，看起来像瞬移。
+        var delta = _pageZoomLastStamp is { } last ? (timestamp - last).TotalSeconds : 1.0 / 60.0;
+        _pageZoomLastStamp = timestamp;
+        if (!(delta > 0))
+        {
+            delta = 1.0 / 60.0;
+        }
+
+        delta = Math.Min(delta, 1.0 / 30.0);
+
+        var moving = _pageZoomSpring.Advance(delta);
+        SetPageZoomScale(_pageZoomSpring.Value);
+        if (moving)
+        {
+            RequestPageZoomFrame();
+        }
+        else
+        {
+            _pageZoomLastStamp = null;
+        }
     }
 
     /// <summary>
@@ -563,6 +976,12 @@ public sealed partial class MainWindow : Window
     private NavItem? LookupNavItem(string key) =>
         _shell?.NavItems.FirstOrDefault(item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>本来就"会转"的图标：长悬浮时绕中心连续旋转，其余图标改成轻微摇摆。</summary>
+    private static readonly HashSet<string> SpinningGlyphs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Settings", "Sync", "History", "Clock", "Globe", "Exchange", "Storage", "Archive",
+    };
+
     private FANavigationViewItem CreateNavItem(NavItem nav)
     {
         var item = new FANavigationViewItem
@@ -571,10 +990,26 @@ public sealed partial class MainWindow : Window
             Tag = nav,
         };
 
+        // 仅在侧边栏抽屉模式且展开受阻时使用系统原生 ToolTip；
+        // 在单 Tab 悬停弹出卡片模式下，由精美的悬浮亚克力卡片呈现标题与子项，禁用原生 ToolTip 避免两个浮层相互叠压冲突。
+        if (_shell is not null && _shell.NavHoverMode == NavHoverMode.Drawer)
+        {
+            ToolTip.SetTip(item, nav.Title);
+            ToolTip.SetShowDelay(item, 300);
+        }
+
         if (NavGlyphToGeometryConverter.Instance.Convert(nav.Glyph, typeof(Geometry), null, CultureInfo.InvariantCulture) is Geometry geometry)
         {
             item.IconSource = new FAPathIconSource { Data = geometry };
         }
+
+        if (SpinningGlyphs.Contains(nav.Glyph))
+        {
+            IconHoverMotion.SetShape(item, IconHoverShape.Spin);
+        }
+
+        item.PointerEntered += OnNavItemPointerEntered;
+        item.PointerExited += OnNavItemPointerExited;
 
         return item;
     }
@@ -634,6 +1069,9 @@ public sealed partial class MainWindow : Window
     /// <summary>左侧导航点击 → 写回视图模型的选中项（视图模型自己负责导航与历史栈）。</summary>
     private void OnNavSelectionChanged(object? sender, FANavigationViewSelectionChangedEventArgs args)
     {
+        _lastNavInvokedTime = Environment.TickCount64;
+        HideTabPopout(immediate: true);
+
         if (_syncingNav || _shell is null)
         {
             return;
@@ -647,34 +1085,8 @@ public sealed partial class MainWindow : Window
         }
 
         // 指示器滑动由 FluentAvalonia 自己播（600ms 组合动画，不可配）；这里补的是点击瞬间的追赶位移。
-        _ = PulseNavItemAsync(args.SelectedItemContainer);
-    }
-
-    /// <summary>给刚被点中的导航项挂 110ms 的追赶位移类（连续点击时后一次接管）。</summary>
-    private async Task PulseNavItemAsync(object? container)
-    {
-        if (container is not Control control)
-        {
-            return;
-        }
-
-        // 前一项若还在拉伸态，这里先摘掉：否则它到点时会回来摘「当前这一项」的类，追赶位移就丢了。
-        if (_navPulseTarget is { } previous && !ReferenceEquals(previous, control))
-        {
-            previous.Classes.Remove(MotionFeedback.NavCatchUpClass);
-        }
-
-        _navPulseTarget = control;
-        var generation = ++_navPulseGeneration;
-        control.Classes.Add(MotionFeedback.NavCatchUpClass);
-
-        await Task.Delay(MotionFeedback.NavCatchUpHold).ConfigureAwait(true);
-
-        // 连点同一项时早到的那次不能提前掐断新一次，所以只有最新一代有权摘类。
-        if (generation == _navPulseGeneration)
-        {
-            control.Classes.Remove(MotionFeedback.NavCatchUpClass);
-        }
+        // 冲量交给弹簧：连点时在当前位置叠加，不会像「挂 110ms 类再摘」那样把上一次的运动瞬间掐断。
+        MotionFeedback.PulseNav(args.SelectedItemContainer as Control);
     }
 
     /// <summary>
@@ -688,8 +1100,360 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        NavView.PaneDisplayMode = expanded ? FANavigationViewPaneDisplayMode.Left : FANavigationViewPaneDisplayMode.LeftCompact;
-        NavView.Classes.Set("Collapsed", !expanded);
+        _navDrawerCloseTimer.Stop();
+        if (expanded)
+        {
+            HideTabPopout(immediate: true);
+        }
+
+        // 展开必须用 Left（inline）：内容整体右移、被"推开"；LeftCompact 的底层是 CompactOverlay，
+        // 展开只是浮在页面上盖住内容 —— 那就是"变成覆盖了"。折叠态仍用 LeftCompact 保留 48px 精简轨。
+        NavView.PaneDisplayMode = expanded
+            ? FANavigationViewPaneDisplayMode.Left
+            : FANavigationViewPaneDisplayMode.LeftCompact;
+        NavView.IsPaneOpen = expanded;
+
+        // 钉住常驻展开模式（用户通过按钮或快捷键展开）：
+        // 给 NavView 打上 PanePinned 类，使得 CSS 样式中把 LightDismissLayer 的命中和可见性禁用，
+        // 达到与原生 Left 模式一致的主界面操作体验，且彻底保留丝滑的收起折叠动画！
+        NavView.Classes.Set("PanePinned", expanded);
+        UpdateNavPaneClasses();
+    }
+
+    private void UpdateNavPaneClasses()
+    {
+        if (NavView is null)
+        {
+            return;
+        }
+
+        bool isOpen = NavView.IsPaneOpen;
+        NavView.Classes.Set("PaneOpen", isOpen);
+        NavView.Classes.Set("Collapsed", !isOpen);
+    }
+
+    /// <summary>
+    /// 光标进入左侧精简轨（<=52px）自动以抽屉浮层（CompactOverlay）滑出展开；
+    /// 光标离开展开区域（>256px）经 180ms 优雅防抖后自动收起。
+    /// </summary>
+    private void TrackNavDrawerHover(PointerEventArgs e)
+    {
+        if (NavView is null || _shell is null)
+        {
+            return;
+        }
+
+        // 常驻展开模式（Left）由用户固定钉住，不响应悬停抽屉逻辑
+        if (!_shell.IsNavCollapsed)
+        {
+            _navDrawerCloseTimer.Stop();
+            return;
+        }
+
+        // 模式分支：单Tab悬浮弹出模式下不展开完整侧边栏抽屉
+        if (_shell.NavHoverMode != NavHoverMode.Drawer)
+        {
+            if (NavView.IsPaneOpen)
+            {
+                NavView.IsPaneOpen = false;
+            }
+            return;
+        }
+
+        // 刚点击导航项后提供 350ms 冷却时间，避免点击完成关上后光标微动又立即弹开
+        if (Environment.TickCount64 - _lastNavInvokedTime < 350)
+        {
+            return;
+        }
+
+        var pos = e.GetPosition(NavView);
+        var height = NavView.Bounds.Height;
+        if (height <= 0)
+        {
+            return;
+        }
+
+        double activeWidth = NavView.IsPaneOpen ? NavView.OpenPaneLength : NavView.CompactPaneLength;
+        bool isInside = pos.X >= 0 && pos.X <= activeWidth && pos.Y >= 0 && pos.Y <= height;
+
+        if (isInside)
+        {
+            _navDrawerCloseTimer.Stop();
+            if (!NavView.IsPaneOpen)
+            {
+                NavView.IsPaneOpen = true;
+            }
+        }
+        else if (NavView.IsPaneOpen)
+        {
+            if (!_navDrawerCloseTimer.IsEnabled)
+            {
+                _navDrawerCloseTimer.Start();
+            }
+        }
+    }
+
+    private void OnNavItemPointerEntered(object? sender, PointerEventArgs e)
+    {
+        if (_shell?.IsNavCollapsed != true || _shell?.NavHoverMode != NavHoverMode.TabPopout)
+        {
+            return;
+        }
+
+        if (sender is FANavigationViewItem item && item.Tag is NavItem nav)
+        {
+            ShowTabPopout(item, nav);
+        }
+    }
+
+    private void OnNavItemPointerExited(object? sender, PointerEventArgs e)
+    {
+        if (_shell?.IsNavCollapsed != true || _shell?.NavHoverMode != NavHoverMode.TabPopout)
+        {
+            return;
+        }
+
+        _popoutCloseTimer.Stop();
+        _popoutCloseTimer.Start();
+    }
+
+    private void OnAboutPointerEntered(object? sender, PointerEventArgs e)
+    {
+        if (_shell?.IsNavCollapsed != true || _shell?.NavHoverMode != NavHoverMode.TabPopout)
+        {
+            return;
+        }
+
+        if (sender is Control control)
+        {
+            ShowAboutPopout(control);
+        }
+    }
+
+    private void OnAboutPointerExited(object? sender, PointerEventArgs e)
+    {
+        if (_shell?.IsNavCollapsed != true || _shell?.NavHoverMode != NavHoverMode.TabPopout)
+        {
+            return;
+        }
+
+        _popoutCloseTimer.Stop();
+        _popoutCloseTimer.Start();
+    }
+
+    private void OnNavPopoutCardPointerEntered(object? sender, PointerEventArgs e)
+    {
+        _popoutCloseTimer.Stop();
+    }
+
+    private void OnNavPopoutCardPointerExited(object? sender, PointerEventArgs e)
+    {
+        _popoutCloseTimer.Stop();
+        _popoutCloseTimer.Start();
+    }
+
+    private void ShowTabPopout(Control anchor, NavItem nav)
+    {
+        if (NavTabPopoutCard is null || NavPopoutCanvas is null || _shell is null)
+        {
+            return;
+        }
+
+        _popoutCloseTimer.Stop();
+        _currentPopoutNavItem = nav;
+        _currentPopoutSender = anchor;
+
+        var pt = anchor.TranslatePoint(new Point(0, 0), NavPopoutCanvas);
+        double top = pt?.Y ?? 0;
+        double maxTop = Math.Max(10, Bounds.Height - 340);
+        top = Math.Clamp(top, 10, maxTop);
+        Canvas.SetTop(NavTabPopoutCard, top);
+
+        if (NavGlyphToGeometryConverter.Instance.Convert(nav.Glyph, typeof(Geometry), null, CultureInfo.InvariantCulture) is Geometry geom)
+        {
+            NavPopoutIcon.Data = geom;
+        }
+
+        NavPopoutTitle.Text = nav.Title;
+        var section = _shell.Sections.FirstOrDefault(s => ReferenceEquals(s.RailItem, nav) || s.Tabs.Any(t => string.Equals(t.Key, nav.Key, StringComparison.OrdinalIgnoreCase)));
+
+        var activeRail = _shell.RailItemFor(_shell.SelectedNavItem?.Key);
+        bool isActive = ReferenceEquals(activeRail, nav) || string.Equals(_shell.SelectedNavItem?.Key, nav.Key, StringComparison.OrdinalIgnoreCase);
+        NavPopoutActiveBadge.IsVisible = isActive;
+
+        if (section is not null && section.Tabs.Count > 1)
+        {
+            NavPopoutSubtitle.Text = $"{section.Tabs.Count} 个页面选项";
+            NavPopoutSubTabsHost.Children.Clear();
+            NavPopoutSubTabsHost.IsVisible = true;
+
+            foreach (var tab in section.Tabs)
+            {
+                var isSubActive = string.Equals(_shell.SelectedNavItem?.Key, tab.Key, StringComparison.OrdinalIgnoreCase);
+                var btn = new Button
+                {
+                    Classes = { "CkanGhost" },
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                    HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                    Padding = new Thickness(8, 5),
+                    CornerRadius = new CornerRadius(6),
+                    Tag = tab.Key,
+                };
+
+                if (isSubActive)
+                {
+                    if (this.TryFindResource("CkanAccentSubtleBrush", out var subBg) && subBg is IBrush subBgBrush)
+                    {
+                        btn.Background = subBgBrush;
+                    }
+                    if (this.TryFindResource("CkanAccentBrush", out var accBorder) && accBorder is IBrush accBorderBrush)
+                    {
+                        btn.BorderBrush = accBorderBrush;
+                    }
+                    btn.BorderThickness = new Thickness(1);
+                }
+
+                var stack = new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    Spacing = 8,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                };
+
+                if (NavGlyphToGeometryConverter.Instance.Convert(tab.Glyph, typeof(Geometry), null, CultureInfo.InvariantCulture) is Geometry subGeom)
+                {
+                    var icon = new PathIcon
+                    {
+                        Data = subGeom,
+                        Width = 12,
+                        Height = 12,
+                    };
+                    if (this.TryFindResource(isSubActive ? "CkanAccentBrush" : "CkanTextSecondaryBrush", out var icBrush) && icBrush is IBrush icb)
+                    {
+                        icon.Foreground = icb;
+                    }
+                    stack.Children.Add(icon);
+                }
+
+                var text = new TextBlock
+                {
+                    Text = tab.Title,
+                    FontSize = 12,
+                    FontWeight = isSubActive ? FontWeight.SemiBold : FontWeight.Normal,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                };
+                if (this.TryFindResource(isSubActive ? "CkanTextPrimaryBrush" : "CkanTextSecondaryBrush", out var txtBrush) && txtBrush is IBrush tb)
+                {
+                    text.Foreground = tb;
+                }
+                stack.Children.Add(text);
+
+                btn.Content = stack;
+                btn.Click += (s, e) =>
+                {
+                    HideTabPopout(immediate: true);
+                    if (_shell is not null)
+                    {
+                        _ = _shell.NavigateCommand.ExecuteAsync(tab.Key);
+                    }
+                };
+
+                NavPopoutSubTabsHost.Children.Add(btn);
+            }
+        }
+        else
+        {
+            NavPopoutSubtitle.Text = "点击切换页面";
+            NavPopoutSubTabsHost.Children.Clear();
+            NavPopoutSubTabsHost.IsVisible = false;
+        }
+
+        NavTabPopoutCard.IsVisible = true;
+        NavTabPopoutCard.IsHitTestVisible = true;
+        NavTabPopoutCard.Opacity = 1;
+        NavTabPopoutCard.RenderTransform = TransformOperations.Parse("translate(0px, 0px)");
+    }
+
+    private void ShowAboutPopout(Control anchor)
+    {
+        if (NavTabPopoutCard is null || NavPopoutCanvas is null)
+        {
+            return;
+        }
+
+        _popoutCloseTimer.Stop();
+        _currentPopoutNavItem = null;
+        _currentPopoutSender = anchor;
+
+        var pt = anchor.TranslatePoint(new Point(0, 0), NavPopoutCanvas);
+        double top = pt?.Y ?? 0;
+        double maxTop = Math.Max(10, Bounds.Height - 160);
+        top = Math.Clamp(top, 10, maxTop);
+        Canvas.SetTop(NavTabPopoutCard, top);
+
+        if (NavGlyphToGeometryConverter.Instance.Convert("Info", typeof(Geometry), null, CultureInfo.InvariantCulture) is Geometry geom)
+        {
+            NavPopoutIcon.Data = geom;
+        }
+
+        NavPopoutTitle.Text = ResolveGroupTitle("Ui_MainWindow_About");
+        NavPopoutSubtitle.Text = "CKAN Mod Manager 信息与版本";
+        NavPopoutActiveBadge.IsVisible = false;
+        NavPopoutSubTabsHost.Children.Clear();
+        NavPopoutSubTabsHost.IsVisible = false;
+
+        NavTabPopoutCard.IsVisible = true;
+        NavTabPopoutCard.IsHitTestVisible = true;
+        NavTabPopoutCard.Opacity = 1;
+        NavTabPopoutCard.RenderTransform = TransformOperations.Parse("translate(0px, 0px)");
+    }
+
+    private void HideTabPopout(bool immediate)
+    {
+        if (NavTabPopoutCard is null)
+        {
+            return;
+        }
+
+        _currentPopoutNavItem = null;
+        _currentPopoutSender = null;
+
+        if (immediate)
+        {
+            NavTabPopoutCard.Opacity = 0;
+            NavTabPopoutCard.IsVisible = false;
+            NavTabPopoutCard.IsHitTestVisible = false;
+        }
+        else
+        {
+            // 淡出期间卡片还在视觉树上：若继续吃指针，鼠标刚从侧栏移到页面就点一下，
+            // 点击会落在一张正在消失的透明卡片上 —— 用户感知就是“悬浮动画把点击吞了”。
+            NavTabPopoutCard.IsHitTestVisible = false;
+            NavTabPopoutCard.Opacity = 0;
+            NavTabPopoutCard.RenderTransform = TransformOperations.Parse("translate(-6px, 0px)");
+            DispatcherTimer.RunOnce(() =>
+            {
+                if (NavTabPopoutCard.Opacity <= 0.05)
+                {
+                    NavTabPopoutCard.IsVisible = false;
+                }
+            }, TimeSpan.FromMilliseconds(150));
+        }
+    }
+
+    private void OnNavPopoutHeaderClicked(object? sender, RoutedEventArgs e)
+    {
+        var nav = _currentPopoutNavItem;
+        HideTabPopout(immediate: true);
+
+        if (nav is not null && _shell is not null)
+        {
+            _ = _shell.NavigateCommand.ExecuteAsync(nav.Key);
+        }
+        else
+        {
+            OnAboutClick(sender, e);
+        }
     }
 
     /// <summary>页面切换不做任何整页过渡：换页瞬时替换，入场动效全部交给逐卡片位移。</summary>
@@ -703,8 +1467,11 @@ public sealed partial class MainWindow : Window
     ///   <item><description>叠化（旧页不动、新页在上面淡入）：亮度稳住了，但两页文字在淡入过程中叠印，
     ///   标题与副标题都出现重影。</description></item>
     /// </list>
-    /// <para>结论：页面本体不做透明度动画。位移只由 <c>stagger-card</c> 承担，而且预备态不再压透明度
-    /// （否则卡片自己又让页面闪一次）。<c>CkanMotionDurationPage</c> 仍供对话框淡入使用。</para>
+    /// <para>结论：<see cref="TransitioningContentControl.PageTransition"/> 恒为 <c>null</c>——上面三种做法都要求
+    /// 两页同时在屏幕上，这是双影与凹陷的根源，换任何参数都救不回来。</para>
+    /// <para>入场改由代码驱动的单页编排承担（<see cref="PlayPageReveal"/> → <see cref="EntranceChoreographer"/>）：
+    /// 换页仍瞬时替换，只有新内容浮入，屏幕上永远只有一页，因此既没有双影，也没有亮度凹陷。
+    /// <c>CkanMotionDurationPage</c> 仍供对话框淡入使用。</para>
     /// </remarks>
     private void ApplyPageTransition()
     {
@@ -787,9 +1554,16 @@ public sealed partial class MainWindow : Window
         AddHandler(KeyDownEvent, OnGlobalKeyDown, RoutingStrategies.Tunnel);
     }
 
-    /// <summary>全局键位：Ctrl+K 开关命令面板，Ctrl+/ 打开快捷键目录。</summary>
+    /// <summary>全局键位：Ctrl+K 开关命令面板，Ctrl+/ 打开快捷键目录，F1 打开新手高亮导览。</summary>
     private void OnGlobalKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.F1 && !e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            ShowOnboardingGuide();
+            e.Handled = true;
+            return;
+        }
+
         if (_palette is null || !e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             return;
@@ -837,6 +1611,12 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (id == DefaultCommands.ActionId("open-onboarding-guide"))
+        {
+            ShowOnboardingGuide();
+            return;
+        }
+
         if (id == DefaultCommands.ActionId("go-back"))
         {
             shell.BackCommand.Execute(null);
@@ -850,6 +1630,18 @@ public sealed partial class MainWindow : Window
         }
 
         _paletteActionHost?.Invoke(id);
+    }
+
+    public void AttachOnboardingTour(OnboardingTourViewModel onboarding)
+    {
+        ArgumentNullException.ThrowIfNull(onboarding);
+        _onboarding = onboarding;
+        OnboardingOverlay.DataContext = onboarding;
+    }
+
+    public void ShowOnboardingGuide()
+    {
+        _onboarding?.StartTour();
     }
 
     /// <summary>打开快捷键目录：每次新建一个（VM 继承 DialogViewModelBase，复用会带上一次关闭态）。</summary>
@@ -880,7 +1672,12 @@ public sealed partial class MainWindow : Window
 
         var dynamicRate = DynamicRefreshRateController.Instance;
         dynamicRate.Attach(this);
-        Closed += (_, _) => dynamicRate.Detach();
+        dynamicRate.PropertyChanged += OnDynamicRefreshRateChanged;
+        Closed += (_, _) =>
+        {
+            dynamicRate.PropertyChanged -= OnDynamicRefreshRateChanged;
+            dynamicRate.Detach();
+        };
 
         if (PerformanceHud is not null)
         {
@@ -931,26 +1728,57 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void OnDynamicRefreshRateChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // 一进一出空闲降频，顶栏就要在「fps 数字」和「idle」之间切换；只靠采样事件会漏掉这次切换。
+        if (string.IsNullOrEmpty(e.PropertyName) || e.PropertyName == nameof(DynamicRefreshRateController.IsIdle))
+        {
+            UpdateFpsStatusDisplay(PerformanceMonitor.Instance);
+        }
+    }
+
+    /// <summary>空闲态标签走本地化资源；资源管道没装好时退回字面量，别把外壳绑死在资源管道上。</summary>
+    private string ResolveIdleLabel()
+        => this.TryFindResource(LocalizationKeys.MainWindowPerfMonitorIdle, out var resource)
+           && resource is string { Length: > 0 } label
+            ? label
+            : "idle";
+
+    /// <summary>
+    /// 顶栏 FPS 小标记：读数随采样刷新，圆点按色调点亮（空闲时退成三级文字色）。
+    /// 底栏那份读数已下线，顶栏是唯一落点；控件缺席时静默跳过，不让外壳为一块面板买单。
+    /// </summary>
     private void UpdateFpsStatusDisplay(PerformanceMonitor monitor)
     {
-        if (FpsStatusText is not null)
+        var fpsText = this.FindControl<TextBlock>("TopFpsStatusText");
+        var fpsDot = this.FindControl<Avalonia.Controls.Shapes.Ellipse>("TopFpsStatusDot");
+
+        if (fpsText is null && fpsDot is null)
         {
-            FpsStatusText.Text = monitor.TotalFrames == 0 ? "-- fps" : $"{monitor.CurrentFps:0.0} fps";
+            return;
         }
 
-        if (FpsStatusDot is not null)
+        // 画面停刷（空闲降频）时报 fps 是假的：屏幕一帧没动，读数还挂着 10 之类的数字，看着像卡了。
+        var text = DynamicRefreshRateController.Instance.IsIdle
+            ? ResolveIdleLabel()
+            : monitor.TotalFrames == 0 ? "-- fps" : $"{monitor.CurrentFps:0.0} fps";
+        if (fpsText is not null)
         {
-            var brushKey = monitor.FpsStatusTone switch
+            fpsText.Text = text;
+        }
+
+        var brushKey = DynamicRefreshRateController.Instance.IsIdle
+            ? "CkanTextTertiaryBrush"
+            : monitor.FpsStatusTone switch
             {
                 "Good" => "CkanSuccessBrush",
                 "Warning" => "CkanWarningBrush",
                 _ => "CkanDangerBrush"
             };
 
-            if (this.TryFindResource(brushKey, out var res) && res is IBrush brush)
-            {
-                FpsStatusDot.Fill = brush;
-            }
+        if (fpsDot is not null && this.TryFindResource(brushKey, out var res) && res is IBrush brush)
+        {
+            fpsDot.Fill = brush;
         }
     }
 }

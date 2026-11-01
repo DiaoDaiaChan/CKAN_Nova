@@ -18,20 +18,53 @@
   </UserControl.Resources>
 
   <Grid RowDefinitions="Auto,*" Margin="{DynamicResource CkanPagePadding}">
-    <!-- 顶部工具栏与九色图例展示区（F-28 / UI-18） -->
-    <Border Grid.Row="0" Margin="0,0,0,12" Padding="12,10"
+    <!-- 顶部工具栏与九色图例交互区（F-28 / UI-18） -->
+    <Border Grid.Row="0" Margin="0,0,0,10" Padding="12,8"
             Background="{DynamicResource CkanSurfaceBackgroundBrush}"
             BorderBrush="{DynamicResource CkanBorderBrush}"
             BorderThickness="1"
             CornerRadius="{DynamicResource CkanCornerRadiusMedium}">
-      <StackPanel Spacing="10">
+      <StackPanel Spacing="8">
         <!-- 控制与模式信息行 -->
         <Grid ColumnDefinitions="Auto,*,Auto">
           <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <!-- 视图模式切换：关系网 / 树状图 -->
+            <Button Command="{Binding ToggleViewModeCommand}"
+                    Classes="CkanSecondary"
+                    Padding="10,5"
+                    CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                    ToolTip.Tip="{DynamicResource Ui_RelationTree_ToggleViewMode_Tip}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Width="12" Height="12" Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                <TextBlock Text="{Binding ViewModeButtonText}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+
+            <!-- 正向/反向关系切换 -->
             <Button Content="{Binding DirectionButtonText}"
                     Command="{Binding ToggleDirectionCommand}"
+                    Classes="CkanSecondary"
                     Padding="10,5"
                     CornerRadius="{DynamicResource CkanCornerRadiusSmall}" />
+
+            <!-- 关系网特有缩放控制组 -->
+            <StackPanel Orientation="Horizontal" Spacing="4"
+                        IsVisible="{Binding IsGraphView}"
+                        VerticalAlignment="Center">
+              <Button Click="OnZoomInClick" Classes="CkanSmall" Padding="8,4"
+                      ToolTip.Tip="{DynamicResource Ui_RelationTree_ZoomIn_Tip}">
+                <TextBlock Text="+" FontWeight="Bold" />
+              </Button>
+              <Button Click="OnZoomOutClick" Classes="CkanSmall" Padding="8,4"
+                      ToolTip.Tip="{DynamicResource Ui_RelationTree_ZoomOut_Tip}">
+                <TextBlock Text="-" FontWeight="Bold" />
+              </Button>
+              <Button Click="OnResetViewClick" Classes="CkanSmall" Padding="8,4"
+                      ToolTip.Tip="{DynamicResource Ui_RelationTree_ResetView_Tip}">
+                <TextBlock Text="⟲" />
+              </Button>
+            </StackPanel>
+
             <TextBlock Text="{Binding DirectionStatusText}"
                        Opacity="0.8"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
@@ -45,7 +78,7 @@
                      VerticalAlignment="Center" />
         </Grid>
 
-        <!-- 九色关系图例文本与颜色圆点（WrapPanel 响应式排列） -->
+        <!-- 九色交互图例：点击图例可就地过滤对应类别 -->
         <ItemsControl ItemsSource="{Binding Legends}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
@@ -54,8 +87,10 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate>
-              <Border Margin="0,2,10,2" Padding="6,2"
-                      Background="{DynamicResource CkanSidebarBackgroundBrush}"
+              <Button Command="{Binding $parent[UserControl].DataContext.FilterKindCommand}"
+                      CommandParameter="{Binding Kind}"
+                      Classes="CkanGhost"
+                      Margin="0,2,6,2" Padding="6,3"
                       CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                       ToolTip.Tip="{Binding Description}">
                 <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -66,43 +101,76 @@
                              Foreground="{DynamicResource CkanTextPrimaryBrush}"
                              VerticalAlignment="Center" />
                 </StackPanel>
-              </Border>
+              </Button>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
       </StackPanel>
     </Border>
 
-    <!-- 关系树展示主体（双击节点跳转模组导航） -->
-    <TreeView Grid.Row="1" ItemsSource="{Binding Roots}" BorderThickness="0">
-      <TreeView.ItemTemplate>
-        <TreeDataTemplate ItemsSource="{Binding Children}">
-          <StackPanel Orientation="Horizontal" Spacing="6" DoubleTapped="OnNodeDoubleTapped">
-            <!-- 关系分类徽章（[依赖]、[冲突] 等） -->
-            <Border IsVisible="{Binding ShowBadge}"
-                    CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                    Padding="5,1"
-                    Background="{DynamicResource CkanSidebarBackgroundBrush}">
-              <TextBlock Text="{Binding BadgeText}"
-                         FontSize="{DynamicResource CkanFontSizeCaption}"
-                         FontWeight="SemiBold"
-                         Foreground="{Binding Kind, Converter={x:Static local:RelationKindToBrushConverter.Instance}}" />
-            </Border>
+    <!-- 主展示区：支持在天体轨道关系网与经典层级树之间平滑切换 -->
+    <Panel Grid.Row="1">
+      <!-- 1. 可视化星轨关系网控件 -->
+      <Border IsVisible="{Binding IsGraphView}"
+              BorderBrush="{DynamicResource CkanBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              ClipToBounds="True">
+        <Panel>
+          <local:RelationNetworkControl x:Name="NetworkControl"
+                                        Nodes="{Binding GraphNodes}"
+                                        Edges="{Binding GraphEdges}"
+                                        SelectedNode="{Binding SelectedGraphNode, Mode=TwoWay}"
+                                        NavigateCommand="{Binding NavigateByIdCommand}" />
 
-            <!-- 具体模组节点的关系类别彩色标记圆点 -->
-            <Ellipse IsVisible="{Binding ShowDot}"
-                     Width="7" Height="7"
-                     VerticalAlignment="Center"
-                     Fill="{Binding Kind, Converter={x:Static local:RelationKindToBrushConverter.Instance}}" />
+          <!-- 右下角交互指引提示浮层 -->
+          <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                  Margin="12" Padding="8,4"
+                  Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+                  BorderBrush="{DynamicResource CkanBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                  Opacity="0.85">
+            <TextBlock Text="{DynamicResource Ui_RelationTree_InteractionHint}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          </Border>
+        </Panel>
+      </Border>
 
-            <!-- 节点显示名称 -->
-            <TextBlock Text="{Binding Name}"
-                       Foreground="{DynamicResource CkanTextPrimaryBrush}"
-                       FontSize="{DynamicResource CkanFontSizeBody}"
-                       VerticalAlignment="Center" />
-          </StackPanel>
-        </TreeDataTemplate>
-      </TreeView.ItemTemplate>
-    </TreeView>
+      <!-- 2. 传统层级树状图（支持多层展开与循环截断） -->
+      <TreeView IsVisible="{Binding !IsGraphView}"
+                ItemsSource="{Binding Roots}"
+                BorderThickness="0">
+        <TreeView.ItemTemplate>
+          <TreeDataTemplate ItemsSource="{Binding Children}">
+            <StackPanel Orientation="Horizontal" Spacing="6" DoubleTapped="OnNodeDoubleTapped">
+              <!-- 关系分类徽章（[依赖]、[冲突] 等） -->
+              <Border IsVisible="{Binding ShowBadge}"
+                      CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                      Padding="5,1"
+                      Background="{DynamicResource CkanSidebarBackgroundBrush}">
+                <TextBlock Text="{Binding BadgeText}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           FontWeight="SemiBold"
+                           Foreground="{Binding Kind, Converter={x:Static local:RelationKindToBrushConverter.Instance}}" />
+              </Border>
+
+              <!-- 具体模组节点的关系类别彩色标记圆点 -->
+              <Ellipse IsVisible="{Binding ShowDot}"
+                       Width="7" Height="7"
+                       VerticalAlignment="Center"
+                       Fill="{Binding Kind, Converter={x:Static local:RelationKindToBrushConverter.Instance}}" />
+
+              <!-- 节点显示名称 -->
+              <TextBlock Text="{Binding Name}"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                         FontSize="{DynamicResource CkanFontSizeBody}"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+          </TreeDataTemplate>
+        </TreeView.ItemTemplate>
+      </TreeView>
+    </Panel>
   </Grid>
 </UserControl>

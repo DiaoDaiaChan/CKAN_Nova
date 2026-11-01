@@ -4,6 +4,7 @@
              x:CompileBindings="False">
   <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
     <TextBlock Text="{Binding Title}" FontSize="24" HorizontalAlignment="Center" />
-    <TextBlock Text="该页面将在 M1 里程碑实现" Opacity="0.6" HorizontalAlignment="Center" />
+    <TextBlock Text="{DynamicResource Ui_Common_Page_Pending}" Opacity="0.8" HorizontalAlignment="Center" />
+    <TextBlock Text="{DynamicResource Ui_Common_Page_ImplNote}" Opacity="0.6" HorizontalAlignment="Center" />
   </StackPanel>
 </UserControl>

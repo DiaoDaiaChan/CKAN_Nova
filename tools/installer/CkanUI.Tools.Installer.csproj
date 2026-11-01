@@ -6,7 +6,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>../../src/CkanUI.App/Assets/ckan.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <PayloadZip Condition="'$(PayloadZip)' == ''">payload.zip</PayloadZip>
+    <PublishAot Condition="'$(PublishAot)' == ''">true</PublishAot>
+    <OptimizationPreference>Size</OptimizationPreference>
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup Condition="Exists('$(PayloadZip)')">

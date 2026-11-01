@@ -37,6 +37,22 @@
       <SolidColorBrush x:Key="CkanLayerElevatedBrush" Color="#FFFFFF" />
       <!-- 1px 顶光描边（替代灰实线）：卡片上缘给一道极淡的受光线 -->
       <SolidColorBrush x:Key="CkanHairlineBrush" Color="#17000000" />
+
+      <!-- 磨砂玻璃 / 亚克力基底（MAT）：半透明填充 + 顶光内描边 + 柔影，按钮与交互行统一取这一套 -->
+      <SolidColorBrush x:Key="CkanGlassFillBrush" Color="#8CFFFFFF" />
+      <SolidColorBrush x:Key="CkanGlassFillHoverBrush" Color="#B8FFFFFF" />
+      <LinearGradientBrush x:Key="CkanGlassBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#B3FFFFFF" />
+        <GradientStop Offset="0.45" Color="#33000000" />
+        <GradientStop Offset="1.0" Color="#1A000000" />
+      </LinearGradientBrush>
+      <LinearGradientBrush x:Key="CkanGlassBorderHoverBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#7A275DAD" />
+        <GradientStop Offset="1.0" Color="#3D275DAD" />
+      </LinearGradientBrush>
+      <BoxShadows x:Key="CkanGlassShadow">inset 0 1 0 0 #CCFFFFFF, 0 2 6 0 #14000000, 0 8 20 0 #0F000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowHover">inset 0 1 0 0 #E6FFFFFF, 0 6 18 0 #1A000000, 0 10 28 0 #12000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowAccent">inset 0 1 0 0 #B3FFFFFF, 0 6 16 0 #33275DAD, 0 2 6 0 #1A000000</BoxShadows>
       <RadialGradientBrush x:Key="CkanEmptyStateGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="70%" RadiusY="70%">
         <GradientStop Offset="0" Color="#33275DAD" />
         <GradientStop Offset="1" Color="#00275DAD" />
@@ -120,6 +136,22 @@
       <SolidColorBrush x:Key="CkanLayerElevatedBrush" Color="#2A313D" />
       <!-- 1px 顶光描边：卡片上缘 8% 白光，是深色下唯一能读出"边缘"的东西 -->
       <SolidColorBrush x:Key="CkanHairlineBrush" Color="#14FFFFFF" />
+
+      <!-- 磨砂玻璃 / 亚克力基底（MAT）：8% 白填充 + 顶光内描边 + 深柔影；强调色按钮走 ShadowAccent -->
+      <SolidColorBrush x:Key="CkanGlassFillBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="CkanGlassFillHoverBrush" Color="#24FFFFFF" />
+      <LinearGradientBrush x:Key="CkanGlassBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#33FFFFFF" />
+        <GradientStop Offset="0.5" Color="#12FFFFFF" />
+        <GradientStop Offset="1.0" Color="#0AFFFFFF" />
+      </LinearGradientBrush>
+      <LinearGradientBrush x:Key="CkanGlassBorderHoverBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#6672A7FF" />
+        <GradientStop Offset="1.0" Color="#2A72A7FF" />
+      </LinearGradientBrush>
+      <BoxShadows x:Key="CkanGlassShadow">inset 0 1 0 0 #1FFFFFFF, 0 2 6 0 #0E000000, 0 8 20 0 #0A000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowHover">inset 0 1 0 0 #33FFFFFF, 0 6 18 0 #1F000000, 0 10 28 0 #12000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowAccent">inset 0 1 0 0 #4DFFFFFF, 0 6 16 0 #3372A7FF, 0 2 6 0 #26000000</BoxShadows>
       <RadialGradientBrush x:Key="CkanEmptyStateGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="70%" RadiusY="70%">
         <GradientStop Offset="0" Color="#2E72A7FF" />
         <GradientStop Offset="1" Color="#0072A7FF" />
@@ -200,6 +232,15 @@
       <SolidColorBrush x:Key="CkanLayerElevatedBrush" Color="#000000" />
       <SolidColorBrush x:Key="CkanLayerRecessedBrush" Color="#000000" />
       <SolidColorBrush x:Key="CkanHairlineBrush" Color="#FFFFFF" />
+
+      <!-- 高对比度不透明：玻璃只保留纯白描边，不引入任何半透明填充（THM-10） -->
+      <SolidColorBrush x:Key="CkanGlassFillBrush" Color="#000000" />
+      <SolidColorBrush x:Key="CkanGlassFillHoverBrush" Color="#111111" />
+      <SolidColorBrush x:Key="CkanGlassBorderBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="CkanGlassBorderHoverBrush" Color="#FFFF00" />
+      <BoxShadows x:Key="CkanGlassShadow">0 0 0 0 #00000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowHover">0 0 0 0 #00000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowAccent">0 0 0 0 #00000000</BoxShadows>
       <RadialGradientBrush x:Key="CkanEmptyStateGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="70%" RadiusY="70%">
         <GradientStop Offset="0" Color="#00000000" />
         <GradientStop Offset="1" Color="#00000000" />

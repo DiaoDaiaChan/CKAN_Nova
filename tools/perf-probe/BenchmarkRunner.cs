@@ -152,6 +152,70 @@ public static class BenchmarkRunner
         return (elapsedMs, elapsedMs <= 3000.0, view, vm, window);
     }
 
+    /// <summary>
+    /// 全 tab 结构成本普查：把每个页面视图单独装进窗口，量「构造 / 排版 / 首渲染 / 控件节点数」。
+    /// 注意口径：DataContext 为空，量到的是 XAML 结构本身的成本（模板实例化、样式落地、布局），
+    /// 不含数据行；数据驱动的成本由 --cold / --search / --select 与后续加数据版对照。
+    /// 用途：找出「光是搭结构就贵」的页面，以及哪些页面的成本是进程内一次性（首个页面）而非每页面都要付。
+    /// </summary>
+    public static void RunPageSweep(int rounds = 3)
+    {
+        HeadlessAppHost.EnsureInitialized();
+
+        var pages = new (string Key, Func<Control> Make)[]
+        {
+            ("mods", () => new ModsPageView()),
+            ("content", () => new ContentPageView()),
+            ("changes", () => new ChangesPageView()),
+            ("repos", () => new ReposPageView()),
+            ("modpacks", () => new ModPacksPageView()),
+            ("modpack-editor", () => new ModPackEditorPageView()),
+            ("instances", () => new InstancesPageView()),
+            ("playtime", () => new PlayTimePageView()),
+            ("saves", () => new SavesPageView()),
+            ("unmanaged", () => new UnmanagedPageView()),
+            ("cache", () => new CachePageView()),
+            ("downloadstats", () => new DownloadStatsPageView()),
+            ("dedup", () => new DedupPageView()),
+            ("installhistory", () => new InstallHistoryPageView()),
+            ("plugins", () => new PluginsPageView()),
+            ("modtext", () => new ModTextPageView()),
+            ("logs", () => new LogPageView()),
+            ("settings", () => new SettingsPageView()),
+            ("modconfig", () => new ModConfigPageView()),
+        };
+
+        // 第一轮含进程内一次性成本（JIT、样式解析、字体初始化），后两轮是稳态每页面成本。
+        for (var round = 0; round < rounds; round++)
+        {
+            foreach (var (key, make) in pages)
+            {
+                var sw = Stopwatch.StartNew();
+                var view = make();
+                var newMs = sw.Elapsed.TotalMilliseconds;
+
+                var window = new Window { Width = 1280, Height = 800, Content = view };
+                window.Show();
+                HeadlessAppHost.PumpJobs();
+                window.Measure(new Size(1280, 800));
+                window.Arrange(new Rect(0, 0, 1280, 800));
+                var layoutMs = sw.Elapsed.TotalMilliseconds - newMs;
+
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+                HeadlessAppHost.PumpJobs();
+                var totalMs = sw.Elapsed.TotalMilliseconds;
+                var nodes = view.GetVisualDescendants().Count();
+
+                Console.WriteLine(
+                    $"[PageSweep] round={round + 1} {key}: new={newMs:F1}ms layout={layoutMs:F1}ms " +
+                    $"render={totalMs - newMs - layoutMs:F1}ms total={totalMs:F1}ms nodes={nodes}");
+
+                window.Close();
+                HeadlessAppHost.PumpJobs();
+            }
+        }
+    }
+
     /// <summary>把累计时间戳换算成每段耗时文本，便于定位首屏那 1 秒多花在哪一段。</summary>
     private static IEnumerable<string> PhaseDeltas(List<(string Name, double Ms)> phases)
     {

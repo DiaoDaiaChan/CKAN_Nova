@@ -19,34 +19,34 @@
     <!-- 页头 -->
     <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
       <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-        <TextBlock Text="内容预览" Classes="CkanPageTitle" VerticalAlignment="Center" />
+        <TextBlock Text="{DynamicResource Ui_Content_PageName}" Classes="CkanPageTitle" VerticalAlignment="Center" />
         <Button Classes="CkanHelper" VerticalAlignment="Center"
-                ToolTip.Tip="直接读取 ZIP 中央目录结构与文件大小，无需将整个归档解压至磁盘。">
+                ToolTip.Tip="{DynamicResource Ui_ContentPage_Header_Tip}">
           <PathIcon Data="{StaticResource CkanIconHelp}" />
         </Button>
       </StackPanel>
-      <TextBlock Text="归档内目录与文件清单" Classes="CkanCaption" TextWrapping="Wrap" />
+      <TextBlock Text="{DynamicResource Ui_ContentPage_Subtitle}" Classes="CkanCaption" TextWrapping="Wrap" />
     </StackPanel>
 
     <!-- 工具栏 -->
     <Border Grid.Row="1" Margin="0,0,0,12" Classes="CkanToolbar stagger-card">
       <WrapPanel Orientation="Horizontal">
-        <Button Content="预览 / 刷新" Command="{Binding PreviewCommand}"
+        <Button Content="{DynamicResource Ui_ContentPage_PreviewRefresh}" Command="{Binding PreviewCommand}"
                 Classes="CkanPrimary" Margin="0,0,8,0"
-                ToolTip.Tip="重新读取 ZIP 目录" />
-        <Button Content="下载到缓存" Command="{Binding DownloadCommand}"
+                ToolTip.Tip="{DynamicResource Ui_ContentPage_Refresh_Tip}" />
+        <Button Content="{DynamicResource Ui_ContentPage_DownloadToCache}" Command="{Binding DownloadCommand}"
                 Classes="CkanSecondary" Margin="0,0,8,0"
-                ToolTip.Tip="若尚未缓存，下载模组 ZIP 到本地缓存" />
-        <Button Content="复制路径" Command="{Binding CopyPathCommand}"
+                ToolTip.Tip="{DynamicResource Ui_ContentPage_DownloadToCache_Tip}" />
+        <Button Content="{DynamicResource Ui_ContentPage_CopyPath}" Command="{Binding CopyPathCommand}"
                 Classes="CkanSecondary" Margin="0,0,8,0"
-                ToolTip.Tip="复制当前选中项的相对路径" />
-        <Button Content="打开 ZIP 所在目录" Command="{Binding OpenDirectoryCommand}"
+                ToolTip.Tip="{DynamicResource Ui_ContentPage_CopyPath_Tip}" />
+        <Button Content="{DynamicResource Ui_ContentPage_OpenZipDir}" Command="{Binding OpenDirectoryCommand}"
                 Classes="CkanSecondary" Margin="0,0,8,0"
-                ToolTip.Tip="在系统文件管理器中打开缓存 ZIP 所在文件夹" />
-        <Button Content="取消" Command="{Binding CancelCommand}"
+                ToolTip.Tip="{DynamicResource Ui_ContentPage_OpenZipDir_Tip}" />
+        <Button Content="{DynamicResource Ui_Common_Cancel}" Command="{Binding CancelCommand}"
                 Classes="CkanDanger" Margin="0,0,8,0"
                 IsVisible="{Binding CanCancel}"
-                ToolTip.Tip="取消当前正在进行的操作" />
+                ToolTip.Tip="{DynamicResource Ui_ContentPage_Cancel_Tip}" />
       </WrapPanel>
     </Border>
 
@@ -72,9 +72,9 @@
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
                     VerticalAlignment="Center" Margin="12,0,0,0">
-          <Button Content="重试" Command="{Binding RetryCommand}" Classes="CkanSmall"
-                  ToolTip.Tip="重新读取 ZIP 目录" />
-          <Button Content="关闭" Command="{Binding ClearErrorCommand}" Classes="CkanSmall" />
+          <Button Content="{DynamicResource Ui_Common_Retry}" Command="{Binding RetryCommand}" Classes="CkanSmall"
+                  ToolTip.Tip="{DynamicResource Ui_ContentPage_Refresh_Tip}" />
+          <Button Content="{DynamicResource Ui_Cmd_Shortcuts_Close}" Command="{Binding ClearErrorCommand}" Classes="CkanSmall" />
         </StackPanel>
       </Grid>
     </Border>
@@ -119,17 +119,17 @@
         <Grid RowDefinitions="Auto,*">
           <Border Grid.Row="0" Padding="0,0,0,10" Margin="0,0,0,10"
                   BorderBrush="{DynamicResource CkanHairlineBrush}" BorderThickness="0,0,0,1">
-            <TextBlock Text="选中条目" Classes="CkanSectionTitle" />
+            <TextBlock Text="{DynamicResource Ui_ContentPage_SelectedItem}" Classes="CkanSectionTitle" />
           </Border>
           <StackPanel Grid.Row="1" Spacing="12" IsVisible="{Binding HasSelection}">
             <StackPanel Spacing="2">
-              <TextBlock Text="名称" Classes="CkanEyebrow" />
+              <TextBlock Text="{DynamicResource Ui_Common_Name}" Classes="CkanEyebrow" />
               <SelectableTextBlock Text="{Binding SelectedNode.Name}" TextWrapping="Wrap"
                                    FontWeight="Medium"
                                    Foreground="{DynamicResource CkanTextPrimaryBrush}" />
             </StackPanel>
             <StackPanel Spacing="2">
-              <TextBlock Text="类型与大小" Classes="CkanEyebrow" />
+              <TextBlock Text="{DynamicResource Ui_ContentPage_TypeAndSize}" Classes="CkanEyebrow" />
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="{Binding SelectedNode.KindText}" Classes="CkanNumeric" />
                 <TextBlock Text="{Binding SelectedNode.SizeText}" Classes="CkanNumeric"
@@ -137,7 +137,7 @@
               </StackPanel>
             </StackPanel>
             <StackPanel Spacing="2">
-              <TextBlock Text="包内路径" Classes="CkanEyebrow" />
+              <TextBlock Text="{DynamicResource Ui_ContentPage_ArchivePath}" Classes="CkanEyebrow" />
               <SelectableTextBlock Text="{Binding SelectedNode.RelativePath}" TextWrapping="Wrap"
                                    FontFamily="Consolas, Menlo, monospace"
                                    FontSize="{DynamicResource CkanFontSizeCaption}"
@@ -149,9 +149,9 @@
             <Border Classes="CkanIconTile Muted" HorizontalAlignment="Center">
               <PathIcon Data="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
             </Border>
-            <TextBlock Text="还没有选中条目" FontWeight="SemiBold" HorizontalAlignment="Center"
+            <TextBlock Text="{DynamicResource Ui_ContentPage_NoSelectionTitle}" FontWeight="SemiBold" HorizontalAlignment="Center"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-            <TextBlock Text="在左侧目录树点选任意文件或文件夹，即可查看包内路径与未压缩大小。"
+            <TextBlock Text="{DynamicResource Ui_ContentPage_NoSelectionSubtitle}"
                        Classes="CkanCaption" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="240" />
           </StackPanel>
         </Grid>
@@ -170,12 +170,12 @@
             <TextBlock Text="{Binding EmptyText}" TextAlignment="Center" TextWrapping="Wrap"
                        FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-            <TextBlock Text="回到本页即可查看包内目录与大小。"
+            <TextBlock Text="{DynamicResource Ui_ContentPage_ReturnHint_Tip}"
                        TextAlignment="Center" TextWrapping="Wrap" Classes="CkanCaption" />
-            <Button Content="前往模组页" Classes="CkanSecondary" HorizontalAlignment="Center"
+            <Button Content="{DynamicResource Ui_ContentPage_GoToModsPage}" Classes="CkanSecondary" HorizontalAlignment="Center"
                     Command="{Binding $parent[Window].DataContext.NavigateCommand}"
                     CommandParameter="mods"
-                    ToolTip.Tip="在「模组」页选中一个 mod，ZIP 目录会在这里展开" />
+                    ToolTip.Tip="{DynamicResource Ui_ContentPage_SelectModHint_Tip}" />
           </StackPanel>
         </Grid>
       </Border>
@@ -188,7 +188,7 @@
                  TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
                   Margin="12,0,0,0" IsVisible="{Binding HasNodes}">
-        <TextBlock Text="未压缩大小合计：" Classes="CkanCaption" />
+        <TextBlock Text="{DynamicResource Ui_ContentPage_UncompressedTotal}" Classes="CkanCaption" />
         <TextBlock Text="{Binding TotalText}" Classes="CkanNumeric"
                    FontSize="{DynamicResource CkanFontSizeCaption}" />
       </StackPanel>

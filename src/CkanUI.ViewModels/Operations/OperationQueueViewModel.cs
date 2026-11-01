@@ -100,7 +100,11 @@ public sealed partial class OperationQueueViewModel : ObservableObject, IActivat
 
     /// <summary>进行中的任务数。</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveOperations))]
     private int _activeCount;
+
+    /// <summary>是否存在进行中的活动任务。</summary>
+    public bool HasActiveOperations => ActiveCount > 0;
 
     /// <summary>已完成的任务数。</summary>
     [ObservableProperty]
@@ -338,11 +342,12 @@ public sealed partial class OperationQueueViewModel : ObservableObject, IActivat
         CancelAllCommand.NotifyCanExecuteChanged();
         ClearCompletedCommand.NotifyCanExecuteChanged();
 
-        if (items.Count == 0)
+        if (hadItems && items.Count == 0)
         {
+            // 原先有运行中任务，所有任务执行完毕并移出队列后自动收起
             IsExpanded = false;
         }
-        else if (!hadItems)
+        else if (!hadItems && items.Count > 0)
         {
             // 第一次出现任务时自动展开，用户不必先点一下才知道有后台任务在跑
             IsExpanded = true;

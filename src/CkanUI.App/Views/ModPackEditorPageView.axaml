@@ -11,17 +11,17 @@
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Grid.Column="0" Spacing="4">
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <TextBlock Text="modpack 编辑器" Classes="CkanPageTitle" VerticalAlignment="Center" />
+          <TextBlock Text="{DynamicResource Ui_NavRail_ModPackEditor}" Classes="CkanPageTitle" VerticalAlignment="Center" />
           <Button Classes="CkanHelper" VerticalAlignment="Center"
-                  ToolTip.Tip="编辑一个 .ckan 元数据包：标识、说明、许可证与依赖关系，保存后可直接被 CKAN / 启动器消费。">
+                  ToolTip.Tip="{DynamicResource Ui_ModPackEditorPage_Header_Tip}">
             <PathIcon Data="{StaticResource CkanIconHelp}" />
           </Button>
         </StackPanel>
-        <TextBlock Text="创建与编辑 .ckan 元数据包"
+        <TextBlock Text="{DynamicResource Ui_ModPackEditorPage_Subtitle}"
                    Classes="CkanCaption" TextWrapping="Wrap" />
       </StackPanel>
       <Border Grid.Column="1" Classes="CkanBadge Warning" IsVisible="{Binding IsDirty}" VerticalAlignment="Center">
-        <TextBlock Text="有未保存的改动" />
+        <TextBlock Text="{DynamicResource Ui_ModPackEditorPage_UnsavedChanges}" />
       </Border>
     </Grid>
 
@@ -31,30 +31,30 @@
             RenderTransform="translate(0px, 0px)">
       <StackPanel Spacing="8">
         <WrapPanel Orientation="Horizontal">
-          <Button Content="打开" Command="{Binding LoadCommand}"
+          <Button Content="{DynamicResource Ui_Common_Open}" Command="{Binding LoadCommand}"
                   Classes="CkanSecondary"
                   IsEnabled="{Binding !IsBusy}" Margin="0,0,8,0"
-                  ToolTip.Tip="读取下面路径的 .ckan 文件到表单" />
-          <Button Content="新建" Command="{Binding NewDocumentCommand}"
+                  ToolTip.Tip="{DynamicResource Ui_ModPackEditorPage_Open_Tip}" />
+          <Button Content="{DynamicResource Ui_Common_New}" Command="{Binding NewDocumentCommand}"
                   Classes="CkanSecondary"
                   IsEnabled="{Binding !IsBusy}" Margin="0,0,8,0"
-                  ToolTip.Tip="清空表单，从零写一个 modpack" />
-          <Button Content="校验" Command="{Binding ValidateCommand}"
+                  ToolTip.Tip="{DynamicResource Ui_ModPackEditorPage_New_Tip}" />
+          <Button Content="{DynamicResource Ui_Common_Validate}" Command="{Binding ValidateCommand}"
                   Classes="CkanSecondary"
                   IsEnabled="{Binding !IsBusy}" Margin="0,0,8,0"
-                  ToolTip.Tip="只检查不写盘，逐条列出中文原因" />
-          <Button Content="保存" Command="{Binding SaveCommand}"
+                  ToolTip.Tip="{DynamicResource Ui_ModPackEditorPage_Validate_Tip}" />
+          <Button Content="{DynamicResource Ui_Common_Save}" Command="{Binding SaveCommand}"
                   Classes="CkanPrimary"
                   IsEnabled="{Binding !IsBusy}"
-                  ToolTip.Tip="先校验再写盘；有错误时拒绝保存" />
+                  ToolTip.Tip="{DynamicResource Ui_ModPackEditorPage_Save_Tip}" />
         </WrapPanel>
         <Grid ColumnDefinitions="Auto,*">
-          <TextBlock Grid.Column="0" Text="保存路径" VerticalAlignment="Center"
+          <TextBlock Grid.Column="0" Text="{DynamicResource Ui_ModPackEditorPage_SavePath}" VerticalAlignment="Center"
                      Margin="0,0,8,0"
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
           <TextBox Grid.Column="1" Tag="FilePath" Text="{Binding FilePath, Mode=TwoWay}"
-                   PlaceholderText="例如 C:\\Mods\\my-modpack.ckan" />
+                   PlaceholderText="{DynamicResource Ui_ModPackEditorPage_SavePath_Placeholder}" />
         </Grid>
       </StackPanel>
     </Border>
@@ -68,9 +68,9 @@
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Grid.Column="0" Text="{Binding ErrorText}" TextWrapping="Wrap"
                        Foreground="{DynamicResource CkanDangerBrush}" />
-            <Button Grid.Column="1" Content="重新校验" Command="{Binding ValidateCommand}"
+            <Button Grid.Column="1" Content="{DynamicResource Ui_ModPackEditorPage_Revalidate}" Command="{Binding ValidateCommand}"
                     Classes="CkanGhost CkanSmall"
-                    ToolTip.Tip="重新校验这个 .ckan，错误栏会随之刷新" />
+                    ToolTip.Tip="{DynamicResource Ui_ModPackEditorPage_Revalidate_Tip}" />
           </Grid>
         </StackPanel>
       </Border>
@@ -108,51 +108,51 @@
       <!-- ① 标识与版本 -->
       <Border Classes="CkanCard" Padding="{DynamicResource CkanToolbarPadding}">
         <StackPanel Spacing="10">
-          <TextBlock Text="标识与版本" Classes="CkanSectionTitle" />
+          <TextBlock Text="{DynamicResource Ui_ModPackEditorPage_SectionIdVersion}" Classes="CkanSectionTitle" />
           <Grid ColumnDefinitions="88,*,88,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto"
                 RowSpacing="8" ColumnSpacing="8">
 
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="标识" VerticalAlignment="Center"
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Ui_Common_Identifier}" VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <TextBox Grid.Row="0" Grid.Column="1" Tag="Identifier" Text="{Binding Identifier, Mode=TwoWay}"
-                     PlaceholderText="小写字母 / 数字 / 连字符" />
-            <TextBlock Grid.Row="0" Grid.Column="2" Text="名称" VerticalAlignment="Center"
+                     PlaceholderText="{DynamicResource Ui_ModPackEditorPage_Id_Placeholder}" />
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="{DynamicResource Ui_Common_Name}" VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <TextBox Grid.Row="0" Grid.Column="3" Tag="Name" Text="{Binding Name, Mode=TwoWay}" />
 
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="版本" VerticalAlignment="Center"
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource Ui_Common_Version}" VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBox Grid.Row="1" Grid.Column="1" Tag="Version" Text="{Binding Version, Mode=TwoWay}" PlaceholderText="例如 1.0.0" />
-            <TextBlock Grid.Row="1" Grid.Column="2" Text="规范版本" VerticalAlignment="Center"
+            <TextBox Grid.Row="1" Grid.Column="1" Tag="Version" Text="{Binding Version, Mode=TwoWay}" PlaceholderText="{DynamicResource Ui_ModPackEditorPage_Version_Placeholder}" />
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="{DynamicResource Ui_ModPackEditorPage_SpecVersion}" VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <TextBox Grid.Row="1" Grid.Column="3" Tag="SpecVersion" Text="{Binding SpecVersion, Mode=TwoWay}"
-                     PlaceholderText="留空则由 CKAN 自动推导" />
+                     PlaceholderText="{DynamicResource Ui_ModPackEditorPage_SpecVersion_Placeholder}" />
 
-            <TextBlock Grid.Row="2" Grid.Column="0" Text="发布状态" VerticalAlignment="Center"
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Ui_ModPackEditorPage_ReleaseStatus}" VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <ComboBox Grid.Row="2" Grid.Column="1" Tag="ReleaseStatus" ItemsSource="{Binding ReleaseStatusOptions}"
                       SelectedItem="{Binding ReleaseStatus, Mode=TwoWay}" HorizontalAlignment="Stretch" />
-            <TextBlock Grid.Row="2" Grid.Column="2" Text="包类型" VerticalAlignment="Center"
+            <TextBlock Grid.Row="2" Grid.Column="2" Text="{DynamicResource Ui_ModPackEditorPage_PackageKind}" VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <ComboBox Grid.Row="2" Grid.Column="3" Tag="Kind" ItemsSource="{Binding KindOptions}"
                       SelectedItem="{Binding Kind, Mode=TwoWay}" HorizontalAlignment="Stretch" />
 
-            <TextBlock Grid.Row="3" Grid.Column="0" Text="游戏版本" VerticalAlignment="Center"
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource Ui_Common_GameVersion}" VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBox Grid.Row="3" Grid.Column="1" Tag="KspVersion" Text="{Binding KspVersion, Mode=TwoWay}" PlaceholderText="例如 1.12.5" />
-            <TextBlock Grid.Row="3" Grid.Column="2" Text="版本下限" VerticalAlignment="Center"
+            <TextBox Grid.Row="3" Grid.Column="1" Tag="KspVersion" Text="{Binding KspVersion, Mode=TwoWay}" PlaceholderText="{DynamicResource Ui_ModPackEditorPage_GameVersion_Placeholder}" />
+            <TextBlock Grid.Row="3" Grid.Column="2" Text="{DynamicResource Ui_ModPackEditorPage_KspMin}" VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <TextBox Grid.Row="3" Grid.Column="3" Tag="KspVersionMin" Text="{Binding KspVersionMin, Mode=TwoWay}" />
 
-            <TextBlock Grid.Row="4" Grid.Column="0" Text="版本上限" VerticalAlignment="Center"
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource Ui_ModPackEditorPage_KspMax}" VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <TextBox Grid.Row="4" Grid.Column="1" Tag="KspVersionMax" Text="{Binding KspVersionMax, Mode=TwoWay}" />
@@ -163,25 +163,25 @@
       <!-- ② 说明与下载 -->
       <Border Classes="CkanCard stagger-card" Padding="{DynamicResource CkanToolbarPadding}">
         <StackPanel Spacing="10">
-          <TextBlock Text="说明与下载" Classes="CkanSectionTitle" />
+          <TextBlock Text="{DynamicResource Ui_ModPackEditorPage_SectionInfoDownload}" Classes="CkanSectionTitle" />
           <Grid ColumnDefinitions="88,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="8">
 
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="摘要" VerticalAlignment="Center"
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Ui_Common_Summary}" VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <TextBox Grid.Row="0" Grid.Column="1" Tag="Abstract" Text="{Binding Abstract, Mode=TwoWay}" />
 
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="描述" VerticalAlignment="Top" Margin="0,4,0,0"
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource Ui_Common_Description}" VerticalAlignment="Top" Margin="0,4,0,0"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Description, Mode=TwoWay}"
                      AcceptsReturn="True" TextWrapping="Wrap" MinHeight="56" />
 
-            <TextBlock Grid.Row="2" Grid.Column="0" Text="下载地址" VerticalAlignment="Center"
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Ui_ModPackEditorPage_DownloadUrl}" VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             <TextBox Grid.Row="2" Grid.Column="1" Tag="DownloadUrl" Text="{Binding DownloadUrl, Mode=TwoWay}"
-                     PlaceholderText="kind=package 时必填" />
+                     PlaceholderText="{DynamicResource Ui_ModPackEditorPage_DownloadUrl_Placeholder}" />
           </Grid>
         </StackPanel>
       </Border>
@@ -189,14 +189,14 @@
       <!-- ③ 作者与许可证 -->
       <Border Classes="CkanCard stagger-card" Padding="{DynamicResource CkanToolbarPadding}">
         <StackPanel Spacing="10">
-          <TextBlock Text="作者与许可证" Classes="CkanSectionTitle" />
+          <TextBlock Text="{DynamicResource Ui_ModPackEditorPage_SectionAuthorLicense}" Classes="CkanSectionTitle" />
           <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
             <StackPanel Grid.Column="0" Spacing="4">
-              <TextBlock Text="作者" FontSize="{DynamicResource CkanFontSizeCaption}"
+              <TextBlock Text="{DynamicResource Ui_ModPackEditor_LabelAuthor}" FontSize="{DynamicResource CkanFontSizeCaption}"
                          Foreground="{DynamicResource CkanTextSecondaryBrush}" />
               <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                <TextBox Grid.Column="0" Text="{Binding NewAuthor, Mode=TwoWay}" PlaceholderText="按回车或点「添加」" />
-                <Button Grid.Column="1" Content="添加" Classes="CkanSecondary CkanSmall" Command="{Binding AddAuthorCommand}" />
+                <TextBox Grid.Column="0" Text="{Binding NewAuthor, Mode=TwoWay}" PlaceholderText="{DynamicResource Ui_ModPackEditorPage_Author_Placeholder}" />
+                <Button Grid.Column="1" Content="{DynamicResource Ui_Common_Add}" Classes="CkanSecondary CkanSmall" Command="{Binding AddAuthorCommand}" />
               </Grid>
               <ItemsControl ItemsSource="{Binding Authors}">
                 <ItemsControl.ItemTemplate>
@@ -205,7 +205,7 @@
                       <TextBlock Grid.Column="0" Text="{Binding DisplayText}" VerticalAlignment="Center"
                                  FontSize="{DynamicResource CkanFontSizeCaption}"
                                  Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                      <Button Grid.Column="1" Content="删除" Classes="CkanGhost CkanSmall"
+                      <Button Grid.Column="1" Content="{DynamicResource Ui_Common_Delete}" Classes="CkanGhost CkanSmall"
                               Command="{Binding $parent[ItemsControl].DataContext.RemoveAuthorCommand}"
                               CommandParameter="{Binding}" />
                     </Grid>
@@ -215,11 +215,11 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" Spacing="4">
-              <TextBlock Text="许可证" FontSize="{DynamicResource CkanFontSizeCaption}"
+              <TextBlock Text="{DynamicResource Ui_ModPackEditor_LabelLicense}" FontSize="{DynamicResource CkanFontSizeCaption}"
                          Foreground="{DynamicResource CkanTextSecondaryBrush}" />
               <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                <TextBox Grid.Column="0" Text="{Binding NewLicense, Mode=TwoWay}" PlaceholderText="例如 MIT、GPL-3.0、unknown" />
-                <Button Grid.Column="1" Content="添加" Classes="CkanSecondary CkanSmall" Command="{Binding AddLicenseCommand}" />
+                <TextBox Grid.Column="0" Text="{Binding NewLicense, Mode=TwoWay}" PlaceholderText="{DynamicResource Ui_ModPackEditorPage_License_Placeholder}" />
+                <Button Grid.Column="1" Content="{DynamicResource Ui_Common_Add}" Classes="CkanSecondary CkanSmall" Command="{Binding AddLicenseCommand}" />
               </Grid>
               <ItemsControl ItemsSource="{Binding Licenses}">
                 <ItemsControl.ItemTemplate>
@@ -228,7 +228,7 @@
                       <TextBlock Grid.Column="0" Text="{Binding DisplayText}" VerticalAlignment="Center"
                                  FontSize="{DynamicResource CkanFontSizeCaption}"
                                  Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                      <Button Grid.Column="1" Content="删除" Classes="CkanGhost CkanSmall"
+                      <Button Grid.Column="1" Content="{DynamicResource Ui_Common_Delete}" Classes="CkanGhost CkanSmall"
                               Command="{Binding $parent[ItemsControl].DataContext.RemoveLicenseCommand}"
                               CommandParameter="{Binding}" />
                     </Grid>
@@ -247,17 +247,17 @@
           RenderTransform="translate(0px, 0px)">
       <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <TextBlock Text="模组关系"
+          <TextBlock Text="{DynamicResource Ui_ModPackEditorPage_SectionRelationships}"
                      FontSize="{DynamicResource CkanFontSizeSubtitle}"
                      Foreground="{DynamicResource CkanTextPrimaryBrush}"
                      VerticalAlignment="Center" />
           <Button Classes="CkanHelper" VerticalAlignment="Center"
-                  ToolTip.Tip="支持依赖 (depends)、推荐 (recommends)、建议 (suggests)、冲突 (conflicts)、支持 (supports) 五类关系">
+                  ToolTip.Tip="{DynamicResource Ui_ModPackEditorPage_Relationships_Tip}">
             <PathIcon Data="{StaticResource CkanIconHelp}" />
           </Button>
         </StackPanel>
-        <Button Grid.Column="1" Content="添加关系" Classes="CkanPrimary" Command="{Binding AddRelationCommand}"
-                ToolTip.Tip="追加一行，再选择关系类型与语义模式" />
+        <Button Grid.Column="1" Content="{DynamicResource Ui_ModPackEditorPage_AddRelationship}" Classes="CkanPrimary" Command="{Binding AddRelationCommand}"
+                ToolTip.Tip="{DynamicResource Ui_ModPackEditorPage_AddRelationship_Tip}" />
       </Grid>
 
       <Border Grid.Row="1" Padding="8,4" IsVisible="{Binding !ShowEmptyRelations}"
@@ -266,16 +266,16 @@
               BorderThickness="1"
               Background="{DynamicResource CkanStatusBarBackgroundBrush}">
         <Grid ColumnDefinitions="110,110,*,160,56">
-          <TextBlock Grid.Column="0" Text="类型"
+          <TextBlock Grid.Column="0" Text="{DynamicResource Ui_Common_Type}"
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <TextBlock Grid.Column="1" Text="语义"
+          <TextBlock Grid.Column="1" Text="{DynamicResource Ui_ModPackEditorPage_Semantics}"
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <TextBlock Grid.Column="2" Text="目标模组"
+          <TextBlock Grid.Column="2" Text="{DynamicResource Ui_ModPackEditorPage_TargetMod}"
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <TextBlock Grid.Column="3" Text="版本范围"
+          <TextBlock Grid.Column="3" Text="{DynamicResource Ui_ModPackEditorPage_VersionRange}"
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
         </Grid>
@@ -295,20 +295,20 @@
                         SelectedItem="{Binding Mode, Mode=TwoWay}" />
 
               <TextBox Grid.Column="2" Margin="0,0,6,0" IsVisible="{Binding IsSingleMode}"
-                       Text="{Binding Name, Mode=TwoWay}" PlaceholderText="小写模组标识，例如 modulemanager" />
+                       Text="{Binding Name, Mode=TwoWay}" PlaceholderText="{DynamicResource Ui_ModPackEditorPage_TargetMod_Placeholder}" />
               <TextBox Grid.Column="2" Margin="0,0,6,0" IsVisible="{Binding IsCandidateMode}"
-                       Text="{Binding CandidatesText, Mode=TwoWay}" PlaceholderText="候选标识，逗号分隔" />
+                       Text="{Binding CandidatesText, Mode=TwoWay}" PlaceholderText="{DynamicResource Ui_ModPackEditorPage_ChoiceMods_Placeholder}" />
 
               <Grid Grid.Column="3" ColumnDefinitions="*,*" ColumnSpacing="4" IsVisible="{Binding IsSingleMode}">
-                <TextBox Grid.Column="0" Text="{Binding MinVersion, Mode=TwoWay}" PlaceholderText="下限" />
-                <TextBox Grid.Column="1" Text="{Binding MaxVersion, Mode=TwoWay}" PlaceholderText="上限" />
+                <TextBox Grid.Column="0" Text="{Binding MinVersion, Mode=TwoWay}" PlaceholderText="{DynamicResource Ui_Common_MinBound}" />
+                <TextBox Grid.Column="1" Text="{Binding MaxVersion, Mode=TwoWay}" PlaceholderText="{DynamicResource Ui_Common_MaxBound}" />
               </Grid>
               <TextBlock Grid.Column="3" Text="{Binding VersionText}" VerticalAlignment="Center"
                          IsVisible="{Binding IsCandidateMode}"
                          FontSize="{DynamicResource CkanFontSizeCaption}"
                          Foreground="{DynamicResource CkanTextSecondaryBrush}" />
 
-              <Button Grid.Column="4" Content="删除" Classes="CkanGhost CkanSmall"
+              <Button Grid.Column="4" Content="{DynamicResource Ui_Common_Delete}" Classes="CkanGhost CkanSmall"
                       Command="{Binding $parent[ListBox].DataContext.RemoveRelationCommand}"
                       CommandParameter="{Binding}" />
             </Grid>
@@ -320,7 +320,7 @@
               Margin="0,6,0,0"
               Classes="CkanEmptyStateCard"
               Padding="{DynamicResource CkanToolbarPadding}">
-        <TextBlock Text="还没有关系行：modpack 通常至少依赖所包含的核心模组。"
+        <TextBlock Text="{DynamicResource Ui_ModPackEditorPage_NoRelationshipsNotice}"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
       </Border>
@@ -332,11 +332,11 @@
             VerticalAlignment="Top">
       <StackPanel Spacing="8">
         <StackPanel Orientation="Horizontal" Spacing="6">
-          <TextBlock Text="实时 JSON" Classes="CkanSectionTitle" VerticalAlignment="Center" />
+          <TextBlock Text="{DynamicResource Ui_ModPackEditorPage_RealtimeJsonHeader}" Classes="CkanSectionTitle" VerticalAlignment="Center" />
           <PathIcon Width="13" Height="13" VerticalAlignment="Center"
                     Data="{StaticResource CkanIconHelp}"
                     Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                    ToolTip.Tip="只读镜像：按当前表单即时拼出 .ckan 结构，方便对照；不参与校验与保存，空字段不会出现。" />
+                    ToolTip.Tip="{DynamicResource Ui_ModPackEditorPage_RealtimeJson_Tip}" />
         </StackPanel>
         <Border Background="{DynamicResource CkanSubtleBackgroundBrush}"
                 BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1"

@@ -1,11 +1,13 @@
 using System.Collections.ObjectModel;
 using CkanUI.Localization;
+using CkanUI.ModText;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.Services.Abstractions.Mods;
 using CkanUI.ViewModels.Dialogs;
 using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Pages.Mods;
+using CkanUI.ViewModels.Pages.Settings;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -128,7 +130,20 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             _changeSink.RequestsApplied += OnRequestsApplied;
         }
 
+        if (_settings is not null)
+        {
+            try
+            {
+                _isDetailsPaneVisible = _settings.Current.ShowModDetailsPane;
+            }
+            catch
+            {
+                // 容错
+            }
+        }
+
         RebuildLabelFilters();
+        RebuildCategoryChips();
         RefreshDetail();
     }
 
@@ -174,6 +189,54 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     }
 
     // ---- 可观察状态 -------------------------------------------------------
+
+    /// <summary>模组页是否显示右侧详情面板（折叠后表格铺满全屏，展示更多模组）。</summary>
+    [ObservableProperty]
+    private bool _isDetailsPaneVisible = true;
+
+    /// <summary>当前界面密度是否为紧凑模式（24px 行高）。</summary>
+    public bool IsCompactDensity => string.Equals(_settings?.Current.Density, DensityScale.Compact, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>密度切换按钮显示文案。</summary>
+    public string DensityButtonText => IsCompactDensity
+        ? Text("紧凑", LocalizationKeys.SettingsChoiceDensityCompact)
+        : Text("标准", LocalizationKeys.SettingsChoiceDensityStandard);
+
+    /// <summary>切换右侧详情面板展开/折叠状态（快捷键 Ctrl+I）。</summary>
+    [RelayCommand]
+    private void ToggleDetailsPane()
+    {
+        IsDetailsPaneVisible = !IsDetailsPaneVisible;
+        if (_settings is not null)
+        {
+            try
+            {
+                _settings.Save(_settings.Current with { ShowModDetailsPane = IsDetailsPaneVisible });
+            }
+            catch (Exception ex)
+            {
+                _errors.Report(ex, "保存详情面板状态", "保存详情面板显示设置失败。");
+            }
+        }
+    }
+
+    /// <summary>在紧凑 (24px) 与标准 (28px) 之间快速切换密度。</summary>
+    [RelayCommand]
+    private void ToggleDensity()
+    {
+        if (_settings is null) return;
+        var next = IsCompactDensity ? DensityScale.Standard : DensityScale.Compact;
+        try
+        {
+            _settings.Save(_settings.Current with { Density = next });
+            OnPropertyChanged(nameof(IsCompactDensity));
+            OnPropertyChanged(nameof(DensityButtonText));
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "切换密度", "保存界面密度设置失败。");
+        }
+    }
 
     /// <summary>搜索框文本（03 篇 §3.4，防抖 80ms 后生效）。</summary>
     [ObservableProperty]
@@ -337,6 +400,11 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
                 chips.Add(Text("兼容性：{0}", LocalizationKeys.ManageModsChipCompatibility, CompatibilityFilter == ModsCompatibilityFilter.CompatibleOnly ? Text("仅兼容", LocalizationKeys.ManageModsFilterCompatibleOnly) : Text("仅不兼容", LocalizationKeys.ManageModsFilterIncompatibleOnly)));
             }
 
+            if (HasCategoryFilter && ModTaxonomyEngine.GetCategory(_selectedCategory) is { } catDef)
+            {
+                chips.Add(Text("分类：{0}", LocalizationKeys.ManageModsChipCategory, catDef.DisplayTitle));
+            }
+
             if (HasLabelFilter)
             {
                 chips.Add(LabelFilterSummary);
@@ -349,6 +417,119 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
 
             return chips;
         }
+    }
+
+    // ---- 核心分类（Taxonomy）------------------------------------------------
+
+    private string? _selectedCategory;
+
+    /// <summary>当前选中的核心分类 ID（null 表示全部）。</summary>
+    public string? SelectedCategory
+    {
+        get => _selectedCategory;
+        set => SetProperty(ref _selectedCategory, value);
+    }
+
+    /// <summary>分类与标签快捷筛选栏是否展开（默认收起，保持极简单行工具栏以最大化列表空间）。</summary>
+    [ObservableProperty]
+    private bool _isFiltersExpanded;
+
+    /// <summary>筛选区的分类胶囊列表（包含 8 大分类及每个分类下的模组数量与选中态）。</summary>
+    [ObservableProperty]
+    private IReadOnlyList<ModCategoryChip> _categoryChips = Array.Empty<ModCategoryChip>();
+
+    /// <summary>是否正在按核心分类过滤。</summary>
+    public bool HasCategoryFilter => !string.IsNullOrWhiteSpace(_selectedCategory);
+
+    /// <summary>是否存在激活的核心分类或标签筛选条件（用于工具栏折叠按钮上的状态指示）。</summary>
+    public bool HasActiveCategoryOrLabelFilter => HasCategoryFilter || HasLabelFilter;
+
+    /// <summary>是否存在任何生效的筛选条件（搜索文本、状态、兼容性、分类、标签）。</summary>
+    public bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(SearchText) ||
+        InstallFilter != ModsInstallFilter.All ||
+        CompatibilityFilter != ModsCompatibilityFilter.All ||
+        HasActiveCategoryOrLabelFilter;
+
+    /// <summary>切换分类与标签快捷筛选抽屉的展开/收起状态。</summary>
+    [RelayCommand]
+    private void ToggleFiltersExpanded() => IsFiltersExpanded = !IsFiltersExpanded;
+
+    /// <summary>核心分类过滤摘要。</summary>
+    public string CategoryFilterSummary => HasCategoryFilter && ModTaxonomyEngine.GetCategory(_selectedCategory) is { } def
+        ? Text("分类：{0}", LocalizationKeys.ManageModsChipCategory, def.DisplayTitle)
+        : Text("未按分类过滤", LocalizationKeys.ManageModsChipCategoryInactive);
+
+    /// <summary>切换某个核心分类的筛选状态（点击已选分类则取消筛选）。</summary>
+    public void ToggleCategoryFilter(string? categoryId)
+    {
+        if (string.IsNullOrWhiteSpace(categoryId))
+        {
+            return;
+        }
+
+        var key = categoryId.Trim();
+        if (string.Equals(_selectedCategory, key, StringComparison.OrdinalIgnoreCase))
+        {
+            _selectedCategory = null;
+        }
+        else
+        {
+            _selectedCategory = key;
+        }
+
+        RebuildCategoryChips();
+        ApplyFilter();
+    }
+
+    /// <summary>清空分类筛选。</summary>
+    [RelayCommand(CanExecute = nameof(HasCategoryFilter))]
+    public void ClearCategoryFilter()
+    {
+        if (_selectedCategory is null)
+        {
+            return;
+        }
+
+        _selectedCategory = null;
+        RebuildCategoryChips();
+        ApplyFilter();
+    }
+
+    /// <summary>
+    /// 重建分类胶囊（统计各分类下的模组数量并更新选中状态）。
+    /// </summary>
+    public void RebuildCategoryChips()
+    {
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in _all)
+        {
+            var cat = ModTaxonomyEngine.Classify(
+                row.Identifier,
+                row.Name,
+                row.Tags,
+                row.Facts.Abstract,
+                row.Facts.Description);
+            counts[cat.Id] = counts.GetValueOrDefault(cat.Id) + 1;
+        }
+
+        var chips = new List<ModCategoryChip>(ModTaxonomyEngine.Categories.Count);
+        foreach (var def in ModTaxonomyEngine.Categories)
+        {
+            var count = counts.GetValueOrDefault(def.Id, 0);
+            var isActive = string.Equals(_selectedCategory, def.Id, StringComparison.OrdinalIgnoreCase);
+            var id = def.Id;
+            chips.Add(new ModCategoryChip(
+                def.Id,
+                def.DisplayTitle,
+                def.NameZh,
+                def.Icon,
+                count,
+                isActive,
+                new RelayCommand(() => ToggleCategoryFilter(id))));
+        }
+
+        CategoryChips = chips;
     }
 
     // ---- 标签组（F-24）----------------------------------------------------
@@ -809,6 +990,17 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             SelectedRow = null;
         }
 
+        if (_settings is not null)
+        {
+            try
+            {
+                IsDetailsPaneVisible = _settings.Current.ShowModDetailsPane;
+                OnPropertyChanged(nameof(IsCompactDensity));
+                OnPropertyChanged(nameof(DensityButtonText));
+            }
+            catch { /* 容错 */ }
+        }
+
         Subscribe();
         RestoreColumnWidths();
         ReloadFromSnapshots();
@@ -837,6 +1029,11 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             _labels.LabelsChanged += OnLabelsChanged;
         }
 
+        if (_settings is not null)
+        {
+            _settings.Changed += OnSettingsChanged;
+        }
+
         _subscribed = true;
     }
 
@@ -855,7 +1052,22 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             _labels.LabelsChanged -= OnLabelsChanged;
         }
 
+        if (_settings is not null)
+        {
+            _settings.Changed -= OnSettingsChanged;
+        }
+
         _subscribed = false;
+    }
+
+    private void OnSettingsChanged(UiSettings settings)
+    {
+        if (IsDetailsPaneVisible != settings.ShowModDetailsPane)
+        {
+            IsDetailsPaneVisible = settings.ShowModDetailsPane;
+        }
+        OnPropertyChanged(nameof(IsCompactDensity));
+        OnPropertyChanged(nameof(DensityButtonText));
     }
 
     private void OnRequestsApplied()
@@ -949,6 +1161,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         _all = Array.Empty<ModRowData>();
         SelectedRow = null;
         ChangePreview = ModsChangePreviewBuilder.Empty;
+        RebuildCategoryChips();
         return released;
     }
 
@@ -968,8 +1181,9 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             _all = Array.Empty<ModRowData>();
         }
 
-        // 标签组开关随数据刷新一次（模块计数会变），过滤选择保持不变。
+        // 标签组与分类开关随数据刷新一次（模块计数会变），过滤选择保持不变。
         RebuildLabelFilters();
+        RebuildCategoryChips();
         RebuildSelectionPreview();
         ApplyFilter();
     }
@@ -1007,7 +1221,8 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
                 CompatibilityFilter,
                 SortColumn,
                 SortAscending,
-                _selectedLabels.Count == 0 ? null : SelectedLabels);
+                _selectedLabels.Count == 0 ? null : SelectedLabels,
+                _selectedCategory);
         }
         catch (Exception ex)
         {
@@ -1106,7 +1321,9 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         InstallFilterIndex = (int)ModsInstallFilter.All;
         CompatibilityFilterIndex = (int)ModsCompatibilityFilter.All;
         _selectedLabels.Clear();
+        _selectedCategory = null;
         RebuildLabelFilters();
+        RebuildCategoryChips();
         ApplyFilter();
     }
 
@@ -1186,6 +1403,12 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         OnPropertyChanged(nameof(LabelFilterSummary));
         OnPropertyChanged(nameof(HasLabelService));
         ResetLabelFiltersCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(SelectedCategory));
+        OnPropertyChanged(nameof(HasCategoryFilter));
+        OnPropertyChanged(nameof(CategoryFilterSummary));
+        OnPropertyChanged(nameof(HasActiveCategoryOrLabelFilter));
+        OnPropertyChanged(nameof(HasActiveFilters));
+        ClearCategoryFilterCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(EmptyStateTitle));
         OnPropertyChanged(nameof(EmptyStateHint));
         OnPropertyChanged(nameof(CanRefreshFromEmptyState));

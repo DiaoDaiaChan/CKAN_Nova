@@ -25,50 +25,50 @@
       <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
         <TextBlock Text="{Binding Title}" Classes="CkanPageTitle" VerticalAlignment="Center" />
         <Button Classes="CkanHelper" VerticalAlignment="Center"
-                ToolTip.Tip="按本地仓库索引与下载缓存聚合，不联网；下载量缺字段的模组按 0 计。">
+                ToolTip.Tip="{DynamicResource Ui_DownloadStatsPage_Header_Tip}">
           <PathIcon Data="{StaticResource CkanIconHelp}" />
         </Button>
       </StackPanel>
-      <TextBlock Text="缓存占用与热度的排行视图" Classes="CkanCaption" TextWrapping="Wrap" />
+      <TextBlock Text="{DynamicResource Ui_DownloadStatsPage_Subtitle}" Classes="CkanCaption" TextWrapping="Wrap" />
     </StackPanel>
 
     <!-- 工具条：分组维度 + 排序 + 刷新 -->
     <Border Grid.Row="1" Classes="CkanToolbar stagger-card">
       <StackPanel Spacing="8">
         <WrapPanel Orientation="Horizontal">
-          <TextBlock Text="分组" VerticalAlignment="Center" Margin="0,0,8,0" Classes="CkanCaption" />
-          <Button Classes="CkanChip" Content="按模组"
+          <TextBlock Text="{DynamicResource Ui_DownloadStatsPage_GroupBy}" VerticalAlignment="Center" Margin="0,0,8,0" Classes="CkanCaption" />
+          <Button Classes="CkanChip" Content="{DynamicResource Ui_DownloadStatsPage_GroupByMod}"
                   Classes.Active="{Binding Dimension, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter=Mods}"
                   Command="{Binding SwitchDimensionCommand}"
                   CommandParameter="{x:Static dtos:DownloadStatsDimension.Mods}" />
-          <Button Classes="CkanChip" Content="按标签"
+          <Button Classes="CkanChip" Content="{DynamicResource Ui_DownloadStatsPage_GroupByLabel}"
                   Classes.Active="{Binding Dimension, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter=Tags}"
                   Command="{Binding SwitchDimensionCommand}"
                   CommandParameter="{x:Static dtos:DownloadStatsDimension.Tags}" />
-          <Button Classes="CkanChip" Content="按安装状态"
+          <Button Classes="CkanChip" Content="{DynamicResource Ui_DownloadStatsPage_GroupByInstallState}"
                   Classes.Active="{Binding Dimension, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter=Installed}"
                   Command="{Binding SwitchDimensionCommand}"
                   CommandParameter="{x:Static dtos:DownloadStatsDimension.Installed}" />
-          <Button Classes="CkanChip" Content="按仓库"
+          <Button Classes="CkanChip" Content="{DynamicResource Ui_DownloadStatsPage_GroupByRepo}"
                   Classes.Active="{Binding Dimension, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter=Repositories}"
                   Command="{Binding SwitchDimensionCommand}"
                   CommandParameter="{x:Static dtos:DownloadStatsDimension.Repositories}" />
-          <TextBlock Text="排序" VerticalAlignment="Center" Margin="16,0,8,0" Classes="CkanCaption" />
-          <Button Classes="CkanChip" Content="下载量"
+          <TextBlock Text="{DynamicResource Ui_Common_Sort}" VerticalAlignment="Center" Margin="16,0,8,0" Classes="CkanCaption" />
+          <Button Classes="CkanChip" Content="{DynamicResource Ui_DownloadStatsPage_Downloads}"
                   Classes.Active="{Binding Sort, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter=Downloads}"
                   Command="{Binding SetSortCommand}"
                   CommandParameter="{x:Static dtos:DownloadStatsSortColumn.Downloads}" />
-          <Button Classes="CkanChip" Content="缓存占用"
+          <Button Classes="CkanChip" Content="{DynamicResource Ui_DownloadStatsPage_CacheUsage}"
                   Classes.Active="{Binding Sort, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter=Cache}"
                   Command="{Binding SetSortCommand}"
                   CommandParameter="{x:Static dtos:DownloadStatsSortColumn.Cache}" />
-          <Button Classes="CkanChip" Content="名称"
+          <Button Classes="CkanChip" Content="{DynamicResource Ui_Common_Name}"
                   Classes.Active="{Binding Sort, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter=Name}"
                   Command="{Binding SetSortCommand}"
                   CommandParameter="{x:Static dtos:DownloadStatsSortColumn.Name}" />
-          <Button Content="刷新" Command="{Binding RefreshCommand}"
+          <Button Content="{DynamicResource Ui_Common_Refresh}" Command="{Binding RefreshCommand}"
                   Classes="CkanPrimary" Margin="16,0,0,0"
-                  ToolTip.Tip="重新读取仓库索引与缓存清单" />
+                  ToolTip.Tip="{DynamicResource Ui_DownloadStatsPage_Refresh_Tip}" />
         </WrapPanel>
       </StackPanel>
     </Border>
@@ -77,28 +77,30 @@
     <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12" Margin="0,12,0,0">
       <Border Classes="CkanStatCard" MinWidth="168">
         <StackPanel Spacing="4">
-          <TextBlock Classes="CkanEyebrow" Text="模组数" />
+          <TextBlock Classes="CkanEyebrow" Text="{DynamicResource Ui_DownloadStatsPage_ModCount}" />
           <TextBlock Classes="CkanNumeric" FontSize="{DynamicResource CkanFontSizeHeading}"
                      Text="{Binding ModuleCountText}" />
         </StackPanel>
       </Border>
       <Border Classes="CkanStatCard" MinWidth="168">
         <StackPanel Spacing="4">
-          <TextBlock Classes="CkanEyebrow" Text="下载合计" />
+          <TextBlock Classes="CkanEyebrow" Text="{DynamicResource Ui_DownloadStatsPage_TotalDownloads}" />
           <TextBlock Classes="CkanNumeric" FontSize="{DynamicResource CkanFontSizeHeading}"
                      Text="{Binding TotalDownloadsText}" />
         </StackPanel>
       </Border>
       <Border Classes="CkanStatCard" MinWidth="168">
         <StackPanel Spacing="4">
-          <TextBlock Classes="CkanEyebrow" Text="缓存合计" />
+          <TextBlock Classes="CkanEyebrow" Text="{DynamicResource Ui_DownloadStatsPage_TotalCache}" />
           <TextBlock Classes="CkanNumeric" FontSize="{DynamicResource CkanFontSizeHeading}"
                      Text="{Binding CacheTotalText}" />
         </StackPanel>
       </Border>
-      <TextBlock Classes="CkanCaption" Text="{Binding TakenAt, StringFormat='统计于 {0:HH:mm:ss}'}"
-                 IsVisible="{Binding TakenAt, Converter={x:Static ObjectConverters.IsNotNull}}"
-                 VerticalAlignment="Bottom" Margin="4,0,0,4" />
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" Margin="4,0,0,4"
+                  IsVisible="{Binding TakenAt, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <TextBlock Classes="CkanCaption" Text="{DynamicResource Ui_DownloadStatsPage_StatsAtPrefix}" />
+        <TextBlock Classes="CkanCaption" Text="{Binding TakenAt, StringFormat=' {0:HH:mm:ss}'}" />
+      </StackPanel>
     </StackPanel>
 
     <!-- 页面级错误条 -->
@@ -116,8 +118,8 @@
                    Foreground="{DynamicResource CkanDangerBrush}" VerticalAlignment="Center" />
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
                     VerticalAlignment="Center" Margin="12,0,0,0">
-          <Button Content="重试" Command="{Binding RefreshCommand}" Classes="CkanSmall"
-                  ToolTip.Tip="重新读取仓库索引与缓存清单" />
+          <Button Content="{DynamicResource Ui_Common_Retry}" Command="{Binding RefreshCommand}" Classes="CkanSmall"
+                  ToolTip.Tip="{DynamicResource Ui_DownloadStatsPage_Refresh_Tip}" />
         </StackPanel>
       </Grid>
     </Border>
@@ -131,7 +133,7 @@
           <controls:DonutChart Height="180" RingThickness="22"
                                Slices="{Binding ChartSlices}"
                                CenterText="{Binding ModuleCountText}"
-                               CenterCaption="个模组" />
+                               CenterCaption="{DynamicResource Ui_DownloadStatsPage_ModsUnit}" />
           <ScrollViewer Grid.Row="1" Margin="0,12,0,0">
             <ItemsControl ItemsSource="{Binding Slices}">
               <ItemsControl.ItemTemplate>
@@ -155,7 +157,7 @@
         <Border Grid.Row="0" Margin="0,0,0,12" Classes="CkanInfoBanner"
                 Background="{DynamicResource CkanWarningBackgroundBrush}"
                 BorderBrush="{DynamicResource CkanWarningBrush}" BorderThickness="1"
-                ToolTip.Tip="部分模组没有下载量数据（多为本地或刚入库的模组），这些行按 0 计。"
+                ToolTip.Tip="{DynamicResource Ui_DownloadStatsPage_MissingDownloads_Tip}"
                 IsVisible="{Binding HasUnavailableDownloads}">
           <Grid ColumnDefinitions="Auto,*">
             <PathIcon Grid.Column="0"
@@ -179,9 +181,9 @@
                     HeadersVisibility="Column"
                     IsVisible="{Binding !ShowEmptyState}">
             <DataGrid.Columns>
-              <DataGridTextColumn Header="模组" Binding="{Binding Name}" Width="260" />
-              <DataGridTextColumn Header="标识符" Binding="{Binding Identifier}" Width="220" />
-              <DataGridTemplateColumn Header="下载量" Width="190">
+              <DataGridTextColumn Header="{DynamicResource Ui_DownloadStats_DimensionMods}" Binding="{Binding Name}" Width="260" />
+              <DataGridTextColumn Header="{DynamicResource Ui_Common_Identifier}" Binding="{Binding Identifier}" Width="220" />
+              <DataGridTemplateColumn Header="{DynamicResource Ui_DownloadStatsPage_Downloads}" Width="190">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
                     <!-- 同列内给下载量一条相对条：一眼看出头部模组与长尾的差距 -->
@@ -197,8 +199,8 @@
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
-              <DataGridTextColumn Header="缓存" Binding="{Binding CacheText}" Width="90" />
-              <DataGridTextColumn Header="状态" Binding="{Binding InstalledText}" Width="80" />
+              <DataGridTextColumn Header="{DynamicResource Ui_Common_Cache}" Binding="{Binding CacheText}" Width="90" />
+              <DataGridTextColumn Header="{DynamicResource Ui_Common_Status}" Binding="{Binding InstalledText}" Width="80" />
             </DataGrid.Columns>
           </DataGrid>
 
@@ -213,12 +215,12 @@
           <Border Classes="CkanIconTile Lg" HorizontalAlignment="Center">
             <PathIcon Data="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z" />
           </Border>
-          <TextBlock Text="还没有可统计的模组" HorizontalAlignment="Center"
+          <TextBlock Text="{DynamicResource Ui_DownloadStatsPage_EmptyTitle}" HorizontalAlignment="Center"
                      FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
                      Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-          <TextBlock Text="先刷新仓库索引，或到仓库页添加索引后重试。"
+          <TextBlock Text="{DynamicResource Ui_DownloadStatsPage_EmptySubtitle}"
                      TextWrapping="Wrap" TextAlignment="Center" Classes="CkanCaption" />
-          <Button Content="刷新" Command="{Binding RefreshCommand}"
+          <Button Content="{DynamicResource Ui_Common_Refresh}" Command="{Binding RefreshCommand}"
                   Classes="CkanPrimary" HorizontalAlignment="Center" />
         </StackPanel>
       </Border>
@@ -237,7 +239,7 @@
         </StackPanel>
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="360">
           <ProgressBar IsIndeterminate="True" Width="240" />
-          <TextBlock Text="正在统计下载量…" TextAlignment="Center" TextWrapping="Wrap"
+          <TextBlock Text="{DynamicResource Ui_DownloadStatsPage_Computing}" TextAlignment="Center" TextWrapping="Wrap"
                      FontSize="{DynamicResource CkanFontSizeBody}"
                      Foreground="{DynamicResource CkanTextInverseBrush}" />
         </StackPanel>

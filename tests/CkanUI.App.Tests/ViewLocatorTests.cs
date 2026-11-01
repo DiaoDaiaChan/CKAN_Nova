@@ -31,6 +31,7 @@ public sealed class ViewLocatorTests
         Assert.That(ViewLocator.ResolveViewType(typeof(DedupPageViewModel))?.FullName, Is.EqualTo("CkanUI.App.Views.DedupPageView"));
         Assert.That(ViewLocator.ResolveViewType(typeof(InstallHistoryPageViewModel))?.FullName, Is.EqualTo("CkanUI.App.Views.InstallHistoryPageView"));
         Assert.That(ViewLocator.ResolveViewType(typeof(PluginsPageViewModel))?.FullName, Is.EqualTo("CkanUI.App.Views.PluginsPageView"));
+        Assert.That(ViewLocator.ResolveViewType(typeof(HomePageViewModel))?.FullName, Is.EqualTo("CkanUI.App.Views.HomePageView"));
 
         Assert.That(
             ViewLocator.ResolveViewType(typeof(ModConfigPageViewModel))?.FullName,

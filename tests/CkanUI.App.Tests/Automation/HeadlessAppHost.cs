@@ -26,10 +26,17 @@ public static class HeadlessAppHost
             var testConfig = Path.Combine(tempDir, "config.json");
             Environment.SetEnvironmentVariable("CKAN_CONFIG_FILE", testConfig);
 
+            // Skia 的原生库跟着测试程序集放在 runtimes/<rid>/native 下；TestRunner 宿主的
+            // 输出目录里没有它，原生解析会退到 PATH，可能命中机器上某个旧版 libSkiaSharp。
+            // 把测试程序集旁边的原生目录提到 PATH 最前面，让真渲染加载到配套的版本。
+            PrependNativeAssetDirectory();
+
             AppBuilder.Configure<App>()
+                .UseSkia()
                 .UseHeadless(new AvaloniaHeadlessPlatformOptions
                 {
-                    UseHeadlessDrawing = true
+                    // 关掉桩渲染器：改用 Skia 真渲染，测试才能用 CaptureRenderedFrame 拿到像素。
+                    UseHeadlessDrawing = false
                 })
                 .SetupWithoutStarting();
 
@@ -40,6 +47,28 @@ public static class HeadlessAppHost
     /// <summary>
     /// 在无头模式下创建一个托管指定内容的测试窗口，并完成首帧布局与任务排空。
     /// </summary>
+    private static void PrependNativeAssetDirectory()
+    {
+        var rid = System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier;
+        var assemblyDirectory = Path.GetDirectoryName(typeof(HeadlessAppHost).Assembly.Location);
+        if (assemblyDirectory is null)
+        {
+            return;
+        }
+
+        var nativeDirectory = Path.Combine(assemblyDirectory, "runtimes", rid, "native");
+        if (!Directory.Exists(nativeDirectory))
+        {
+            return;
+        }
+
+        var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        if (!path.Contains(nativeDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            Environment.SetEnvironmentVariable("PATH", nativeDirectory + Path.PathSeparator + path);
+        }
+    }
+
     public static Window CreateTestWindow(Control content, double width = 1280, double height = 800)
     {
         EnsureInitialized();

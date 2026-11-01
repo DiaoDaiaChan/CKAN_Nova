@@ -42,13 +42,13 @@
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Grid.Column="0" Spacing="4">
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <TextBlock Text="安装历史" Classes="CkanPageTitle" VerticalAlignment="Center" />
+          <TextBlock Text="{DynamicResource Ui_NavRail_InstallHistory}" Classes="CkanPageTitle" VerticalAlignment="Center" />
           <Button Classes="CkanHelper" VerticalAlignment="Center"
-                  ToolTip.Tip="每次安装、卸载、升级都会记录快照。选中某条历史可将其重装恢复；是否卸载快照之外的模组由工具条上的勾选项决定。">
+                  ToolTip.Tip="{DynamicResource Ui_InstallHistoryPage_Header_Tip}">
             <PathIcon Data="{StaticResource CkanIconHelp}" />
           </Button>
         </StackPanel>
-        <TextBlock Text="按时间点回退已装集合"
+        <TextBlock Text="{DynamicResource Ui_InstallHistoryPage_Subtitle}"
                    Classes="CkanCaption" TextWrapping="Wrap" />
       </StackPanel>
       <!-- 没有实例时这句由页面级空态卡承担，页头不再重复一遍 -->
@@ -63,26 +63,26 @@
     <Border Grid.Row="1" Classes="CkanToolbar stagger-card">
       <StackPanel Spacing="8">
         <WrapPanel Orientation="Horizontal">
-          <Button Content="刷新" Command="{Binding LoadCommand}"
+          <Button Content="{DynamicResource Ui_Common_Refresh}" Command="{Binding LoadCommand}"
                   IsEnabled="{Binding IsIdle}" Classes="CkanPrimary" Margin="0,0,8,0"
-                  ToolTip.Tip="重新读取当前实例的 install_history.jsonl" />
-          <Button Content="从历史重装" Command="{Binding RestoreCommand}"
+                  ToolTip.Tip="{DynamicResource Ui_InstallHistoryPage_Refresh_Tip}" />
+          <Button Content="{DynamicResource Ui_InstallHistoryPage_ReinstallFromHistory}" Command="{Binding RestoreCommand}"
                   IsEnabled="{Binding CanRestore}" Classes="CkanSecondary" Margin="0,0,8,0"
-                  ToolTip.Tip="把当前实例的已装集合回退到左侧选中的时间点（走变更集 + 安装流水线）" />
-          <Button Content="删除选中" Command="{Binding DeleteSelectedCommand}"
+                  ToolTip.Tip="{DynamicResource Ui_InstallHistoryPage_Reinstall_Tip}" />
+          <Button Content="{DynamicResource Ui_CachePage_DeleteSelected}" Command="{Binding DeleteSelectedCommand}"
                   IsEnabled="{Binding CanDeleteSelected}" Classes="CkanDanger" Margin="0,0,8,0"
-                  ToolTip.Tip="删除左侧选中的这一条历史（连同它的已装集合快照，不可撤销）" />
-          <Button Content="清空历史" Command="{Binding ClearHistoryCommand}"
+                  ToolTip.Tip="{DynamicResource Ui_InstallHistoryPage_Delete_Tip}" />
+          <Button Content="{DynamicResource Ui_InstallHistoryPage_ClearAll}" Command="{Binding ClearHistoryCommand}"
                   IsEnabled="{Binding CanClearHistory}" Classes="CkanDanger" Margin="0,0,16,0"
-                  ToolTip.Tip="清空当前实例的全部安装历史（不可撤销，会先弹确认）" />
+                  ToolTip.Tip="{DynamicResource Ui_InstallHistoryPage_ClearAll_Tip}" />
         </WrapPanel>
         <!-- 重装的附加开关：勾上才把快照之外的模组也卸掉（默认只按快照里的模组算变更）。
              只在选中了某条历史时出现——没有选中项时这个开关没有作用对象。 -->
-        <CheckBox Content="同时卸载快照之外的模组"
+        <CheckBox Content="{DynamicResource Ui_InstallHistoryPage_UninstallOthers}"
                   IsChecked="{Binding RemoveExtras, Mode=TwoWay}"
                   IsVisible="{Binding HasSelection}"
                   IsEnabled="{Binding HasSelection}"
-                  ToolTip.Tip="勾选后，重装会卸载当前实例里不在该快照中的模组（这些模组及其文件会被删除，无法撤销）；不勾选时只按快照里的模组计算变更。" />
+                  ToolTip.Tip="{DynamicResource Ui_InstallHistoryPage_UninstallOthers_Tip}" />
         <TextBlock Text="{Binding RestoreHintText}" TextWrapping="Wrap" Classes="CkanCaption"
                    Foreground="{DynamicResource CkanTextTertiaryBrush}" IsVisible="{Binding HasActiveInstance}" />
         <StackPanel Spacing="4" IsVisible="{Binding HasProgress}">
@@ -113,8 +113,8 @@
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
                     VerticalAlignment="Center" Margin="12,0,0,0">
-          <Button Content="重试" Command="{Binding LoadCommand}" IsEnabled="{Binding IsIdle}"
-                  Classes="CkanSmall" ToolTip.Tip="重新读取安装历史" />
+          <Button Content="{DynamicResource Ui_Common_Retry}" Command="{Binding LoadCommand}" IsEnabled="{Binding IsIdle}"
+                  Classes="CkanSmall" ToolTip.Tip="{DynamicResource Ui_InstallHistoryPage_ReloadHistory_Tip}" />
         </StackPanel>
       </Grid>
     </Border>
@@ -129,14 +129,14 @@
           <Border Classes="CkanIconTile Lg Muted" HorizontalAlignment="Center">
             <PathIcon Data="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" />
           </Border>
-          <TextBlock Text="还没有选中的游戏实例" HorizontalAlignment="Center"
+          <TextBlock Text="{DynamicResource Ui_InstallHistoryPage_NoInstanceTitle}" HorizontalAlignment="Center"
                      FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
                      Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-          <TextBlock Text="先到「实例」页选中一个 KSP 安装。"
+          <TextBlock Text="{DynamicResource Ui_InstallHistoryPage_NoInstanceSubtitle}"
                      TextWrapping="Wrap" TextAlignment="Center"
                      FontSize="{DynamicResource CkanFontSizeBody}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <Button Content="前往实例页" Classes="CkanSecondary" HorizontalAlignment="Center"
+          <Button Content="{DynamicResource Ui_ModConfigPage_GoToInstancesPage}" Classes="CkanSecondary" HorizontalAlignment="Center"
                   Command="{Binding $parent[Window].DataContext.NavigateCommand}"
                   CommandParameter="instances" />
         </StackPanel>
@@ -148,8 +148,8 @@
                   Background="{DynamicResource CkanSubtleBackgroundBrush}"
                   BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Grid.Column="0" Text="时间点 / 操作 / 结果" Classes="CkanCaption" />
-              <TextBlock Grid.Column="1" Text="变更数" Classes="CkanCaption" />
+              <TextBlock Grid.Column="0" Text="{DynamicResource Ui_InstallHistoryPage_ColTimeOpResult}" Classes="CkanCaption" />
+              <TextBlock Grid.Column="1" Text="{DynamicResource Ui_InstallHistoryPage_ColChanges}" Classes="CkanCaption" />
             </Grid>
           </Border>
 
@@ -187,7 +187,7 @@
                                  TextTrimming="CharacterEllipsis"
                                  Foreground="{DynamicResource CkanTextPrimaryBrush}" />
                       <Border Grid.Column="1" Classes="CkanBadge Danger" IsVisible="{Binding IsFailure}">
-                        <TextBlock Text="失败" />
+                        <TextBlock Text="{DynamicResource Ui_Common_Failed}" />
                       </Border>
                     </Grid>
                     <TextBlock Text="{Binding SummaryText}" TextTrimming="CharacterEllipsis"
@@ -210,15 +210,15 @@
               <Border Classes="CkanIconTile Lg" HorizontalAlignment="Center">
                 <PathIcon Data="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" />
               </Border>
-              <TextBlock Text="还没有安装历史" HorizontalAlignment="Center"
+              <TextBlock Text="{DynamicResource Ui_InstallHistoryPage_EmptyTitle}" HorizontalAlignment="Center"
                          FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
                          Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-              <TextBlock Text="装卸或升级模组后，这里会自动记一条。"
-                         ToolTip.Tip="每条记录都带当时的已装集合快照，选中后可以按它整体回退。"
+              <TextBlock Text="{DynamicResource Ui_InstallHistoryPage_EmptySubtitle}"
+                         ToolTip.Tip="{DynamicResource Ui_InstallHistoryPage_EmptyHint_Tip}"
                          TextWrapping="Wrap" TextAlignment="Center"
                          FontSize="{DynamicResource CkanFontSizeBody}"
                          Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-              <Button Content="刷新" Command="{Binding LoadCommand}"
+              <Button Content="{DynamicResource Ui_Common_Refresh}" Command="{Binding LoadCommand}"
                       IsEnabled="{Binding IsIdle}"
                       Classes="CkanPrimary" HorizontalAlignment="Center" />
             </StackPanel>
@@ -249,10 +249,10 @@
               <Border Classes="CkanIconTile Lg Muted" HorizontalAlignment="Center">
                 <PathIcon Data="M4 5h16v2H4V5zm0 6h16v2H4v-2zm0 6h10v2H4v-2z" />
               </Border>
-              <TextBlock Text="未选择历史记录" HorizontalAlignment="Center"
+              <TextBlock Text="{DynamicResource Ui_InstallHistory_Selection_None}" HorizontalAlignment="Center"
                          FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
                          Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-              <TextBlock Text="先到「实例」页选中一个 KSP 实例，安装历史才有可读的来源。"
+              <TextBlock Text="{DynamicResource Ui_InstallHistoryPage_SelectInstanceFirst_Tip}"
                          TextWrapping="Wrap" TextAlignment="Center"
                          FontSize="{DynamicResource CkanFontSizeBody}"
                          Foreground="{DynamicResource CkanTextSecondaryBrush}"
@@ -269,7 +269,7 @@
                   <TextBlock Text="{Binding InstalledGroupTitle}" Classes="CkanSectionTitle"
                              VerticalAlignment="Center" />
                   <Border Classes="CkanBadge Success" VerticalAlignment="Center">
-                    <TextBlock Text="已装" />
+                    <TextBlock Text="{DynamicResource Ui_ManageMods_FilterInstalled}" />
                   </Border>
                 </StackPanel>
                 <ItemsControl ItemsSource="{Binding InstalledModules}">
@@ -298,7 +298,7 @@
                   <TextBlock Text="{Binding MissingGroupTitle}" Classes="CkanSectionTitle"
                              VerticalAlignment="Center" />
                   <Border Classes="CkanBadge Warning" VerticalAlignment="Center">
-                    <TextBlock Text="待补装" />
+                    <TextBlock Text="{DynamicResource Ui_InstallHistoryPage_PendingReinstall}" />
                   </Border>
                 </StackPanel>
                 <ItemsControl ItemsSource="{Binding MissingModules}">

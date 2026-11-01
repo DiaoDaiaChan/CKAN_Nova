@@ -1,0 +1,493 @@
+<dialogs:DialogWindow xmlns="https://github.com/avaloniaui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:dialogs="clr-namespace:CkanUI.App.Views.Dialogs"
+                       xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+                       x:Class="CkanUI.App.Views.Dialogs.FirstRunWizardView"
+                       x:DataType="vm:FirstRunWizardViewModel"
+                       Title="{Binding WindowTitle}"
+                       Width="980"
+                       Height="672">
+
+  <dialogs:DialogWindow.Styles>
+    <!-- 当前步骤：文字提亮加粗，眼睛扫一眼就落在这一行 -->
+    <Style Selector="TextBlock.step-label">
+      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.step-label.current">
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <!-- 候选目录卡：选中即整行染强调色，避免只看小圆圈判断选没选 -->
+    <Style Selector="Border.candidate">
+      <Setter Property="Padding" Value="12,10" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+      <Setter Property="Background" Value="{DynamicResource CkanCardBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.candidate.selected">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    </Style>
+    <!-- 步骤内的小卡片 -->
+    <Style Selector="Border.panel">
+      <Setter Property="Padding" Value="18" />
+      <Setter Property="Background" Value="{DynamicResource CkanCardBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusLarge}" />
+    </Style>
+  </dialogs:DialogWindow.Styles>
+
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- 头部：一句话说清这是什么，右侧给进度感 -->
+    <Border Grid.Row="0"
+            Padding="24,18"
+            Background="{DynamicResource CkanLayerSurfaceBrush}"
+            BorderBrush="{DynamicResource CkanHairlineBrush}"
+            BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+        <StackPanel Grid.Column="0" Spacing="4">
+          <TextBlock Text="{Binding WindowTitle}"
+                     FontSize="{DynamicResource CkanFontSizeHeading}"
+                     FontWeight="SemiBold"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="{Binding WizardSubtitle}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+        <TextBlock Grid.Column="1"
+                   Text="{Binding StepCounter}"
+                   VerticalAlignment="Center"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+      </Grid>
+    </Border>
+
+    <!-- 主体：左侧步骤轨（随时知道走到哪）+ 右侧单步舞台 -->
+    <Grid Grid.Row="1" ColumnDefinitions="248,*">
+
+      <Border Grid.Column="0"
+              Padding="20,18"
+              Background="{DynamicResource CkanSubtleBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanHairlineBrush}"
+              BorderThickness="0,0,1,0">
+        <ItemsControl ItemsSource="{Binding Steps}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:FirstRunStepItemViewModel">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Margin="0,7">
+                <Border Grid.Column="0"
+                        Classes="CkanStepDot"
+                        Classes.Active="{Binding IsCurrent}">
+                  <TextBlock Text="{Binding Marker}" />
+                </Border>
+                <TextBlock Grid.Column="1"
+                           Classes="step-label"
+                           Classes.current="{Binding IsCurrent}"
+                           Text="{Binding Title}" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Border>
+
+      <ScrollViewer Grid.Column="1"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="20">
+
+          <!-- ① 欢迎 -->
+          <StackPanel IsVisible="{Binding IsWelcomeStep}" Spacing="14" MaxWidth="620" HorizontalAlignment="Left">
+            <TextBlock Text="{Binding WelcomeTitle}"
+                       FontSize="{DynamicResource CkanFontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding WelcomeBody}"
+                       FontSize="{DynamicResource CkanFontSizeBody}"
+                       LineHeight="{DynamicResource CkanFontSizeSubtitle}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                       TextWrapping="Wrap" />
+            <Border Classes="panel">
+              <TextBlock Text="{Binding WelcomeNote}"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                         TextWrapping="Wrap" />
+            </Border>
+          </StackPanel>
+
+          <!-- ② 找到游戏 -->
+          <StackPanel IsVisible="{Binding IsLocateStep}" Spacing="12">
+            <TextBlock Text="{Binding LocateBody}"
+                       FontSize="{DynamicResource CkanFontSizeBody}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                       TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="{Binding RescanText}"
+                      Command="{Binding ScanCommand}"
+                      Classes="CkanSecondary"
+                      IsEnabled="{Binding !IsScanning}" />
+              <Button Content="{Binding BrowseText}"
+                      Command="{Binding BrowseCommand}"
+                      Classes="CkanSecondary" />
+              <TextBlock Text="{Binding LocateScanning}"
+                         IsVisible="{Binding IsScanning}"
+                         VerticalAlignment="Center"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            </StackPanel>
+
+            <Border Classes="CkanEmptyStateCard" IsVisible="{Binding HasNoCandidates}">
+              <TextBlock Text="{Binding LocateEmpty}"
+                         FontSize="{DynamicResource CkanFontSizeBody}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         HorizontalAlignment="Center" />
+            </Border>
+
+            <ItemsControl ItemsSource="{Binding Candidates}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="8" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:KspCandidateItemViewModel">
+                  <Border Classes="candidate" Classes.selected="{Binding IsSelected}">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                      <RadioButton Grid.Column="0"
+                                   VerticalAlignment="Center"
+                                   IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                      <StackPanel Grid.Column="1" Spacing="2">
+                        <TextBlock Text="{Binding FolderName}"
+                                   FontSize="{DynamicResource CkanFontSizeBody}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                        <TextBlock Text="{Binding GameDir}"
+                                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                                   Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                   TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="2" Spacing="2">
+                        <TextBlock Text="{Binding SourceLabel}"
+                                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                   HorizontalAlignment="Right" />
+                        <TextBlock Text="{Binding VersionText}"
+                                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                                   Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                   HorizontalAlignment="Right" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <!-- ③ 下载代理 -->
+          <StackPanel IsVisible="{Binding IsProxyStep}" Spacing="12" MaxWidth="640" HorizontalAlignment="Left">
+            <TextBlock Text="{Binding ProxyBody}"
+                       FontSize="{DynamicResource CkanFontSizeBody}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                       TextWrapping="Wrap" />
+            <Border Classes="panel">
+              <StackPanel Spacing="12">
+                <RadioButton Content="{Binding ProxyModeSystemText}"
+                             GroupName="first-run-proxy"
+                             IsChecked="{Binding IsProxySystem, Mode=TwoWay}" />
+                <RadioButton Content="{Binding ProxyModeDirectText}"
+                             GroupName="first-run-proxy"
+                             IsChecked="{Binding IsProxyDirect, Mode=TwoWay}" />
+                <RadioButton Content="{Binding ProxyModeManualText}"
+                             GroupName="first-run-proxy"
+                             IsChecked="{Binding IsProxyManual, Mode=TwoWay}" />
+
+                <StackPanel Spacing="10" IsVisible="{Binding IsManualProxy}">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding ProxyServerLabel}"
+                               FontSize="{DynamicResource CkanFontSizeCaption}"
+                               Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    <TextBox Text="{Binding ProxyServer, Mode=TwoWay}"
+                             PlaceholderText="{Binding ProxyServerPlaceholder}" />
+                  </StackPanel>
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding ProxyBypassLabel}"
+                               FontSize="{DynamicResource CkanFontSizeCaption}"
+                               Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    <TextBox Text="{Binding ProxyBypass, Mode=TwoWay}"
+                             PlaceholderText="{Binding ProxyBypassPlaceholder}" />
+                  </StackPanel>
+                </StackPanel>
+
+                <Button Content="{Binding ProxyTestText}"
+                        Command="{Binding TestProxyCommand}"
+                        Classes="CkanSecondary"
+                        HorizontalAlignment="Left"
+                        IsEnabled="{Binding !IsTestingProxy}" />
+
+                <TextBlock Text="{Binding ProxyTestResult}"
+                           IsVisible="{Binding ProxyTestResult, Converter={x:Static ObjectConverters.IsNotNull}}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <!-- ④ 兼容版本 -->
+          <StackPanel IsVisible="{Binding IsVersionStep}" Spacing="12">
+            <TextBlock Text="{Binding VersionBody}"
+                       FontSize="{DynamicResource CkanFontSizeBody}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                       TextWrapping="Wrap" />
+            <ItemsControl ItemsSource="{Binding VersionItems}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="6" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:FirstRunVersionItemViewModel">
+                  <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <CheckBox Grid.Column="0"
+                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                              IsEnabled="{Binding IsEditable}" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding VersionString}"
+                               VerticalAlignment="Center"
+                               FontSize="{DynamicResource CkanFontSizeBody}"
+                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                    <Border Grid.Column="2"
+                            Classes="CkanBadge"
+                            IsVisible="{Binding IsRealVersion}"
+                            VerticalAlignment="Center">
+                      <TextBlock Text="{Binding RealLabel}"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+                    </Border>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <!-- ⑤ 元数据缓存 -->
+          <StackPanel IsVisible="{Binding IsMetadataStep}" Spacing="12">
+            <TextBlock Text="{Binding MetadataBody}"
+                       FontSize="{DynamicResource CkanFontSizeBody}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                       TextWrapping="Wrap" />
+            <Border Classes="panel">
+              <StackPanel Spacing="10">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Content="{Binding RetryText}"
+                          Command="{Binding RefreshIndexCommand}"
+                          Classes="CkanSecondary"
+                          IsEnabled="{Binding !IsRefreshingIndex}" />
+                  <ProgressBar IsIndeterminate="True"
+                               IsVisible="{Binding IsRefreshingIndex}"
+                               VerticalAlignment="Center"
+                               MinWidth="160"
+                               MinHeight="{DynamicResource CkanControlHeightSmall}" />
+                </StackPanel>
+                <TextBlock Text="{Binding IndexSummary}"
+                           FontSize="{DynamicResource CkanFontSizeBody}"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="{Binding MetadataSkipHint}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <!-- ⑥ 装机必备（全部可选，默认不勾） -->
+          <StackPanel IsVisible="{Binding IsModsStep}" Spacing="12">
+            <TextBlock Text="{Binding ModsBody}"
+                       FontSize="{DynamicResource CkanFontSizeBody}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                       TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="{Binding SelectAllText}"
+                      Command="{Binding SelectAllModsCommand}"
+                      Classes="CkanSecondary" />
+              <Button Content="{Binding ClearText}"
+                      Command="{Binding ClearModsCommand}"
+                      Classes="CkanSecondary" />
+            </StackPanel>
+            <ItemsControl ItemsSource="{Binding RecommendedMods}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="6" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RecommendedModItemViewModel">
+                  <Border Classes="candidate" Padding="12,8">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                      <CheckBox Grid.Column="0"
+                                VerticalAlignment="Top"
+                                IsChecked="{Binding IsChecked, Mode=TwoWay}" />
+                      <StackPanel Grid.Column="1" Spacing="2">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <TextBlock Text="{Binding Name}"
+                                     FontSize="{DynamicResource CkanFontSizeBody}"
+                                     FontWeight="SemiBold"
+                                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                          <TextBlock Text="{Binding Identifier}"
+                                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                                     Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                     VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Summary}"
+                                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="{Binding ModsInstallSummary}"
+                       IsVisible="{Binding ModsInstallSummary, Converter={x:Static ObjectConverters.IsNotNull}}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+
+          <!-- ⑦ 完成 -->
+          <StackPanel IsVisible="{Binding IsDoneStep}" Spacing="14" MaxWidth="640" HorizontalAlignment="Left">
+            <TextBlock Text="{Binding DoneTitle}"
+                       FontSize="{DynamicResource CkanFontSizeTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding DoneBody}"
+                       FontSize="{DynamicResource CkanFontSizeBody}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <Border Classes="panel">
+              <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*" RowSpacing="10" ColumnSpacing="16">
+                <TextBlock Grid.Row="0" Grid.Column="0"
+                           Text="{Binding DoneInstanceLabel}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Row="0" Grid.Column="1"
+                           Text="{Binding SummaryInstance}"
+                           FontSize="{DynamicResource CkanFontSizeBody}"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                           TextWrapping="Wrap" />
+
+                <TextBlock Grid.Row="1" Grid.Column="0"
+                           Text="{Binding DoneProxyLabel}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Row="1" Grid.Column="1"
+                           Text="{Binding SummaryProxy}"
+                           FontSize="{DynamicResource CkanFontSizeBody}"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                           TextWrapping="Wrap" />
+
+                <TextBlock Grid.Row="2" Grid.Column="0"
+                           Text="{Binding DoneIndexLabel}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Row="2" Grid.Column="1"
+                           Text="{Binding SummaryIndex}"
+                           FontSize="{DynamicResource CkanFontSizeBody}"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                           TextWrapping="Wrap" />
+
+                <TextBlock Grid.Row="3" Grid.Column="0"
+                           Text="{Binding DoneModsLabel}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Row="3" Grid.Column="1"
+                           Text="{Binding SummaryMods}"
+                           FontSize="{DynamicResource CkanFontSizeBody}"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                           TextWrapping="Wrap" />
+              </Grid>
+            </Border>
+            <TextBlock Text="{Binding DoneTip}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+
+        </Grid>
+      </ScrollViewer>
+    </Grid>
+
+    <!-- 底部：错误与状态贴在操作区旁边，不让人翻回去找原因 -->
+    <Border Grid.Row="2"
+            Padding="24,14"
+            Background="{DynamicResource CkanLayerSurfaceBrush}"
+            BorderBrush="{DynamicResource CkanHairlineBrush}"
+            BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+        <Button Grid.Column="0"
+                Content="{Binding ExitText}"
+                Command="{Binding CancelWizardCommand}"
+                Classes="CkanSecondary"
+                IsEnabled="{Binding !IsBusy}" />
+
+        <Grid Grid.Column="1" VerticalAlignment="Center">
+          <StackPanel Spacing="4">
+            <Border IsVisible="{Binding HasError}"
+                    Padding="10,6"
+                    CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                    Background="{DynamicResource CkanDangerBackgroundBrush}"
+                    BorderBrush="{DynamicResource CkanDangerBrush}"
+                    BorderThickness="1">
+              <TextBlock Text="{Binding ErrorText}"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanDangerBrush}"
+                         TextWrapping="Wrap" />
+            </Border>
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsBusy}">
+              <ProgressBar IsIndeterminate="True"
+                           MinHeight="{DynamicResource CkanControlHeightSmall}"
+                           MinWidth="120"
+                           VerticalAlignment="Center" />
+              <TextBlock Text="{Binding BusyText}"
+                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Text="{Binding StatusText}"
+                       IsVisible="{Binding HasStatus}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+          <Button Content="{Binding BackText}"
+                  Command="{Binding BackCommand}"
+                  Classes="CkanSecondary"
+                  IsEnabled="{Binding CanGoBack}" />
+          <Button Content="{Binding NextButtonText}"
+                  Command="{Binding NextCommand}"
+                  Classes="CkanPrimary"
+                  IsDefault="True"
+                  MinWidth="112"
+                  IsEnabled="{Binding !IsBusy}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</dialogs:DialogWindow>

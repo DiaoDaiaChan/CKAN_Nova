@@ -2,10 +2,53 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="using:FluentAvalonia.UI.Controls"
         xmlns:uip="using:FluentAvalonia.UI.Controls.Primitives"
-        xmlns:dialogs="using:CkanUI.App.Views.Dialogs">
-  <!-- 全局字体回退链：从 Window 继承到子控件，避免 CJK 文案退化为方框。 -->
+        xmlns:dialogs="using:CkanUI.App.Views.Dialogs"
+        xmlns:anim="using:CkanUI.App.Animations">
+  <!-- 全局字体回退链与标准字号：从 Window 继承到子控件，统一 12px 紧凑桌面密度 -->
   <Style Selector="Window">
     <Setter Property="FontFamily" Value="{DynamicResource CkanUiFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+  </Style>
+
+  <Style Selector="TextBlock">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+  </Style>
+
+  <Style Selector=":is(Button)">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+  </Style>
+
+  <Style Selector="TextBox">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+  </Style>
+
+  <Style Selector="ComboBox">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+  </Style>
+
+  <Style Selector="DataGrid">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+  </Style>
+
+  <Style Selector="DataGridCell">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+  </Style>
+
+  <Style Selector="DataGridColumnHeader">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="MenuItem">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+  </Style>
+
+  <Style Selector="TabItem">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+  </Style>
+
+  <Style Selector="ui|FACommandBarButton">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
   </Style>
 
   <!-- 模态对话框统一背景设计令牌接入（:is 匹配所有继承自 DialogWindow 的派生窗口） -->
@@ -60,6 +103,7 @@
   <!-- 全局按钮现代化 Fluent 交互与平滑过渡动画      -->
   <!-- ========================================== -->
   <Style Selector="Button">
+    <Setter Property="Cursor" Value="Hand" />
     <Setter Property="RenderTransform" Value="none" />
     <Setter Property="Transitions">
       <Transitions>
@@ -188,8 +232,8 @@
     <Setter Property="Padding" Value="10,4" />
     <Setter Property="MinHeight" Value="28" />
     <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
-    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+    <Setter Property="Background" Value="{DynamicResource CkanGlassFillBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanGlassBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
     <Setter Property="RenderTransform" Value="none" />
@@ -606,6 +650,7 @@
     不可配时长也不吃我们的 token；这里补的是「跟手感」——点击瞬间这一行先弹一下再归位。
   -->
   <Style Selector="ui|FANavigationViewItem">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
     <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
     <Setter Property="Transitions">
       <Transitions>
@@ -648,6 +693,11 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="GridLinesVisibility" Value="None" />
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+  </Style>
+
+  <Style Selector="DataGridCell">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
   </Style>
 
   <Style Selector="DataGridColumnHeader">
@@ -692,6 +742,7 @@
   <!-- 普通列表项 (ListBoxItem) 统一现代化平滑悬浮     -->
   <!-- ========================================== -->
   <Style Selector="ListBoxItem">
+    <Setter Property="Cursor" Value="Hand" />
     <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
     <Setter Property="Margin" Value="2,1" />
     <Setter Property="Transitions">
@@ -1093,8 +1144,8 @@
   <!-- 按钮家族：主 / 次 / 幽灵 / 危险 / 图标 / 小  -->
   <!-- ========================================== -->
   <Style Selector="Button.CkanSecondary">
-    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+    <Setter Property="Background" Value="{DynamicResource CkanGlassFillBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanGlassBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
     <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
@@ -1275,8 +1326,9 @@
     <Setter Property="RenderTransform" Value="none" />
   </Style>
 
-  <!-- 悬浮帮助（Helper）：微型问号/信息图标按钮，精简界面文本并承载长提示（ToolTip） -->
+  <!-- 悬浮帮助（Helper）：默认折叠收起，去除全屏无用问号图标噪音 -->
   <Style Selector="Button.CkanHelper">
+    <Setter Property="IsVisible" Value="False" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="0" />
@@ -1892,6 +1944,39 @@
 
   <Style Selector="Slider:disabled">
     <Setter Property="Opacity" Value="0.5" />
+  </Style>
+
+  <!-- 指针交互矩阵补充（MAT / ACC-03）：勾选框手型与悬浮高亮、树节点手型与右移微动 -->
+  <Style Selector="CheckBox">
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="CheckBox:pointerover">
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <Style Selector="TreeViewItem">
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="TreeViewItem:pointerover">
+    <Setter Property="RenderTransform" Value="translate(2px, 0px)" />
+  </Style>
+
+  <!-- 图标悬浮动效：全局挂载，页面不用逐个改。指针进场抬角放大，悬停超过阈值转循环，离开落回原位。 -->
+  <Style Selector=":is(IconElement)">
+    <Setter Property="anim:IconHoverMotion.Enabled" Value="True" />
+  </Style>
+  <!-- 图标只有十几像素，热区太小；宿主整块（按钮、标签、菜单项、导航项、图标底框）都驱动自己的图标。 -->
+  <Style Selector=":is(Button), :is(ToggleButton), :is(TabItem), :is(MenuItem), ui|FANavigationViewItem, Border.CkanIconTile, Border.CkanIconHost">
+    <Setter Property="anim:IconHoverMotion.Host" Value="True" />
   </Style>
 
 </Styles>

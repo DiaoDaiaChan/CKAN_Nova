@@ -50,6 +50,8 @@ public static class ModSearchFactsFactory
             IsReplaceable = isReplaceable,
             Homepage = mod.resources?.homepage?.ToString(),
             DownloadUrl = mod.download is { Count: > 0 } ? mod.download[0].ToString() : null,
+            SpacedockUrl = mod.resources?.spacedock?.ToString()
+                ?? (mod.resources?.homepage?.ToString() is { } hp && hp.Contains("spacedock.info", StringComparison.OrdinalIgnoreCase) ? hp : null),
         };
     }
 

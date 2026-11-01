@@ -1,3 +1,4 @@
+using CkanUI.ModText;
 using CkanUI.Services.Abstractions.Dtos;
 
 namespace CkanUI.ViewModels.Pages.Mods;
@@ -8,10 +9,12 @@ namespace CkanUI.ViewModels.Pages.Mods;
 /// </summary>
 public static class ModsListPipeline
 {
-    /// <summary>对全量行应用查询、过滤器与排序。</summary>
+    /// <summary>对全量行应用查询、过滤器、主分类与排序。</summary>
     /// <param name="labels">
     /// 选中的标签组名称（12 篇 F-24）。null 或空表示不按标签过滤；多选为"或"（见 <see cref="ModsLabelFilter"/>）。
-    /// 追加在末尾并带默认值，既有调用点无需改动。
+    /// </param>
+    /// <param name="category">
+    /// 选中的核心分类 ID（如 visuals_audio, tools_utilities 等）。null 或空表示全部。
     /// </param>
     public static IReadOnlyList<ModRowData> Apply(
         IReadOnlyList<ModRowData> all,
@@ -20,7 +23,8 @@ public static class ModsListPipeline
         ModsCompatibilityFilter compatibility,
         ModsSortColumn column,
         bool ascending,
-        IReadOnlyCollection<string>? labels = null)
+        IReadOnlyCollection<string>? labels = null,
+        string? category = null)
     {
         ArgumentNullException.ThrowIfNull(all);
 
@@ -40,6 +44,20 @@ public static class ModsListPipeline
             if (!ModsLabelFilter.Matches(row, labels))
             {
                 continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(category))
+            {
+                var cat = ModTaxonomyEngine.Classify(
+                    row.Identifier,
+                    row.Name,
+                    row.Tags,
+                    row.Facts.Abstract,
+                    row.Facts.Description);
+                if (!string.Equals(cat.Id, category, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
             }
 
             matches.Add(row);

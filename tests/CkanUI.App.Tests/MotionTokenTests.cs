@@ -19,6 +19,21 @@ namespace CkanUI.App.Tests;
 [TestFixture]
 public sealed class MotionTokenTests
 {
+    [TearDown]
+    public void TearDown()
+    {
+        if (Application.Current is { } app)
+        {
+            app.Resources[MotionHost.FastKey] = TimeSpan.FromMilliseconds(90);
+            app.Resources[MotionHost.BaseKey] = TimeSpan.FromMilliseconds(150);
+            app.Resources[MotionHost.PageKey] = TimeSpan.FromMilliseconds(200);
+            app.Resources[MotionHost.SpringSoftKey] = TimeSpan.FromMilliseconds(320);
+            app.Resources[MotionHost.SpringSlideKey] = TimeSpan.FromMilliseconds(360);
+            app.Resources[MotionHost.SpringCrispKey] = TimeSpan.FromMilliseconds(250);
+            app.Resources[MotionHost.SpringImpulseKey] = TimeSpan.FromMilliseconds(450);
+        }
+    }
+
     [Test]
     public void Install_WritesThreeDurationTokens()
     {

@@ -290,4 +290,92 @@ public sealed class RelationTreeViewModelTests
         var bNode = vm.Roots[0].Children[0].Children[0];
         Assert.That(bNode.Name, Is.EqualTo("MechJeb 2 (自动驾驶仪)"));
     }
+
+    [Test]
+    public void VisualRelationNetwork_ConstructsOrbitRingsAndEdges_Correctly()
+    {
+        var vm = Create(Graph(
+            ("A", RelationKind.Depends, "Dep1"),
+            ("A", RelationKind.Recommends, "Rec1"),
+            ("A", RelationKind.Conflicts, "Conf1")),
+            new[] { "A", "Dep1", "Rec1", "Conf1" });
+
+        Assert.That(vm.IsGraphView, Is.True, "默认应开启可视化关系网");
+        Assert.That(vm.GraphNodes, Has.Count.EqualTo(4));
+        Assert.That(vm.GraphEdges, Has.Count.EqualTo(3));
+
+        var rootNode = vm.GraphNodes.First(n => n.IsRoot);
+        Assert.That(rootNode.Identifier, Is.EqualTo("A"));
+        Assert.That(rootNode.OrbitRing, Is.EqualTo(0));
+        Assert.That(rootNode.X, Is.EqualTo(0));
+        Assert.That(rootNode.Y, Is.EqualTo(0));
+
+        var depNode = vm.GraphNodes.First(n => n.Identifier == "Dep1");
+        Assert.That(depNode.OrbitRing, Is.EqualTo(1), "Depends 位于内圈轨道 1");
+        Assert.That(depNode.BadgeText, Is.EqualTo("[依赖]"));
+
+        var recNode = vm.GraphNodes.First(n => n.Identifier == "Rec1");
+        Assert.That(recNode.OrbitRing, Is.EqualTo(2), "Recommends 位于中圈轨道 2");
+        Assert.That(recNode.BadgeText, Is.EqualTo("[推荐]"));
+
+        var confNode = vm.GraphNodes.First(n => n.Identifier == "Conf1");
+        Assert.That(confNode.OrbitRing, Is.EqualTo(3), "Conflicts 位于外圈轨道 3");
+        Assert.That(confNode.BadgeText, Is.EqualTo("[冲突]"));
+    }
+
+    [Test]
+    public void VisualRelationNetwork_ToggleViewMode_SwitchesBetweenGraphAndTree()
+    {
+        var vm = Create(new());
+        Assert.That(vm.IsGraphView, Is.True);
+        Assert.That(vm.ViewModeButtonText, Is.EqualTo("树状图"));
+
+        vm.ToggleViewModeCommand.Execute(null);
+        Assert.That(vm.IsGraphView, Is.False);
+        Assert.That(vm.ViewModeButtonText, Is.EqualTo("关系网"));
+
+        vm.ToggleViewModeCommand.Execute(null);
+        Assert.That(vm.IsGraphView, Is.True);
+    }
+
+    [Test]
+    public void VisualRelationNetwork_FilterKind_FiltersNonMatchingNodes()
+    {
+        var vm = Create(Graph(
+            ("A", RelationKind.Depends, "Dep1"),
+            ("A", RelationKind.Conflicts, "Conf1")),
+            new[] { "A", "Dep1", "Conf1" });
+
+        var depNode = vm.GraphNodes.First(n => n.Identifier == "Dep1");
+        var confNode = vm.GraphNodes.First(n => n.Identifier == "Conf1");
+
+        // 默认无筛选
+        Assert.That(depNode.IsFiltered, Is.False);
+        Assert.That(confNode.IsFiltered, Is.False);
+
+        // 仅筛选 Depends
+        vm.FilterKindCommand.Execute(RelationKind.Depends);
+        Assert.That(vm.ActiveKindFilter, Is.EqualTo(RelationKind.Depends));
+        Assert.That(depNode.IsFiltered, Is.False);
+        Assert.That(confNode.IsFiltered, Is.True, "非 Depends 节点应被标记为 IsFiltered");
+
+        // 再次点击取消筛选
+        vm.FilterKindCommand.Execute(RelationKind.Depends);
+        Assert.That(vm.ActiveKindFilter, Is.Null);
+        Assert.That(depNode.IsFiltered, Is.False);
+        Assert.That(confNode.IsFiltered, Is.False);
+    }
+
+    [Test]
+    public void VisualRelationNetwork_NavigateById_NavigatesKnownMods()
+    {
+        string? navigated = null;
+        var vm = Create(Graph(("A", RelationKind.Depends, "KnownMod")), new[] { "A", "KnownMod" }, nav: id => navigated = id);
+
+        vm.NavigateByIdCommand.Execute("UnknownMod");
+        Assert.That(navigated, Is.Null, "未知模组不触发导航");
+
+        vm.NavigateByIdCommand.Execute("KnownMod");
+        Assert.That(navigated, Is.EqualTo("KnownMod"), "已知模组应触发导航");
+    }
 }

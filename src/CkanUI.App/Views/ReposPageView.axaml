@@ -54,13 +54,13 @@
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Grid.Column="0" Spacing="4">
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <TextBlock Text="仓库管理" Classes="CkanPageTitle" VerticalAlignment="Center" />
+          <TextBlock Text="{DynamicResource Ui_ReposPage_Title}" Classes="CkanPageTitle" VerticalAlignment="Center" />
           <Button Classes="CkanHelper" VerticalAlignment="Center"
-                  ToolTip.Tip="越靠上的仓库优先级越高；同名模组的元数据以高优先级仓库为准，低优先级仓库只在该模组缺失时参与解析。">
+                  ToolTip.Tip="{DynamicResource Ui_ReposPage_Header_Tip}">
             <PathIcon Data="{StaticResource CkanIconHelp}" />
           </Button>
         </StackPanel>
-        <TextBlock Text="元数据源的排序与增删"
+        <TextBlock Text="{DynamicResource Ui_ReposPage_Subtitle}"
                    Classes="CkanCaption" TextWrapping="Wrap" />
       </StackPanel>
       <Border Grid.Column="1" Classes="CkanBadge" VerticalAlignment="Center">
@@ -76,38 +76,38 @@
     <Border Grid.Row="1" Classes="CkanToolbar stagger-card" Padding="12,8">
       <Grid ColumnDefinitions="Auto,*,Auto">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-          <Button Content="添加仓库" Command="{Binding BeginAddCommand}"
+          <Button Content="{DynamicResource Ui_ReposPage_AddRepo}" Command="{Binding BeginAddCommand}"
                   Classes="CkanPrimary"
                   IsEnabled="{Binding CanEdit}"
-                  ToolTip.Tip="填写名称与索引地址后加入列表" />
-          <Button Content="刷新全部" Command="{Binding RefreshAllCommand}"
+                  ToolTip.Tip="{DynamicResource Ui_ReposPage_AddRepo_Tip}" />
+          <Button Content="{DynamicResource Ui_ReposPage_RefreshAll}" Command="{Binding RefreshAllCommand}"
                   Classes="CkanSecondary"
                   IsEnabled="{Binding IsIdle}"
-                  ToolTip.Tip="重新下载全部仓库的索引" />
-          <Button Content="刷新此仓库" Command="{Binding RefreshSelectedCommand}"
+                  ToolTip.Tip="{DynamicResource Ui_ReposPage_RefreshAll_Tip}" />
+          <Button Content="{DynamicResource Ui_ReposPage_RefreshThis}" Command="{Binding RefreshSelectedCommand}"
                   Classes="CkanSecondary"
                   IsEnabled="{Binding CanRefreshSelected}"
-                  ToolTip.Tip="只重新下载选中仓库的索引" />
+                  ToolTip.Tip="{DynamicResource Ui_ReposPage_RefreshThis_Tip}" />
 
-          <Button Content="更多" Classes="CkanSecondary" Margin="4,0,0,0"
-                  ToolTip.Tip="排序、移除与恢复默认等低频操作">
+          <Button Content="{DynamicResource Ui_Common_More}" Classes="CkanSecondary" Margin="4,0,0,0"
+                  ToolTip.Tip="{DynamicResource Ui_ReposPage_AdvancedActions_Tip}">
             <Button.Flyout>
               <ui:FAMenuFlyout Placement="Bottom">
-                <ui:FAMenuFlyoutItem Text="上移（提高优先级）" IconSource="Up"
+                <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_ReposPage_MoveUpPriority}" IconSource="Up"
                                      Command="{Binding MoveUpCommand}"
                                      IsEnabled="{Binding CanMoveUpSelected}" />
-                <ui:FAMenuFlyoutItem Text="下移（降低优先级）" IconSource="Down"
+                <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_ReposPage_MoveDownPriority}" IconSource="Down"
                                      Command="{Binding MoveDownCommand}"
                                      IsEnabled="{Binding CanMoveDownSelected}" />
                 <ui:FAMenuFlyoutSeparator />
-                <ui:FAMenuFlyoutItem Text="重新读取本地注册表" IconSource="Refresh"
+                <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_ReposPage_ReloadRegistry}" IconSource="Refresh"
                                      Command="{Binding ReloadCommand}"
                                      IsEnabled="{Binding IsIdle}" />
-                <ui:FAMenuFlyoutItem Text="恢复默认仓库列表" IconSource="Undo"
+                <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_ReposPage_RestoreDefaults}" IconSource="Undo"
                                      Command="{Binding RestoreDefaultsCommand}"
                                      IsEnabled="{Binding IsIdle}" />
                 <ui:FAMenuFlyoutSeparator />
-                <ui:FAMenuFlyoutItem Text="移除选中的仓库" IconSource="Delete"
+                <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_ReposPage_RemoveSelected}" IconSource="Delete"
                                      Command="{Binding RemoveCommand}"
                                      IsEnabled="{Binding CanRemoveSelected}" />
               </ui:FAMenuFlyout>
@@ -116,11 +116,11 @@
         </StackPanel>
 
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-          <Button Content="恢复默认源"
+          <Button Content="{DynamicResource Ui_ReposPage_RestoreDefaultSources}"
                   Command="{Binding RestoreDefaultsCommand}"
                   Classes="CkanGhost"
                   IsEnabled="{Binding IsIdle}"
-                  ToolTip.Tip="替换为 KSP-CKAN 官方默认仓库列表" />
+                  ToolTip.Tip="{DynamicResource Ui_ReposPage_RestoreDefaults_Tip}" />
         </StackPanel>
       </Grid>
     </Border>
@@ -130,22 +130,22 @@
             BorderBrush="{DynamicResource CkanAccentBrush}"
             IsVisible="{Binding HasForm}">
       <StackPanel Spacing="12">
-        <TextBlock Text="添加仓库"
+        <TextBlock Text="{DynamicResource Ui_ReposPage_AddRepo}"
                    FontSize="{DynamicResource CkanFontSizeSubtitle}"
                    FontWeight="SemiBold"
                    Foreground="{DynamicResource CkanTextPrimaryBrush}" />
         <StackPanel Spacing="4">
-          <TextBlock Text="仓库名称" FontSize="{DynamicResource CkanFontSizeCaption}"
+          <TextBlock Text="{DynamicResource Ui_ReposPage_RepoName}" FontSize="{DynamicResource CkanFontSizeCaption}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <TextBox Text="{Binding Form.Name, Mode=TwoWay}" PlaceholderText="例如 KSP-CKAN-mirror"
+          <TextBox Text="{Binding Form.Name, Mode=TwoWay}" PlaceholderText="{DynamicResource Ui_ReposPage_RepoName_Placeholder}"
                    CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                    Padding="10,6" />
         </StackPanel>
         <StackPanel Spacing="4">
-          <TextBlock Text="索引地址" FontSize="{DynamicResource CkanFontSizeCaption}"
+          <TextBlock Text="{DynamicResource Ui_ReposPage_RepoUrl}" FontSize="{DynamicResource CkanFontSizeCaption}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
           <TextBox Text="{Binding Form.Uri, Mode=TwoWay}"
-                   PlaceholderText="例如 https://raw.githubusercontent.com/.../repositories.json"
+                   PlaceholderText="{DynamicResource Ui_ReposPage_RepoUrl_Placeholder}"
                    CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                    Padding="10,6" />
         </StackPanel>
@@ -155,9 +155,9 @@
                    Foreground="{DynamicResource CkanDangerBrush}"
                    TextWrapping="Wrap" />
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Content="添加" Command="{Binding AddCommand}"
+          <Button Content="{DynamicResource Ui_Common_Add}" Command="{Binding AddCommand}"
                   Classes="CkanPrimary" Padding="18,6" />
-          <Button Content="取消" Command="{Binding CancelAddCommand}"
+          <Button Content="{DynamicResource Ui_Common_Cancel}" Command="{Binding CancelAddCommand}"
                   Classes="CkanSecondary" Padding="14,6" />
         </StackPanel>
       </StackPanel>
@@ -185,10 +185,10 @@
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
                     VerticalAlignment="Center" Margin="12,0,0,0">
-          <Button Content="重试" Command="{Binding RefreshAllCommand}"
+          <Button Content="{DynamicResource Ui_Common_Retry}" Command="{Binding RefreshAllCommand}"
                   Classes="CkanSmall"
-                  ToolTip.Tip="重新下载全部仓库的索引" />
-          <Button Content="关闭" Command="{Binding ClearErrorCommand}"
+                  ToolTip.Tip="{DynamicResource Ui_ReposPage_RefreshAll_Tip}" />
+          <Button Content="{DynamicResource Ui_Cmd_Shortcuts_Close}" Command="{Binding ClearErrorCommand}"
                   Classes="CkanSmall" />
         </StackPanel>
       </Grid>
@@ -209,11 +209,11 @@
                 Background="{DynamicResource CkanSubtleBackgroundBrush}"
                 BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
           <Grid ColumnDefinitions="*,2*,80,140,100">
-            <TextBlock Grid.Column="0" Text="名称" Classes="CkanCaption" FontWeight="SemiBold" />
-            <TextBlock Grid.Column="1" Text="索引地址" Classes="CkanCaption" FontWeight="SemiBold" />
-            <TextBlock Grid.Column="2" Text="优先级" Classes="CkanCaption" FontWeight="SemiBold" />
-            <TextBlock Grid.Column="3" Text="上次刷新" Classes="CkanCaption" FontWeight="SemiBold" />
-            <TextBlock Grid.Column="4" Text="状态" Classes="CkanCaption" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="0" Text="{DynamicResource Ui_Common_Name}" Classes="CkanCaption" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="1" Text="{DynamicResource Ui_ReposPage_RepoUrl}" Classes="CkanCaption" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="2" Text="{DynamicResource Ui_Common_Priority}" Classes="CkanCaption" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="3" Text="{DynamicResource Ui_ReposPage_LastRefreshed}" Classes="CkanCaption" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="4" Text="{DynamicResource Ui_Common_Status}" Classes="CkanCaption" FontWeight="SemiBold" />
           </Grid>
         </Border>
 
@@ -259,7 +259,7 @@
                              Foreground="{DynamicResource CkanTextPrimaryBrush}" />
                   <Border Classes="CkanBadge Warning" IsVisible="{Binding NeedsRefresh}"
                           HorizontalAlignment="Left">
-                    <TextBlock Text="需刷新" />
+                    <TextBlock Text="{DynamicResource Ui_ReposPage_RefreshRequired}" />
                   </Border>
                   <TextBlock Text="{Binding FailureText}" IsVisible="{Binding HasFailure}"
                              FontSize="{DynamicResource CkanFontSizeCaption}"
@@ -296,14 +296,14 @@
               <!-- 一键预置官方安全源，是这条空状态里唯一值得当主按钮的动作 -->
               <Grid ColumnDefinitions="*,12,*">
                 <Button Grid.Column="0" Classes="CkanGuide" Command="{Binding RestoreDefaultsCommand}"
-                        ToolTip.Tip="替换为官方默认仓库列表（需要联网）">
+                        ToolTip.Tip="{DynamicResource Ui_ReposPage_RestoreOfficial_Tip}">
                   <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Grid.Column="0" Spacing="7">
                       <Border Classes="CkanIconTile">
                         <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                       </Border>
-                      <TextBlock Classes="GuideTitle" Text="一键预置官方安全源" />
-                      <TextBlock Classes="GuideDesc" Text="写入 KSP-CKAN 官方列表，索引立即可用。" />
+                      <TextBlock Classes="GuideTitle" Text="{DynamicResource Ui_ReposPage_OfficialSourceTitle}" />
+                      <TextBlock Classes="GuideDesc" Text="{DynamicResource Ui_ReposPage_OfficialSourceSubtitle}" />
                     </StackPanel>
                     <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="10,0,0,0"
                               Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
@@ -315,8 +315,8 @@
                       <Border Classes="CkanIconTile Muted">
                         <PathIcon Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                       </Border>
-                      <TextBlock Classes="GuideTitle" Text="添加私有 / 镜像源" />
-                      <TextBlock Classes="GuideDesc" Text="填名称与索引地址，按顺序决定优先级。" />
+                      <TextBlock Classes="GuideTitle" Text="{DynamicResource Ui_ReposPage_CustomSourceTitle}" />
+                      <TextBlock Classes="GuideDesc" Text="{DynamicResource Ui_ReposPage_CustomSourceSubtitle}" />
                     </StackPanel>
                     <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="10,0,0,0"
                               Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />

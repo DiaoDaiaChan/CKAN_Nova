@@ -11,20 +11,20 @@
     <!-- 页头 -->
     <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
       <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-        <TextBlock Text="模组翻译" Classes="CkanPageTitle" VerticalAlignment="Center" />
+        <TextBlock Text="{DynamicResource Ui_ModText_Title}" Classes="CkanPageTitle" VerticalAlignment="Center" />
         <Button Classes="CkanHelper" VerticalAlignment="Center"
-                ToolTip.Tip="与 UniversalI18n (UI18n.Core) 深度联动。管理与查看 packs/&lt;lang&gt;/*.jsonl 词库及 overrides.jsonl 覆盖层，支持条目检索与实时热重载。">
+                ToolTip.Tip="{DynamicResource Ui_ModTextPage_Header_Tip}">
           <PathIcon Data="{StaticResource CkanIconHelp}" />
         </Button>
       </StackPanel>
-      <TextBlock Text="词库条目与人工覆盖层维护"
+      <TextBlock Text="{DynamicResource Ui_ModTextPage_Subtitle}"
                  Classes="CkanCaption" TextWrapping="Wrap" />
     </StackPanel>
 
     <!-- 工具栏 -->
     <Border Grid.Row="1" Classes="CkanToolbar stagger-card" Margin="0,0,0,12">
       <Grid ColumnDefinitions="Auto,120,16,*,Auto,Auto,Auto,Auto" VerticalAlignment="Center">
-        <TextBlock Grid.Column="0" Text="语言："
+        <TextBlock Grid.Column="0" Text="{DynamicResource Ui_ModTextPage_LanguageLabel}"
                    VerticalAlignment="Center"
                    Foreground="{DynamicResource CkanTextPrimaryBrush}"
                    Margin="0,0,6,0" />
@@ -36,30 +36,30 @@
         <TextBox Grid.Column="3"
                  Text="{Binding SearchQuery, Mode=TwoWay}"
                  Classes="CkanSearchBox"
-                 PlaceholderText="搜索源文、译文、Mod ID 或上下文..."
+                 PlaceholderText="{DynamicResource Ui_ModTextPage_Search_Placeholder}"
                  VerticalContentAlignment="Center"
                  Margin="0,0,12,0" />
 
         <CheckBox Grid.Column="4"
-                  Content="仅看人工覆盖"
+                  Content="{DynamicResource Ui_ModTextPage_OverridesOnly}"
                   IsChecked="{Binding FilterOverrideOnly, Mode=TwoWay}"
                   VerticalAlignment="Center"
                   Margin="0,0,12,0" />
 
         <Button Grid.Column="5"
-                Content="同步 UniversalI18n"
+                Content="{DynamicResource Ui_ModTextPage_SyncUi18n}"
                 Classes="CkanSecondary"
                 Command="{Binding SyncFromUniversalI18nCommand}"
                 Margin="0,0,8,0" />
 
         <Button Grid.Column="6"
-                Content="重新加载"
+                Content="{DynamicResource Ui_ModTextPage_Reload}"
                 Classes="CkanSecondary"
                 Command="{Binding ReloadCommand}"
                 Margin="0,0,8,0" />
 
         <Button Grid.Column="7"
-                Content="打开目录"
+                Content="{DynamicResource Ui_Settings_Auxiliary_OpenFolder}"
                 Classes="CkanGhost"
                 Command="{Binding OpenFolderCommand}" />
       </Grid>
@@ -74,7 +74,7 @@
         <Border Grid.Row="0" Classes="CkanCard" Padding="10,8"
                 IsVisible="{Binding HasPackFiles}">
           <DockPanel LastChildFill="True">
-            <TextBlock DockPanel.Dock="Top" Text="当前加载的文件"
+            <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Ui_ModTextPage_LoadedFiles}"
                        Classes="CkanSectionTitle"
                        Margin="0,0,0,6" />
             <ItemsControl ItemsSource="{Binding PackFiles}">
@@ -84,13 +84,14 @@
                     <TextBlock Grid.Column="0" Text="{Binding RelativePath}"
                                FontSize="{DynamicResource CkanFontSizeCaption}"
                                Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                    <TextBlock Grid.Column="1" Text="{Binding EntryCount, StringFormat='{}条目: {0}'}"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                               Margin="8,0" />
-                    <TextBlock Grid.Column="2" Text="{Binding LastModifiedUtc, StringFormat='{}修改: {0:yyyy-MM-dd HH:mm}'}"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" Margin="8,0">
+                      <TextBlock Text="{DynamicResource Ui_ModTextPage_EntriesPrefix}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                      <TextBlock Text="{Binding EntryCount}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
+                      <TextBlock Text="{DynamicResource Ui_ModTextPage_ModifiedPrefix}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                      <TextBlock Text="{Binding LastModifiedUtc, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    </StackPanel>
                   </Grid>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
@@ -125,18 +126,15 @@
                     </Border>
                   </Grid>
 
-                  <TextBlock Grid.Row="1" Text="{Binding Source, StringFormat='{}源文: {0}'}"
-                             FontSize="{DynamicResource CkanFontSizeCaption}"
-                             Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                             TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
-                             Margin="0,3,0,0" />
+                  <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="2" Margin="0,3,0,0">
+                    <TextBlock Text="{DynamicResource Ui_ModTextPage_SourcePrefix}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    <TextBlock Text="{Binding Source}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextSecondaryBrush}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
 
-                  <TextBlock Grid.Row="2" Text="{Binding Translation, StringFormat='{}译文: {0}'}"
-                             FontSize="{DynamicResource CkanFontSizeBody}"
-                             Foreground="{DynamicResource CkanAccentBrush}"
-                             FontWeight="Medium"
-                             TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
-                             Margin="0,3,0,0" />
+                  <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="2" Margin="0,3,0,0">
+                    <TextBlock Text="{DynamicResource Ui_ModTextPage_TranslationPrefix}" FontSize="{DynamicResource CkanFontSizeBody}" Foreground="{DynamicResource CkanAccentBrush}" FontWeight="Medium" />
+                    <TextBlock Text="{Binding Translation}" FontSize="{DynamicResource CkanFontSizeBody}" Foreground="{DynamicResource CkanAccentBrush}" FontWeight="Medium" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
                 </Grid>
               </DataTemplate>
             </ListBox.ItemTemplate>
@@ -152,11 +150,11 @@
               <Border Classes="CkanIconTile Lg Muted" HorizontalAlignment="Center">
                 <PathIcon Data="M4 5h16v2H4V5zm0 6h16v2H4v-2zm0 6h10v2H4v-2z" />
               </Border>
-              <TextBlock Text="没有匹配的条目" HorizontalAlignment="Center"
+              <TextBlock Text="{DynamicResource Ui_ModTextPage_NoMatchesTitle}" HorizontalAlignment="Center"
                          FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
                          Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-              <TextBlock Text="放宽搜索词或换个语言包。"
-                         ToolTip.Tip="覆盖层里已保存的翻译不受影响。"
+              <TextBlock Text="{DynamicResource Ui_ModTextPage_NoMatchesSubtitle}"
+                         ToolTip.Tip="{DynamicResource Ui_ModTextPage_SavedOverridesUnaffected_Tip}"
                          TextWrapping="Wrap" TextAlignment="Center"
                          FontSize="{DynamicResource CkanFontSizeBody}"
                          Foreground="{DynamicResource CkanTextSecondaryBrush}" />
@@ -173,38 +171,38 @@
       <Border Grid.Column="2" Classes="CkanCard stagger-card" Padding="16" MinWidth="300" MaxWidth="600">
         <ScrollViewer>
           <StackPanel Spacing="10">
-            <TextBlock Text="人工覆盖翻译"
+            <TextBlock Text="{DynamicResource Ui_ModTextPage_ManualOverrideTitle}"
                        FontSize="{DynamicResource CkanFontSizeSubtitle}"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
 
-            <TextBlock Text="优先于通用词典，保存后立即生效。"
+            <TextBlock Text="{DynamicResource Ui_ModTextPage_ManualOverrideSubtitle}"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}"
                        TextWrapping="Wrap"
-                       ToolTip.Tip="写入 overrides.jsonl；同一条目以此处的译名为准，保存后热应用，无需重启。" />
+                       ToolTip.Tip="{DynamicResource Ui_ModTextPage_OverrideTip_Tip}" />
 
             <Separator Background="{DynamicResource CkanBorderBrush}" Height="1" Margin="0,4" />
 
-            <TextBlock Text="Mod 标识符"
+            <TextBlock Text="{DynamicResource Ui_ModTextPage_ModIdentifier}"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
             <TextBox Text="{Binding EditIdentifier, Mode=TwoWay}"
-                     PlaceholderText="例如 MechJeb2" />
+                     PlaceholderText="{DynamicResource Ui_ModTextPage_ModId_Placeholder}" />
 
-            <TextBlock Text="字段类型"
+            <TextBlock Text="{DynamicResource Ui_ModTextPage_FieldType}"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
             <ComboBox SelectedItem="{Binding EditField, Mode=TwoWay}"
                       HorizontalAlignment="Stretch"
-                      PlaceholderText="选择字段">
+                      PlaceholderText="{DynamicResource Ui_ModTextPage_SelectField_Placeholder}">
               <ComboBox.Items>
                 <x:String>abstract</x:String>
                 <x:String>description</x:String>
               </ComboBox.Items>
             </ComboBox>
 
-            <TextBlock Text="英文源文"
+            <TextBlock Text="{DynamicResource Ui_ModTextPage_SourceText}"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
             <TextBox Text="{Binding EditSource, Mode=TwoWay}"
@@ -212,10 +210,10 @@
                      TextWrapping="Wrap"
                      MinHeight="70"
                      FontFamily="Consolas, Menlo, monospace"
-                     ToolTip.Tip="等宽显示，便于逐字对照原文与译文；换行会原样保留。"
-                     PlaceholderText="请输入待翻译的模组英文原文..." />
+                     ToolTip.Tip="{DynamicResource Ui_ModTextPage_MonoSource_Tip}"
+                     PlaceholderText="{DynamicResource Ui_ModTextPage_SourceText_Placeholder}" />
 
-            <TextBlock Text="本地化译文"
+            <TextBlock Text="{DynamicResource Ui_ModTextPage_LocalizedText}"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
             <TextBox Text="{Binding EditTranslation, Mode=TwoWay}"
@@ -223,22 +221,22 @@
                      TextWrapping="Wrap"
                      MinHeight="70"
                      FontFamily="Consolas, Menlo, monospace"
-                     ToolTip.Tip="等宽显示，与上方原文按行对照；保存后立即热应用到界面。"
-                     PlaceholderText="请输入中文翻译..." />
+                     ToolTip.Tip="{DynamicResource Ui_ModTextPage_MonoTranslation_Tip}"
+                     PlaceholderText="{DynamicResource Ui_ModTextPage_LocalizedText_Placeholder}" />
 
-            <Button Content="保存并生效"
+            <Button Content="{DynamicResource Ui_ModTextPage_SaveAndApply}"
                     Command="{Binding SaveOverrideCommand}"
                     Classes="CkanPrimary"
-                    ToolTip.Tip="写入 overrides.jsonl 并立即热应用"
+                    ToolTip.Tip="{DynamicResource Ui_ModTextPage_SaveAndApply_Tip}"
                     HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Center"
                     Padding="12,8"
                     Margin="0,8,0,0" />
 
-            <Button Content="删除覆盖"
+            <Button Content="{DynamicResource Ui_ModTextPage_DeleteOverride}"
                     Command="{Binding DeleteOverrideCommand}"
                     Classes="CkanDanger"
-                    ToolTip.Tip="移除这条条目在 overrides.jsonl 里的覆盖，回落到通用词典"
+                    ToolTip.Tip="{DynamicResource Ui_ModTextPage_DeleteOverride_Tip}"
                     HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Center"
                     Padding="12,6"
@@ -254,16 +252,17 @@
       <TextBlock Grid.Column="0" Text="{Binding SummaryText}" IsVisible="{Binding HasEntries}"
                  FontSize="{DynamicResource CkanFontSizeCaption}"
                  Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-      <TextBlock Grid.Column="0" Text="未发现词条" IsVisible="{Binding !HasEntries}"
+      <TextBlock Grid.Column="0" Text="{DynamicResource Ui_ModTextPage_NoEntriesFound}" IsVisible="{Binding !HasEntries}"
                  FontSize="{DynamicResource CkanFontSizeCaption}"
                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
       <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" IsVisible="{Binding HasEntries}"
                  FontSize="{DynamicResource CkanFontSizeCaption}"
                  Foreground="{DynamicResource CkanTextTertiaryBrush}"
                  Margin="16,0" TextTrimming="CharacterEllipsis" />
-      <TextBlock Grid.Column="2" Text="{Binding StorageDirectory, StringFormat='{}存放路径: {0}'}"
-                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                 Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
+        <TextBlock Text="{DynamicResource Ui_ModTextPage_StorageDirectoryPrefix}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+        <TextBlock Text="{Binding StorageDirectory}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+      </StackPanel>
     </Grid>
     </Border>
   </Grid>

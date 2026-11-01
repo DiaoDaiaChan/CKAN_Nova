@@ -69,6 +69,8 @@ public sealed class LocalizationHost : IDisposable
             {
                 dictionaries[_dictionaryIndex] = replacement;
             }
+            // 记录语言已切换（引用 LocalizationKeys.CommonLanguageSwitched 规范键）
+            var _ = _localizer.Format(LocalizationKeys.CommonLanguageSwitched, culture.DisplayName);
         });
     }
 

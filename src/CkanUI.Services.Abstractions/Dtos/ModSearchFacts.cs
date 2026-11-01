@@ -58,4 +58,7 @@ public readonly record struct ModSearchFacts
 
     /// <summary>下载地址。</summary>
     public string? DownloadUrl { get; init; }
+
+    /// <summary>SpaceDock 资源 URL。</summary>
+    public string? SpacedockUrl { get; init; }
 }

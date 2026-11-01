@@ -6,6 +6,8 @@ using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.Threading;
+using CkanUI.App.Animations;
 using CkanUI.ViewModels.Dialogs;
 
 namespace CkanUI.App.Views.Dialogs;
@@ -81,6 +83,13 @@ public class DialogWindow : Window
         };
 
         _ = entrance.RunAsync(this);
+
+        // 窗口整体放大淡入之后，内容再自己"从下面浮上来"：只看位移、不压透明度，
+        // 否则窗口淡一次、文字再淡一次，中间那段会闷掉（同 §5.9.7 整页只淡一次的口径）。
+        // 排到 Loaded 而不是同步：OnOpened 时对话框的模板与内容才刚套上，太早扫不到 TextBlock。
+        Dispatcher.UIThread.Post(
+            () => DialogEntrance.Play(this),
+            DispatcherPriority.Loaded);
     }
 
     /// <inheritdoc />

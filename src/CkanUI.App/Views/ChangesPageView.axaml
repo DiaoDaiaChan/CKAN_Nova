@@ -13,13 +13,13 @@
     <!-- 页头：与其它页保持同一范式（H1 + 一句副标题） -->
     <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
       <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-        <TextBlock Text="变更集" Classes="CkanPageTitle" VerticalAlignment="Center" />
+        <TextBlock Text="{DynamicResource Ui_Changeset_Title}" Classes="CkanPageTitle" VerticalAlignment="Center" />
         <Button Classes="CkanHelper" VerticalAlignment="Center"
-                ToolTip.Tip="变更先堆在内存里，只有点「应用」才写盘；执行中可以取消，安装阶段取消会回滚到应用前。">
+                ToolTip.Tip="{DynamicResource Ui_ChangesPage_Header_Tip}">
           <PathIcon Data="{StaticResource CkanIconHelp}" />
         </Button>
       </StackPanel>
-      <TextBlock Text="审查待安装、升级与移除的变更"
+      <TextBlock Text="{DynamicResource Ui_ChangesPage_Subtitle}"
                  Classes="CkanCaption" TextWrapping="Wrap" />
     </StackPanel>
 
@@ -27,13 +27,13 @@
     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="0,0,0,10"
                 IsVisible="{Binding !ShowEmptyState}">
       <Border Classes="CkanStepDot"><TextBlock Text="1" /></Border>
-      <TextBlock Text="计算变更" Classes="CkanStepLabel" />
+      <TextBlock Text="{DynamicResource Ui_ChangesPage_StepCompute}" Classes="CkanStepLabel" />
       <TextBlock Classes="CkanStepArrow" />
       <Border Classes="CkanStepDot"><TextBlock Text="2" /></Border>
-      <TextBlock Text="核对冲突与告警" Classes="CkanStepLabel" />
+      <TextBlock Text="{DynamicResource Ui_ChangesPage_StepConflicts}" Classes="CkanStepLabel" />
       <TextBlock Classes="CkanStepArrow" />
       <Border Classes="CkanStepDot" Classes.Active="{Binding IsApplying}"><TextBlock Text="3" /></Border>
-      <TextBlock Text="写入实例" Classes="CkanStepLabel" />
+      <TextBlock Text="{DynamicResource Ui_ChangesPage_StepWrite}" Classes="CkanStepLabel" />
     </StackPanel>
 
     <!-- 摘要区（03 篇 §4 摘要块）：数量统计 + 预计下载体积 + 状态徽章；空集时整块收起，避免与空状态重复 -->
@@ -108,7 +108,7 @@
         <Button Content="{Binding ShowConflictDetailsButtonText}"
                 Command="{Binding ShowConflictDetailsCommand}"
                 Classes="CkanSecondary"
-                ToolTip.Tip="请在「模组」页取消勾选其中一个，或用右侧「移除」把冲突项移出本变更集，然后点「重新计算」。本页不会替你自动裁决。"
+                ToolTip.Tip="{DynamicResource Ui_ChangesPage_ConflictResolution_Tip}"
                 HorizontalAlignment="Left" Margin="0,4,0,0" />
       </StackPanel>
     </Border>

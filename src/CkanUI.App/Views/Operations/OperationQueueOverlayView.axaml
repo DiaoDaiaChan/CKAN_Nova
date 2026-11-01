@@ -6,141 +6,156 @@
              x:CompileBindings="False">
 
   <!--
-    操作队列浮层（03 篇 §1「操作状态区」/ §13.1 / 06 篇 UI-08）。
-    - 定位：右下角浮层，不参与页面布局（宿主把它放在最上层 Grid 的末行末列即可）。
-    - 空队列：IsVisible 为 false，整块折叠（03 篇 §10 不显示空壳）。
-    - 全部完成：OverlayOpacity 降到 0.55 做淡出，但保留结果与"清除已完成"，用户不会错过失败信息。
-    - 颜色/圆角全部走 Tokens.axaml 的语义 token（THM-01），间距取 4 的倍数（03 篇 §11）。
+    后台任务详细窗口（点开时向上展开，位于右下角底栏之上）：
+    - 仅在 IsExpanded 为 true 时显现（完全不占用底栏空间、不遮挡底栏文本）
+    - 罗列所有后台任务、单项详细进度条、传输大小、速度与取消操作
   -->
-  <Border MaxWidth="360"
-          HorizontalAlignment="Right"
-          VerticalAlignment="Bottom"
-          Margin="16"
-          Padding="14"
+  <Border x:Name="ExpandedTaskCard"
+          Width="380"
+          MaxHeight="440"
           CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
           BorderThickness="1"
-          Opacity="{Binding OverlayOpacity}"
-          IsVisible="{Binding IsVisible}"
-          BoxShadow="{DynamicResource CkanElevationMedium}"
+          BoxShadow="{DynamicResource CkanElevationHigh}"
           Background="{DynamicResource CkanSurfaceBackgroundBrush}"
-          BorderBrush="{DynamicResource CkanCardBorderBrush}">
+          BorderBrush="{DynamicResource CkanCardBorderBrush}"
+          Padding="14"
+          HorizontalAlignment="Right"
+          VerticalAlignment="Bottom"
+          Margin="0,0,12,34"
+          IsVisible="{Binding IsExpanded}">
+    <Border.Transitions>
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationFast}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}" />
+      </Transitions>
+    </Border.Transitions>
 
-    <StackPanel Spacing="8">
-
-      <!-- 摘要行：聚合进度条 + 汇总文案 + 展开/收起 + 批量操作 -->
-      <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
-
-        <TextBlock Grid.Row="0" Grid.Column="0"
-                   Text="后台任务"
-                   FontWeight="SemiBold"
-                   VerticalAlignment="Center" />
-
-        <StackPanel Grid.Row="0" Grid.Column="1"
-                    Orientation="Horizontal"
-                    Spacing="8"
-                    Margin="8,0"
-                    VerticalAlignment="Center">
-          <TextBlock Text="{Binding SummaryText}" Opacity="0.8" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding OverallPercentText}" Opacity="0.6" VerticalAlignment="Center" />
+    <StackPanel Spacing="10">
+      <!-- 头部区域：图标 + 标题 + 进度说明 + 收起与操作按钮 -->
+      <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Border Width="24" Height="24" CornerRadius="6"
+                  Background="{DynamicResource CkanAccentSubtleBrush}">
+            <PathIcon Data="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"
+                      Width="12" Height="12"
+                      Foreground="{DynamicResource CkanAccentBrush}"
+                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <TextBlock Text="{DynamicResource Ui_QueueOverlay_Title}"
+                     FontWeight="SemiBold"
+                     FontSize="{DynamicResource CkanFontSizeBody}"
+                     VerticalAlignment="Center" />
         </StackPanel>
 
-        <StackPanel Grid.Row="0" Grid.Column="2"
-                    Orientation="Horizontal"
-                    Spacing="4"
-                    VerticalAlignment="Center">
-          <Button Content="{Binding ExpandButtonText}"
-                  Command="{Binding ToggleExpandCommand}"
-                  Padding="8,2"
-                  FontSize="{DynamicResource CkanFontSizeCaption}" />
+        <!-- 中间：简述与聚合百分比 -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="8,0" VerticalAlignment="Center">
+          <TextBlock Text="{Binding SummaryText}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Opacity="0.8" VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" MaxWidth="140" />
+          <TextBlock Text="{Binding OverallPercentText}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     FontWeight="SemiBold"
+                     Foreground="{DynamicResource CkanAccentBrush}"
+                     VerticalAlignment="Center" />
         </StackPanel>
 
-        <!-- 聚合进度：多任务并行时的总进度（06 篇 UI-08 验收「多任务并行显示正确」） -->
-        <ProgressBar Grid.Row="1" Grid.ColumnSpan="3"
-                     Margin="0,8,0,0"
-                     Height="4"
-                     Minimum="0"
-                     Maximum="100"
-                     Value="{Binding OverallPercent}" />
+        <!-- 右侧：收起为胶囊按钮 -->
+        <Button Grid.Column="2"
+                Classes="CkanIcon"
+                Width="24" Height="24"
+                Command="{Binding ToggleExpandCommand}"
+                ToolTip.Tip="{DynamicResource Ui_QueueOverlay_CollapseTip}"
+                AutomationProperties.Name="{DynamicResource Ui_QueueOverlay_CollapseTip}">
+          <PathIcon Data="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"
+                    Width="11" Height="11"
+                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </Button>
       </Grid>
 
-      <!-- 展开区：任务列表 -->
-      <StackPanel Spacing="8" IsVisible="{Binding IsExpanded}">
+      <!-- 聚合总进度条 -->
+      <ProgressBar Height="4"
+                   CornerRadius="2"
+                   Minimum="0" Maximum="100"
+                   Value="{Binding OverallPercent}"
+                   IsVisible="{Binding IsVisible}" />
 
-        <ScrollViewer MaxHeight="260" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <!-- 任务列表容器（有任务时罗列各任务进度，无任务时展示空闲占位） -->
+      <Panel MinHeight="60">
+        <!-- 1. 有任务时的明细流 -->
+        <ScrollViewer MaxHeight="260"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      IsVisible="{Binding IsVisible}">
           <ItemsControl ItemsSource="{Binding Items}">
             <ItemsControl.ItemTemplate>
               <DataTemplate>
                 <Border Margin="0,0,0,8"
-                        Padding="8"
+                        Padding="10,8"
                         CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                        Background="{DynamicResource CkanCardBackgroundBrush}"
+                        BorderBrush="{DynamicResource CkanBorderBrush}"
                         BorderThickness="1">
-                  <Border.BorderBrush>
-                    <DynamicResource ResourceKey="CkanBorderBrush" />
-                  </Border.BorderBrush>
-
-                  <StackPanel Spacing="4">
-
-                    <!-- 标题行：标题 + 种类徽标 + 百分比 + 取消 -->
+                  <StackPanel Spacing="5">
+                    <!-- 任务标题行：标题 + 类型徽标 + 单任务百分比 + 取消按钮 -->
                     <Grid ColumnDefinitions="*,Auto,Auto">
                       <Grid ColumnDefinitions="*,Auto" Margin="0,0,8,0">
                         <TextBlock Grid.Column="0" Text="{Binding Title}"
                                    FontWeight="SemiBold"
+                                   FontSize="{DynamicResource CkanFontSizeBody}"
                                    TextTrimming="CharacterEllipsis"
-                                   VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <Border Grid.Column="1" Padding="4,0"
+                                   VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <Border Grid.Column="1" Padding="5,1"
                                 CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                                Background="{DynamicResource CkanAccentSubtleBrush}"
                                 VerticalAlignment="Center">
-                          <Border.Background>
-                            <DynamicResource ResourceKey="CkanSidebarBackgroundBrush" />
-                          </Border.Background>
                           <TextBlock Text="{Binding KindText}"
-                                     FontSize="{DynamicResource CkanFontSizeCaption}"
-                                     Opacity="0.8" />
+                                     FontSize="10"
+                                     Foreground="{DynamicResource CkanAccentBrush}"
+                                     FontWeight="SemiBold" />
                         </Border>
                       </Grid>
 
                       <TextBlock Grid.Column="1"
                                  Text="{Binding PercentText}"
-                                 Margin="8,0"
+                                 FontWeight="SemiBold"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                                 Margin="6,0"
                                  VerticalAlignment="Center" />
 
                       <Button Grid.Column="2"
-                              Content="取消"
+                              Classes="CkanGhost"
+                              Content="{DynamicResource Ui_Common_Cancel}"
                               Command="{Binding CancelCommand}"
                               IsVisible="{Binding IsCancellable}"
-                              Padding="8,2"
+                              Padding="6,2"
                               FontSize="{DynamicResource CkanFontSizeCaption}" />
                     </Grid>
 
                     <!-- 单任务进度条 -->
-                    <ProgressBar Height="4"
-                                 Minimum="0"
-                                 Maximum="100"
-                                 Value="{Binding Percent}" />
+                    <ProgressBar Height="3"
+                                 CornerRadius="1.5"
+                                 Minimum="0" Maximum="100"
+                                 Value="{Binding Percent}"
+                                 IsIndeterminate="{Binding IsIndeterminate}" />
 
-                    <!-- 明细行：状态 · 已传/总字节 · 速率 · 剩余时间；无数据时显示占位符，避免行高跳动 -->
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                      <TextBlock Text="{Binding StateText}"
+                    <!-- 状态行：子步骤描述 + 字节与速率 -->
+                    <Grid ColumnDefinitions="*,Auto" Opacity="0.75">
+                      <TextBlock Grid.Column="0" Text="{Binding Detail}"
                                  FontSize="{DynamicResource CkanFontSizeCaption}"
-                                 Opacity="0.8" />
-                      <TextBlock Text="{Binding BytesText}"
-                                 IsVisible="{Binding HasByteProgress}"
-                                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                                 Opacity="0.7" />
-                      <TextBlock Text="{Binding SpeedText}"
-                                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                                 Opacity="0.7" />
-                      <TextBlock Text="{Binding RemainingText}"
-                                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                                 Opacity="0.7" />
-                    </StackPanel>
-
-                    <!-- 队列消息（Core 文案不二次翻译，03 篇 §11） -->
-                    <TextBlock Text="{Binding Message}"
-                               IsVisible="{Binding ShowMessage}"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Opacity="0.7"
-                               TextWrapping="Wrap" />
+                                 TextTrimming="CharacterEllipsis" />
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="{Binding TransferredText}"
+                                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                                   IsVisible="{Binding HasTransferred}" />
+                        <TextBlock Text="{Binding RateText}"
+                                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                                   IsVisible="{Binding HasRate}" />
+                        <TextBlock Text="{Binding EtaText}"
+                                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                                   IsVisible="{Binding HasEta}" />
+                      </StackPanel>
+                    </Grid>
                   </StackPanel>
                 </Border>
               </DataTemplate>
@@ -148,18 +163,43 @@
           </ItemsControl>
         </ScrollViewer>
 
-        <!-- 批量操作 -->
-        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-          <Button Content="全部取消"
-                  Command="{Binding CancelAllCommand}"
-                  Padding="8,2"
-                  FontSize="{DynamicResource CkanFontSizeCaption}" />
-          <Button Content="清除已完成"
-                  Command="{Binding ClearCompletedCommand}"
-                  Padding="8,2"
-                  FontSize="{DynamicResource CkanFontSizeCaption}" />
-        </StackPanel>
-      </StackPanel>
+        <!-- 2. 无活跃任务时的整洁空态占位 -->
+        <Border Padding="20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                IsVisible="{Binding !IsVisible}">
+          <StackPanel Spacing="6" HorizontalAlignment="Center">
+            <PathIcon Data="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"
+                      Width="28" Height="28"
+                      Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                      HorizontalAlignment="Center" />
+            <TextBlock Text="{Binding EmptyText}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="{DynamicResource Ui_QueueOverlay_EmptyDetail}"
+                       FontSize="11"
+                       Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                       HorizontalAlignment="Center" />
+          </StackPanel>
+        </Border>
+      </Panel>
+
+      <!-- 底部操作区：全部取消 / 清除已完成 -->
+      <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,0">
+        <Button Grid.Column="0"
+                Classes="CkanGhost"
+                Content="{DynamicResource Ui_QueueOverlay_CancelAll}"
+                Command="{Binding CancelAllCommand}"
+                IsEnabled="{Binding HasCancellable}"
+                Padding="8,4"
+                FontSize="{DynamicResource CkanFontSizeCaption}" />
+        <Button Grid.Column="2"
+                Classes="CkanSecondary"
+                Content="{DynamicResource Ui_QueueOverlay_ClearCompleted}"
+                Command="{Binding ClearCompletedCommand}"
+                IsEnabled="{Binding CanClearCompleted}"
+                Padding="10,4"
+                FontSize="{DynamicResource CkanFontSizeCaption}" />
+      </Grid>
     </StackPanel>
   </Border>
 </UserControl>

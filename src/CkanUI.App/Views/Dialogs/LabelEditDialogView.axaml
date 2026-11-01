@@ -33,7 +33,7 @@
                 Background="{DynamicResource CkanCardBackgroundBrush}"
                 BorderBrush="{DynamicResource CkanCardBorderBrush}"
                 BorderThickness="1" CornerRadius="4">
-            <TextBlock Text="管理模组自定义标签组。"
+            <TextBlock Text="{DynamicResource Ui_LabelEditDialog_Subtitle}"
                        FontSize="12"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
         </Border>
@@ -49,11 +49,11 @@
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- 列表头工具栏 -->
                     <Grid Grid.Row="0" Margin="8,8,8,4" ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="标签列表" FontWeight="SemiBold"
+                        <TextBlock Grid.Column="0" Text="{DynamicResource Ui_LabelEditDialog_LabelList}" FontWeight="SemiBold"
                                    VerticalAlignment="Center" FontSize="12"
                                    Foreground="{DynamicResource CkanTextPrimaryBrush}" />
                         <Button Grid.Column="1"
-                                Content="＋ 新建"
+                                Content="{DynamicResource Ui_LabelEditDialog_New}"
                                 Command="{Binding AddLabelCommand}"
                                 Padding="8,4" FontSize="11" />
                     </Grid>
@@ -102,7 +102,7 @@
 
                     <!-- 列表底部操作 -->
                     <Border Grid.Row="2" Padding="8" BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,1,0,0">
-                        <Button Content="删除选中标签"
+                        <Button Content="{DynamicResource Ui_LabelEditDialog_DeleteSelected}"
                                 Command="{Binding DeleteLabelCommand}"
                                 IsEnabled="{Binding CanDeleteSelected}"
                                 HorizontalAlignment="Stretch"
@@ -124,7 +124,7 @@
                     Padding="14,10">
                 <Grid>
                     <!-- 未选中提示 -->
-                    <TextBlock Text="请在左侧选择一个标签组或点击“新建”创建新标签。"
+                    <TextBlock Text="{DynamicResource Ui_LabelEditDialog_SelectHint}"
                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                Foreground="{DynamicResource CkanTextSecondaryBrush}"
                                FontSize="12"
@@ -135,13 +135,13 @@
                         <StackPanel Spacing="6" DataContext="{Binding SelectedItem}">
 
                             <!-- 基本属性 -->
-                            <TextBlock Text="基础信息" Classes="section-header" Margin="0,0,0,4" />
+                            <TextBlock Text="{DynamicResource Ui_LabelEditDialog_BasicInfo}" Classes="section-header" Margin="0,0,0,4" />
 
                             <Grid ColumnDefinitions="70,*" RowDefinitions="Auto,Auto" Margin="0,0,0,6">
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="标签名称:" VerticalAlignment="Center" FontSize="12" />
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Ui_LabelEditDialog_LabelName}" VerticalAlignment="Center" FontSize="12" />
                                 <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name, Mode=TwoWay}" Margin="0,2,0,4" />
 
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="颜色代码:" VerticalAlignment="Center" FontSize="12" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource Ui_LabelEditDialog_ColorCode}" VerticalAlignment="Center" FontSize="12" />
                                 <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto,Auto" Margin="0,2,0,4">
                                     <TextBox Grid.Column="0" Text="{Binding ColorHex, Mode=TwoWay}" PlaceholderText="#RRGGBB" />
                                     <!-- 颜色预览色块 -->
@@ -151,14 +151,14 @@
                                             <SolidColorBrush Color="{Binding ColorHex}" />
                                         </Border.Background>
                                     </Border>
-                                    <Button Grid.Column="2" Content="清除颜色"
+                                    <Button Grid.Column="2" Content="{DynamicResource Ui_LabelEditDialog_ClearColor}"
                                             Command="{Binding $parent[dialogs:DialogWindow].((vm:LabelEditDialogViewModel)DataContext).ClearColorCommand}"
                                             Margin="6,0,0,0" FontSize="11" Padding="6,4" />
                                 </Grid>
                             </Grid>
 
                             <!-- 预设颜色调色板 -->
-                            <TextBlock Text="快捷预设颜色:" FontSize="11" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                            <TextBlock Text="{DynamicResource Ui_LabelEditDialog_PresetColors}" FontSize="11" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
                             <ItemsControl ItemsSource="{Binding $parent[dialogs:DialogWindow].((vm:LabelEditDialogViewModel)DataContext).AvailablePresetColors}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -183,29 +183,29 @@
                             </ItemsControl>
 
                             <!-- 实例适用范围 -->
-                            <TextBlock Text="作用范围" Classes="section-header" />
+                            <TextBlock Text="{DynamicResource Ui_LabelEditDialog_Scope}" Classes="section-header" />
                             <CheckBox IsChecked="{Binding IsGlobal, Mode=TwoWay}"
-                                      Content="全局通用标签（在所有游戏实例中均可见）" />
-                            <TextBlock Text="取消勾选时，该标签仅绑定并保存在当前游戏实例。"
+                                      Content="{DynamicResource Ui_LabelEditDialog_GlobalScope}" />
+                            <TextBlock Text="{DynamicResource Ui_LabelEditDialog_InstanceScope_Tip}"
                                        FontSize="11" Margin="26,-2,0,4"
                                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
 
                             <!-- 过滤与提醒行为 -->
-                            <TextBlock Text="行为与过滤选项" Classes="section-header" />
+                            <TextBlock Text="{DynamicResource Ui_LabelEditDialog_BehaviorOptions}" Classes="section-header" />
                             <CheckBox IsChecked="{Binding HideFromOtherFilters, Mode=TwoWay}"
-                                      Content="从其它常规筛选列表中隐藏此标签下的模组 (Hide)" />
+                                      Content="{DynamicResource Ui_LabelEditDialog_HideUnderLabel}" />
                             <CheckBox IsChecked="{Binding HoldVersion, Mode=TwoWay}"
-                                      Content="锁定模组版本 (HoldVersion，禁止自动或批量升级)" />
+                                      Content="{DynamicResource Ui_LabelEditDialog_HoldVersion}" />
                             <CheckBox IsChecked="{Binding IgnoreMissingFiles, Mode=TwoWay}"
-                                      Content="忽略缺失的模组文件 (IgnoreMissingFiles)" />
+                                      Content="{DynamicResource Ui_LabelEditDialog_IgnoreMissingFiles}" />
                             <CheckBox IsChecked="{Binding NotifyOnChanges, Mode=TwoWay}"
-                                      Content="模组发生更新变动时发出通知 (NotifyOnChanges)" />
+                                      Content="{DynamicResource Ui_LabelEditDialog_NotifyOnChanges}" />
                             <CheckBox IsChecked="{Binding RemoveOnChanges, Mode=TwoWay}"
-                                      Content="模组更新后自动从此标签中移除 (RemoveOnChanges)" />
+                                      Content="{DynamicResource Ui_LabelEditDialog_RemoveOnChanges}" />
                             <CheckBox IsChecked="{Binding AlertOnInstall, Mode=TwoWay}"
-                                      Content="安装此标签下的模组时弹出警告提醒 (AlertOnInstall)" />
+                                      Content="{DynamicResource Ui_LabelEditDialog_AlertOnInstall}" />
                             <CheckBox IsChecked="{Binding RemoveOnInstall, Mode=TwoWay}"
-                                      Content="安装完成后自动从此标签中移除 (RemoveOnInstall)" />
+                                      Content="{DynamicResource Ui_LabelEditDialog_RemoveOnInstall}" />
 
                         </StackPanel>
                     </ScrollViewer>

@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -30,6 +31,25 @@ public static class Program
         Directory.CreateDirectory(tempDir);
         var testConfig = Path.Combine(tempDir, "config.json");
         Environment.SetEnvironmentVariable("CKAN_CONFIG_FILE", testConfig);
+
+        // 空配置下所有涉及实例的页面只能拍到空态（主页的「最近截图」胶片带就永远是空的）。
+        // 本机有真实 CKAN 配置就照搬它的实例清单（不写死任何路径），否则种一个仓库内实例兜底。
+        var realConfig = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CKAN", "config.json");
+        if (File.Exists(realConfig))
+        {
+            File.Copy(realConfig, testConfig, overwrite: true);
+        }
+        else
+        {
+            var seedInstance = Path.GetFullPath("artifacts/ksp-instance");
+            Directory.CreateDirectory(Path.Combine(seedInstance, "GameData"));
+            File.WriteAllText(testConfig, JsonSerializer.Serialize(new
+            {
+                AutoStartInstance = "SnapshotInstance",
+                GameInstances = new[] { new { Name = "SnapshotInstance", Path = seedInstance, Game = "KSP" } },
+            }));
+        }
 
         AppBuilder.Configure<CkanUI.App.App>()
             .UseHeadless(new AvaloniaHeadlessPlatformOptions
@@ -73,6 +93,16 @@ public static class Program
         motionHost.Install();
         Dispatcher.UIThread.RunJobs();
         Console.WriteLine($"Snapshot Store Motion: {snapshotStore.Load().MotionIntensity}");
+
+        // 选中配置里的首选实例：CurrentInstance 只会由启动流程设置，快照不跑那套流程，
+        // 少了这一步主页/实例页只能拍到空态（截图胶片带也就永远没有内容）。
+        var instanceManager = services.GetRequiredService<CKAN.GameInstanceManager>();
+        instanceManager.GetPreferredInstance();
+        if (instanceManager.CurrentInstance is null && instanceManager.Instances.Values.FirstOrDefault() is { } fallback)
+        {
+            instanceManager.SetCurrentInstance(fallback);
+        }
+        services.GetRequiredService<IInstanceService>().RefreshAsync().GetAwaiter().GetResult();
 
         var shell = services.GetRequiredService<ShellViewModel>();
         mainWindow = new MainWindow

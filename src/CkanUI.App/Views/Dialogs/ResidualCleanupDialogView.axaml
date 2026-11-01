@@ -10,7 +10,7 @@
                        Height="540">
   <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="12">
     <TextBlock Grid.Row="0"
-               Text="以下目录卸载后留下，勾选即删除。"
+               Text="{DynamicResource Ui_ResidualCleanupDialog_Subtitle}"
                TextWrapping="Wrap"
                Foreground="{DynamicResource CkanTextSecondaryBrush}"
                FontSize="{DynamicResource CkanFontSizeCaption}" />
@@ -86,14 +86,14 @@
     </StackPanel>
 
     <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-      <Button Content="打开目录"
+      <Button Content="{DynamicResource Ui_Settings_Auxiliary_OpenFolder}"
               Command="{Binding OpenDirectoryCommand}"
               CommandParameter="{Binding SelectedRow}"
               MinWidth="92"
               HorizontalContentAlignment="Center" />
       <Button Content="{Binding SecondaryButtonText}"
               Command="{Binding SecondaryCommand}"
-              ToolTip.Tip="不确定就全部保留：一条都不删，直接关闭。"
+              ToolTip.Tip="{DynamicResource Ui_ResidualCleanupDialog_KeepAll_Tip}"
               IsCancel="True"
               IsVisible="{Binding HasSecondaryButton}"
               MinWidth="92"

@@ -1,3 +1,4 @@
+using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.ViewModels.Dialogs;
 using NUnit.Framework;
@@ -367,5 +368,214 @@ public sealed class DialogsModDetailsTests
 
         Assert.That(savedMod, Is.EqualTo("ExampleMod"));
         Assert.That(savedTolerance, Is.Null);
+    }
+
+    private sealed class FakeSpacedockImageService : ISpacedockImageService
+    {
+        public Func<string, Task<OperationResult<byte[]>>> Handler { get; set; } =
+            _ => Task.FromResult(OperationResult<byte[]>.Ok(new byte[] { 1, 2, 3 }));
+
+        public Task<OperationResult<byte[]>> FetchScreenshotAsync(string spacedockUrl, CancellationToken cancellationToken = default) =>
+            Handler(spacedockUrl);
+    }
+
+    private sealed class FakeModDetailsShellLauncher : IModDetailsShellLauncher
+    {
+        public string? OpenedUrl { get; private set; }
+
+        public Task<OperationResult> OpenBrowserAsync(string url)
+        {
+            OpenedUrl = url;
+            return Task.FromResult(OperationResult.Ok());
+        }
+    }
+
+    [Test]
+    public void ModDetails_SpacedockUrl_PopulatedFromSnapshot()
+    {
+        var repository = new DialogsFakeRepositoryService { Current = Repository(Row()) };
+        var detailsWithSpacedock = new ModDetailsSnapshot(
+            Identifier: "ExampleMod",
+            Name: "示例模组",
+            Author: "作者乙",
+            Abstract: "一句话摘要",
+            Description: "详细描述正文",
+            License: "MIT",
+            Homepage: "https://example.invalid/mod",
+            LatestVersion: "2.0.0",
+            SizeBytes: 2048,
+            Tags: ["图形"],
+            Dependencies: [],
+            Recommendations: [],
+            Conflicts: [],
+            IsCompatible: true,
+            SpacedockUrl: "https://spacedock.info/mod/123/ExampleMod");
+
+        var vm = new ModDetailsViewModel(repository, new DialogsFakeRegistryService())
+        {
+            DetailsProvider = _ => detailsWithSpacedock
+        };
+
+        vm.Select("ExampleMod");
+
+        Assert.That(vm.HasSpacedockUrl, Is.True);
+        Assert.That(vm.SpacedockUrl, Is.EqualTo("https://spacedock.info/mod/123/ExampleMod"));
+        Assert.That(vm.HasSpacedockImage, Is.False, "默认不加载 SpaceDock 图片");
+        Assert.That(vm.IsLoadingSpacedockImage, Is.False);
+    }
+
+    [Test]
+    public async Task ModDetails_SpacedockImage_LazyLoadSuccess()
+    {
+        var repository = new DialogsFakeRepositoryService { Current = Repository(Row()) };
+        var expectedBytes = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF };
+        var fakeImgService = new FakeSpacedockImageService
+        {
+            Handler = url => Task.FromResult(OperationResult<byte[]>.Ok(expectedBytes))
+        };
+
+        var details = new ModDetailsSnapshot(
+            Identifier: "ExampleMod",
+            Name: "示例模组",
+            Author: "作者乙",
+            Abstract: "一句话摘要",
+            Description: "详细描述正文",
+            License: "MIT",
+            Homepage: null,
+            LatestVersion: "2.0.0",
+            SizeBytes: 2048,
+            Tags: [],
+            Dependencies: [],
+            Recommendations: [],
+            Conflicts: [],
+            IsCompatible: true,
+            SpacedockUrl: "https://spacedock.info/mod/456/ExampleMod");
+
+        var vm = new ModDetailsViewModel(repository, new DialogsFakeRegistryService(), spacedockImageService: fakeImgService)
+        {
+            DetailsProvider = _ => details
+        };
+
+        vm.Select("ExampleMod");
+        Assert.That(vm.HasSpacedockImage, Is.False);
+
+        await vm.LoadSpacedockImageCommand.ExecuteAsync(null);
+
+        Assert.That(vm.HasSpacedockImage, Is.True);
+        Assert.That(vm.SpacedockImageBytes, Is.EqualTo(expectedBytes));
+        Assert.That(vm.HasSpacedockImageError, Is.False);
+    }
+
+    [Test]
+    public async Task ModDetails_SpacedockImage_LazyLoadFailure_ShowsError()
+    {
+        var repository = new DialogsFakeRepositoryService { Current = Repository(Row()) };
+        var fakeImgService = new FakeSpacedockImageService
+        {
+            Handler = url => Task.FromResult(OperationResult<byte[]>.Fail("网络超时或模组无背景图"))
+        };
+
+        var details = new ModDetailsSnapshot(
+            Identifier: "ExampleMod",
+            Name: "示例模组",
+            Author: "作者乙",
+            Abstract: "一句话摘要",
+            Description: "详细描述正文",
+            License: "MIT",
+            Homepage: null,
+            LatestVersion: "2.0.0",
+            SizeBytes: 2048,
+            Tags: [],
+            Dependencies: [],
+            Recommendations: [],
+            Conflicts: [],
+            IsCompatible: true,
+            SpacedockUrl: "https://spacedock.info/mod/789/ErrorMod");
+
+        var vm = new ModDetailsViewModel(repository, new DialogsFakeRegistryService(), spacedockImageService: fakeImgService)
+        {
+            DetailsProvider = _ => details
+        };
+
+        vm.Select("ExampleMod");
+        await vm.LoadSpacedockImageCommand.ExecuteAsync(null);
+
+        Assert.That(vm.HasSpacedockImage, Is.False);
+        Assert.That(vm.HasSpacedockImageError, Is.True);
+        Assert.That(vm.SpacedockImageError, Does.Contain("网络超时或模组无背景图"));
+    }
+
+    [Test]
+    public async Task ModDetails_Spacedock_OpenBrowserAsync()
+    {
+        var repository = new DialogsFakeRepositoryService { Current = Repository(Row()) };
+        var launcher = new FakeModDetailsShellLauncher();
+        var details = new ModDetailsSnapshot(
+            Identifier: "ExampleMod",
+            Name: "示例模组",
+            Author: "作者乙",
+            Abstract: "一句话摘要",
+            Description: "详细描述正文",
+            License: "MIT",
+            Homepage: null,
+            LatestVersion: "2.0.0",
+            SizeBytes: 2048,
+            Tags: [],
+            Dependencies: [],
+            Recommendations: [],
+            Conflicts: [],
+            IsCompatible: true,
+            SpacedockUrl: "https://spacedock.info/mod/555/CoolMod");
+
+        var vm = new ModDetailsViewModel(repository, new DialogsFakeRegistryService())
+        {
+            DetailsProvider = _ => details,
+            ShellLauncher = launcher
+        };
+
+        vm.Select("ExampleMod");
+        await vm.OpenSpacedockUrlCommand.ExecuteAsync(null);
+
+        Assert.That(launcher.OpenedUrl, Is.EqualTo("https://spacedock.info/mod/555/CoolMod"));
+    }
+
+    [Test]
+    public async Task ModDetails_Spacedock_StateResetOnClear()
+    {
+        var repository = new DialogsFakeRepositoryService { Current = Repository(Row()) };
+        var fakeImgService = new FakeSpacedockImageService();
+        var details = new ModDetailsSnapshot(
+            Identifier: "ExampleMod",
+            Name: "示例模组",
+            Author: "作者乙",
+            Abstract: "一句话摘要",
+            Description: "详细描述正文",
+            License: "MIT",
+            Homepage: null,
+            LatestVersion: "2.0.0",
+            SizeBytes: 2048,
+            Tags: [],
+            Dependencies: [],
+            Recommendations: [],
+            Conflicts: [],
+            IsCompatible: true,
+            SpacedockUrl: "https://spacedock.info/mod/111/Test");
+
+        var vm = new ModDetailsViewModel(repository, new DialogsFakeRegistryService(), spacedockImageService: fakeImgService)
+        {
+            DetailsProvider = _ => details
+        };
+
+        vm.Select("ExampleMod");
+        await vm.LoadSpacedockImageCommand.ExecuteAsync(null);
+        Assert.That(vm.HasSpacedockImage, Is.True);
+
+        vm.Clear();
+
+        Assert.That(vm.HasSpacedockUrl, Is.False);
+        Assert.That(string.IsNullOrWhiteSpace(vm.SpacedockUrl), Is.True);
+        Assert.That(vm.HasSpacedockImage, Is.False);
+        Assert.That(vm.SpacedockImageBytes, Is.Null);
+        Assert.That(vm.HasSpacedockImageError, Is.False);
     }
 }

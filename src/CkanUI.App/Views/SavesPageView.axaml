@@ -49,13 +49,13 @@
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Grid.Column="0" Spacing="4">
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <TextBlock Text="存档" Classes="CkanPageTitle" VerticalAlignment="Center" />
+          <TextBlock Text="{DynamicResource Ui_NavRail_Saves}" Classes="CkanPageTitle" VerticalAlignment="Center" />
           <Button Classes="CkanHelper" VerticalAlignment="Center"
-                  ToolTip.Tip="列举 saves/ 下的存档：可校验结构、生成格式化副本或原子替换，写盘前自动留一份快照，原文件不动。">
+                  ToolTip.Tip="{DynamicResource Ui_SavesPage_Header_Tip}">
             <PathIcon Data="{StaticResource CkanIconHelp}" />
           </Button>
         </StackPanel>
-        <TextBlock Text="清点、校验与格式化" Classes="CkanCaption" TextWrapping="Wrap" />
+        <TextBlock Text="{DynamicResource Ui_SavesPage_Subtitle}" Classes="CkanCaption" TextWrapping="Wrap" />
         <TextBlock Text="{Binding SavesDirectoryText}" Classes="CkanCaption"
                    IsVisible="{Binding !ShowNoInstanceState}"
                    TextTrimming="CharacterEllipsis" />
@@ -72,28 +72,28 @@
     <!-- 工具条 -->
     <Border Grid.Row="1" Classes="CkanToolbar stagger-card" IsVisible="{Binding !ShowNoInstanceState}">
       <WrapPanel Orientation="Horizontal">
-        <Button Content="重新读取" Command="{Binding RefreshCommand}"
+        <Button Content="{DynamicResource Ui_SettingsPage_Reload}" Command="{Binding RefreshCommand}"
                 IsEnabled="{Binding IsIdle}" Classes="CkanPrimary" Margin="0,0,8,0"
-                ToolTip.Tip="重新枚举 saves/ 目录下的存档文件" />
-        <Button Content="校验" Command="{Binding ValidateCommand}"
+                ToolTip.Tip="{DynamicResource Ui_SavesPage_Refresh_Tip}" />
+        <Button Content="{DynamicResource Ui_Common_Validate}" Command="{Binding ValidateCommand}"
                 IsEnabled="{Binding CanValidate}" Classes="CkanSecondary" Margin="0,0,8,0"
-                ToolTip.Tip="只解析并检查结构，不写任何文件" />
-        <Button Content="格式化到副本" Command="{Binding FormatCopyCommand}"
+                ToolTip.Tip="{DynamicResource Ui_SavesPage_Validate_Tip}" />
+        <Button Content="{DynamicResource Ui_SavesPage_FormatToCopy}" Command="{Binding FormatCopyCommand}"
                 IsEnabled="{Binding CanFormatCopy}" Classes="CkanSecondary" Margin="0,0,8,0"
-                ToolTip.Tip="写出 &lt;名称&gt;.formatted.sfs，原文件不动" />
-        <Button Content="就地重写" Command="{Binding FormatInPlaceCommand}"
+                ToolTip.Tip="{DynamicResource Ui_SavesPage_FormatToCopy_Tip}" />
+        <Button Content="{DynamicResource Ui_SavesPage_RewriteInPlace}" Command="{Binding FormatInPlaceCommand}"
                 IsEnabled="{Binding CanFormatInPlace}" Classes="CkanDanger" Margin="0,0,8,0"
-                ToolTip.Tip="先写前快照，再原子替换（需要先校验通过）" />
-        <Button Content="在文件夹中显示" Command="{Binding OpenFolderCommand}"
+                ToolTip.Tip="{DynamicResource Ui_SavesPage_RewriteInPlace_Tip}" />
+        <Button Content="{DynamicResource Ui_Common_ShowInFolder}" Command="{Binding OpenFolderCommand}"
                 IsEnabled="{Binding CanOpenFolder}" Classes="CkanGhost"
-                ToolTip.Tip="在资源管理器中打开该存档所在目录" />
+                ToolTip.Tip="{DynamicResource Ui_SavesPage_OpenFolder_Tip}" />
         <Rectangle Width="1" Height="18" Margin="4,0,12,0" VerticalAlignment="Center"
                    Fill="{DynamicResource CkanBorderBrush}"
                    IsVisible="{Binding HasStockSaves}" />
         <CheckBox Classes="facet" Content="{Binding StockToggleText}"
                   IsChecked="{Binding ShowStockSaves, Mode=TwoWay}"
                   IsVisible="{Binding HasStockSaves}"
-                  ToolTip.Tip="KSP 自带的训练与场景存档（saves/training、saves/scenarios）默认收起；勾上可一起校验与格式化。" />
+                  ToolTip.Tip="{DynamicResource Ui_SavesPage_StockSaves_Tip}" />
       </WrapPanel>
     </Border>
 
@@ -118,9 +118,9 @@
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
                     VerticalAlignment="Center" Margin="12,0,0,0">
-          <Button Content="重试" Command="{Binding RefreshCommand}" IsEnabled="{Binding IsIdle}"
-                  Classes="CkanSmall" ToolTip.Tip="重新枚举 saves/ 目录下的存档文件" />
-          <Button Content="关闭" Command="{Binding ClearErrorCommand}" Classes="CkanSmall" />
+          <Button Content="{DynamicResource Ui_Common_Retry}" Command="{Binding RefreshCommand}" IsEnabled="{Binding IsIdle}"
+                  Classes="CkanSmall" ToolTip.Tip="{DynamicResource Ui_SavesPage_Refresh_Tip}" />
+          <Button Content="{DynamicResource Ui_Cmd_Shortcuts_Close}" Command="{Binding ClearErrorCommand}" Classes="CkanSmall" />
         </StackPanel>
       </Grid>
     </Border>
@@ -144,11 +144,11 @@
                       Background="{DynamicResource CkanSubtleBackgroundBrush}"
                       BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
                 <Grid ColumnDefinitions="2.1*,1*,52,60,124">
-                  <TextBlock Grid.Column="0" Text="槽位" Classes="CkanCaption" />
-                  <TextBlock Grid.Column="1" Text="标题" Classes="CkanCaption" />
-                  <TextBlock Grid.Column="2" Text="模式" Classes="CkanCaption" />
-                  <TextBlock Grid.Column="3" Text="版本" Classes="CkanCaption" />
-                  <TextBlock Grid.Column="4" Text="游戏内时间" Classes="CkanCaption" />
+                  <TextBlock Grid.Column="0" Text="{DynamicResource Ui_SavesPage_ColSlot}" Classes="CkanCaption" />
+                  <TextBlock Grid.Column="1" Text="{DynamicResource Ui_Common_Title}" Classes="CkanCaption" />
+                  <TextBlock Grid.Column="2" Text="{DynamicResource Ui_Common_Mode}" Classes="CkanCaption" />
+                  <TextBlock Grid.Column="3" Text="{DynamicResource Ui_Common_Version}" Classes="CkanCaption" />
+                  <TextBlock Grid.Column="4" Text="{DynamicResource Ui_SavesPage_ColInGameTime}" Classes="CkanCaption" />
                 </Grid>
               </Border>
 
@@ -178,7 +178,7 @@
                                    Foreground="{DynamicResource CkanTextPrimaryBrush}" />
                         <Border Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center"
                                 Classes="CkanBadge" IsVisible="{Binding IsStock}">
-                          <TextBlock Text="自带" />
+                          <TextBlock Text="{DynamicResource Ui_SavesPage_ColStock}" />
                         </Border>
                         <Border Grid.Column="2" Margin="6,0,0,0" VerticalAlignment="Center"
                                 Classes="CkanBadge Info" IsVisible="{Binding IsBackup}">
@@ -233,23 +233,23 @@
             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto"
                   ColumnSpacing="12" RowSpacing="2" Margin="0,4,0,2">
               <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="4">
-                <TextBlock Text="飞船" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                <TextBlock Text="{DynamicResource Ui_SavesPage_ColVessels}" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
                 <TextBlock Text="{Binding SelectedRow.VesselCountText}" Classes="CkanCaption" />
               </StackPanel>
               <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                <TextBlock Text="资金" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                <TextBlock Text="{DynamicResource Ui_SavesPage_ColFunds}" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
                 <TextBlock Text="{Binding SelectedRow.FundsText}" Classes="CkanCaption" />
               </StackPanel>
               <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Spacing="4">
-                <TextBlock Text="体积" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                <TextBlock Text="{DynamicResource Ui_Common_Size}" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
                 <TextBlock Text="{Binding SelectedRow.SizeText}" Classes="CkanCaption" />
               </StackPanel>
               <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                <TextBlock Text="快照" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                <TextBlock Text="{DynamicResource Ui_Common_Snapshot}" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
                 <TextBlock Text="{Binding SelectedRow.SnapshotCountText}" Classes="CkanCaption" />
               </StackPanel>
               <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="4">
-                <TextBlock Text="修改时间" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                <TextBlock Text="{DynamicResource Ui_Common_ModifiedTime}" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
                 <TextBlock Text="{Binding SelectedRow.TimeText}" Classes="CkanCaption" />
               </StackPanel>
             </Grid>
@@ -319,7 +319,7 @@
           <Border Grid.Row="3" IsVisible="{Binding ShowDiagnosticsEmpty}" Padding="8">
             <StackPanel Spacing="8">
               <Border Classes="CkanBadge Success" HorizontalAlignment="Left">
-                <TextBlock Text="校验通过" />
+                <TextBlock Text="{DynamicResource Ui_Common_ValidationPassed}" />
               </Border>
               <TextBlock Text="{Binding DiagnosticsEmptyText}" TextWrapping="Wrap"
                          VerticalAlignment="Top"
@@ -336,11 +336,11 @@
           <Border Grid.Row="0" Grid.RowSpan="5" IsVisible="{Binding !HasSelection}"
                   Padding="20" HorizontalAlignment="Center" VerticalAlignment="Center">
             <StackPanel Spacing="8" HorizontalAlignment="Center" MaxWidth="280">
-              <TextBlock Text="未选择存档"
+              <TextBlock Text="{DynamicResource Ui_Saves_NoSelection}"
                          Classes="CkanCardTitle"
                          HorizontalAlignment="Center"
                          Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-              <TextBlock Text="选一个存档，这里显示飞船与诊断。"
+              <TextBlock Text="{DynamicResource Ui_SavesPage_SelectSaveHint}"
                          Classes="CkanCaption"
                          TextWrapping="Wrap"
                          TextAlignment="Center"
@@ -356,16 +356,16 @@
           <Border Classes="CkanIconTile Lg Muted" HorizontalAlignment="Center">
             <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
           </Border>
-          <TextBlock Text="还没有选择游戏实例" HorizontalAlignment="Center"
+          <TextBlock Text="{DynamicResource Ui_SavesPage_NoInstanceTitle}" HorizontalAlignment="Center"
                      FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
                      Foreground="{DynamicResource CkanTextPrimaryBrush}" />
           <TextBlock Text="{Binding NoInstanceStateHint}" TextWrapping="Wrap" TextAlignment="Center"
                      FontSize="{DynamicResource CkanFontSizeBody}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <Button Content="前往实例页" Classes="CkanSecondary" HorizontalAlignment="Center"
+          <Button Content="{DynamicResource Ui_ModConfigPage_GoToInstancesPage}" Classes="CkanSecondary" HorizontalAlignment="Center"
                   Command="{Binding $parent[Window].DataContext.NavigateCommand}"
                   CommandParameter="instances"
-                  ToolTip.Tip="在「实例」页选中或添加一个 KSP 安装" />
+                  ToolTip.Tip="{DynamicResource Ui_SavesPage_SelectInstanceFirst_Tip}" />
         </StackPanel>
       </Border>
 
@@ -383,7 +383,7 @@
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
           <Button Content="{Binding EmptyStateActionText}" Command="{Binding OpenFolderCommand}"
                   Classes="CkanSecondary" HorizontalAlignment="Center"
-                  ToolTip.Tip="在资源管理器中打开 saves/ 目录" />
+                  ToolTip.Tip="{DynamicResource Ui_SavesPage_OpenSavesDir_Tip}" />
         </StackPanel>
       </Border>
 
@@ -402,7 +402,7 @@
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
           <Button Content="{Binding StockOnlyActionText}" Command="{Binding RevealStockSavesCommand}"
                   Classes="CkanSecondary" HorizontalAlignment="Center"
-                  ToolTip.Tip="把训练与场景存档一起列出来（等同勾上工具条的「自带存档」）" />
+                  ToolTip.Tip="{DynamicResource Ui_SavesPage_IncludeStock_Tip}" />
         </StackPanel>
       </Border>
     </Grid>

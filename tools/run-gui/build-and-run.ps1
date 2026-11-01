@@ -30,7 +30,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# 脚本住在 tools/run-gui/，仓库根是它的上两级。
+# The script lives in tools/run-gui, so the repository root is two levels up.
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $solution = Join-Path $root 'ckan-ui.sln'
 $exe = Join-Path $root 'src/CkanUI.App/bin/Release/net10.0/CkanUI.exe'

@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
+using CkanUI.Localization;
 using CkanUI.Platform.SingleInstance;
 using CkanUI.Services.Logging;
 using log4net;
@@ -82,9 +83,14 @@ public static class Program
         {
             Dispatcher.UIThread.Post(() =>
             {
+                var title = Application.Current?.Resources.TryGetResource(LocalizationKeys.CommonErrorUnhandledTitle, null, out var t) == true && t is string ts ? ts : "CKAN UI 遇到错误";
+                var bodyTemplate = Application.Current?.Resources.TryGetResource(LocalizationKeys.CommonErrorUnhandledBody, null, out var b) == true && b is string bs ? bs : "程序遇到未处理的错误，详细信息已写入日志。\n\n{0}";
+                var unknown = Application.Current?.Resources.TryGetResource(LocalizationKeys.CommonErrorUnknown, null, out var u) == true && u is string us ? us : "未知错误";
+                var errorDetail = string.Format(System.Globalization.CultureInfo.CurrentCulture, bodyTemplate, exception?.Message ?? unknown);
+
                 var window = new Window
                 {
-                    Title = "CKAN UI 遇到错误",
+                    Title = title,
                     Width = 640,
                     Height = 320,
                     Content = new ScrollViewer
@@ -92,7 +98,7 @@ public static class Program
                         Padding = new Thickness(16),
                         Content = new TextBlock
                         {
-                            Text = "程序遇到未处理的错误，详细信息已写入日志。\n\n" + (exception?.Message ?? "未知错误"),
+                            Text = errorDetail,
                             TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                         },
                     },

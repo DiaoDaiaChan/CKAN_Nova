@@ -1,5 +1,7 @@
+using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.VisualTree;
 using CkanUI.Services.Abstractions;
 using CkanUI.ViewModels;
 using CkanUI.ViewModels.Pages;
@@ -12,11 +14,24 @@ namespace CkanUI.App;
 /// </summary>
 public sealed class ViewLocator : IDataTemplate
 {
+    /// <summary>
+    /// 按单例页面 VM 缓存已实例化的视图控件：避免每次切页都重新 new UserControl，
+    /// 否则 InitializeComponent 期间 DataContext 为 null 会让页内 .view-layer 反复从 Opacity=0 闪回 Opacity=1。
+    /// </summary>
+    private static readonly ConditionalWeakTable<object, Control> ViewCache = new();
+
     public bool Match(object? data) => data is PageViewModel or IPluginPage;
 
     public Control? Build(object? param)
     {
         if (param is null) return null;
+
+        if (ViewCache.TryGetValue(param, out var cached) &&
+            cached.Parent is null &&
+            cached.GetVisualParent() is null)
+        {
+            return cached;
+        }
 
         // 顺序很重要：先换命名空间再换类型后缀。
         // 反过来的话 "CkanUI.ViewModels.Pages.ModsPageViewModel" 会变成 "...Views.Pages.ModsPageView"（Pages 段被留下），
@@ -24,6 +39,7 @@ public sealed class ViewLocator : IDataTemplate
         if (ResolveViewType(param.GetType()) is { } viewType && Activator.CreateInstance(viewType) is Control view)
         {
             view.DataContext = param;
+            ViewCache.AddOrUpdate(param, view);
             return view;
         }
 

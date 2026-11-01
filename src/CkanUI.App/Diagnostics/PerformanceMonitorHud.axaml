@@ -17,7 +17,7 @@
           <Ellipse Width="10" Height="10"
                    Fill="{DynamicResource CkanSuccessBrush}"
                    VerticalAlignment="Center" />
-          <TextBlock Text="GUI 性能探针与 FPS 监控器"
+          <TextBlock Text="{DynamicResource Ui_PerfHud_Title}"
                      FontWeight="SemiBold"
                      FontSize="13"
                      VerticalAlignment="Center" />
@@ -42,7 +42,7 @@
                 MinWidth="0"
                 CornerRadius="4"
                 Click="OnCloseClick"
-                ToolTip.Tip="关闭监控 HUD (F12)">
+                ToolTip.Tip="{DynamicResource Ui_PerfHud_Close_Tip}">
           <PathIcon Width="10" Height="10"
                     Data="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
         </Button>
@@ -59,7 +59,7 @@
                 Padding="10,8"
                 Margin="0,0,5,5">
           <StackPanel Spacing="4">
-            <TextBlock Text="帧率 (FPS)" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            <TextBlock Text="{DynamicResource Ui_PerfHud_Fps}" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
             <StackPanel Orientation="Horizontal" Spacing="4">
               <TextBlock Text="{Binding CurrentFps, StringFormat='{}{0:0.0}'}"
                          FontSize="22"
@@ -67,13 +67,13 @@
                          Foreground="{DynamicResource CkanPrimaryBrush}" />
               <TextBlock Text="fps" FontSize="11" VerticalAlignment="Bottom" Margin="0,0,0,3" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
             </StackPanel>
-            <TextBlock Text="{Binding AvgFps, StringFormat='均值: {0:0.0} | 1%Low: '}"
-                       FontSize="11"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}">
-            </TextBlock>
-            <TextBlock Text="{Binding OnePercentLowFps, StringFormat='1% 最慢: {0:0.0} fps'}"
-                       FontSize="11"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <StackPanel Orientation="Horizontal" Spacing="2">
+              <TextBlock Text="{DynamicResource Ui_PerfHud_AvgFpsPrefix}" FontSize="11" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Text="{Binding AvgFps, StringFormat='{}{0:0.0}'}" FontSize="11" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Text=" | " FontSize="11" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Text="{DynamicResource Ui_PerfHud_OnePercentLowPrefix}" FontSize="11" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Text="{Binding OnePercentLowFps, StringFormat='{}{0:0.0} fps'}" FontSize="11" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </StackPanel>
           </StackPanel>
         </Border>
 
@@ -84,7 +84,7 @@
                 Padding="10,8"
                 Margin="5,0,0,5">
           <StackPanel Spacing="4">
-            <TextBlock Text="帧耗时 (PERF-01 门禁)" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            <TextBlock Text="{DynamicResource Ui_PerfHud_FrameTime}" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
             <StackPanel Orientation="Horizontal" Spacing="4">
               <TextBlock Text="{Binding CurrentFrameMs, StringFormat='{}{0:0.0}'}"
                          FontSize="22"
@@ -108,17 +108,19 @@
                 Padding="10,8"
                 Margin="0,5,5,0">
           <StackPanel Spacing="3">
-            <TextBlock Text="响应度 / 调度延迟" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            <TextBlock Text="{DynamicResource Ui_PerfHud_Responsiveness}" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
             <TextBlock Text="{Binding DispatcherLagMs, StringFormat='Lag: {0:0.0} ms'}"
                        FontSize="12"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-            <TextBlock Text="{Binding Hitches16Count, StringFormat='>16.7ms 掉帧: {0}'}"
-                       FontSize="11"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <TextBlock Text="{Binding Hitches33Count, StringFormat='>33.3ms 卡顿: {0}'}"
-                       FontSize="11"
-                       Foreground="{DynamicResource CkanWarningBrush}" />
+            <StackPanel Orientation="Horizontal" Spacing="2">
+              <TextBlock Text="{DynamicResource Ui_PerfHud_Hitches16Prefix}" FontSize="11" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Text="{Binding Hitches16Count}" FontSize="11" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="2">
+              <TextBlock Text="{DynamicResource Ui_PerfHud_Hitches33Prefix}" FontSize="11" Foreground="{DynamicResource CkanWarningBrush}" />
+              <TextBlock Text="{Binding Hitches33Count}" FontSize="11" Foreground="{DynamicResource CkanWarningBrush}" />
+            </StackPanel>
           </StackPanel>
         </Border>
 
@@ -129,14 +131,15 @@
                 Padding="10,8"
                 Margin="5,5,0,0">
           <StackPanel Spacing="3">
-            <TextBlock Text="内存与垃圾回收" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            <TextBlock Text="{DynamicResource Ui_PerfHud_MemoryGc}" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
             <TextBlock Text="{Binding MemoryMb, StringFormat='Heap: {0:0.0} MB'}"
                        FontSize="12"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-            <TextBlock Text="{Binding Gen0Count, StringFormat='Gen 0 回收: {0}'}"
-                       FontSize="11"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <StackPanel Orientation="Horizontal" Spacing="2">
+              <TextBlock Text="{DynamicResource Ui_PerfHud_Gen0Prefix}" FontSize="11" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Text="{Binding Gen0Count}" FontSize="11" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </StackPanel>
             <TextBlock Text="{Binding Gen1Count, StringFormat='Gen 1/2: {0} / '}"
                        FontSize="11"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
@@ -147,8 +150,8 @@
       <!-- 火花线走势图 -->
       <StackPanel Spacing="4" Margin="0,4,0,0">
         <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Grid.Column="0" Text="帧耗时走势 (近 120 帧)" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-          <TextBlock Grid.Column="1" Text="标线: 8ms / 16.7ms / 33ms" FontSize="10" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+          <TextBlock Grid.Column="0" Text="{DynamicResource Ui_PerfHud_FrameHistory}" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+          <TextBlock Grid.Column="1" Text="{DynamicResource Ui_PerfHud_BaselineMarkers}" FontSize="10" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
         </Grid>
         <Border CornerRadius="4" ClipToBounds="True" BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1">
           <diag:PerformanceSparklineControl Durations="{Binding RecentDurations}" Height="54" />
@@ -157,11 +160,11 @@
 
       <!-- 底部诊断动作 -->
       <Grid ColumnDefinitions="*,*,*" Margin="0,4,0,0">
-        <Button Grid.Column="0" Classes="CkanSecondary" Content="重置统计" Click="OnResetClick"
+        <Button Grid.Column="0" Classes="CkanSecondary" Content="{DynamicResource Ui_PerfHud_ResetStats}" Click="OnResetClick"
                 HorizontalAlignment="Stretch" Margin="0,0,4,0" Padding="0,5" FontSize="11" />
-        <Button Grid.Column="1" Classes="CkanSecondary" Content="强制 GC" Click="OnForceGcClick"
+        <Button Grid.Column="1" Classes="CkanSecondary" Content="{DynamicResource Ui_PerfHud_ForceGc}" Click="OnForceGcClick"
                 HorizontalAlignment="Stretch" Margin="2,0,2,0" Padding="0,5" FontSize="11" />
-        <Button Grid.Column="2" Classes="CkanSecondary" Content="复制诊断" Click="OnCopyDiagnosticsClick"
+        <Button Grid.Column="2" Classes="CkanSecondary" Content="{DynamicResource Ui_PerfHud_CopyDiagnostics}" Click="OnCopyDiagnosticsClick"
                 HorizontalAlignment="Stretch" Margin="4,0,0,0" Padding="0,5" FontSize="11" />
       </Grid>
     </StackPanel>

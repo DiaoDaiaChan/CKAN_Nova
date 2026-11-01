@@ -68,17 +68,19 @@ public sealed class DefaultCommandsTests
     }
 
     [Test]
-    public void CreateActions_Returns10CommandsWithTwoShortcuts()
+    public void CreateActions_Returns11CommandsWithThreeShortcuts()
     {
         var actions = DefaultCommands.CreateActions();
 
-        Assert.That(actions.Count, Is.EqualTo(10));
+        Assert.That(actions.Count, Is.EqualTo(11));
         Assert.That(actions[0].Id, Is.EqualTo("action:show-palette"));
         Assert.That(actions[0].ShortcutText, Is.EqualTo("Ctrl+K"));
         Assert.That(actions[1].Id, Is.EqualTo("action:show-shortcuts"));
         Assert.That(actions[1].ShortcutText, Is.EqualTo("Ctrl+/"));
+        Assert.That(actions[2].Id, Is.EqualTo("action:open-onboarding-guide"));
+        Assert.That(actions[2].ShortcutText, Is.EqualTo("F1"));
         Assert.That(
-            actions.Skip(2).All(action => !action.HasShortcut),
+            actions.Skip(3).All(action => !action.HasShortcut),
             Is.True,
             "没接线的动作不写手势，免得快捷键目录里出现按了没反应的行");
         Assert.That(actions[0].Category, Is.EqualTo("界面"));
@@ -117,14 +119,14 @@ public sealed class DefaultCommandsTests
     }
 
     [Test]
-    public void CreateAll_Returns29UniqueCommands()
+    public void CreateAll_Returns30UniqueCommands()
     {
         var commands = DefaultCommands.CreateAll();
 
-        Assert.That(commands.Count, Is.EqualTo(29));
+        Assert.That(commands.Count, Is.EqualTo(30));
         Assert.That(
             commands.Select(command => command.Id).Distinct(StringComparer.Ordinal).Count(),
-            Is.EqualTo(29),
+            Is.EqualTo(30),
             "Id 必须全目录唯一，否则批量注册会被 all-or-nothing 拒绝");
     }
 
