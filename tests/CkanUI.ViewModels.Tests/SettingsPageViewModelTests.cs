@@ -987,4 +987,23 @@ public sealed class SettingsPageViewModelTests
             return Task.FromResult(Result);
         }
     }
+    [Test]
+    public async Task SecondActivation_KeepsInFlightEdits()
+    {
+        var page = CreatePage(SeededSettings(), new FakeUiSettingsStore(), InstancesWith(@"C:\Games\KSP"));
+
+        page.Activate();
+        var item = Item(page, SettingsKeyNames.DevBuilds);
+        item.EditValue = "false";
+        Assert.That(item.IsDirty, Is.True);
+
+        page.Deactivate();
+
+        // 再次进入只补实例相关项，不能把还没保存的编辑值冲回磁盘上的旧值，也不该再闪一次加载态。
+        page.Activate();
+
+        Assert.That(item.EditValue, Is.EqualTo("false"));
+        Assert.That(page.IsLoading, Is.False);
+    }
+
 }

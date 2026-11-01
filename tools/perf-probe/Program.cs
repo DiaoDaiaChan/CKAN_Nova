@@ -71,6 +71,34 @@ public static class Program
             return 0;
         }
 
+        // --save-validate：一次真实存档校验的成本
+        if (Array.Exists(args, a => string.Equals(a, "--save-validate", StringComparison.OrdinalIgnoreCase)))
+        {
+            PageSwitchProbe.SaveValidateCost();
+            return 0;
+        }
+
+        // --node-hist <key>：单页可视树类型直方图
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (string.Equals(args[i], "--node-hist", StringComparison.OrdinalIgnoreCase))
+            {
+                PageSwitchProbe.NodeHistogram(args[i + 1]);
+                return 0;
+            }
+        }
+
+        // --pages-real：真实 DI 下的换页成本（首次进入 vs 再次进入，不跑门禁）
+        var realIndex = Array.FindIndex(args, a => string.Equals(a, "--pages-real", StringComparison.OrdinalIgnoreCase));
+        if (realIndex >= 0)
+        {
+            var only = realIndex + 1 < args.Length && !args[realIndex + 1].StartsWith("--", StringComparison.Ordinal)
+                ? args[realIndex + 1]
+                : null;
+            PageSwitchProbe.Run(2, only);
+            return 0;
+        }
+
         // --micro：首屏样式成本拆解（不跑门禁）
         if (Array.Exists(args, a => string.Equals(a, "--micro", StringComparison.OrdinalIgnoreCase)))
         {

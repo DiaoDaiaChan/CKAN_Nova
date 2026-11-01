@@ -412,6 +412,32 @@ public sealed class SavesPageViewModelTests
         Assert.That(vm.RevealStockSavesCommand.CanExecute(null), Is.True);
     }
 
+    [Test]
+    public async Task RefreshingTwice_ReusesValidationForUnchangedFile()
+    {
+        var (vm, _, _, saves, _) = Create();
+        saves.ListResult = OperationResult<IReadOnlyList<SaveGameInfo>>.Ok(new[] { SavesFixtures.Save() });
+
+        await vm.RefreshCommand.ExecuteAsync(null);
+        Assert.That(saves.ValidateRequests, Has.Count.EqualTo(1));
+
+        // 同一份文件（大小与写入时间都没变）再刷一次列表：不能再读一遍磁盘解析整份存档。
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(saves.ValidateRequests, Has.Count.EqualTo(1), "未改动的存档不该重复校验");
+        Assert.That(vm.IsValidated, Is.True, "诊断结果要照旧贴回来，不能因为走缓存就变空");
+
+        // 文件被改写（体积变化）→ 缓存必须失效。
+        saves.ListResult = OperationResult<IReadOnlyList<SaveGameInfo>>.Ok(new[]
+        {
+            SavesFixtures.Save() with { SizeBytes = 8192 },
+        });
+
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(saves.ValidateRequests, Has.Count.EqualTo(2), "文件变了就要重新校验");
+    }
+
     private static (
         SavesPageViewModel ViewModel,
         InstancesFakeDialogs Dialogs,

@@ -29,6 +29,12 @@ public sealed class UiSettingsStore : IUiSettingsStore
     private readonly Lock _gate = new();
     private UiSettings _current = new();
 
+    // 读取缓存：启动期 7 个外观宿主各 Load 一次、设置页每次进入还要 GetAllAsync 一次，
+    // 每次都 File.ReadAllBytes + 反序列化同一份 ckan-ui.json 是纯重复 IO。按「大小 + 写入时间」失效。
+    private UiSettings? _cachedRead;
+    private long _cachedLength = -1;
+    private DateTime _cachedWriteUtc;
+
     /// <summary>使用默认路径（Core 的 AppDataPath，即 %LocalAppData%/CKAN）。</summary>
     public UiSettingsStore()
         : this(Path.Combine(CKANPathUtils.AppDataPath, FileName))
@@ -60,7 +66,7 @@ public sealed class UiSettingsStore : IUiSettingsStore
 
     public UiSettings Load()
     {
-        var loaded = TryRead() ?? new UiSettings();
+        var loaded = ReadWithCache() ?? new UiSettings();
         lock (_gate)
         {
             _current = loaded;
@@ -92,6 +98,7 @@ public sealed class UiSettingsStore : IUiSettingsStore
 
                 MoveWithRetry(temp, FilePath);
                 _current = settings;
+                RememberWritten(settings);
                 result = OperationResult<bool>.Ok(true);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -114,6 +121,31 @@ public sealed class UiSettingsStore : IUiSettingsStore
         return result;
     }
 
+    /// <summary>写完立刻把缓存指向刚写入的内容，避免下一次 Load 再解析一遍。</summary>
+    /// <param name="settings">已落盘的设置。</param>
+    private void RememberWritten(UiSettings settings)
+    {
+        try
+        {
+            var info = new FileInfo(FilePath);
+            if (!info.Exists)
+            {
+                _cachedRead = null;
+                _cachedLength = -1;
+                return;
+            }
+
+            _cachedRead = settings;
+            _cachedLength = info.Length;
+            _cachedWriteUtc = info.LastWriteTimeUtc;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _cachedRead = null;
+            _cachedLength = -1;
+        }
+    }
+
     private void RaiseChanged(UiSettings settings)
     {
         var handler = Changed;
@@ -131,6 +163,42 @@ public sealed class UiSettingsStore : IUiSettingsStore
             // 05 篇 §7：事件处理不抛，一个订阅方失败不能影响落盘结果。
             Log.Warn("UI 设置变更订阅方抛出异常。", ex);
         }
+    }
+
+    /// <summary>带失效判断的读取：文件没变就复用上次解析结果。</summary>
+    /// <returns>解析出的设置；文件不存在或不可读时为 null。</returns>
+    private UiSettings? ReadWithCache()
+    {
+        FileInfo info;
+        try
+        {
+            info = new FileInfo(FilePath);
+            if (!info.Exists)
+            {
+                _cachedRead = null;
+                _cachedLength = -1;
+                return null;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return TryRead();
+        }
+
+        if (_cachedRead is not null && info.Length == _cachedLength && info.LastWriteTimeUtc == _cachedWriteUtc)
+        {
+            return _cachedRead;
+        }
+
+        var read = TryRead();
+        if (read is not null)
+        {
+            _cachedRead = read;
+            _cachedLength = info.Length;
+            _cachedWriteUtc = info.LastWriteTimeUtc;
+        }
+
+        return read;
     }
 
     private UiSettings? TryRead()

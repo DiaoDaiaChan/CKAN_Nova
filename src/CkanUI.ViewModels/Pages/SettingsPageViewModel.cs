@@ -321,6 +321,9 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     [RelayCommand]
     private Task ReloadAsync(CancellationToken ct) => LoadAsync(ct);
 
+    /// <summary>是否已经成功读过一次全量设置；决定再次进入时走全量还是增量。</summary>
+    private bool _hasLoadedOnce;
+
     /// <summary>保存全部脏项：外壳悬浮提示条上的「保存更改」走这里（逐项复用 <see cref="SaveItemAsync"/>，失败项各自留错误文案）。</summary>
     [RelayCommand]
     private async Task SaveAllAsync(CancellationToken ct)
@@ -412,6 +415,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
 
             // 行是这次读取才建出来的，接管状态要重新贴一遍（不能指望视图的 DataContextChanged 早于 LoadAsync）。
             RefreshAppearanceLock();
+            _hasLoadedOnce = true;
 
             if (!HasLoadError)
             {
@@ -513,7 +517,37 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     protected override void OnActivated()
     {
         base.OnActivated();
-        _ = LoadAsync();
+
+        // 首次进入读全量；之后再进来只补随实例变化的那部分。
+        // 全量重读会在每次切页时重灌 36 行的编辑值并重发一轮属性通知，且 IsLoading 会让整页闪一次骨架。
+        _ = _hasLoadedOnce ? RefreshInstanceStateAsync() : LoadAsync();
+    }
+
+    /// <summary>再次进入时只刷新依赖当前实例的设置项与诊断卡，不重灌 36 行编辑值。</summary>
+    /// <param name="ct">取消标记。</param>
+    private async Task RefreshInstanceStateAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var all = await _settings.GetAllAsync(ct).ConfigureAwait(true);
+            if (!all.IsSuccess || all.Value is null)
+            {
+                return;
+            }
+
+            ApplyInstanceState(all.Value);
+            await LoadStabilityToleranceAsync(ct).ConfigureAwait(true);
+            _diagnostics.Update(
+                _instances?.Current,
+                SettingsPaths.DefaultConfigDirectory,
+                _cacheDirItem?.EditValue);
+            UpdateDirtyState();
+        }
+        catch (Exception ex)
+        {
+            // 服务契约不抛异常；真抛了也不能穿透到 UI 线程（01 篇 §8 异常收口）。
+            SetLoadError(Text("读取设置失败", LocalizationKeys.SettingsErrorLoadFailed), ex.Message);
+        }
     }
 
     private void BuildGroups()

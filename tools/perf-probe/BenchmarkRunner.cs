@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CkanUI.App.Diagnostics;
 using CkanUI.App.Views;
+using CkanUI.App.Views.Logs;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.ViewModels.Pages;
 

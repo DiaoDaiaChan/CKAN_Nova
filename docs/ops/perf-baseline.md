@@ -683,3 +683,74 @@ TEMP=$PWD/artifacts/tmp/temp TMP=$PWD/artifacts/tmp/temp \
 TEMP=$PWD/artifacts/tmp/temp TMP=$PWD/artifacts/tmp/temp \
   dotnet tests/CkanUI.TestRunner/bin/Release/net10.0/CkanUI.TestRunner.dll --config Release Service
 ```
+
+## 18. 换页成本的实测口径，与三项「重复干活」的修复
+
+用户反馈「切到设置会卡顿、实例页切存档/飞船掉帧」。这一节记录怎么把「换页」这件事变成可复现的数字，以及实测之后真正值得修的是什么。
+
+### 18.1 探针：`perf-probe --pages-real [key]`
+
+`tools/perf-probe/PageSwitchProbe.cs` 在**真实 DI** 下换页，逐段计时：
+
+| 段 | 含义 |
+| --- | --- |
+| resolve | `GetService` 解析页面 VM（首次 vs 再次，DI 单例） |
+| deactivate / activate | 上一个 VM 的 `OnDeactivated`、目标 VM 的 `OnActivated`（数据刷新在这里） |
+| settle300 | 泵 300 ms 调度队列（异步加载落地） |
+| view | `ViewLocator.Build` 造视图 |
+| layout | Content 赋值 + Measure + Arrange |
+| reveal | 六套动效 Attach + `EntranceChoreographer.Play` + `TextRevealChoreographer.Play` |
+| render | `ForceRenderTimerTick(16)` |
+| nodes | 该页可视树节点数 |
+
+`--node-hist <key>` 打印单页类型直方图；`--save-validate` 量一次真实存档校验（本机无可用实例时输出 `no instance`）。
+
+### 18.2 23 个导航键全量结果（HEAD `f0d8f81`，round1 / round2，ms）
+
+| 页面 | view | layout | reveal | nodes |
+| --- | --- | --- | --- | --- |
+| **settings** | 26.4 | **686.9 / 777.8** | 0.2 | **2338** |
+| mods | 191.9 | 218.4 | 6.1 | 146（DataGrid 单元格模板贵） |
+| modpacks | 62.1 | 173.2 | 3.4 | 250 |
+| modpack-editor | 61.5 | 147.6 / 50.8 | 2.1 | 459 |
+| home | 41.2 | 81.4 / 86.5 | 1.4 | 158 |
+| changes | 33.6 | 85.9 / 33.0 | 1.2 | 132 |
+| modtext | 30.1 | 68.4 / 30.0 | 1.1 | 121 |
+| cache | 24.8 | 61.1 / 14.1 | 0.9 | 96 |
+| saves | 22.4 | 55.6 / 27.0 | 0.8 | 104 |
+| 其余 14 键 | ≤28 | ≤50 | ≤1.5 | ≤180 |
+
+两条结论：
+
+1. **`reveal` 全页 0.1–16 ms（settings 只有 0.2 ms）** —— 之前怀疑的「每次换页 5–6 次全树 BFS」并不成立：`Attach` 有 `ConditionalWeakTable` 去重，`Play` 只碰 ≤8 个目标。动效不是瓶颈，不要去优化它。
+2. **layout ≈ 0.33 ms/节点**，与 `--micro` 的 0.31 ms/控件基线一致 → 换页成本 ∝ 节点数，减节点是唯一抓手。
+
+settings 的节点直方图（total 2338）：ContentPresenter 406、TextBlock 296、Border 281、Grid 197、StackPanel 176、TextBox 94、Viewbox 80、ViewboxContainer 80、Panel 56、DockPanel 48、ContentControl 47、Button 46、FASettingsExpander 36、Expander 36、ToggleButton 36、FASettingsExpanderItem 36、FANumberBox 36、ToggleSwitch 36 —— 每行 65 节点，因为 5 种编辑器（TextBox 单行/多行、FANumberBox、ToggleSwitch、ComboBox）全部实例化，4 个靠 `IsVisible=false` 藏着。
+
+### 18.3 否定实验：按 kind 只建一个编辑器（已回退）
+
+新增 `SettingEditorHost : ContentControl`，在 `OnDataContextChanged` 里按 `SettingItemViewModel` 的 `IsMultiline` / `IsNumericKind` / `IsBooleanKind` / `IsChoiceKind` 选 `x:Key` 模板，模板搬进 `SettingsPageView.axaml` 的 `UserControl.Resources`。
+
+结果：**nodes 2338 → 2302（-1.5%）**，layout 仍在 789 / 924 / 1408 / 1541 ms 之间漂移。原因：每行省下 4 个隐藏编辑器，但换来 `ContentPresenter +36`、`SettingEditorHost +36`、`FASymbolIcon +36`，净减极小。已 `git checkout` 回退。
+
+同一轮还量到：把 settings 的 ItemsControl 整段 `IsVisible="False"`（本该让布局变便宜）后，layout 反而 1215–1804 ms → **当前机器上 headless 布局采样被负载支配，±2 倍漂移**，任何 <5% 的节点改动都测不出来。
+
+> 判据：节点数是**可复现**的指标；headless 的 layout 毫秒在当前环境下不可作为小改动的验收依据。
+
+### 18.4 真正值得修的三处「重复干活」
+
+换页时最贵的不是造控件，而是每次回到页面都**重做一遍已经做过的事**。三处已修（`src/CkanUI.ViewModels/Pages/SettingsPageViewModel.cs`、`src/CkanUI.ViewModels/Pages/SavesPageViewModel.cs`、`src/CkanUI.Services/Settings/UiSettingsStore.cs`）：
+
+| # | 问题 | 修法 | 可观测差别 |
+| --- | --- | --- | --- |
+| 1 | `SettingsPageViewModel.OnActivated` 无条件 `LoadAsync`：重灌 36 行编辑值、闪 `IsLoading` 骨架、冲掉未保存编辑 | 加 `_hasLoadedOnce` 门；再次进入只走 `RefreshInstanceStateAsync()`（`GetAllAsync` → `ApplyInstanceState` → `LoadStabilityToleranceAsync`），手动「重新加载」仍走 `ReloadAsync` | `SecondActivation_KeepsInFlightEdits`：改过的 `DevBuilds` 值经 Deactivate→Activate 后保持，且 `IsLoading=false` |
+| 2 | `UiSettingsStore.Load()` 每次都 `ReadAllBytes` + 反序列化；启动期 7 个外观宿主各读一次，设置页每次 `GetAllAsync` 再读一次 | `ReadWithCache()` 按 `FileInfo` 的 `Length` + `LastWriteTimeUtc` 复用；`Save` 之后 `RememberWritten` 同步戳；文件不存在清缓存，IO/Unauthorized 回退 `TryRead` | 同一份 `ckan-ui.json` 一个会话只解析一次 |
+| 3 | `SavesPageViewModel` 每次选中/刷新都 `File.ReadAllBytes` 整份 sfs + `SfsParser.ParseBytes` + `SfsValidator.Validate`，且无条件 `IsBusy=true` 闪遮罩 | 按 `row.SizeBytes` + `row.LastWriteTime` 落 16 条 `_reportCache`；同实例且有数据时不再置 `IsBusy`；**用户显式点「校验」走 `preferCache: false` 强制真读** | `RefreshingTwice_ReusesValidationForUnchangedFile`：两次刷新后 `ValidateRequests==1`；把文件大小改成 8192 后变 2 |
+
+第 3 条的 `preferCache` 参数是被测试逼出来的：第一版让显式校验也吃缓存，`ValidateFailure_ShowsErrorAndClearsValidation` 立刻红 —— 用户点「校验」时想看到的是此刻磁盘上的真相，缓存只能服务「切回页面」这种隐式路径。
+
+### 18.5 剩下的 settings 大头（未做）
+
+settings 的 2338 节点 / 686–778 ms 布局仍然是全场唯一 O(700ms) 项。要真正拿下来只有两条路，都需要动视觉：虚拟化整页（`ItemsControl` → 虚拟化面板，滚动条行为会变），或把 36 行折叠成分组手风琴（默认不展开，用户得多点一次）。两条都违反「不影响视觉效果」，暂时只记录不动手。
+
+子标签（modpacks 两个 TabItem、ModDetailsView 四个 TabItem）尚未单独计时 —— 现有探针按导航键走，覆盖不到 TabControl 内部的切换。

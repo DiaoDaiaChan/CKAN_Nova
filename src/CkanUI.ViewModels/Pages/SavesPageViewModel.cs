@@ -25,6 +25,9 @@ public sealed partial class SavesPageViewModel : PageViewModel
     private readonly IDialogService _dialogs;
     private bool _subscribed;
 
+    /// <summary>校验缓存条数上限（存档数量级很小，够覆盖当前页可见范围）。</summary>
+    private const int ReportCacheCapacity = 16;
+
     /// <summary>默认构造：仅供设计器与无容器场景使用，不连任何服务。</summary>
     public SavesPageViewModel()
         : this(new EmptyInstanceService(), new EmptySaveFileService(), new EmptyErrorReporter(), new EmptyDialogService())
@@ -102,6 +105,13 @@ public sealed partial class SavesPageViewModel : PageViewModel
     /// <summary>是否把 KSP 自带的训练 / 场景存档一起列出来（工具条勾选项；默认收起）。</summary>
     [ObservableProperty]
     private bool _showStockSaves;
+
+    /// <summary>上次列表对应的实例目录；同一实例再次进入时不清屏、不闪忙碌遮罩。</summary>
+    private string? _loadedGameDir;
+
+    /// <summary>校验结果缓存：同一文件未改动时不重复读盘解析（切页签会重放一次校验）。</summary>
+    private readonly Dictionary<string, (long Length, DateTimeOffset WriteTime, SaveValidationReport Report)> _reportCache =
+        new(StringComparer.OrdinalIgnoreCase);
 
     // ---- 派生状态 ---------------------------------------------------------
 
@@ -249,7 +259,8 @@ public sealed partial class SavesPageViewModel : PageViewModel
             return;
         }
 
-        await ValidateCoreAsync(row).ConfigureAwait(true);
+        // 用户显式点「校验」：必须真读一遍，不能贴缓存结果。
+        await ValidateCoreAsync(row, preferCache: false).ConfigureAwait(true);
     }
 
     /// <summary>命令可用性：必须选中一行且不忙。</summary>
@@ -430,8 +441,15 @@ public sealed partial class SavesPageViewModel : PageViewModel
             return;
         }
 
-        IsBusy = true;
-        BusyText = Text("正在读取存档…", LocalizationKeys.SavesBusyLoading);
+        // 同一个实例再次进入时列表已经有内容：不闪忙碌遮罩，否则每次切页签都要白屏一下。
+        var keepVisible = _loadedGameDir is not null
+            && string.Equals(_loadedGameDir, instance.GameDir, StringComparison.OrdinalIgnoreCase)
+            && _allRows.Count > 0;
+        if (!keepVisible)
+        {
+            IsBusy = true;
+            BusyText = Text("正在读取存档…", LocalizationKeys.SavesBusyLoading);
+        }
         try
         {
             var result = await _saves.ListSavesAsync(instance.GameDir).ConfigureAwait(true);
@@ -465,6 +483,7 @@ public sealed partial class SavesPageViewModel : PageViewModel
         }
         finally
         {
+            _loadedGameDir = instance.GameDir;
             IsBusy = false;
         }
 
@@ -472,10 +491,20 @@ public sealed partial class SavesPageViewModel : PageViewModel
         KickValidate();
     }
 
-    private async Task ValidateCoreAsync(SaveRowViewModel row)
+    private async Task ValidateCoreAsync(SaveRowViewModel row, bool preferCache = true)
     {
         if (IsBusy)
         {
+            return;
+        }
+
+        // 同一份存档（路径 + 列表里的大小与写入时间都没变）已经校验过：直接贴回上次结果，
+        // 不重读整份 sfs、不解析、不闪忙碌遮罩 —— 切页签回到本页会走到这里。
+        if (preferCache && TryGetCachedReport(row, out var cached))
+        {
+            ClearErrorState();
+            ApplyReport(cached);
+            StatusText = $"{row.SlotName}：{DiagnosticsHeader}";
             return;
         }
 
@@ -493,6 +522,7 @@ public sealed partial class SavesPageViewModel : PageViewModel
             }
 
             ApplyReport(result.Value);
+            RememberReport(row, result.Value);
             StatusText = $"{row.SlotName}：{DiagnosticsHeader}";
         }
         catch (Exception ex)
@@ -632,6 +662,46 @@ public sealed partial class SavesPageViewModel : PageViewModel
     }
 
     // ---- 状态维护 ---------------------------------------------------------
+
+
+    /// <summary>按「路径 + 列表里的大小与写入时间」判断上次校验结果是否仍然适用。</summary>
+    /// <param name="row">存档行。</param>
+    /// <param name="report">命中时的报告。</param>
+    /// <returns>命中返回 true。</returns>
+    /// <remarks>
+    /// 依据行自带的 SizeBytes / LastWriteTime（列表快照就有），不打文件系统：
+    /// 每次刷新列表都会得到新的行，文件被改写时这两个值必然变化，缓存自然失效。
+    /// </remarks>
+    private bool TryGetCachedReport(SaveRowViewModel row, out SaveValidationReport report)
+    {
+        report = null!;
+        if (!_reportCache.TryGetValue(row.FilePath, out var entry))
+        {
+            return false;
+        }
+
+        if (entry.Length != row.SizeBytes || entry.WriteTime != row.LastWriteTime)
+        {
+            _reportCache.Remove(row.FilePath);
+            return false;
+        }
+
+        report = entry.Report;
+        return true;
+    }
+
+    /// <summary>记住本次校验结果，供下次切回同一存档时直接贴回。</summary>
+    /// <param name="row">存档行。</param>
+    /// <param name="report">校验报告。</param>
+    private void RememberReport(SaveRowViewModel row, SaveValidationReport report)
+    {
+        if (_reportCache.Count >= ReportCacheCapacity)
+        {
+            _reportCache.Clear();
+        }
+
+        _reportCache[row.FilePath] = (row.SizeBytes, row.LastWriteTime, report);
+    }
 
     private void ResetValidation()
     {
