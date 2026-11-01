@@ -13,14 +13,17 @@ public static class IdleMemoryReclaimerPolicy
     public const double PollSeconds = 8;
 
     /// <summary>窗口挂上后至少等这么久才允许第一次回收：启动加载期堆还在长，此时回收纯属白干。
-    /// 实测 8 秒就回收的版本会在加载完成后又被撑回 840 MB，然后被 120 秒冷却卡死。</summary>
-    public const double MinAttachSeconds = 24;
+    /// 实测 8 秒就回收的版本会在加载完成后又被撑回 840 MB，然后被 120 秒冷却卡死——撑回是冷却太长造成的，
+    /// 不是等得不够久；现在冷却降到 20 秒且有 128 MB 增长门限，12 秒的首次等待足够跨过首屏加载。
+    /// 首屏 1 GB 峰值实测在 t+45~55s 才被压回 440-514 MB，改到 12 秒后提前到 t+12~20s。</summary>
+    public const double MinAttachSeconds = 12;
 
     /// <summary>工作集比上次回收后至少多涨这么多才值得再回收一次（128 MB）。</summary>
     public const long GrowthThresholdBytes = 134_217_728L;
 
-    /// <summary>两次回收之间的最小间隔：避免频繁 GC 拖慢交互。</summary>
-    public static TimeSpan MinInterval => TimeSpan.FromSeconds(45);
+    /// <summary>两次回收之间的最小间隔：避免频繁 GC 拖慢交互。20 秒配合 128 MB 增长门限，
+    /// 既能在一个会话里最多多回收一两次，又不会因为加载把工作集撑回去后一直卡在冷却里。</summary>
+    public static TimeSpan MinInterval => TimeSpan.FromSeconds(20);
 
     /// <summary>判定此刻是否值得做一次空闲回收。</summary>
     /// <param name="isIdle">当前是否处于空闲降频状态。</param>
