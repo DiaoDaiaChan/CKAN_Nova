@@ -89,6 +89,41 @@ public sealed class DialogEntranceTests
         }
     }
 
+    [Test]
+    public void ViewLayersInsideTheDialogAreHandedToTheirSpring()
+    {
+        var layer = new Border { Classes = { "view-layer" }, Width = 240, Height = 120 };
+        var body = new StackPanel
+        {
+            Children =
+            {
+                layer,
+                new TextBlock { Text = "说明" },
+            },
+        };
+        var window = HeadlessAppHost.CreateTestWindow(body);
+
+        try
+        {
+            DialogEntrance.Play(window);
+
+            Assert.That(layer.RenderTransform, Is.InstanceOf<TransformGroup>(), "对话框里的视图层也要接上弹簧");
+            Assert.That(TranslateY(layer), Is.EqualTo(ViewLayerMotion.ClosedOffsetPixels).Within(0.01));
+            Assert.That(ScaleX(layer), Is.EqualTo(ViewLayerMotion.ClosedScale).Within(0.001));
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    private static double ScaleX(Control control) =>
+        control.RenderTransform is TransformGroup group
+        && group.Children.OfType<ScaleTransform>().FirstOrDefault() is { } scale
+            ? scale.ScaleX
+            : 1d;
+
     private static void SetTokens(int page, int fast)
     {
         var resources = Application.Current!.Resources;

@@ -606,12 +606,13 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 
 | 项 | 口径 |
 | --- | --- |
-| 挂载点 | `DialogWindow.OnOpened` → `DispatcherPriority.Loaded` → `DialogEntrance.Play(this)`（内部 = `EntranceChoreographer.Play(..., includeOpacity: false)` + `TextRevealChoreographer.Play(..., includeOpacity: false)`） |
+| 挂载点 | `DialogWindow.OnOpened` → `DispatcherPriority.Loaded` → `DialogEntrance.Play(this)`（内部 = `EntranceChoreographer.Play(..., includeOpacity: false)` + `TextRevealChoreographer.Play(..., includeOpacity: false)` + `ScrollRevealMotion`/`FeedArrivalMotion`/`SurfaceMotion`/`ViewLayerMotion`/`BannerMotion`/`HoverLiftMotion` 各 `Attach(this)`） |
+| 为什么要补挂状态动效 | 对话框是独立窗口，`MainWindow.PlayPageReveal` 的接管一个都跑不到：模组详情的 `view-layer` TabControl、对话框里的可点卡片与提示条此前在主窗口有动效、弹进对话框就没了 |
 | 为什么排到 Loaded | `OnOpened` 时模板刚套上，同步扫可视树常常还扫不到正文 `TextBlock` |
 | 三档 | 与页面一致：完整档块级 18 px / 文字 7 px；精简档 45%；关闭档两个编排都直接返回 |
 | 不重复淡入 | 窗口 `Opacity` 由关键帧动画负责，正文只做位移 |
 
-- **门禁**：`tests/CkanUI.App.Tests/DialogEntranceTests.cs`（正文先落位移起点且不压不透明度、60 帧后回零；关闭档正文 `RenderTransform` 保持 `null`）。
+- **门禁**：`tests/CkanUI.App.Tests/DialogEntranceTests.cs`（正文先落位移起点且不压不透明度、60 帧后回零；关闭档正文 `RenderTransform` 保持 `null`；对话框里的未激活 `view-layer` 被接管到 9 px / 0.97 起点）。
 - **已知覆盖缺口**：`DialogWindow.Show()` 在无头 NUnit 线程上会因既有的 `Animation.RunAsync` 抛
   `The current SynchronizationContext may not be used as a TaskScheduler`（与本次改动无关，改动前就有），
   所以门禁测的是 `DialogEntrance.Play` 本身，窗口接线靠代码评审与真机观感。
