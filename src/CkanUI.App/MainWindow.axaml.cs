@@ -608,18 +608,23 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        _pageReveal ??= new TransformSpring(PageHost, SpringSpec.Glide, SpringSpec.Glide);
+        // 幕布过渡已经负责"新页从外面进场"，宿主机再淡一次会把旧页一起压暗（就是当初那个亮度凹陷），
+        // 所以整页姿态只在拿不到幕布时兜底（设计期、或外部把 PageTransition 清空）。
+        if (PageHost.PageTransition is null)
+        {
+            _pageReveal ??= new TransformSpring(PageHost, SpringSpec.Glide, SpringSpec.Glide);
 
-        // 位移带着页签方向：向右切页时内容从右侧 18 px 处补进来，向左切则相反，同组首次只上浮。
-        var pose = PageRevealSpec.For(direction);
-        _pageReveal.MoveTo(
-            x: pose.OffsetX,
-            y: pose.OffsetY,
-            scaleX: pose.StartScale,
-            scaleY: pose.StartScale,
-            opacity: pose.StartOpacity,
-            snap: true);
-        _pageReveal.MoveTo(x: 0d, y: 0d, scaleX: 1d, scaleY: 1d, opacity: 1d);
+            // 位移带着页签方向：向右切页时内容从右侧补进来，向左切则相反，同组首次只上浮。
+            var pose = PageRevealSpec.For(direction);
+            _pageReveal.MoveTo(
+                x: pose.OffsetX,
+                y: pose.OffsetY,
+                scaleX: pose.StartScale,
+                scaleY: pose.StartScale,
+                opacity: pose.StartOpacity,
+                snap: true);
+            _pageReveal.MoveTo(x: 0d, y: 0d, scaleX: 1d, scaleY: 1d, opacity: 1d);
+        }
 
         // 一级元素只做错峰上浮，不再压一次透明度：整页已经淡入，两层一起淡会看着更闷。
         // 同步调用而不是排到 Loaded：可视树在 Content 赋值时就已建好，先落起点才能保证首帧不闪。

@@ -3,6 +3,7 @@ using System.Threading;
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -113,6 +114,43 @@ public sealed class SpringPageSlideTests
             Assert.That(TranslateX(from), Is.EqualTo(0).Within(1e-9));
             Assert.That(TranslateX(to), Is.EqualTo(0).Within(1e-9));
             Assert.That(to.RenderTransform, Is.SameAs(before), "关闭档不接管变换");
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [Test]
+    public void HostingControlDrivesTheCurtainOnContentChange()
+    {
+        var host = new TransitioningContentControl
+        {
+            Width = 320d,
+            Height = 200d,
+            PageTransition = new SpringPageSlide(),
+            Content = new Border { Background = Brushes.Red },
+        };
+
+        var window = HeadlessAppHost.CreateTestWindow(host, 360d, 240d);
+        try
+        {
+            window.Show();
+            HeadlessAppHost.PumpJobs();
+
+            host.Content = new Border { Background = Brushes.Blue };
+            Tick(3);
+
+            var presenters = host.GetVisualDescendants().OfType<ContentPresenter>().ToList();
+            Assert.That(presenters, Is.Not.Empty, "模板必须实现出内容呈现器");
+            var traveling = presenters.Count(p => Math.Abs(TranslateX(p)) > 0.5d);
+            Assert.That(traveling, Is.GreaterThanOrEqualTo(1), "换内容时两页必须真的在横移（幕布由宿主驱动）");
+
+            Tick(120);
+            foreach (var presenter in presenters)
+            {
+                Assert.That(Math.Abs(TranslateX(presenter)), Is.LessThan(0.01d), "收敛后呈现器必须回原位");
+            }
         }
         finally
         {
