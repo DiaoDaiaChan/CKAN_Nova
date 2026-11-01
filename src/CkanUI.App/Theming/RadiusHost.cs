@@ -65,17 +65,17 @@ public sealed class RadiusHost : IDisposable
 
         if (Math.Abs(scale - 1.0) < 0.01)
         {
-            // 恢复默认基准圆角：Small 6, Medium 10, Large 14
+            // 恢复默认基准圆角：Small 8, Medium 12, Large 18
             RemoveOverride(CornerRadiusSmallKey);
             RemoveOverride(CornerRadiusMediumKey);
             RemoveOverride(CornerRadiusLargeKey);
-            Log.Info("圆角恢复为标准基线 (Small 6, Med 10, Large 14)");
+            Log.Info("圆角恢复为标准基线 (Small 8, Med 12, Large 18)");
             return;
         }
 
-        _application.Resources[CornerRadiusSmallKey] = new CornerRadius(Math.Round(6 * scale));
-        _application.Resources[CornerRadiusMediumKey] = new CornerRadius(Math.Round(10 * scale));
-        _application.Resources[CornerRadiusLargeKey] = new CornerRadius(Math.Round(14 * scale));
+        _application.Resources[CornerRadiusSmallKey] = new CornerRadius(Math.Round(8 * scale));
+        _application.Resources[CornerRadiusMediumKey] = new CornerRadius(Math.Round(12 * scale));
+        _application.Resources[CornerRadiusLargeKey] = new CornerRadius(Math.Round(18 * scale));
 
         Log.Info($"已动态应用圆角缩放：{scale}x");
     }

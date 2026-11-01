@@ -8,4 +8,11 @@
     <WarningsNotAsErrors>SYSLIB0050;NU1901;NU1902;NU1903;NU1904;$(WarningsNotAsErrors)</WarningsNotAsErrors>
   </PropertyGroup>
 
+  <Target Name="DisableTesthostParentProcessQuery" BeforeTargets="GenerateBuildRuntimeConfigurationFiles">
+    <ItemGroup>
+      <RuntimeHostConfigurationOption Remove="MSTest.EnableParentProcessQuery" />
+      <RuntimeHostConfigurationOption Include="MSTest.EnableParentProcessQuery" Value="false" />
+    </ItemGroup>
+  </Target>
+
 </Project>

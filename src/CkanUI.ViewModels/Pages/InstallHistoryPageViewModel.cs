@@ -62,6 +62,9 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
         ? Text("当前实例：{0}（历史文件：<GameDir>/CKAN/install_history.jsonl）", LocalizationKeys.InstallHistoryInstanceTitle, name)
         : Text("当前没有选中的游戏实例，安装历史不可用。", LocalizationKeys.InstallHistoryInstanceMissing);
 
+    /// <summary>没有实例时页面只剩一条警告，不再让状态栏重复同一句。</summary>
+    public bool HasActiveInstance => _history.HasActiveInstance;
+
     // ---- 列表 --------------------------------------------------------------
 
     [ObservableProperty]
@@ -114,7 +117,7 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
     /// <summary>选中记录的分组统计。</summary>
     public string SelectionSummaryText => SelectedEntry is { } row
         ? Text("{0}（快照共 {1} 个模组）", LocalizationKeys.InstallHistorySelectionSummary, row.GroupCountText, row.SnapshotModuleCount)
-        : Text("选中一条记录后显示当时的已装集合。", LocalizationKeys.InstallHistorySelectionSummaryNone);
+        : Text("这里会显示所选时间点的已装集合。", LocalizationKeys.InstallHistorySelectionSummaryNone);
 
     /// <summary>已装分组标题。</summary>
     public string InstalledGroupTitle => Text(
@@ -234,6 +237,9 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
     private string? _errorDetail;
 
     [ObservableProperty]
+    private bool _isErrorRetryable;
+
+    [ObservableProperty]
     private bool _isBusy;
 
     [ObservableProperty]
@@ -347,10 +353,17 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
     /// <summary>读盘并重建列表（删除/清空后也要走这里，统计文案才跟着变）。</summary>
     private async Task LoadCoreAsync(DateTimeOffset? preferredTimestamp)
     {
+        if (!_history.HasActiveInstance)
+        {
+            ApplyEntries(Array.Empty<InstallHistoryEntry>(), null);
+            SetStatus(Text("当前没有选中的游戏实例，安装历史不可用。", LocalizationKeys.InstallHistoryInstanceMissing));
+            return;
+        }
+
         var result = await _history.LoadAsync();
         if (!result.IsSuccess || result.Value is not { } entries)
         {
-            SetError(InstallHistoryText.Compose(result.Message, Text("读取安装历史失败。", LocalizationKeys.InstallHistoryErrorLoadFailed), result.Retryable), result.Detail);
+            SetError(InstallHistoryText.Compose(result.Message, Text("读取安装历史失败。", LocalizationKeys.InstallHistoryErrorLoadFailed), result.Retryable), result.Detail, result.Retryable);
             return;
         }
 
@@ -467,6 +480,7 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
             : null;
         SelectedEntry = target ?? rows.FirstOrDefault();
         OnPropertyChanged(nameof(InstanceTitleText));
+        OnPropertyChanged(nameof(HasActiveInstance));
         OnPropertyChanged(nameof(CountText));
         OnPropertyChanged(nameof(HasEntries));
         OnPropertyChanged(nameof(ShowEmptyState));
@@ -604,6 +618,7 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
         BusyText = busyText;
         ErrorText = null;
         ErrorDetail = null;
+        IsErrorRetryable = false;
         try
         {
             await body();
@@ -621,10 +636,11 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
 
     private void SetStatus(string message) => StatusText = message;
 
-    private void SetError(string message, string? detail)
+    private void SetError(string message, string? detail, bool retryable = false)
     {
         ErrorText = message;
         ErrorDetail = detail;
+        IsErrorRetryable = retryable;
         StatusText = message;
     }
 
@@ -633,6 +649,7 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
     {
         base.OnActivated();
         OnPropertyChanged(nameof(InstanceTitleText));
+        OnPropertyChanged(nameof(HasActiveInstance));
         LoadCommand.Execute(null);
     }
 

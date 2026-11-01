@@ -29,6 +29,7 @@ public class DialogWindow : Window
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         MinWidth = 360;
+        MinHeight = 200;
         MaxWidth = 760;
         MaxHeight = 720;
     }
@@ -97,6 +98,70 @@ public class DialogWindow : Window
         {
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         }
+    }
+
+    private bool _isClosingAnimationRunning;
+
+    /// <summary>
+    /// 退场动画（轻量淡出 + 100%→96% 缩放）：与 OnOpened 入场动画形成对称生命周期闭环。
+    /// 当动效时长为 0 或未开启时，直接立即关闭。
+    /// </summary>
+    protected override async void OnClosing(WindowClosingEventArgs e)
+    {
+        if (_isClosingAnimationRunning)
+        {
+            base.OnClosing(e);
+            return;
+        }
+
+        if (this.TryFindResource(MotionToken, out var raw) && raw is TimeSpan duration && duration > TimeSpan.Zero)
+        {
+            e.Cancel = true;
+            _isClosingAnimationRunning = true;
+
+            var exit = new Animation
+            {
+                Duration = duration,
+                Easing = new CubicEaseIn(),
+                Children =
+                {
+                    new KeyFrame
+                    {
+                        Cue = new Cue(0d),
+                        Setters =
+                        {
+                            new Setter(OpacityProperty, 1d),
+                            new Setter(ScaleTransform.ScaleXProperty, 1d),
+                            new Setter(ScaleTransform.ScaleYProperty, 1d),
+                        },
+                    },
+                    new KeyFrame
+                    {
+                        Cue = new Cue(1d),
+                        Setters =
+                        {
+                            new Setter(OpacityProperty, 0d),
+                            new Setter(ScaleTransform.ScaleXProperty, 0.96d),
+                            new Setter(ScaleTransform.ScaleYProperty, 0.96d),
+                        },
+                    },
+                },
+            };
+
+            try
+            {
+                await exit.RunAsync(this);
+            }
+            catch
+            {
+                // 窗口快速关闭或已被父级销毁时的防护
+            }
+
+            Close();
+            return;
+        }
+
+        base.OnClosing(e);
     }
 
     /// <inheritdoc />

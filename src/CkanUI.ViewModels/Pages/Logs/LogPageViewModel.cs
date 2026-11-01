@@ -89,6 +89,12 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
     [ObservableProperty]
     private bool _isFollowTail = true;
 
+    /// <summary>跟随末尾开关显示文案。</summary>
+    public string FollowTailText => IsFollowTail ? "跟随末尾：开" : "跟随末尾：关";
+
+    /// <summary>聚合/顺序视图切换显示文案。</summary>
+    public string AggregatedText => IsAggregated ? "视图：聚合" : "视图：顺序";
+
     /// <summary>是否正在导出诊断包。</summary>
     [ObservableProperty]
     private bool _isBusy;
@@ -207,6 +213,9 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
         ? Array.Empty<LogObjectLink>()
         : LogObjectLinks.DetectAll(SelectedRow.Message + "\n" + (SelectedRow.Detail ?? string.Empty));
 
+    /// <summary>是否有临时提示消息。</summary>
+    public bool HasMessage => !string.IsNullOrEmpty(Message);
+
     /// <summary>状态条文本。</summary>
     public string StatusText => Message ?? Text("命中 {0} 条（显示 {1}）· 错误 {2} · 警告 {3}", LocalizationKeys.LogsSummaryHits, TotalMatches, Rows.Count, ErrorCount, WarningCount);
 
@@ -225,8 +234,8 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
 
     /// <summary>空状态文案（区分「过滤太严」与「确实没有日志」）。</summary>
     public string EmptyHint => Filters.MatchesNothing
-        ? Text("当前过滤条件不会命中任何日志，试试点「恢复默认」或放宽级别的勾选。", LocalizationKeys.LogsEmptyFiltered)
-        : Text("缓冲区里还没有日志。四路采集（log4net / 用户消息 / 未捕获异常 / 子进程）任一产生日志后这里就会出现。", LocalizationKeys.LogsEmptyNoLogs);
+        ? Text("当前过滤不命中，试试恢复默认。", LocalizationKeys.LogsEmptyFiltered)
+        : Text("缓冲区还没有日志，采集到后自动出现。", LocalizationKeys.LogsEmptyNoLogs);
 
     /// <summary>聚合视图的提示。</summary>
     public string AggregateHint => IsAggregated
@@ -386,9 +395,22 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
         OnPropertyChanged(nameof(SelectedLinks));
     }
 
-    partial void OnMessageChanged(string? value) => OnPropertyChanged(nameof(StatusText));
+    partial void OnMessageChanged(string? value)
+    {
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(HasMessage));
+    }
 
-    partial void OnIsAggregatedChanged(bool value) => OnPropertyChanged(nameof(AggregateHint));
+    partial void OnIsAggregatedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(AggregateHint));
+        OnPropertyChanged(nameof(AggregatedText));
+    }
+
+    partial void OnIsFollowTailChanged(bool value)
+    {
+        OnPropertyChanged(nameof(FollowTailText));
+    }
 
     partial void OnIsBusyChanged(bool value) => OnPropertyChanged(nameof(ShowEmptyState));
 
@@ -489,16 +511,55 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
 
     private void OnFiltersChanged(object? sender, EventArgs args) => Refresh();
 
+    private int _refreshRequested;
+    private int _refreshRunning;
+
     private void OnStoreChanged(object? sender, LogStoreChangedEventArgs args)
     {
-        var sync = _sync;
-        if (sync is null || sync == SynchronizationContext.Current)
+        ScheduleRefresh();
+    }
+
+    private void ScheduleRefresh()
+    {
+        Interlocked.Exchange(ref _refreshRequested, 1);
+        if (Interlocked.CompareExchange(ref _refreshRunning, 1, 0) != 0)
         {
-            Refresh();
             return;
         }
 
-        sync.Post(static state => ((LogPageViewModel)state!).Refresh(), this);
+        var sync = _sync;
+        if (sync is null)
+        {
+            RunCoalescedRefresh();
+            return;
+        }
+
+        sync.Post(static state => ((LogPageViewModel)state!).RunCoalescedRefresh(), this);
+    }
+
+    private void RunCoalescedRefresh()
+    {
+        try
+        {
+            Interlocked.Exchange(ref _refreshRequested, 0);
+            Refresh();
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _refreshRunning, 0);
+            if (Volatile.Read(ref _refreshRequested) != 0 && Interlocked.CompareExchange(ref _refreshRunning, 1, 0) == 0)
+            {
+                var sync = _sync;
+                if (sync is null)
+                {
+                    RunCoalescedRefresh();
+                }
+                else
+                {
+                    sync.Post(static state => ((LogPageViewModel)state!).RunCoalescedRefresh(), this);
+                }
+            }
+        }
     }
 
     /// <summary>设计器占位用的空缓冲。</summary>

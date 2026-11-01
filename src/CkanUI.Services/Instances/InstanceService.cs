@@ -1,4 +1,4 @@
-﻿using CkanUI.Services.Abstractions;
+using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CKAN;
 using CKAN.Configuration;

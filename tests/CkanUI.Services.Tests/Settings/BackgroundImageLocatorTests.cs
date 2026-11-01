@@ -14,29 +14,20 @@ namespace CkanUI.Services.Tests.Settings;
 [TestFixture]
 public sealed class BackgroundImageLocatorTests
 {
+    private CkanUI.TestSupport.TempWorkspace? _workspace;
     private string _root = string.Empty;
 
     [SetUp]
     public void SetUp()
     {
-        _root = Path.Combine(Path.GetTempPath(), "ckanui-bg-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_root);
+        _workspace = new CkanUI.TestSupport.TempWorkspace("ckanui-bg");
+        _root = _workspace.Path;
     }
 
     [TearDown]
     public void TearDown()
     {
-        try
-        {
-            if (Directory.Exists(_root))
-            {
-                Directory.Delete(_root, recursive: true);
-            }
-        }
-        catch (IOException)
-        {
-            // 清理失败不该让用例变红（Windows 上偶发的句柄延迟释放）。
-        }
+        _workspace?.Dispose();
     }
 
     [Test]

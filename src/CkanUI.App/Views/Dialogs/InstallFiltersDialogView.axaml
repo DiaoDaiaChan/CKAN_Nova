@@ -17,10 +17,11 @@
         <!-- Header & Description -->
         <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,16">
             <TextBlock Text="安装文件过滤规则"
+                       ToolTip.Tip="配置在模组安装或更新过程中需要自动忽略跳过的文件或路径模式（支持子串与通配符，如 *.pdb、README.md）。"
                        FontSize="18"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-            <TextBlock Text="配置在模组安装或更新过程中需要自动忽略跳过的文件或路径模式（支持子串与通配符，如 *.pdb、README.md）。"
+            <TextBlock Text="忽略匹配的文件，支持通配符。"
                        TextWrapping="Wrap"
                        FontSize="12"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />

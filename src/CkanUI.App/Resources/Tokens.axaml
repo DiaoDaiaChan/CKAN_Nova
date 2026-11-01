@@ -26,6 +26,22 @@
       <SolidColorBrush x:Key="CkanNavigationSelectionBrush" Color="#DCE8F8" />
       <SolidColorBrush x:Key="CkanMutedBackgroundBrush" Color="#E8EBF0" />
 
+      <!--
+        表面分层阶梯（ELV-01）：画布 → 表面 → 卡片 → 悬浮，逐级 +1 档明度。
+        视图里只准引用 CkanLayer*，不要再散写 Surface/Card，否则分层会漂。
+      -->
+      <StaticResource x:Key="CkanLayerCanvasBrush" ResourceKey="CkanCanvasBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerSurfaceBrush" ResourceKey="CkanSurfaceBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerCardBrush" ResourceKey="CkanCardBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerRecessedBrush" ResourceKey="CkanRecessedInputBrush" />
+      <SolidColorBrush x:Key="CkanLayerElevatedBrush" Color="#FFFFFF" />
+      <!-- 1px 顶光描边（替代灰实线）：卡片上缘给一道极淡的受光线 -->
+      <SolidColorBrush x:Key="CkanHairlineBrush" Color="#17000000" />
+      <RadialGradientBrush x:Key="CkanEmptyStateGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="70%" RadiusY="70%">
+        <GradientStop Offset="0" Color="#33275DAD" />
+        <GradientStop Offset="1" Color="#00275DAD" />
+      </RadialGradientBrush>
+
       <!-- 边框与分割线：卡片描边改用顶光渐变，替掉全屏 1px 实线（ELV-02） -->
       <SolidColorBrush x:Key="CkanBorderBrush" Color="#DFE3E9" />
       <LinearGradientBrush x:Key="CkanCardBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
@@ -79,19 +95,35 @@
 
     <ResourceDictionary x:Key="Dark">
       <!-- 基础表面与背景：画布 → 卡片 → 内凹输入，三级明度分层（ELV-01） -->
-      <SolidColorBrush x:Key="CkanSurfaceBackgroundBrush" Color="#D90B0E14" />
+      <SolidColorBrush x:Key="CkanSurfaceBackgroundBrush" Color="#E60F1218" />
       <SolidColorBrush x:Key="CkanCanvasBackgroundBrush" Color="#0B0E14" />
-      <SolidColorBrush x:Key="CkanSidebarBackgroundBrush" Color="#C00F131C" />
+      <SolidColorBrush x:Key="CkanSidebarBackgroundBrush" Color="#C0141820" />
       <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="CkanSidebarBackgroundBrush" />
-      <SolidColorBrush x:Key="CkanStatusBarBackgroundBrush" Color="#0F131C" />
-      <SolidColorBrush x:Key="CkanCardBackgroundBrush" Color="#E6131822" />
-      <SolidColorBrush x:Key="CkanElevatedCardHoverBrush" Color="#18202C" />
-      <SolidColorBrush x:Key="CkanRecessedInputBrush" Color="#0E131C" />
-      <SolidColorBrush x:Key="CkanDialogBackgroundBrush" Color="#151B26" />
-      <SolidColorBrush x:Key="CkanSubtleBackgroundBrush" Color="#1A212D" />
+      <SolidColorBrush x:Key="CkanStatusBarBackgroundBrush" Color="#D912161E" />
+      <SolidColorBrush x:Key="CkanCardBackgroundBrush" Color="#D820232B" />
+      <SolidColorBrush x:Key="CkanElevatedCardHoverBrush" Color="#262C37" />
+      <SolidColorBrush x:Key="CkanRecessedInputBrush" Color="#0A0D12" />
+      <SolidColorBrush x:Key="CkanDialogBackgroundBrush" Color="#1B2029" />
+      <SolidColorBrush x:Key="CkanSubtleBackgroundBrush" Color="#C81A202A" />
       <SolidColorBrush x:Key="CkanAccentSubtleBrush" Color="#142B48" />
       <SolidColorBrush x:Key="CkanNavigationSelectionBrush" Color="#1C3555" />
-      <SolidColorBrush x:Key="CkanMutedBackgroundBrush" Color="#1E242E" />
+      <SolidColorBrush x:Key="CkanMutedBackgroundBrush" Color="#252B36" />
+
+      <!--
+        表面分层阶梯（ELV-01）：深色下每级 +6~8 明度，肉眼能数出三层，不再"一黑到底"。
+        底板 #0B0E14 → 表面 #101319 → 卡片 #20232B → 悬浮 #2A313D，输入框反而下凹到 #0A0D12。
+      -->
+      <StaticResource x:Key="CkanLayerCanvasBrush" ResourceKey="CkanCanvasBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerSurfaceBrush" ResourceKey="CkanSurfaceBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerCardBrush" ResourceKey="CkanCardBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerRecessedBrush" ResourceKey="CkanRecessedInputBrush" />
+      <SolidColorBrush x:Key="CkanLayerElevatedBrush" Color="#2A313D" />
+      <!-- 1px 顶光描边：卡片上缘 8% 白光，是深色下唯一能读出"边缘"的东西 -->
+      <SolidColorBrush x:Key="CkanHairlineBrush" Color="#14FFFFFF" />
+      <RadialGradientBrush x:Key="CkanEmptyStateGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="70%" RadiusY="70%">
+        <GradientStop Offset="0" Color="#2E72A7FF" />
+        <GradientStop Offset="1" Color="#0072A7FF" />
+      </RadialGradientBrush>
 
       <!-- 边框与分割线：卡片描边改用顶光渐变（上缘 8% 白光 → 下缘 2%）（ELV-02） -->
       <SolidColorBrush x:Key="CkanBorderBrush" Color="#293140" />
@@ -161,6 +193,18 @@
       <SolidColorBrush x:Key="CkanNavigationSelectionBrush" Color="#FFFF00" />
       <SolidColorBrush x:Key="CkanMutedBackgroundBrush" Color="#222222" />
 
+      <!-- 高对比度不做明度分层：层次只能靠纯白描边，任何"淡一点的白"都会破坏对比度 -->
+      <SolidColorBrush x:Key="CkanLayerCanvasBrush" Color="#000000" />
+      <SolidColorBrush x:Key="CkanLayerSurfaceBrush" Color="#000000" />
+      <SolidColorBrush x:Key="CkanLayerCardBrush" Color="#000000" />
+      <SolidColorBrush x:Key="CkanLayerElevatedBrush" Color="#000000" />
+      <SolidColorBrush x:Key="CkanLayerRecessedBrush" Color="#000000" />
+      <SolidColorBrush x:Key="CkanHairlineBrush" Color="#FFFFFF" />
+      <RadialGradientBrush x:Key="CkanEmptyStateGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="70%" RadiusY="70%">
+        <GradientStop Offset="0" Color="#00000000" />
+        <GradientStop Offset="1" Color="#00000000" />
+      </RadialGradientBrush>
+
       <!-- 边框与分割线 -->
       <SolidColorBrush x:Key="CkanBorderBrush" Color="#FFFFFF" />
       <SolidColorBrush x:Key="CkanCardBorderBrush" Color="#FFFFFF" />
@@ -223,12 +267,12 @@
   -->
   <FontFamily x:Key="CkanUiFontFamily">Inter, Microsoft YaHei UI, Microsoft YaHei, SimSun, Yu Gothic UI, Meiryo, Malgun Gothic, Segoe UI</FontFamily>
 
-  <Thickness x:Key="CkanPagePadding">24</Thickness>
+  <Thickness x:Key="CkanPagePadding">16</Thickness>
   <Thickness x:Key="CkanToolbarPadding">12,8</Thickness>
   <CornerRadius x:Key="CkanCornerRadiusSmall">8</CornerRadius>
   <CornerRadius x:Key="CkanCornerRadiusMedium">12</CornerRadius>
   <CornerRadius x:Key="CkanCornerRadiusLarge">18</CornerRadius>
-  <CornerRadius x:Key="CkanCornerRadiusPill">999</CornerRadius>
+  <CornerRadius x:Key="CkanCornerRadiusPill">8</CornerRadius>
 
   <!--
     8pt 间距刻度（20 篇 P-05）：所有页面的 Margin/Padding 从这里取，跨页面节奏才一致。
@@ -249,4 +293,8 @@
   <x:Double x:Key="CkanControlHeightMedium">34</x:Double>
   <Thickness x:Key="CkanFocusRingThickness">2</Thickness>
   <x:Double x:Key="CkanOverlayCardWidth">480</x:Double>
+
+  <!-- 全局常用图标几何（StreamGeometry）：用于悬浮帮助、状态引导等 -->
+  <StreamGeometry x:Key="CkanIconHelp">M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z</StreamGeometry>
+  <StreamGeometry x:Key="CkanIconInfo">M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z</StreamGeometry>
 </ResourceDictionary>

@@ -138,11 +138,11 @@ public partial class ModConfigPageView : UserControl
         var files = await storage
             .OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "选择 adapter 包（.json 或 .zip）",
+                Title = "选择适配器包（.json 或 .zip）",
                 AllowMultiple = false,
                 FileTypeFilter =
                 [
-                    new FilePickerFileType("adapter 包")
+                    new FilePickerFileType("适配器包")
                     {
                         Patterns = ["*.json", "*.zip"],
                         MimeTypes = ["application/json", "application/zip"],

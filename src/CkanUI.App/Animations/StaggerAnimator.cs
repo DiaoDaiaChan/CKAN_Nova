@@ -35,6 +35,32 @@ public static class StaggerAnimator
     /// <summary>入场预备态类名（由本类在运行时挂/摘）。</summary>
     public const string PrepareClass = "stagger-prepare";
 
+    /// <summary>水平向右切页签时卡片的附加预备态类名。</summary>
+    public const string PrepareRightClass = "stagger-prepare-right";
+
+    /// <summary>水平向左切页签时卡片的附加预备态类名。</summary>
+    public const string PrepareLeftClass = "stagger-prepare-left";
+
+    /// <summary>整页或页签内容舞台类名（挂在 PageHost 或 TabControl 内容承载器上）。</summary>
+    public const string StageClass = "tab-stage";
+
+    /// <summary>舞台从右侧滑入的预备态类名（切到右边的页签）。</summary>
+    public const string StagePrepareRightClass = "tab-prepare-right";
+
+    /// <summary>舞台从左侧滑入的预备态类名（切到左边的页签）。</summary>
+    public const string StagePrepareLeftClass = "tab-prepare-left";
+
+    /// <summary>舞台从下方升起的预备态类名（侧栏跨组切换）。</summary>
+    public const string StagePrepareUpClass = "tab-prepare-up";
+
+    /// <summary>页签下划线指示条从左侧追赶滑入的预备态类名。</summary>
+    public const string IndicatorFromLeftClass = "tab-indicator-from-left";
+
+    /// <summary>页签下划线指示条从右侧追赶滑入的预备态类名。</summary>
+    public const string IndicatorFromRightClass = "tab-indicator-from-right";
+
+    private static int _stageGlideGeneration;
+
     /// <summary>两张卡片之间的间隔。</summary>
     public static readonly TimeSpan Step = TimeSpan.FromMilliseconds(25);
 
@@ -42,38 +68,168 @@ public static class StaggerAnimator
     public static readonly TimeSpan Frame = TimeSpan.FromMilliseconds(16);
 
     /// <summary>
-    /// 让 <paramref name="root"/> 下所有 <c>stagger-card</c> 依次入场。
+    /// 使用合成器 VSync 双帧回调驱动整块页面/页签舞台（<paramref name="stage"/>）做临界阻尼平滑位移：
+    /// 不拆散内部卡片、不调用强制重排、不依赖 Windows 15.6ms 计时器，彻底消除高刷屏下的闪烁与布局抖动。
     /// </summary>
-    /// <param name="root">页面根控件（通常是外壳的 <c>PageHost</c>）。</param>
-    /// <param name="cancellationToken">取消令牌：页面被切走时取消，正在等进行的那一张会立刻复位。</param>
+    /// <param name="stage">舞台控件（如 <c>PageHost</c> 或 <c>PART_SelectedContentHost</c>）。</param>
+    /// <param name="direction">切换方向：&gt;0 向右切页签，&lt;0 向左切页签，0 跨组切换。</param>
+    public static void PlayStageGlide(Control? stage, int direction = 0)
+    {
+        if (stage is null)
+        {
+            return;
+        }
+
+        if (Application.Current?.Resources.TryGetResource(Theming.MotionHost.SpringSoftKey, null, out var durationObj) == true &&
+            durationObj is TimeSpan ts && ts <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        if (TopLevel.GetTopLevel(stage) is not { } topLevel)
+        {
+            return;
+        }
+
+        if (!stage.Classes.Contains(StageClass))
+        {
+            stage.Classes.Add(StageClass);
+        }
+
+        stage.Classes.Remove(StagePrepareRightClass);
+        stage.Classes.Remove(StagePrepareLeftClass);
+        stage.Classes.Remove(StagePrepareUpClass);
+
+        var prepClass = direction > 0
+            ? StagePrepareRightClass
+            : direction < 0
+                ? StagePrepareLeftClass
+                : StagePrepareUpClass;
+
+        var generation = ++_stageGlideGeneration;
+        stage.Classes.Add(prepClass);
+
+        // 第一拍 RequestAnimationFrame 让当前帧把「Transitions=null + 初始微偏移」提交给合成器；
+        // 第二拍在紧邻的下一个 VSync 帧摘除预备类，由临界阻尼弹簧平滑插值归零，无过冲、无跳帧。
+        topLevel.RequestAnimationFrame(_ =>
+        {
+            if (generation != _stageGlideGeneration)
+            {
+                return;
+            }
+
+            topLevel.RequestAnimationFrame(_ =>
+            {
+                if (generation != _stageGlideGeneration)
+                {
+                    return;
+                }
+
+                stage.Classes.Remove(StagePrepareRightClass);
+                stage.Classes.Remove(StagePrepareLeftClass);
+                stage.Classes.Remove(StagePrepareUpClass);
+            });
+        });
+    }
+
+    /// <summary>
+    /// 让 <paramref name="root"/> 舞台与下属所有 <c>stagger-card</c> 按方向平滑入场。
+    /// </summary>
+    /// <param name="root">页面根控件（通常是外壳的 <c>PageHost</c> 或 <c>TabControl</c> 的内容宿主）。</param>
+    /// <param name="cancellationToken">取消令牌：页面被切走时取消，正在等待的卡片与舞台会立刻复位。</param>
+    /// <param name="direction">页签切换方向：&gt;0 表示切向右侧页签，&lt;0 表示切向左侧页签，0 表示侧栏跨组切换。</param>
+    /// <param name="activeIndicator">当前激活页签的底部指示条（可选，传入时按同方向做追赶滑入）。</param>
     /// <returns>级联播放完毕（或被取消）时完成的任务。</returns>
-    public static async Task PlayAsync(Visual? root, CancellationToken cancellationToken = default)
+    public static async Task PlayAsync(
+        Visual? root,
+        CancellationToken cancellationToken = default,
+        int direction = 0,
+        Control? activeIndicator = null)
     {
         if (root is null)
         {
             return;
         }
 
-        var cards = CollectCards(root);
-        if (cards.Count == 0)
+        if (Application.Current?.Resources.TryGetResource(Theming.MotionHost.SpringSoftKey, null, out var durationObj) == true &&
+            durationObj is TimeSpan ts && ts <= TimeSpan.Zero)
         {
             return;
         }
 
+        var rootControl = root as Control;
+        if (rootControl is not null && !rootControl.Classes.Contains(StageClass))
+        {
+            rootControl.Classes.Add(StageClass);
+        }
+
+        var cards = CollectCards(root);
+        if (cards.Count == 0 && rootControl is null && activeIndicator is null)
+        {
+            return;
+        }
+
+        if (rootControl is not null)
+        {
+            rootControl.Classes.Remove(StagePrepareRightClass);
+            rootControl.Classes.Remove(StagePrepareLeftClass);
+            rootControl.Classes.Remove(StagePrepareUpClass);
+            var stagePrep = direction > 0
+                ? StagePrepareRightClass
+                : direction < 0
+                    ? StagePrepareLeftClass
+                    : StagePrepareUpClass;
+            rootControl.Classes.Add(stagePrep);
+        }
+
+        if (activeIndicator is not null && direction != 0)
+        {
+            activeIndicator.Classes.Remove(IndicatorFromLeftClass);
+            activeIndicator.Classes.Remove(IndicatorFromRightClass);
+            activeIndicator.Classes.Add(direction > 0 ? IndicatorFromLeftClass : IndicatorFromRightClass);
+        }
+
         foreach (var card in cards)
         {
+            card.Classes.Remove(PrepareRightClass);
+            card.Classes.Remove(PrepareLeftClass);
             card.Classes.Add(PrepareClass);
+            if (direction > 0)
+            {
+                card.Classes.Add(PrepareRightClass);
+            }
+            else if (direction < 0)
+            {
+                card.Classes.Add(PrepareLeftClass);
+            }
         }
 
         try
         {
             await Task.Delay(Frame, cancellationToken).ConfigureAwait(true);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (activeIndicator is not null)
+            {
+                activeIndicator.Classes.Remove(IndicatorFromLeftClass);
+                activeIndicator.Classes.Remove(IndicatorFromRightClass);
+            }
+
+            if (rootControl is not null)
+            {
+                rootControl.Classes.Remove(StagePrepareRightClass);
+                rootControl.Classes.Remove(StagePrepareLeftClass);
+                rootControl.Classes.Remove(StagePrepareUpClass);
+            }
+
             foreach (var card in cards)
             {
                 // 取消检查放在每次摘类之前：一帧最多放行一张，切页时最多再多闪一张卡。
                 cancellationToken.ThrowIfCancellationRequested();
                 card.Classes.Remove(PrepareClass);
+                card.Classes.Remove(PrepareRightClass);
+                card.Classes.Remove(PrepareLeftClass);
                 await Task.Delay(Step, cancellationToken).ConfigureAwait(true);
             }
         }
@@ -83,9 +239,24 @@ public static class StaggerAnimator
         }
         finally
         {
+            if (activeIndicator is not null)
+            {
+                activeIndicator.Classes.Remove(IndicatorFromLeftClass);
+                activeIndicator.Classes.Remove(IndicatorFromRightClass);
+            }
+
+            if (rootControl is not null)
+            {
+                rootControl.Classes.Remove(StagePrepareRightClass);
+                rootControl.Classes.Remove(StagePrepareLeftClass);
+                rootControl.Classes.Remove(StagePrepareUpClass);
+            }
+
             foreach (var card in cards)
             {
                 card.Classes.Remove(PrepareClass);
+                card.Classes.Remove(PrepareRightClass);
+                card.Classes.Remove(PrepareLeftClass);
             }
         }
     }

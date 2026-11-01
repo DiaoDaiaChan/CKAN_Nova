@@ -47,6 +47,20 @@ public sealed partial class PlayTimePageViewModel : PageViewModel
     /// <summary>「重置时长」是否可用：选中了某个实例，且宿主提供了确认对话框。</summary>
     public bool CanReset => SelectedEntry is not null && _dialogs is not null;
 
+    /// <summary>页首指标：所有实例的累计时长合计（没有记录时按 0 小时显示，页面不留空指标）。</summary>
+    public string TotalHoursText => Text(
+        "{0} 小时",
+        LocalizationKeys.PlayTimeTotalHours,
+        Entries.Sum(entry => entry.Hours).ToString("0.#", CultureInfo.CurrentCulture));
+
+    /// <summary>页首指标：已登记时长的实例数。</summary>
+    public string InstanceCountText => Text("{0} 个实例", LocalizationKeys.PlayTimeInstanceCount, Entries.Count);
+
+    /// <summary>页首指标：时长最长的实例名；一条记录都没有时给占位文案。</summary>
+    public string LongestInstanceText => Entries.Count == 0
+        ? Text("暂无记录", LocalizationKeys.PlayTimeLongestEmpty)
+        : Entries.OrderByDescending(entry => entry.Hours).First().InstanceName;
+
     protected override void OnActivated()
     {
         base.OnActivated();
@@ -64,6 +78,9 @@ public sealed partial class PlayTimePageViewModel : PageViewModel
             ? null
             : Entries.FirstOrDefault(entry => string.Equals(entry.InstanceName, selectedName, StringComparison.Ordinal));
         OnPropertyChanged(nameof(ShowEmptyState));
+        OnPropertyChanged(nameof(TotalHoursText));
+        OnPropertyChanged(nameof(InstanceCountText));
+        OnPropertyChanged(nameof(LongestInstanceText));
         ErrorText = null;
     }
 

@@ -70,7 +70,7 @@ public sealed class ModsSearchPanelViewModelTests
         Assert.That(panel.Preview, Is.EqualTo("@sarbian"));
         Assert.That(panel.BuildSpec().Authors, Is.EquivalentTo(new[] { "sarbian" }));
         Assert.That(panel.ActiveCount, Is.EqualTo(1));
-        Assert.That(panel.SummaryText, Is.EqualTo("筛选（1）"));
+        Assert.That(panel.SummaryText, Is.EqualTo("高级筛选（1）"));
     }
 
     [Test]

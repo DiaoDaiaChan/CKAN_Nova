@@ -5,17 +5,23 @@
   <!-- 插件页（规格 F-17 / 06 篇 UI-33）：Active / Dormant 两栏 + 激活/停用/重载/卸载/新增。
        颜色只用 Tokens.axaml 的语义 token；两栏都是单选列表，按钮可用性由 VM 的 Can* 决定。 -->
   <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
-        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+        Background="Transparent">
 
     <!-- 页头 -->
     <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
-      <TextBlock Text="插件" Classes="CkanPageTitle" />
-      <TextBlock Text="第三方扩展：放进插件目录的 dll 只会被加载，不会自动启用；必须在这里显式激活。插件与宿主同进程运行，不做沙箱隔离。"
+      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <TextBlock Text="插件" Classes="CkanPageTitle" VerticalAlignment="Center" />
+        <Button Classes="CkanHelper" VerticalAlignment="Center"
+                ToolTip.Tip="放进插件目录的 dll 仅被加载但不会自动启用，需显式激活。插件与宿主同进程运行，不做沙箱隔离，请使用受信任的插件。">
+          <PathIcon Data="{StaticResource CkanIconHelp}" />
+        </Button>
+      </StackPanel>
+      <TextBlock Text="扩展 dll 的加载与启用状态"
                  Classes="CkanCaption" TextWrapping="Wrap" />
     </StackPanel>
 
     <!-- 工具条（F-17：新增 / 激活 / 停用 / 重载 / 卸载 / 扫描） -->
-    <Border Grid.Row="1" Classes="CkanToolbar">
+    <Border Grid.Row="1" Classes="CkanToolbar stagger-card">
       <WrapPanel Orientation="Horizontal">
         <Button Content="新增插件…" Command="{Binding AddNewCommand}"
                 IsEnabled="{Binding CanAddNew}" Classes="CkanPrimary" Margin="0,0,8,0"
@@ -62,20 +68,20 @@
 
       <!-- 左栏：已激活 -->
       <Border Grid.Column="0" Classes="CkanCard" Padding="14,12">
-        <Grid RowDefinitions="Auto,Auto,*">
+        <Grid RowDefinitions="Auto,*">
           <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
             <TextBlock Grid.Column="0" Text="已激活的插件" FontWeight="SemiBold"
+                       ToolTip.Tip="激活的插件正在向宿主提供页签 / 工具项，卸载或停用后会从导航里消失。"
                        VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeSubtitle}"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
             <TextBlock Grid.Column="1" Text="{Binding ActiveSummary}" Margin="12,0,0,0"
-                       VerticalAlignment="Center"
-                       Classes="CkanCaption" />
+                       VerticalAlignment="Center" IsVisible="{Binding !HasNoActive}"
+                       Classes="CkanNumeric"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
           </Grid>
-          <TextBlock Grid.Row="1" Text="激活的插件正在向宿主提供页签/工具项。"
-                     Margin="0,0,0,8" TextWrapping="Wrap"
-                     Classes="CkanCaption" />
-          <ListBox Grid.Row="2" ItemsSource="{Binding ActivePlugins}"
+          <ListBox Grid.Row="1" ItemsSource="{Binding ActivePlugins}"
                    SelectedItem="{Binding SelectedActive, Mode=TwoWay}"
                    BorderThickness="0" Background="Transparent">
             <ListBox.ItemTemplate>
@@ -87,12 +93,10 @@
                                FontWeight="Medium"
                                FontSize="{DynamicResource CkanFontSizeBody}"
                                Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                    <Border Grid.Column="1" Margin="8,0,0,0"
-                            Classes="CkanBadge Success"
-                            VerticalAlignment="Center">
-                      <TextBlock Text="{Binding StateText}"
-                                 FontSize="{DynamicResource CkanFontSizeCaption}" />
-                    </Border>
+                    <ToggleSwitch Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
+                                  IsChecked="True" OnContent="" OffContent=""
+                                  ToolTip.Tip="关掉即停用这个插件：它会从导航页签与工具项里消失。"
+                                  IsCheckedChanged="OnActivePluginToggled" />
                   </Grid>
                   <TextBlock Text="{Binding DescriptionText}" TextWrapping="Wrap"
                              Classes="CkanCaption" />
@@ -103,25 +107,37 @@
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
+
+          <StackPanel Grid.Row="1" Spacing="6" VerticalAlignment="Center"
+                      HorizontalAlignment="Center" MaxWidth="280"
+                      IsVisible="{Binding HasNoActive}">
+            <TextBlock Text="还没有激活的插件" HorizontalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeBody}" FontWeight="Medium"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBlock Text="到右侧把插件的开关拨开，它就会加载并注册页签。"
+                       TextWrapping="Wrap" TextAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+          </StackPanel>
         </Grid>
       </Border>
 
       <!-- 右栏：未激活 -->
       <Border Grid.Column="2" Classes="CkanCard" Padding="14,12">
-        <Grid RowDefinitions="Auto,Auto,*">
+        <Grid RowDefinitions="Auto,*">
           <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
             <TextBlock Grid.Column="0" Text="未激活的插件" FontWeight="SemiBold"
+                       ToolTip.Tip="dll 已加载但插件没有运行；选中后点「激活」才会调用它的 Initialize。"
                        VerticalAlignment="Center"
                        FontSize="{DynamicResource CkanFontSizeSubtitle}"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
             <TextBlock Grid.Column="1" Text="{Binding DormantSummary}" Margin="12,0,0,0"
-                       VerticalAlignment="Center"
-                       Classes="CkanCaption" />
+                       VerticalAlignment="Center" IsVisible="{Binding !HasNoDormant}"
+                       Classes="CkanNumeric"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
           </Grid>
-          <TextBlock Grid.Row="1" Text="已加载但没有运行：选中后点「激活」才会调用插件。"
-                     Margin="0,0,0,8" TextWrapping="Wrap"
-                     Classes="CkanCaption" />
-          <ListBox Grid.Row="2" ItemsSource="{Binding DormantPlugins}"
+          <ListBox Grid.Row="1" ItemsSource="{Binding DormantPlugins}"
                    SelectedItem="{Binding SelectedDormant, Mode=TwoWay}"
                    BorderThickness="0" Background="Transparent">
             <ListBox.ItemTemplate>
@@ -133,12 +149,10 @@
                                FontWeight="Medium"
                                FontSize="{DynamicResource CkanFontSizeBody}"
                                Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                    <Border Grid.Column="1" Margin="8,0,0,0"
-                            Classes="CkanBadge Warning"
-                            VerticalAlignment="Center">
-                      <TextBlock Text="{Binding StateText}"
-                                 FontSize="{DynamicResource CkanFontSizeCaption}" />
-                    </Border>
+                    <ToggleSwitch Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
+                                  IsChecked="False" OnContent="" OffContent=""
+                                  ToolTip.Tip="打开即激活这个插件：会调用它的 Initialize 并注册页签。"
+                                  IsCheckedChanged="OnDormantPluginToggled" />
                   </Grid>
                   <TextBlock Text="{Binding DescriptionText}" TextWrapping="Wrap"
                              Classes="CkanCaption" />
@@ -149,12 +163,25 @@
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
+
+          <StackPanel Grid.Row="1" Spacing="6" VerticalAlignment="Center"
+                      HorizontalAlignment="Center" MaxWidth="280"
+                      IsVisible="{Binding HasNoDormant}">
+            <TextBlock Text="插件目录里没有可加载的 dll" HorizontalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeBody}" FontWeight="Medium"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBlock Text="把插件 dll 放进插件目录（或点「新增插件…」），再点「扫描目录」。"
+                       TextWrapping="Wrap" TextAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+          </StackPanel>
         </Grid>
       </Border>
     </Grid>
 
     <!-- 状态栏：失败摘要 + 插件目录 + 状态文案 -->
-    <Grid Grid.Row="4" Margin="0,10,0,0" ColumnDefinitions="*,Auto">
+    <Border Grid.Row="4" Classes="CkanPageFooter" Margin="0,10,0,0">
+    <Grid ColumnDefinitions="*,Auto">
       <StackPanel Grid.Column="0" Spacing="2">
         <TextBlock Text="{Binding StatusText}"
                    Classes="CkanCaption"
@@ -169,12 +196,17 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
       </StackPanel>
-      <TextBlock Grid.Column="1" Text="{Binding PluginsDirectory}" Margin="12,0,0,0"
-                 MaxWidth="360" TextTrimming="CharacterEllipsis"
-                 ToolTip.Tip="插件目录：把插件 dll 直接放进来，然后点「扫描目录」"
-                 Classes="CkanCaption"
-                 VerticalAlignment="Center" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0"
+                  VerticalAlignment="Center">
+        <TextBlock Text="插件目录：" Classes="CkanCaption"
+                   Foreground="{DynamicResource CkanTextTertiaryBrush}" VerticalAlignment="Center" />
+        <TextBlock Text="{Binding PluginsDirectory}"
+                   MaxWidth="320" TextTrimming="CharacterEllipsis"
+                   ToolTip.Tip="{Binding PluginsDirectory}"
+                   Classes="CkanCaption" VerticalAlignment="Center" />
+      </StackPanel>
     </Grid>
+    </Border>
 
     <!-- 进行中遮罩（03 篇 §10：非模态操作条） -->
     <Border Grid.RowSpan="5" IsVisible="{Binding IsBusy}"

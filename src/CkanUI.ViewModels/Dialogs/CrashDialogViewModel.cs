@@ -26,7 +26,7 @@ public sealed partial class CrashDialogViewModel : DialogViewModelBase
     }
 
     /// <summary>给用户的操作建议（固定文案，中文）。</summary>
-    public string SummaryText => "已捕获未处理异常，当前操作已停止。可复制诊断信息或查看日志后再关闭。";
+    public string SummaryText => "已捕获异常，当前操作已停止。";
 
     /// <summary>日志文件路径（可空）。</summary>
     public string? LogPath { get; }

@@ -6,17 +6,23 @@
              x:CompileBindings="False">
 
   <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
-        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+        Background="Transparent">
 
     <!-- 页头 -->
     <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
-      <TextBlock Text="模组翻译" Classes="CkanPageTitle" />
-      <TextBlock Text="与 UniversalI18n (UI18n.Core) 深度联动。管理与查看 packs/&lt;lang&gt;/*.jsonl 词库及 overrides.jsonl 覆盖层，支持条目检索与实时热重载。"
+      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <TextBlock Text="模组翻译" Classes="CkanPageTitle" VerticalAlignment="Center" />
+        <Button Classes="CkanHelper" VerticalAlignment="Center"
+                ToolTip.Tip="与 UniversalI18n (UI18n.Core) 深度联动。管理与查看 packs/&lt;lang&gt;/*.jsonl 词库及 overrides.jsonl 覆盖层，支持条目检索与实时热重载。">
+          <PathIcon Data="{StaticResource CkanIconHelp}" />
+        </Button>
+      </StackPanel>
+      <TextBlock Text="词库条目与人工覆盖层维护"
                  Classes="CkanCaption" TextWrapping="Wrap" />
     </StackPanel>
 
     <!-- 工具栏 -->
-    <Border Grid.Row="1" Classes="CkanToolbar" Margin="0,0,0,12">
+    <Border Grid.Row="1" Classes="CkanToolbar stagger-card" Margin="0,0,0,12">
       <Grid ColumnDefinitions="Auto,120,16,*,Auto,Auto,Auto,Auto" VerticalAlignment="Center">
         <TextBlock Grid.Column="0" Text="语言："
                    VerticalAlignment="Center"
@@ -60,17 +66,16 @@
     </Border>
 
     <!-- 主工作区：左侧文件与条目列表，右侧人工覆盖编辑面板 -->
-    <Grid Grid.Row="2" ColumnDefinitions="*,16,400">
+    <Grid Grid.Row="2" ColumnDefinitions="*,6,400">
 
       <!-- 左栏：语言包文件与词条列表 -->
       <Grid Grid.Column="0" RowDefinitions="Auto,8,*">
         <!-- 文件概览折叠条 -->
-        <Border Grid.Row="0" Classes="CkanCard" Padding="10,8">
+        <Border Grid.Row="0" Classes="CkanCard" Padding="10,8"
+                IsVisible="{Binding HasPackFiles}">
           <DockPanel LastChildFill="True">
-            <TextBlock DockPanel.Dock="Top" Text="当前加载文件清单："
-                       FontWeight="SemiBold"
-                       FontSize="{DynamicResource CkanFontSizeCaption}"
-                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+            <TextBlock DockPanel.Dock="Top" Text="当前加载的文件"
+                       Classes="CkanSectionTitle"
                        Margin="0,0,0,6" />
             <ItemsControl ItemsSource="{Binding PackFiles}">
               <ItemsControl.ItemTemplate>
@@ -94,7 +99,8 @@
         </Border>
 
         <!-- 条目列表 -->
-        <Border Grid.Row="2" Classes="CkanCard" Padding="4">
+        <Border Grid.Row="2" Classes="CkanCard" Padding="4"
+                IsVisible="{Binding HasEntries}">
           <ListBox ItemsSource="{Binding Entries}"
                    SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
                    Background="Transparent"
@@ -136,65 +142,103 @@
             </ListBox.ItemTemplate>
           </ListBox>
         </Border>
+
+        <!-- 空态：没有匹配条目 -->
+        <Border Grid.Row="2" Classes="CkanEmptyStateCard Elevated stagger-card" Margin="0"
+                IsVisible="{Binding !HasEntries}">
+          <Grid>
+            <Border Classes="CkanEmptyStateGlow" />
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" MaxWidth="380">
+              <Border Classes="CkanIconTile Lg Muted" HorizontalAlignment="Center">
+                <PathIcon Data="M4 5h16v2H4V5zm0 6h16v2H4v-2zm0 6h10v2H4v-2z" />
+              </Border>
+              <TextBlock Text="没有匹配的条目" HorizontalAlignment="Center"
+                         FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+              <TextBlock Text="放宽搜索词或换个语言包。"
+                         ToolTip.Tip="覆盖层里已保存的翻译不受影响。"
+                         TextWrapping="Wrap" TextAlignment="Center"
+                         FontSize="{DynamicResource CkanFontSizeBody}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </StackPanel>
+          </Grid>
+        </Border>
       </Grid>
 
+      <!-- 分割条（GridSplitter） -->
+      <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center"
+                    VerticalAlignment="Stretch" />
+
       <!-- 右栏：人工覆盖编辑面板 -->
-      <Border Grid.Column="2" Classes="CkanCard" Padding="16">
+      <Border Grid.Column="2" Classes="CkanCard stagger-card" Padding="16" MinWidth="300" MaxWidth="600">
         <ScrollViewer>
           <StackPanel Spacing="10">
-            <TextBlock Text="人工覆盖翻译 (Override)"
+            <TextBlock Text="人工覆盖翻译"
                        FontSize="{DynamicResource CkanFontSizeSubtitle}"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
 
-            <TextBlock Text="在此输入或修改条目翻译，保存后将写入 overrides.jsonl。优先于通用词典生效并实时热应用。"
+            <TextBlock Text="优先于通用词典，保存后立即生效。"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                       TextWrapping="Wrap" />
+                       TextWrapping="Wrap"
+                       ToolTip.Tip="写入 overrides.jsonl；同一条目以此处的译名为准，保存后热应用，无需重启。" />
 
             <Separator Background="{DynamicResource CkanBorderBrush}" Height="1" Margin="0,4" />
 
-            <TextBlock Text="Mod 标识符 (Identifier)："
+            <TextBlock Text="Mod 标识符"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
             <TextBox Text="{Binding EditIdentifier, Mode=TwoWay}"
                      PlaceholderText="例如 MechJeb2" />
 
-            <TextBlock Text="字段类型："
+            <TextBlock Text="字段类型"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-            <TextBox Text="{Binding EditField, Mode=TwoWay}"
-                     PlaceholderText="abstract 或 description" />
+            <ComboBox SelectedItem="{Binding EditField, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch"
+                      PlaceholderText="选择字段">
+              <ComboBox.Items>
+                <x:String>abstract</x:String>
+                <x:String>description</x:String>
+              </ComboBox.Items>
+            </ComboBox>
 
-            <TextBlock Text="英文源文 (Source)："
+            <TextBlock Text="英文源文"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
             <TextBox Text="{Binding EditSource, Mode=TwoWay}"
                      AcceptsReturn="True"
                      TextWrapping="Wrap"
                      MinHeight="70"
+                     FontFamily="Consolas, Menlo, monospace"
+                     ToolTip.Tip="等宽显示，便于逐字对照原文与译文；换行会原样保留。"
                      PlaceholderText="请输入待翻译的模组英文原文..." />
 
-            <TextBlock Text="本地化译文 (Translation)："
+            <TextBlock Text="本地化译文"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" />
             <TextBox Text="{Binding EditTranslation, Mode=TwoWay}"
                      AcceptsReturn="True"
                      TextWrapping="Wrap"
                      MinHeight="70"
+                     FontFamily="Consolas, Menlo, monospace"
+                     ToolTip.Tip="等宽显示，与上方原文按行对照；保存后立即热应用到界面。"
                      PlaceholderText="请输入中文翻译..." />
 
-            <Button Content="保存至 overrides.jsonl 并生效"
+            <Button Content="保存并生效"
                     Command="{Binding SaveOverrideCommand}"
                     Classes="CkanPrimary"
+                    ToolTip.Tip="写入 overrides.jsonl 并立即热应用"
                     HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Center"
                     Padding="12,8"
                     Margin="0,8,0,0" />
 
-            <Button Content="删除此条目覆盖 (Delete Override)"
+            <Button Content="删除覆盖"
                     Command="{Binding DeleteOverrideCommand}"
                     Classes="CkanDanger"
+                    ToolTip.Tip="移除这条条目在 overrides.jsonl 里的覆盖，回落到通用词典"
                     HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Center"
                     Padding="12,6"
@@ -205,11 +249,15 @@
     </Grid>
 
     <!-- 页脚状态栏 -->
-    <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto" Margin="0,10,0,0">
-      <TextBlock Grid.Column="0" Text="{Binding SummaryText}"
+    <Border Grid.Row="3" Classes="CkanPageFooter" Margin="0,10,0,0">
+    <Grid ColumnDefinitions="*,Auto,Auto">
+      <TextBlock Grid.Column="0" Text="{Binding SummaryText}" IsVisible="{Binding HasEntries}"
                  FontSize="{DynamicResource CkanFontSizeCaption}"
                  Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-      <TextBlock Grid.Column="1" Text="{Binding StatusMessage}"
+      <TextBlock Grid.Column="0" Text="未发现词条" IsVisible="{Binding !HasEntries}"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+      <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" IsVisible="{Binding HasEntries}"
                  FontSize="{DynamicResource CkanFontSizeCaption}"
                  Foreground="{DynamicResource CkanTextTertiaryBrush}"
                  Margin="16,0" TextTrimming="CharacterEllipsis" />
@@ -217,5 +265,6 @@
                  FontSize="{DynamicResource CkanFontSizeCaption}"
                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
     </Grid>
+    </Border>
   </Grid>
 </UserControl>

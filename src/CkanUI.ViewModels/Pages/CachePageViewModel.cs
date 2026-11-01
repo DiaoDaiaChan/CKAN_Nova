@@ -172,7 +172,9 @@ public sealed partial class CachePageViewModel : PageViewModel
     public string UsageText => HasLimit ? CacheFormat.FormatPercent(UsagePercent) : Text("未设上限", LocalizationKeys.CacheNoLimit);
 
     /// <summary>容量条右侧的单行摘要（上限 + 已用），免掉多段内联绑定。</summary>
-    public string CapacityText => Text("上限 {0}  ·  已用 {1}", LocalizationKeys.CacheCapacityText, LimitText, UsageText);
+    public string CapacityText => HasLimit
+        ? Text("上限 {0}  ·  已用 {1}", LocalizationKeys.CacheCapacityText, LimitText, UsageText)
+        : Text("未设上限", LocalizationKeys.CacheNoLimit);
 
     /// <summary>条目数文案。</summary>
     public string EntryCountText => EntryCount == 0 ? Text("缓存是空的", LocalizationKeys.CacheEntriesEmpty) : Text("共 {0} 个条目", LocalizationKeys.CacheEntriesCount, EntryCount);

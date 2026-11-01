@@ -22,6 +22,10 @@ public sealed class AccentHost : IDisposable
     public const string PrimaryBrushKey = "CkanPrimaryBrush";
     public const string AccentSubtleBrushKey = "CkanAccentSubtleBrush";
     public const string NavigationSelectionBrushKey = "CkanNavigationSelectionBrush";
+    public const string FocusRingBrushKey = "CkanFocusRingBrush";
+    public const string AccentHoverBrushKey = "CkanAccentHoverBrush";
+    public const string AmbientGlowBrushKey = "CkanAmbientGlowBrush";
+    public const string OrbitalLineBrushKey = "CkanOrbitalLineBrush";
 
     private readonly IUiSettingsStore _settings;
     private readonly IDispatcher _dispatcher;
@@ -107,10 +111,7 @@ public sealed class AccentHost : IDisposable
         if (_application.ActualThemeVariant == ThemeHost.HighContrastVariant)
         {
             // 20 篇 §15：高对比度压过一切自定义颜色——覆盖项全摘掉，只留 Tokens.axaml 里那套合规色板。
-            RemoveOverride(AccentBrushKey);
-            RemoveOverride(PrimaryBrushKey);
-            RemoveOverride(AccentSubtleBrushKey);
-            RemoveOverride(NavigationSelectionBrushKey);
+            ClearOverrides();
             Log.Info("系统高对比度接管强调色，已跳过自定义颜色");
             return;
         }
@@ -118,10 +119,7 @@ public sealed class AccentHost : IDisposable
         if (string.IsNullOrWhiteSpace(targetColor) || string.Equals(targetColor, AccentPalettes.DefaultKey, StringComparison.OrdinalIgnoreCase))
         {
             // 恢复默认：移除覆盖的资源项，让 Tokens.axaml 的 ThemeDictionaries 原生生效
-            RemoveOverride(AccentBrushKey);
-            RemoveOverride(PrimaryBrushKey);
-            RemoveOverride(AccentSubtleBrushKey);
-            RemoveOverride(NavigationSelectionBrushKey);
+            ClearOverrides();
             Log.Info("已重置强调色为默认主题色彩");
             return;
         }
@@ -166,13 +164,47 @@ public sealed class AccentHost : IDisposable
         var accentBrush = new SolidColorBrush(accentColor);
         var subtleColor = Color.FromArgb(isDark ? (byte)45 : (byte)24, accentColor.R, accentColor.G, accentColor.B);
         var navColor = Color.FromArgb(isDark ? (byte)60 : (byte)35, accentColor.R, accentColor.G, accentColor.B);
+        var hoverColor = isDark
+            ? Color.FromArgb(255, (byte)Math.Min(255, accentColor.R + 25), (byte)Math.Min(255, accentColor.G + 25), (byte)Math.Min(255, accentColor.B + 25))
+            : Color.FromArgb(255, (byte)Math.Max(0, accentColor.R - 25), (byte)Math.Max(0, accentColor.G - 25), (byte)Math.Max(0, accentColor.B - 25));
+
+        var glowBrush = new RadialGradientBrush
+        {
+            Center = new RelativePoint(0.5, 0.5, RelativeUnit.Relative),
+            GradientOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative),
+            RadiusX = new RelativeScalar(0.65, RelativeUnit.Relative),
+            RadiusY = new RelativeScalar(0.65, RelativeUnit.Relative),
+            GradientStops =
+            {
+                new GradientStop(Color.FromArgb(isDark ? (byte)0x26 : (byte)0x40, accentColor.R, accentColor.G, accentColor.B), 0),
+                new GradientStop(Color.FromArgb(0, accentColor.R, accentColor.G, accentColor.B), 1)
+            }
+        };
+
+        var orbitalBrush = new SolidColorBrush(Color.FromArgb(isDark ? (byte)0x18 : (byte)0x18, accentColor.R, accentColor.G, accentColor.B));
 
         _application.Resources[AccentBrushKey] = accentBrush;
         _application.Resources[PrimaryBrushKey] = accentBrush;
         _application.Resources[AccentSubtleBrushKey] = new SolidColorBrush(subtleColor);
         _application.Resources[NavigationSelectionBrushKey] = new SolidColorBrush(navColor);
+        _application.Resources[FocusRingBrushKey] = accentBrush;
+        _application.Resources[AccentHoverBrushKey] = new SolidColorBrush(hoverColor);
+        _application.Resources[AmbientGlowBrushKey] = glowBrush;
+        _application.Resources[OrbitalLineBrushKey] = orbitalBrush;
 
         Log.Info($"已动态应用强调色：{targetColor} ({accentColor})");
+    }
+
+    private void ClearOverrides()
+    {
+        RemoveOverride(AccentBrushKey);
+        RemoveOverride(PrimaryBrushKey);
+        RemoveOverride(AccentSubtleBrushKey);
+        RemoveOverride(NavigationSelectionBrushKey);
+        RemoveOverride(FocusRingBrushKey);
+        RemoveOverride(AccentHoverBrushKey);
+        RemoveOverride(AmbientGlowBrushKey);
+        RemoveOverride(OrbitalLineBrushKey);
     }
 
     private static string ToHex(Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";

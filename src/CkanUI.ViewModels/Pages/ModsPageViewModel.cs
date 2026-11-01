@@ -634,7 +634,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
 
             if (_all.Count == 0)
             {
-                return Text("仓库索引为空：点击「刷新仓库」联网获取索引，或检查网络与仓库地址。", LocalizationKeys.ManageModsEmptyNoIndexHint);
+                return Text("仓库索引为空，点「刷新仓库」重试。", LocalizationKeys.ManageModsEmptyNoIndexHint);
             }
 
             return Text("试着放宽过滤条件，或按 Esc 清空搜索。", LocalizationKeys.ManageModsEmptyNoMatchHint);
@@ -1111,6 +1111,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     }
 
     /// <summary>切换升/降序。</summary>
+    [RelayCommand]
     public void ToggleSortDirection()
     {
         SortAscending = !SortAscending;

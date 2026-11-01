@@ -10,7 +10,7 @@
                        Height="540">
   <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="12">
     <TextBlock Grid.Row="0"
-               Text="以下目录在卸载后留了下来，通常只含配置与日志。确认不再需要就勾选删除；不确定请点「全部保留」。"
+               Text="以下目录卸载后留下，勾选即删除。"
                TextWrapping="Wrap"
                Foreground="{DynamicResource CkanTextSecondaryBrush}"
                FontSize="{DynamicResource CkanFontSizeCaption}" />
@@ -93,6 +93,7 @@
               HorizontalContentAlignment="Center" />
       <Button Content="{Binding SecondaryButtonText}"
               Command="{Binding SecondaryCommand}"
+              ToolTip.Tip="不确定就全部保留：一条都不删，直接关闭。"
               IsCancel="True"
               IsVisible="{Binding HasSecondaryButton}"
               MinWidth="92"

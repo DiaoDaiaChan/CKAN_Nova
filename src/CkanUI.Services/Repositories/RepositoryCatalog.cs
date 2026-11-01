@@ -49,6 +49,13 @@ public sealed class RepositoryCatalog
     public OperationResult<IReadOnlyList<RepositoryEntryInfo>> RestoreDefaults()
         => Guard(RestoreDefaultsCore, "恢复默认仓库失败。");
 
+    /// <summary>
+    /// 列表为空时写入离线内置的默认仓库（不联网）；已有仓库或没有实例时原样返回当前列表。
+    /// </summary>
+    /// <remarks>没有实例时按「空列表」成功返回，与 <see cref="Load"/> 的语义保持一致。</remarks>
+    public OperationResult<IReadOnlyList<RepositoryEntryInfo>> EnsureDefaults(IReadOnlyList<RepositoryEntry>? seed)
+        => Guard(() => EnsureDefaultsCore(seed), "写入默认仓库失败，修改未生效。");
+
     /// <summary>记录某个仓库最近一次刷新失败（下一次成功刷新或编辑后自动清除）。</summary>
     public void MarkFailure(string name, string? message)
     {
@@ -177,6 +184,23 @@ public sealed class RepositoryCatalog
         _failures.Clear();
         var entries = Order(defaults).ToList();
         return Write(entries);
+    }
+
+    private OperationResult<IReadOnlyList<RepositoryEntryInfo>> EnsureDefaultsCore(IReadOnlyList<RepositoryEntry>? seed)
+    {
+        if (!_store.IsAvailable)
+        {
+            return Ok(Project(_store.Read()));
+        }
+
+        var existing = _store.Read();
+        if (existing.Count > 0 || seed is null || seed.Count == 0)
+        {
+            return Ok(Project(existing));
+        }
+
+        _failures.Clear();
+        return Write(Order(seed).ToList());
     }
 
     private OperationResult<IReadOnlyList<RepositoryEntryInfo>> Write(IReadOnlyList<RepositoryEntry> entries)

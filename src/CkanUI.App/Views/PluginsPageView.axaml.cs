@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using CkanUI.ViewModels.Pages;
 using CkanUI.ViewModels.Pages.Plugins;
@@ -35,6 +36,51 @@ public partial class PluginsPageView : UserControl
 
         // 用 ??= 让宿主（测试夹具 / 未来 DI 注册）已经塞好的实现优先。
         _viewModel.FilePicker ??= new AvaloniaPluginFilePicker(this);
+    }
+
+    /// <summary>行内开关：关掉「已激活」栏的开关等于停用该插件（先选中行，再走既有命令）。</summary>
+    private void OnActivePluginToggled(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleSwitch toggle
+            || toggle.DataContext is not PluginRowViewModel row
+            || _viewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        // 列表填充时绑定出来的 true 不该触发动作，只有"被用户关掉"才走停用。
+        if (toggle.IsChecked != false)
+        {
+            return;
+        }
+
+        viewModel.SelectedActive = row;
+        if (viewModel.DeactivateCommand.CanExecute(null))
+        {
+            viewModel.DeactivateCommand.Execute(null);
+        }
+    }
+
+    /// <summary>行内开关：打开「未激活」栏的开关等于激活该插件。</summary>
+    private void OnDormantPluginToggled(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleSwitch toggle
+            || toggle.DataContext is not PluginRowViewModel row
+            || _viewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        if (toggle.IsChecked != true)
+        {
+            return;
+        }
+
+        viewModel.SelectedDormant = row;
+        if (viewModel.ActivateCommand.CanExecute(null))
+        {
+            viewModel.ActivateCommand.Execute(null);
+        }
     }
 }
 

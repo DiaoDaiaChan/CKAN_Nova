@@ -5,6 +5,7 @@ using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Pages;
 using CkanUI.ViewModels.Pages.Settings;
+using CkanUI.ViewModels.Relations;
 
 namespace CkanUI.ViewModels.Dialogs;
 
@@ -26,6 +27,7 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
     private ModRowData? _row;
     private InstalledModuleInfo? _installed;
     private ModDetailsSnapshot? _details;
+    private RelationTreeViewModel? _relationTree;
 
     /// <summary>创建详情面板 VM。</summary>
     /// <param name="repository">仓库服务（列表行回查）。</param>
@@ -333,6 +335,9 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
     /// <summary>是否有任意关系（依赖 / 推荐 / 冲突）。</summary>
     public bool HasRelations => RelationsTotal > 0;
 
+    /// <summary>交互式依赖关系树视图模型（F-28 / UI-18）。</summary>
+    public RelationTreeViewModel? RelationTree => _relationTree;
+
     /// <summary>
     /// 全部版本列表（F-30）。数据由 <see cref="ModDetailsSnapshot.Versions"/> 提供；
     /// 快照可能来自缓存而没标 IsInstalled，这里按当前实例的已装版本补齐"当前已安装"标记。
@@ -593,6 +598,7 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
         _installed = null;
         _details = null;
         _selectedStabilityToleranceOverride = null;
+        _relationTree = null;
         SelectedTabIndex = 0;
         SetInstallStatus(string.Empty, isError: false);
         LastChangeSet = null;
@@ -792,6 +798,47 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
         finally
         {
             _isUpdatingTolerance = false;
+        }
+
+        if (_identifier is not null && HasRelations)
+        {
+            var edges = new List<RelationEdge>();
+            foreach (var d in Dependencies)
+            {
+                edges.Add(new RelationEdge(RelationKind.Depends, d.Identifier));
+            }
+            foreach (var r in Recommendations)
+            {
+                edges.Add(new RelationEdge(RelationKind.Recommends, r.Identifier));
+            }
+            foreach (var c in Conflicts)
+            {
+                edges.Add(new RelationEdge(RelationKind.Conflicts, c.Identifier));
+            }
+
+            var graph = new Dictionary<string, IReadOnlyList<RelationEdge>>(StringComparer.OrdinalIgnoreCase)
+            {
+                [_identifier] = edges,
+            };
+
+            var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [_identifier] = Name,
+            };
+            foreach (var d in Dependencies) names[d.Identifier] = d.DisplayText ?? d.Identifier;
+            foreach (var r in Recommendations) names[r.Identifier] = r.DisplayText ?? r.Identifier;
+            foreach (var c in Conflicts) names[c.Identifier] = c.DisplayText ?? c.Identifier;
+
+            _relationTree = new RelationTreeViewModel(
+                _identifier,
+                graph,
+                names,
+                knownIdentifiers: names.Keys,
+                navigate: id => Select(id));
+        }
+        else
+        {
+            _relationTree = null;
         }
 
         Refresh();

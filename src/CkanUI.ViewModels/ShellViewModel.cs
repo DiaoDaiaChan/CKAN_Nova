@@ -18,6 +18,38 @@ namespace CkanUI.ViewModels;
 /// <param name="Glyph">图标字形标识符。</param>
 public sealed record NavItem(string Key, string Title, string Glyph);
 
+/// <summary>
+/// 侧栏一级入口：同一个对象的不同面（管理 / 内容预览 / 变更集 / 仓库）收进一个入口，
+/// 组内用页签切换，而不是在侧栏里排成一串平级页签。
+/// </summary>
+/// <param name="Key">入口键，等于组内第一个页签的页面键（深链与历史栈仍然按页面键工作）。</param>
+/// <param name="Title">侧栏显示文字；可以和组内首页的导航标题不同（例如「数据」）。</param>
+/// <param name="RailItem">侧栏项本身（按引用做选中同步，不能与页面项混用）。</param>
+/// <param name="Tabs">组内页面，顺序即页签顺序。</param>
+public sealed record NavSection(string Key, string Title, NavItem RailItem, IReadOnlyList<NavItem> Tabs);
+
+/// <summary>页面区顶部页签：同一个入口下的平级页面。<see cref="IsActive"/> 供样式类绑定。</summary>
+public sealed partial class NavTab : ObservableObject
+{
+    /// <summary>按导航项建一个页签。</summary>
+    /// <param name="item">页面导航项。</param>
+    public NavTab(NavItem item)
+    {
+        Key = item.Key;
+        Title = item.Title;
+    }
+
+    /// <summary>页面键。</summary>
+    public string Key { get; }
+
+    /// <summary>页签文字（沿用该页的导航标题）。</summary>
+    public string Title { get; }
+
+    /// <summary>是否为当前页。</summary>
+    [ObservableProperty]
+    private bool _isActive;
+}
+
 /// <summary>主窗口外壳（UI-01 骨架 / ARC-03）。管理顶层导航、全局状态栏与内容承载。</summary>
 public sealed partial class ShellViewModel : ObservableObject
 {
@@ -33,11 +65,32 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>插件页签的缓存，按 key 复用同一实例，避免重建列表时丢掉 ListBox 的选中项。</summary>
     private readonly Dictionary<string, NavItem> _pluginNavItems = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>当前页签条对应的入口键；只在换入口时才重建页签。</summary>
+    private string? _activeSectionKey;
+
     /// <summary>
     /// 导航项列表（内置页签 + 已激活插件声明的页签）。标题在构造时按当前语言解析；
     /// 插件页签随 <see cref="IPluginService.Changed"/> 增删。
     /// </summary>
     public ObservableCollection<NavItem> NavItems { get; }
+
+    /// <summary>
+    /// 侧栏一级入口：五个入口 + 插件页。侧栏只渲染这一层，
+    /// 组内页面（内容预览、变更集、仓库……）放在页面区顶部的页签里。
+    /// </summary>
+    public ObservableCollection<NavItem> RailItems { get; } = new();
+
+    /// <summary>入口表：每个入口包含哪些页面（顺序即页签顺序）。</summary>
+    public IReadOnlyList<NavSection> Sections { get; }
+
+    /// <summary>当前页所属入口的页签；只有一个页面时为空集合（页面区不出现页签条）。</summary>
+    public ObservableCollection<NavTab> SectionTabs { get; } = new();
+
+    /// <summary>页面区是否需要页签条。</summary>
+    public bool HasSectionTabs => SectionTabs.Count > 1;
+
+    /// <summary>当前页所属入口；无入口（插件页、日志、设置）时为 null。</summary>
+    public NavSection? ActiveSection { get; private set; }
 
     [ObservableProperty]
     private string _statusText = string.Empty;
@@ -107,10 +160,13 @@ public sealed partial class ShellViewModel : ObservableObject
             new("modconfig", _translate("Ui_NavRail_ModConfig"), "Sliders")
         };
         NavItems = new ObservableCollection<NavItem>(_baseNavItems);
+        Sections = BuildSections();
+        RefreshRailItems();
         _statusText = _translate("Ui_Common_Status_Ready");
 
         _currentPage = _navigation.CurrentPage;
         SelectedNavItem = NavItems.FirstOrDefault(item => string.Equals(item.Key, _navigation.CurrentKey, StringComparison.OrdinalIgnoreCase));
+        RefreshSection(_navigation.CurrentKey);
         _navigation.Navigated += OnNavigated;
 
         NavigateCommand = new AsyncRelayCommand<string>(ExecuteNavigateAsync);
@@ -351,6 +407,9 @@ public sealed partial class ShellViewModel : ObservableObject
             NavItems.RemoveAt(NavItems.Count - 1);
         }
 
+        // 插件页在侧栏里是独立入口（不进任何组的页签条），列表变了要跟着重排。
+        RefreshRailItems();
+
         // 当前页所属插件被卸载时，页签已经不存在：退回插件管理页，避免停在一个无入口的页面。
         var currentKey = _navigation.CurrentKey;
         if (!string.IsNullOrEmpty(currentKey) && NavItems.All(item => !string.Equals(item.Key, currentKey, StringComparison.OrdinalIgnoreCase)))
@@ -437,6 +496,7 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         CurrentPage = newPage;
         SelectedNavItem = NavItems.FirstOrDefault(item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase));
+        RefreshSection(key);
         RefreshHistoryState();
     }
 
@@ -473,6 +533,132 @@ public sealed partial class ShellViewModel : ObservableObject
         return _navigation.NavigateAsync(key, null, ct);
     }
 
+    /// <summary>
+    /// 入口表：把「同一对象的多个面」收进一个侧栏入口。
+    /// 键必须与 <see cref="_baseNavItems"/> 一致；标题键为空表示直接沿用该组首页的导航标题。
+    /// </summary>
+    private static readonly (string Root, string? TitleKey, string[] Keys)[] SectionSpecs =
+    [
+        // 模组：装什么、装进去长什么样、哪些待应用、元数据打哪来、单个 mod 怎么配、界面文案怎么汉化。
+        ("mods", null, ["mods", "content", "changes", "repos", "modconfig", "modtext"]),
+        // 实例：一份安装本身 + 它衍生的存档、磁盘垃圾、历史与时长。
+        ("instances", null, ["instances", "saves", "unmanaged", "installhistory", "playtime"]),
+        // 整合包：导入导出与直接编辑 .ckan。
+        ("modpacks", null, ["modpacks", "modpack-editor"]),
+        // 数据：本地缓存、下载统计、跨实例去重——都是「盘上的东西」，与模组列表无关。
+        ("cache", "Ui_NavRail_Data", ["cache", "downloadstats", "dedup"]),
+        // 工具：插件管理（只剩一页，页签条不会出现）。
+        ("plugins", "Ui_NavRail_Tools", ["plugins"]),
+    ];
+
+    private List<NavSection> BuildSections()
+    {
+        var result = new List<NavSection>(SectionSpecs.Length);
+        foreach (var (root, titleKey, keys) in SectionSpecs)
+        {
+            var tabs = new List<NavItem>(keys.Length);
+            foreach (var key in keys)
+            {
+                if (_baseNavItems.FirstOrDefault(item => string.Equals(item.Key, key, StringComparison.Ordinal)) is { } item)
+                {
+                    tabs.Add(item);
+                }
+            }
+
+            if (tabs.Count == 0)
+            {
+                continue;
+            }
+
+            var title = titleKey is null ? tabs[0].Title : _translate(titleKey);
+            result.Add(new NavSection(root, title, new NavItem(root, title, tabs[0].Glyph), tabs));
+        }
+
+        return result;
+    }
+
+    /// <summary>重建侧栏入口列表：五个入口在前，插件自述页追加在后（日志与设置由外壳放进底部区）。</summary>
+    private void RefreshRailItems()
+    {
+        RailItems.Clear();
+        foreach (var section in Sections)
+        {
+            RailItems.Add(section.RailItem);
+        }
+
+        foreach (var item in NavItems)
+        {
+            if (string.Equals(item.Key, "logs", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(item.Key, "settings", StringComparison.OrdinalIgnoreCase) ||
+                Sections.Any(section => section.Tabs.Any(tab => string.Equals(tab.Key, item.Key, StringComparison.OrdinalIgnoreCase))))
+            {
+                continue;
+            }
+
+            RailItems.Add(item);
+        }
+    }
+
+    /// <summary>
+    /// 按当前页刷新页面区顶部的页签条。切到别的入口才重建，同入口内只翻 IsActive，
+    /// 避免每次切页都重造一遍按钮（丢掉悬停与焦点）。
+    /// </summary>
+    /// <param name="pageKey">当前页的页面键；为空表示还没有导航过。</param>
+    public void RefreshSection(string? pageKey)
+    {
+        var section = Sections.FirstOrDefault(candidate =>
+            candidate.Tabs.Any(tab => string.Equals(tab.Key, pageKey, StringComparison.OrdinalIgnoreCase)));
+
+        if (section is null)
+        {
+            ActiveSection = null;
+            _activeSectionKey = null;
+            if (SectionTabs.Count == 0)
+            {
+                return;
+            }
+
+            SectionTabs.Clear();
+            OnPropertyChanged(nameof(HasSectionTabs));
+            return;
+        }
+
+        if (!string.Equals(_activeSectionKey, section.Key, StringComparison.Ordinal))
+        {
+            SectionTabs.Clear();
+            foreach (var tab in section.Tabs)
+            {
+                SectionTabs.Add(new NavTab(tab));
+            }
+
+            _activeSectionKey = section.Key;
+            ActiveSection = section;
+            OnPropertyChanged(nameof(HasSectionTabs));
+        }
+
+        foreach (var tab in SectionTabs)
+        {
+            tab.IsActive = string.Equals(tab.Key, pageKey, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>取某一页所属的侧栏入口项；插件页、日志、设置这类独立页返回它自己的导航项。</summary>
+    /// <param name="pageKey">页面键。</param>
+    public NavItem? RailItemFor(string? pageKey)
+    {
+        if (string.IsNullOrEmpty(pageKey))
+        {
+            return null;
+        }
+
+        var section = Sections.FirstOrDefault(candidate =>
+            candidate.Tabs.Any(tab => string.Equals(tab.Key, pageKey, StringComparison.OrdinalIgnoreCase)));
+
+        return section is not null
+            ? section.RailItem
+            : NavItems.FirstOrDefault(item => string.Equals(item.Key, pageKey, StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>无本地化层时的中文兜底文案（键名与 LocalizationKeys 保持一致）。</summary>
     private static readonly Dictionary<string, string> FallbackTexts = new(StringComparer.Ordinal)
     {
@@ -495,6 +681,8 @@ public sealed partial class ShellViewModel : ObservableObject
         ["Ui_NavRail_Logs"] = "日志",
         ["Ui_NavRail_Settings"] = "设置",
         ["Ui_NavRail_ModConfig"] = "Mod 配置",
+        ["Ui_NavRail_Data"] = "数据",
+        ["Ui_NavRail_Tools"] = "工具",
         ["Ui_NavRail_Collapse"] = "收起侧栏",
         ["Ui_NavRail_Expand"] = "展开侧栏",
         ["Ui_Common_Nav_Back"] = "后退",

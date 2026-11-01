@@ -46,11 +46,12 @@ public static class ServiceRegistration
     /// 构建 UI 容器。
     /// </summary>
     /// <param name="ownerProvider">返回当前主窗口，供模态对话框指定 owner（05 篇 §2 铁律：必须指定 owner）。</param>
-    public static ServiceProvider Build(Func<Window?> ownerProvider)
+    public static ServiceProvider Build(Func<Window?> ownerProvider, Action<IServiceCollection>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(ownerProvider);
 
         var services = new ServiceCollection();
+        configure?.Invoke(services);
 
         // 表现层基础设施：IDispatcher 与 IErrorReporter 是所有服务的共同依赖。
         services.AddSingleton<IDispatcher>(new AvaloniaDispatcher());

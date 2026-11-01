@@ -66,7 +66,9 @@ HideOnClose    = IsTrayAvailable && UiSettings.CloseToTray
 
 ### 图标
 
-不新增二进制资源：`TrayHost.CreateIconImage()` 用 `RenderTargetBitmap`（32×32）+ `DrawingContext.DrawRectangle` 现画一个蓝色圆角方块加三道白色横杠，`Save(stream, PngBitmapEncoderOptions.Default)` 编码后塞进 `WindowIcon`。画不出来（没有渲染后端）就返回 `null`，托盘退回平台默认图标——图标丑一点不影响功能。
+托盘优先复用随包分发的应用图标：`TrayHost.LoadIconImage()` 调 `Branding.AppIcon.TryLoad()` 读输出目录下的 `Assets/ckan.ico`（7 档 PNG-entry ICO，由 `tools/icon-gen` 生成，见 `docs/design/brand-icon.md`），与窗口标题栏、exe 内嵌图标是同一张脸，也省掉「托盘和任务栏图标长得不一样」这类观感缺陷。
+
+图标文件缺失（裁剪过的发布包）时才退回兜底路径 `DrawFallbackIcon()`：`RenderTargetBitmap`（32×32）+ `DrawRectangle` 现画圆角方块 + 三道横杠，底色取当前 `CkanAccentBrush`（换强调色后兜底图标跟着变）、横杠用 `#0F1218`。连渲染后端都没有就返回 `null`，托盘退回平台默认图标——图标丑一点不影响功能。
 
 ## 安全与失败语义
 
@@ -92,6 +94,6 @@ HideOnClose    = IsTrayAvailable && UiSettings.CloseToTray
 3. **文档登记**：`docs/README.md` 需要加本文件的相对链接（`tools/verify-layout` 的 H-05 检查，警告级）。
 4. **没有 GUI 会话的自动化验证**：`TrayHost` 只做了「能编译 + VM 层单测」，真正的图标出现/菜单点击/开关联动需要在有桌面的机器上手测；`dotnet test` 在本沙箱不可用，测试走 `CkanUI.TestRunner`。
 5. **菜单文案不走语言包**：切到英文界面时托盘菜单仍是中文，与设置页不一致（原因见上，等原生菜单可重建再补）。
-6. **图标是现画的几何图形**，不是设计稿资产；视觉上只做到「能认出是 CKAN」，等设计给 SVG 再替换 `CreateIconImage()` 一处即可。
+6. ~~图标是现画的几何图形~~ 已闭环（2026-10-31）：托盘改用 `tools/icon-gen` 生成的 7 档 `Assets/ckan.ico`，自绘方块降级为文件缺失时的兜底。
 7. **开机自启 + 启动即最小化到托盘**未实现：需要「启动参数 + 首帧隐藏」的配套，属于后续条目。
 8. **多显示器 / DPI 变化**时托盘图标不重绘：32×32 固定尺寸在高 DPI 下会被系统缩放，可能略糊。

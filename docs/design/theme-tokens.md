@@ -77,9 +77,9 @@
 
 | Token Key | 类型 | 当前值 | 适用场景 |
 |---|---|---|---|
-| `CkanCornerRadiusSmall` | `CornerRadius` | `2` | 紧凑型标签徽章、复选框、进度条指示槽 |
-| `CkanCornerRadiusMedium` | `CornerRadius` | `4` | 标准按钮、输入框、下拉菜单、列表选中光标 |
-| `CkanCornerRadiusLarge` | `CornerRadius` | `8` | 浮动面板卡片、弹窗容器、详情折叠面板 |
+| `CkanCornerRadiusSmall` | `CornerRadius` | `8` | 紧凑型标签徽章、复选框、进度条指示槽 |
+| `CkanCornerRadiusMedium` | `CornerRadius` | `12` | 标准按钮、输入框、下拉菜单、列表选中光标 |
+| `CkanCornerRadiusLarge` | `CornerRadius` | `18` | 浮动面板卡片、弹窗容器、详情折叠面板 |
 
 ---
 
@@ -239,7 +239,7 @@
 
 | Token Key | 类型 | 值 | 用途 |
 |---|---|---|---|
-| `CkanCornerRadiusPill` | `CornerRadius` | `999` | 药丸形徽章/筛选片 |
+| `CkanCornerRadiusPill` | `CornerRadius` | `8` | 筛选片 / 徽章 / 搜索框的「圆角矩形」半径（名字沿用 Pill，形态不是胶囊） |
 | `CkanSpacingXs` / `Sm` / `Md` / `Lg` / `Xl` | `x:Double` | `4 / 8 / 12 / 16 / 24` | 8pt 间距刻度，替代随手写的 `Margin="13,0,0,0"` |
 | `CkanSpacingGutter` | `Thickness` | `16,12` | 页面级外边距 |
 | `CkanSpacingStack` | `Thickness` | `0,0,0,8` | 纵向堆叠项间距 |
@@ -247,6 +247,9 @@
 | `CkanControlHeightSmall` / `Medium` | `x:Double` | `28 / 32` | 小按钮与标准控件高度 |
 | `CkanFocusRingThickness` | `Thickness` | `2` | 焦点环描边厚度（必须 `Thickness`，写成 `x:Double` 会在 `BorderThickness` 上解析失败） |
 | `CkanOverlayCardWidth` | `x:Double` | `480` | 浮层卡片（命令面板、抽屉）宽度基准 |
+
+> **别把 Pill 调回 999**：Avalonia 把「超大半径」按 `rx = 宽/2、ry = 高/2` 解释，非正方形容器会渲染成**真椭圆**。
+> 旧构建的 75×34 选中徽章因此露成椭圆（见 `docs/design/milestones.md` 的 UI 文案治理条目），现在统一 8px 圆角矩形。
 
 ### 5.4 样式类清单（`src/CkanUI.App/Resources/FluentStyles.axaml`）
 
@@ -258,6 +261,9 @@
   内部 `TextBlock` 自动接 Caption 字号与 SemiBold，不必逐个写前景色。
 - **文本层级**：`TextBlock.CkanPageTitle` / `.CkanSectionTitle` / `.CkanCardTitle` / `.CkanCaption` /
   `.CkanMuted` / `.CkanNumeric` / `.CkanNumericLarge`（后两者 `FontFeatures="tnum"`，数字列对齐不跳动）。
+- **页头范式**：`TextBlock.CkanPageTitle` + 同行 `Button.CkanHelper`（20×20、图标 `CkanIconHelp`、`ToolTip.Tip` 承载机制/风险/例外）
+  + 下一行 `TextBlock.CkanCaption` 副标题（≤20 汉字，只答「这页做什么」）。正文不再出现成段说明：
+  能进 ToolTip 的进 ToolTip，能删的删。19 个页面页签均已按此收敛。
 - **可点击卡片**：`Border.CkanCardInteractive`（悬停抬升到 `CkanElevationMedium` + `translateY(-2px)`，
   按下 `scale(0.995)`）与 `Border.CkanCardSelected`（选中态描边）。
 - **骨架屏**：`Border.CkanSkeleton` / `.CkanSkeletonLine`（`IsHitTestVisible=False`，不挡点击）。

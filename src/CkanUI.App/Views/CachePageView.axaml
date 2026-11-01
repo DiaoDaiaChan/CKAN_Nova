@@ -36,17 +36,23 @@
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
-        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+        Background="Transparent">
 
     <!-- 页头 -->
     <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
-      <TextBlock Text="下载缓存" Classes="CkanPageTitle" />
-      <TextBlock Text="安装与升级复用的 ZIP 下载缓存；清理只删最久未使用的条目，正在被已装模组使用的条目会保留。"
+      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <TextBlock Text="下载缓存" Classes="CkanPageTitle" VerticalAlignment="Center" />
+        <Button Classes="CkanHelper" VerticalAlignment="Center"
+                ToolTip.Tip="安装与升级复用的 ZIP 下载缓存。清理仅删除最久未使用的条目，已被已装模组引用的下载包将自动保留。">
+          <PathIcon Data="{StaticResource CkanIconHelp}" />
+        </Button>
+      </StackPanel>
+      <TextBlock Text="ZIP 归档的容量与条目维护"
                  Classes="CkanCaption" TextWrapping="Wrap" />
     </StackPanel>
 
     <!-- 工具条（F-50：清理到上限 / 全部清空 / 从 ZIP 灌入；F-40：ZIP 直接灌缓存） -->
-    <Border Grid.Row="1" Classes="CkanToolbar">
+    <Border Grid.Row="1" Classes="CkanToolbar stagger-card">
       <WrapPanel Orientation="Horizontal">
         <Button Content="刷新" Command="{Binding RefreshCommand}"
                 IsEnabled="{Binding CanRefresh}" Classes="CkanPrimary" Margin="0,0,8,0"
@@ -117,7 +123,7 @@
                      VerticalAlignment="Center" />
           <TextBlock Grid.Column="1" Text="{Binding SelectedText}" Classes="CkanCaption"
                      Margin="12,0,0,0" VerticalAlignment="Center"
-                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
         </Grid>
       </StackPanel>
     </Border>
@@ -150,13 +156,24 @@
                             ToolTip.Tip="勾选后可批量删除" />
                   <TextBlock Grid.Column="1" Text="{Binding ModuleLabel}" VerticalAlignment="Center"
                              TextTrimming="CharacterEllipsis" Margin="0,0,8,0"
-                             Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                  <TextBlock Grid.Column="2" Text="{Binding FileName}" VerticalAlignment="Center"
-                             TextTrimming="CharacterEllipsis" Margin="0,0,8,0"
                              FontSize="{DynamicResource CkanFontSizeCaption}"
                              Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                  <TextBlock Grid.Column="3" Text="{Binding SizeText}" Classes="CkanNumeric"
-                             FontSize="{DynamicResource CkanFontSizeCaption}" VerticalAlignment="Center" />
+                  <!-- 文件类型图标 + 文件名：让每行先被"看见"再被"读到" -->
+                  <!-- 用 star 列约束宽度：横向 StackPanel 会无限宽测量子元素，长文件名会被压进「大小」列。 -->
+                  <Grid Grid.Column="2" ColumnDefinitions="Auto,*" Margin="0,0,8,0" VerticalAlignment="Center">
+                    <PathIcon Grid.Column="0" Width="14" Height="14" VerticalAlignment="Center"
+                              Margin="0,0,8,0"
+                              Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                              Data="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" />
+                    <TextBlock Grid.Column="1" Text="{Binding FileName}" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                  </Grid>
+                  <Border Grid.Column="3" Classes="CkanBadge" HorizontalAlignment="Left"
+                          VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SizeText}" Classes="CkanNumeric"
+                               FontSize="{DynamicResource CkanFontSizeCaption}" />
+                  </Border>
                   <TextBlock Grid.Column="4" Text="{Binding ModifiedText}" VerticalAlignment="Center"
                              FontSize="{DynamicResource CkanFontSizeCaption}"
                              Foreground="{DynamicResource CkanTextSecondaryBrush}" />
@@ -166,6 +183,10 @@
                           ToolTip.Tip="正被已安装的模组使用，清理时会跳过">
                     <TextBlock Text="{Binding ReferenceText}" />
                   </Border>
+                  <TextBlock Grid.Column="5" Text="未引用" VerticalAlignment="Center"
+                             IsVisible="{Binding !IsReferenced}"
+                             Classes="CkanCaption"
+                             Foreground="{DynamicResource CkanTextTertiaryBrush}" />
                 </Grid>
               </DataTemplate>
             </ListBox.ItemTemplate>
@@ -177,16 +198,14 @@
       <Border Classes="CkanEmptyStateCard" IsVisible="{Binding ShowEmptyState}"
               HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="12" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="480">
-          <Border Width="56" Height="56" HorizontalAlignment="Center"
-                  Background="{DynamicResource CkanAccentSubtleBrush}" CornerRadius="28">
-            <PathIcon Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center"
-                      Foreground="{DynamicResource CkanAccentBrush}"
-                      Data="M19 15v4H5v-4H3v4c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-4h-2zM7 9l5 5 5-5h-3V3h-4v6H7z" />
+          <Border Classes="CkanIconTile Lg" HorizontalAlignment="Center">
+            <PathIcon Data="M19 15v4H5v-4H3v4c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-4h-2zM7 9l5 5 5-5h-3V3h-4v6H7z" />
           </Border>
           <TextBlock Text="下载缓存是空的" HorizontalAlignment="Center"
                      FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
                      Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-          <TextBlock Text="安装模组时下载的 ZIP 会缓存在这里；也可以用「从 ZIP 灌入」把已经下载好的模块包直接放进来。"
+          <TextBlock Text="安装模组下载的 ZIP 会留在这里，可以随时清理。"
+                     ToolTip.Tip="也可以用「从 ZIP 灌入」把已经下好的模块包直接放进来，不必重新下载。"
                      TextWrapping="Wrap" TextAlignment="Center"
                      FontSize="{DynamicResource CkanFontSizeBody}"
                      Foreground="{DynamicResource CkanTextSecondaryBrush}" />
@@ -198,13 +217,13 @@
     </Grid>
 
     <!-- 状态栏 -->
-    <Grid Grid.Row="5" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+    <Border Grid.Row="5" Classes="CkanPageFooter" Margin="0,12,0,0">
+          <Grid ColumnDefinitions="*,Auto">
       <TextBlock Grid.Column="0" Text="{Binding StatusText}" Classes="CkanCaption"
                  TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-      <TextBlock Grid.Column="1" Text="{Binding EntryCountText}" Classes="CkanNumeric"
-                 FontSize="{DynamicResource CkanFontSizeCaption}" Margin="12,0,0,0"
-                 VerticalAlignment="Center" />
+
     </Grid>
+    </Border>
 
     <!-- 进行中遮罩（03 篇 §10：非模态操作条）：骨架屏提示「正在读缓存」，进度条给出文字说明 -->
     <Border Grid.RowSpan="6" IsVisible="{Binding IsBusy}"

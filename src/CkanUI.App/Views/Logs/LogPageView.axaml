@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:logs="using:CkanUI.ViewModels.Pages.Logs"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
              x:Class="CkanUI.App.Views.Logs.LogPageView"
              x:CompileBindings="False">
   <!-- 日志页（14 篇 §4.1 / 06 篇 UI-LOG-01 / §4.2 组成）。
@@ -93,118 +94,154 @@
     </Style>
   </UserControl.Styles>
 
-  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16"
-        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
+        Background="Transparent">
 
     <!-- 页头 -->
     <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
-      <TextBlock Text="{Binding Title}"
-                 FontSize="{DynamicResource CkanFontSizeTitle}"
-                 FontWeight="SemiBold"
-                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-      <TextBlock Text="四路采集（log4net / 用户消息 / 未捕获异常 / 子进程）汇入内存环形缓冲，本页只读；导出诊断包会先脱敏再打包。"
-                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                 TextWrapping="Wrap" />
+      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <TextBlock Text="{Binding Title}" Classes="CkanPageTitle" VerticalAlignment="Center" />
+        <Button Classes="CkanHelper" VerticalAlignment="Center"
+                ToolTip.Tip="内核日志、用户消息、未捕获异常、子进程四条来源；导出诊断包会先脱敏再打包。">
+          <PathIcon Data="{StaticResource CkanIconHelp}" />
+        </Button>
+      </StackPanel>
+      <TextBlock Text="四路来源的只读运行记录" Classes="CkanCaption" TextWrapping="Wrap" />
     </StackPanel>
 
-    <!-- 过滤条：源 / 级别 / 族 三段 + 搜索框（§4.2① ②）-->
-    <Border Grid.Row="1" Padding="{DynamicResource CkanToolbarPadding}"
-            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-            BorderBrush="{DynamicResource CkanBorderBrush}"
-            BorderThickness="1" Margin="0,0,0,12">
-      <StackPanel Spacing="6">
-        <WrapPanel Orientation="Horizontal">
-          <TextBlock Classes="caption" Text="来源" Margin="0,0,8,0" Width="34" />
-          <ItemsControl ItemsSource="{Binding Filters.Sources}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <WrapPanel Orientation="Horizontal" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <CheckBox Classes="facet" Content="{Binding Label}" IsChecked="{Binding IsSelected}" />
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </WrapPanel>
+    <!--
+      工具条：一条主行 + 可折叠的筛选抽屉。
+      原来 14 个复选 + 14 个按钮全部摊在 5 行里，把 800px 高的窗口啃掉一半，
+      日志本身反而成了次要内容。现在只留搜索、命中导航、三个状态开关和两个真正的主操作，
+      低频动作（刷新 / AI 分析 / 仅错误 / 恢复默认 / 清空）收进「更多」。
+    -->
+    <Border Grid.Row="1" Classes="CkanToolbar stagger-card" Margin="0,0,0,12">
+      <StackPanel Spacing="10">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox Grid.Column="0" Classes="CkanSearchBox"
+                   Text="{Binding Filters.SearchText}" MinHeight="32"
+                   PlaceholderText="搜索日志：子串，或 族:net 级别:error 源:user mod:&lt;id&gt;"
+                   AutomationProperties.Name="搜索日志" />
 
-        <WrapPanel Orientation="Horizontal">
-          <TextBlock Classes="caption" Text="级别" Margin="0,0,8,0" Width="34" />
-          <ItemsControl ItemsSource="{Binding Filters.Levels}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <WrapPanel Orientation="Horizontal" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <CheckBox Classes="facet" IsChecked="{Binding IsSelected}">
-                  <StackPanel Orientation="Horizontal" Spacing="4">
-                    <TextBlock Text="{Binding Glyph}" FontWeight="Bold" />
-                    <TextBlock Text="{Binding Label}" />
-                  </StackPanel>
-                </CheckBox>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </WrapPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                      Margin="10,0,0,0" VerticalAlignment="Center">
+            <Button Classes="CkanIcon" Command="{Binding FindPreviousCommand}"
+                    ToolTip.Tip="上一个匹配（Shift+F3）">
+              <PathIcon Data="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+            </Button>
+            <Button Classes="CkanIcon" Command="{Binding FindNextCommand}"
+                    ToolTip.Tip="下一个匹配（F3）">
+              <PathIcon Data="M8.59 16.59 10 18l6-6-6-6-1.41 1.41L13.17 12z" />
+            </Button>
+            <TextBlock Classes="caption" VerticalAlignment="Center" MinWidth="48"
+                       Text="{Binding CurrentMatchOrdinal, StringFormat='命中 {0}'}" />
 
-        <WrapPanel Orientation="Horizontal">
-          <TextBlock Classes="caption" Text="日志族" Margin="0,0,8,0" Width="34" />
-          <ItemsControl ItemsSource="{Binding Filters.Families}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <WrapPanel Orientation="Horizontal" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <CheckBox Classes="facet" Content="{Binding Label}" IsChecked="{Binding IsSelected}" />
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </WrapPanel>
+            <Border Classes="Divider" />
 
-        <WrapPanel Orientation="Horizontal">
-          <TextBox Text="{Binding Filters.SearchText}" Width="380" MinHeight="26"
-                   PlaceholderText="搜索：子串，或 族:net 级别:error mod:RealChute" />
-          <Button Classes="chip" Content="清空搜索" Margin="8,0,0,0"
-                  Command="{Binding Filters.ClearSearchCommand}" />
-          <Button Classes="chip" Content="上一个 (Shift+F3)" Command="{Binding FindPreviousCommand}" />
-          <Button Classes="chip" Content="下一个 (F3)" Command="{Binding FindNextCommand}" />
-          <TextBlock Classes="caption" Text="{Binding CurrentMatchOrdinal, StringFormat='命中序号 {0}'}"
-                     Margin="8,0,16,0" />
-          <Button Classes="chip" Content="刷新" Command="{Binding RefreshCommand}" />
-          <Button Classes="chip" Content="仅错误" Command="{Binding ShowOnlyErrorsCommand}" />
-          <Button Classes="chip" Content="恢复默认" Command="{Binding ResetFiltersCommand}" />
-          <Button Classes="chip" Content="{Binding IsFollowTail, StringFormat='跟随末尾: {0}'}"
-                  Command="{Binding ToggleFollowTailCommand}" />
-          <Button Classes="chip" Content="{Binding IsAggregated, StringFormat='聚合视图: {0}'}"
-                  Command="{Binding ToggleAggregateCommand}" />
-          <Button Classes="chip" Content="清空缓冲" Command="{Binding ClearCommand}" />
-          <Button Classes="chip" Content="导出诊断包" Command="{Binding ExportDefaultCommand}" />
-          <Button Classes="chip" Content="请 AI 分析" Command="{Binding RequestAiAnalysisCommand}" />
-        </WrapPanel>
+            <ToggleButton Classes="CkanPill" Content="跟随末尾"
+                          IsChecked="{Binding IsFollowTail, Mode=OneWay}"
+                          Command="{Binding ToggleFollowTailCommand}"
+                          ToolTip.Tip="新日志到达时自动滚到底部" />
+            <ToggleButton Classes="CkanPill" Content="聚合"
+                          IsChecked="{Binding IsAggregated, Mode=OneWay}"
+                          Command="{Binding ToggleAggregateCommand}"
+                          ToolTip.Tip="把连续相同指纹的行折叠成 ×N" />
 
-        <WrapPanel Orientation="Horizontal">
-          <TextBlock Classes="caption" Text="{Binding Filters.Description, StringFormat='过滤: {0}'}"
-                     TextWrapping="Wrap" />
-        </WrapPanel>
+            <Button Classes="CkanPrimary" Content="导出诊断包"
+                    Command="{Binding ExportDefaultCommand}"
+                    ToolTip.Tip="脱敏后打包成可分享的压缩包" />
+            <Button Classes="CkanSecondary" Content="更多">
+              <Button.Flyout>
+                <ui:FAMenuFlyout>
+                  <ui:FAMenuFlyoutItem Text="刷新" Command="{Binding RefreshCommand}" />
+                  <ui:FAMenuFlyoutItem Text="请 AI 分析这段日志" Command="{Binding RequestAiAnalysisCommand}" />
+                  <ui:FAMenuFlyoutSeparator />
+                  <ui:FAMenuFlyoutItem Text="仅显示错误" Command="{Binding ShowOnlyErrorsCommand}" />
+                  <ui:FAMenuFlyoutItem Text="恢复默认筛选" Command="{Binding ResetFiltersCommand}" />
+                  <ui:FAMenuFlyoutItem Text="清空搜索" Command="{Binding Filters.ClearSearchCommand}" />
+                  <ui:FAMenuFlyoutSeparator />
+                  <ui:FAMenuFlyoutItem Text="清空缓冲" Command="{Binding ClearCommand}" />
+                </ui:FAMenuFlyout>
+              </Button.Flyout>
+            </Button>
+          </StackPanel>
+        </Grid>
+
+        <!-- 筛选默认收起：默认全选就是「什么都看」，不占版面；要看某一族再展开 -->
+        <Expander IsExpanded="False" HorizontalAlignment="Stretch"
+                  ToolTip.Tip="按来源 / 级别 / 日志族收窄">
+          <Expander.Header>
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+              <TextBlock Text="筛选" Classes="caption" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding Filters.Description}" Classes="caption"
+                         MaxWidth="620" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </Expander.Header>
+
+          <StackPanel Spacing="6" Margin="0,6,0,0">
+            <WrapPanel Orientation="Horizontal">
+              <TextBlock Classes="caption" Text="来源" Margin="0,0,8,0" Width="34" />
+              <ItemsControl ItemsSource="{Binding Filters.Sources}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <CheckBox Classes="facet" Content="{Binding Label}" IsChecked="{Binding IsSelected}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </WrapPanel>
+
+            <WrapPanel Orientation="Horizontal">
+              <TextBlock Classes="caption" Text="级别" Margin="0,0,8,0" Width="34" />
+              <ItemsControl ItemsSource="{Binding Filters.Levels}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <CheckBox Classes="facet" IsChecked="{Binding IsSelected}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="{Binding Glyph}" FontWeight="Bold" />
+                        <TextBlock Text="{Binding Label}" />
+                      </StackPanel>
+                    </CheckBox>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </WrapPanel>
+
+            <WrapPanel Orientation="Horizontal">
+              <TextBlock Classes="caption" Text="日志族" Margin="0,0,8,0" Width="34" />
+              <ItemsControl ItemsSource="{Binding Filters.Families}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <CheckBox Classes="facet" Content="{Binding Label}" IsChecked="{Binding IsSelected}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </WrapPanel>
+          </StackPanel>
+        </Expander>
       </StackPanel>
     </Border>
 
     <!-- 主区：列表 / 聚合 + 右缘时间轴 + 详情面板 -->
     <Grid Grid.Row="2" ColumnDefinitions="*,28,340">
 
-      <Grid Grid.Column="0" RowDefinitions="Auto,*">
-        <!-- 搜索框语法提示 -->
-        <TextBlock Grid.Row="0" Classes="caption" Margin="0,0,0,6" TextWrapping="Wrap"
-                   Text="搜索支持前缀语法：族:net 级别:error 源:user mod:&lt;identifier&gt;；F3 / Shift+F3 逐条跳转。" />
-
+      <Grid Grid.Column="0" RowDefinitions="*">
         <!-- 主列表（虚拟化，等高 20px）-->
-        <ListBox Grid.Row="1" Classes="logList" ItemsSource="{Binding Rows}"
+        <ListBox Grid.Row="0" Classes="logList" ItemsSource="{Binding Rows}"
                  SelectedItem="{Binding SelectedRow}" IsVisible="{Binding !IsAggregated}">
           <ListBox.ItemTemplate>
             <DataTemplate>
@@ -232,7 +269,7 @@
         </ListBox>
 
         <!-- 聚合视图（连续相同指纹折叠 ×N，§4.2④）-->
-        <ListBox Grid.Row="1" Classes="logList" ItemsSource="{Binding Groups}"
+        <ListBox Grid.Row="0" Classes="logList" ItemsSource="{Binding Groups}"
                  IsVisible="{Binding IsAggregated}">
           <ListBox.ItemTemplate>
             <DataTemplate>
@@ -255,11 +292,17 @@
         </ListBox>
 
         <!-- 空状态 -->
-        <Border Grid.Row="1" IsVisible="{Binding ShowEmptyState}"
-                Background="{DynamicResource CkanMutedBackgroundBrush}"
-                CornerRadius="{DynamicResource CkanCornerRadiusMedium}" Padding="16">
-          <TextBlock Text="{Binding EmptyHint}" TextWrapping="Wrap"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        <Border Grid.Row="0" IsVisible="{Binding ShowEmptyState}"
+                Classes="CkanEmptyStateCard" VerticalAlignment="Center"
+                HorizontalAlignment="Center" MaxWidth="460">
+          <StackPanel Spacing="10" HorizontalAlignment="Center">
+            <Border Classes="CkanIconTile Lg" HorizontalAlignment="Center">
+              <PathIcon Data="M4 4h16v2H4V4zm0 5h16v2H4V9zm0 5h10v2H4v-2zm0 5h7v2H4v-2z" />
+            </Border>
+            <TextBlock Text="{Binding EmptyHint}" TextWrapping="Wrap" TextAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeBody}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          </StackPanel>
         </Border>
       </Grid>
 
@@ -281,7 +324,19 @@
       <!-- 详情面板（§4.2③ 选中行显示原文含 Detail 异常栈；§4.3 对象联动）-->
       <Border Grid.Column="2" BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1"
               CornerRadius="{DynamicResource CkanCornerRadiusMedium}" Padding="12" Margin="8,20,0,0">
-        <Grid RowDefinitions="Auto,Auto,Auto,*">
+        <Grid>
+          <!-- 未选中时给出明确的下一步，而不是一行孤零零的灰字 -->
+          <StackPanel IsVisible="{Binding !HasSelection}" Spacing="10" MaxWidth="230"
+                      HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border Classes="CkanIconTile Muted" HorizontalAlignment="Center">
+              <PathIcon Data="M4 4h16v2H4V4zm0 5h16v2H4V9zm0 5h10v2H4v-2zm0 5h7v2H4v-2z" />
+            </Border>
+            <TextBlock Text="未选中日志行" HorizontalAlignment="Center"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+          </StackPanel>
+
+          <Grid IsVisible="{Binding HasSelection}" RowDefinitions="Auto,Auto,Auto,*">
           <TextBlock Grid.Row="0" Text="{Binding SelectedHeader}" FontWeight="SemiBold"
                      Foreground="{DynamicResource CkanTextPrimaryBrush}" TextWrapping="Wrap" />
           <TextBlock Grid.Row="1" Classes="caption" Text="{Binding SelectedSourceText}"
@@ -308,20 +363,26 @@
                          Foreground="{DynamicResource CkanTextSecondaryBrush}" />
             </StackPanel>
           </ScrollViewer>
+          </Grid>
         </Grid>
       </Border>
     </Grid>
 
-    <!-- 状态条 -->
-    <Border Grid.Row="3" Margin="0,12,0,0" Padding="8,4"
-            Background="{DynamicResource CkanStatusBarBackgroundBrush}"
-            CornerRadius="{DynamicResource CkanCornerRadiusSmall}">
-      <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Grid.Column="0" Text="{Binding StatusText}" Classes="caption" TextWrapping="Wrap" />
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-          <TextBlock Classes="caption" Text="{Binding AggregateHint}" />
-          <Button Classes="chip" Content="×" Command="{Binding DismissMessageCommand}"
-                  ToolTip.Tip="关掉提示" />
+    <!-- 状态条：一条细带，只在真的有提示时才长出「×」 -->
+    <Border Grid.Row="3" Classes="CkanStatusStrip" Margin="0,12,0,0"
+            Padding="10,5" HorizontalAlignment="Stretch">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <TextBlock Grid.Column="0" Text="{Binding BadgeText}" Classes="Value"
+                   IsVisible="{Binding HasBadge}" Margin="0,0,10,0" />
+        <TextBlock Grid.Column="1" Text="{Binding StatusText}" TextWrapping="Wrap"
+                   TextTrimming="CharacterEllipsis" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" Margin="10,0,0,0">
+          <TextBlock Text="{Binding AggregateHint}" IsVisible="{Binding IsAggregated}"
+                     Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+          <Button Classes="CkanIcon" Width="20" Height="20" Command="{Binding DismissMessageCommand}"
+                  IsVisible="{Binding HasMessage}" ToolTip.Tip="关掉提示">
+            <PathIcon Data="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+          </Button>
         </StackPanel>
       </Grid>
     </Border>

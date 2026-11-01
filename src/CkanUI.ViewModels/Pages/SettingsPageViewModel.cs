@@ -65,7 +65,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     /// <param name="uiSettings">UI 自有设置存储（外观类设置）。</param>
     /// <param name="instances">实例服务：供「自动打开的实例」下拉与实例级容差文件定位；为空时这两项退化为只读/不可用。</param>
     /// <param name="copyTextAsync">写剪贴板的宿主委托（DI 已注册 <c>Func&lt;string, Task&gt;</c>）；为空时复制按钮给出无通道提示。</param>
-    /// <param name="updateCheckService">自动更新与新版本检查器（F-52）。</param>
+    /// <param name="updateCheckService">自动更新与新版本检查器。</param>
     /// <param name="updateInstaller">更新包安装器（F-52 下载 → 校验 → 备份 → 替换）；为空时更新弹窗只能打开发布页。</param>
     public SettingsPageViewModel(
         ISettingsService settings,
@@ -97,6 +97,10 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
 
         foreach (var item in _items)
         {
+            // 保存委托统一在这里挂：外观组（主题/语言/密度/字号/强调色/圆角/材质/动效）当初漏了构造参数，
+            // 于是自动保存与行内「保存」都不触发，改完只剩外壳的「保存更改」一条路——用户看到的就是「改了不实时生效」。
+            // 逐行补参数容易再漏，改由页面在装配后一次性接线，新增设置项时默认就会自动保存。
+            item.AttachSaveHandler(vm => SaveItemAsync(vm));
             item.PropertyChanged += OnItemPropertyChanged;
         }
     }
@@ -208,7 +212,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     /// <summary>打开配置目录（<c>%LocalAppData%/CKAN</c>）。</summary>
     public IAsyncRelayCommand OpenConfigFolderCommand { get; }
 
-    /// <summary>立即检查更新（F-52）。</summary>
+    /// <summary>立即检查更新。</summary>
     public IAsyncRelayCommand CheckForUpdatesCommand { get; }
 
     /// <summary>是否正在读取设置。</summary>
@@ -511,7 +515,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
             SettingItemKind.Boolean,
             SettingPersistence.Core,
             SettingGroupKey.General,
-            description: Text("开启后检查更新时包含 dev 构建（F-52）；关闭则只跟踪正式版。", LocalizationKeys.SettingsItemDevBuildsDesc),
+            description: Text("开启后检查更新时包含 dev 构建；关闭则只跟踪正式版。", LocalizationKeys.SettingsItemDevBuildsDesc),
             saveHandler: vm => SaveItemAsync(vm));
         _devBuildsItem.SetAuxiliaryAction(Text("立即检查更新", LocalizationKeys.SettingsAuxiliaryCheckUpdates), CheckForUpdatesCommand);
 
@@ -551,7 +555,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         var cache = Group(
             SettingGroupKey.DownloadCache,
             Text("下载缓存", LocalizationKeys.SettingsSectionDownloadCache),
-            Text("模组压缩包的缓存位置与容量上限（F-50）。", LocalizationKeys.SettingsSectionDownloadCacheDesc),
+            Text("模组压缩包的缓存位置与容量上限。", LocalizationKeys.SettingsSectionDownloadCacheDesc),
             _cacheDirItem,
             new SettingItemViewModel(
                 SettingsKeyNames.CacheSizeLimit,
@@ -570,7 +574,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         var repository = Group(
             SettingGroupKey.Repository,
             Text("仓库与网络", LocalizationKeys.SettingsSectionRepository),
-            Text("仓库元数据的自动刷新节奏与主机优先级（F-15）。", LocalizationKeys.SettingsSectionRepositoryDesc),
+            Text("仓库元数据的自动刷新节奏与主机优先级。", LocalizationKeys.SettingsSectionRepositoryDesc),
             new SettingItemViewModel(
                 SettingsKeyNames.RefreshRate,
                 Text("自动刷新间隔（分钟）", LocalizationKeys.SettingsItemRefreshRate),
@@ -593,7 +597,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         var authToken = new SettingGroupViewModel(
             SettingGroupKey.AuthToken,
             Text("认证令牌", LocalizationKeys.SettingsSectionAuthToken),
-            Text("按主机配置访问令牌；界面只显示脱敏预览，明文不写日志（F-11）。", LocalizationKeys.SettingsSectionAuthTokenDesc),
+            Text("按主机配置访问令牌；界面只显示脱敏预览，明文不写日志。", LocalizationKeys.SettingsSectionAuthTokenDesc),
             Array.Empty<SettingItemViewModel>(),
             _tokenEditor);
 
@@ -621,7 +625,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: Text("语言切换需要重启界面后生效（F-53）。", LocalizationKeys.SettingsItemLocaleDesc),
+                description: Text("语言切换需要重启界面后生效。", LocalizationKeys.SettingsItemLocaleDesc),
                 requiresRestart: true,
                 choices: BuildLocaleChoices(fromProvider: null)),
             new SettingItemViewModel(
@@ -873,7 +877,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         var compatibility = Group(
             SettingGroupKey.Compatibility,
             Text("兼容性", LocalizationKeys.SettingsSectionCompatibility),
-            Text("实例级的稳定版容差，以及按游戏生效的全局安装过滤器（F-14/F-16）。", LocalizationKeys.SettingsSectionCompatibilityDesc),
+            Text("实例级的稳定版容差，以及按游戏生效的全局安装过滤器。", LocalizationKeys.SettingsSectionCompatibilityDesc),
             _stabilityItem,
             new SettingItemViewModel(
                 SettingsKeyNames.GlobalInstallFilters("KSP"),
@@ -900,7 +904,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Boolean,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Advanced,
-                description: Text("把 1:2.0.0 显示为 2.0.0（F-54）。", LocalizationKeys.SettingsItemHideVersionEpochDesc),
+                description: Text("把 1:2.0.0 显示为 2.0.0。", LocalizationKeys.SettingsItemHideVersionEpochDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.HideVersionVPrefix,
@@ -908,7 +912,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Boolean,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Advanced,
-                description: Text("把 v2.0.0 显示为 2.0.0（F-54）。", LocalizationKeys.SettingsItemHideVersionVPrefixDesc),
+                description: Text("把 v2.0.0 显示为 2.0.0。", LocalizationKeys.SettingsItemHideVersionVPrefixDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.AutoSortUpdates,
@@ -916,7 +920,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Boolean,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Advanced,
-                description: Text("模组列表默认把有更新的项排在前面（F-54）。", LocalizationKeys.SettingsItemAutoSortUpdatesDesc),
+                description: Text("模组列表默认把有更新的项排在前面。", LocalizationKeys.SettingsItemAutoSortUpdatesDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.SuppressRecommendations,
@@ -924,7 +928,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Boolean,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Advanced,
-                description: Text("安装时跳过推荐模组选择框（F-35）；可在推荐框内随时改回来。", LocalizationKeys.SettingsItemSuppressRecommendationsDesc),
+                description: Text("安装时跳过推荐模组选择框；可在推荐框内随时改回来。", LocalizationKeys.SettingsItemSuppressRecommendationsDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.MinimizeToTray,
@@ -932,7 +936,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Boolean,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Advanced,
-                description: Text("最小化时只留托盘图标，不占任务栏（F-51）。", LocalizationKeys.SettingsItemMinimizeToTrayDesc),
+                description: Text("最小化时只留托盘图标，不占任务栏。", LocalizationKeys.SettingsItemMinimizeToTrayDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
             new SettingItemViewModel(
                 SettingsKeyNames.CloseToTray,
@@ -940,7 +944,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Boolean,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Advanced,
-                description: Text("点关闭按钮时隐藏窗口而不退出（F-51）；退出请用托盘菜单的「退出」。", LocalizationKeys.SettingsItemCloseToTrayDesc),
+                description: Text("点关闭按钮时隐藏窗口而不退出；退出请用托盘菜单的「退出」。", LocalizationKeys.SettingsItemCloseToTrayDesc),
                 saveHandler: vm => SaveItemAsync(vm)),
         };
         _items.AddRange(advancedItems);

@@ -4,7 +4,7 @@
              x:Class="CkanUI.App.Views.CommandPaletteView"
              x:DataType="cp:CommandPaletteViewModel"
              x:CompileBindings="False"
-             IsVisible="{Binding IsOpen}">
+             IsVisible="{Binding IsOpen, FallbackValue=False}">
 
   <!--
     命令面板浮层（Ctrl+K，F-52 / UI-27）。
@@ -86,6 +86,7 @@
                    FontSize="{DynamicResource CkanFontSizeSubtitle}"
                    Text="{Binding Query, Mode=TwoWay}"
                    PlaceholderText="{Binding PlaceholderText}"
+                   AutomationProperties.Name="{Binding PlaceholderText}"
                    Background="Transparent"
                    BorderThickness="0" />
         </Grid>

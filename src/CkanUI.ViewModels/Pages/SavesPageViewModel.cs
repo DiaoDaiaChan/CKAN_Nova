@@ -56,6 +56,9 @@ public sealed partial class SavesPageViewModel : PageViewModel
     [ObservableProperty]
     private IReadOnlyList<SaveRowViewModel> _rows = Array.Empty<SaveRowViewModel>();
 
+    /// <summary>扫描到的全部行（含自带存档）；<see cref="Rows"/> 是它按「显示自带存档」开关投影出的可见集合。</summary>
+    private IReadOnlyList<SaveRowViewModel> _allRows = Array.Empty<SaveRowViewModel>();
+
     /// <summary>当前选中存档（诊断列表与命令的作用对象）。</summary>
     [ObservableProperty]
     private SaveRowViewModel? _selectedRow;
@@ -96,6 +99,10 @@ public sealed partial class SavesPageViewModel : PageViewModel
     [ObservableProperty]
     private string _selectionStatsText = "—";
 
+    /// <summary>是否把 KSP 自带的训练 / 场景存档一起列出来（工具条勾选项；默认收起）。</summary>
+    [ObservableProperty]
+    private bool _showStockSaves;
+
     // ---- 派生状态 ---------------------------------------------------------
 
     /// <summary>当前实例信息。</summary>
@@ -121,7 +128,29 @@ public sealed partial class SavesPageViewModel : PageViewModel
     public bool HasSelection => SelectedRow is not null;
 
     /// <summary>是否显示「这个实例还没有存档」空态（03 篇 §14.2）。</summary>
-    public bool ShowEmptyState => HasInstance && !HasRows && !IsBusy;
+    /// <remarks>只按「目录里一个存档都没有」判定；被过滤器收起的自带存档另有 <see cref="ShowStockOnlyState"/>。</remarks>
+    public bool ShowEmptyState => HasInstance && !HasRows && !IsBusy && _allRows.Count == 0;
+
+    /// <summary>自带存档条数（<c>saves/training</c> 与 <c>saves/scenarios</c>）。</summary>
+    public int StockCount => _allRows.Count(row => row.IsStock);
+
+    /// <summary>是否有自带存档可切换（没有就不画那个勾选项）。</summary>
+    public bool HasStockSaves => StockCount > 0;
+
+    /// <summary>勾选项文案：「自带存档（{0}）」。</summary>
+    public string StockToggleText => Text("自带存档（{0}）", LocalizationKeys.SavesStockToggle, StockCount);
+
+    /// <summary>是否「有存档但全被过滤器收起」——这时不能报"这个实例还没有存档"。</summary>
+    public bool ShowStockOnlyState => HasInstance && !IsBusy && _allRows.Count > 0 && !HasRows;
+
+    /// <summary>被收起时的空态标题。</summary>
+    public string StockOnlyTitle => Text("存档都被过滤器收起了", LocalizationKeys.SavesStockOnlyTitle);
+
+    /// <summary>被收起时的空态说明。</summary>
+    public string StockOnlyHint => Text("勾上「自带存档」就能看到它们。", LocalizationKeys.SavesStockOnlyHint);
+
+    /// <summary>被收起时的空态按钮文案。</summary>
+    public string StockOnlyActionText => Text("显示自带存档", LocalizationKeys.SavesStockOnlyAction);
 
     /// <summary>是否显示「没有选择实例」空态。</summary>
     public bool ShowNoInstanceState => !HasInstance;
@@ -133,7 +162,7 @@ public sealed partial class SavesPageViewModel : PageViewModel
     public string EmptyStateTitle => Text("这个实例还没有存档", LocalizationKeys.SavesEmptyTitle);
 
     /// <summary>空态说明。</summary>
-    public string EmptyStateHint => Text("在游戏里保存一次就会出现，或者先打开 saves/ 目录看看里面有什么。", LocalizationKeys.SavesEmptyHint);
+    public string EmptyStateHint => Text("在游戏里保存一次就会出现在这里。", LocalizationKeys.SavesEmptyHint);
 
     /// <summary>空态按钮文案。</summary>
     public string EmptyStateActionText => Text("打开 saves/ 目录", LocalizationKeys.SavesEmptyAction);
@@ -317,6 +346,10 @@ public sealed partial class SavesPageViewModel : PageViewModel
         StatusText = Text("就绪", LocalizationKeys.SavesStatusReady);
     }
 
+    /// <summary>空态里的「显示自带存档」：直接把开关打开（等价于点工具条那个勾选项）。</summary>
+    [RelayCommand]
+    private void RevealStockSaves() => ShowStockSaves = true;
+
     // ---- 生命周期 ---------------------------------------------------------
 
     /// <inheritdoc />
@@ -389,6 +422,7 @@ public sealed partial class SavesPageViewModel : PageViewModel
 
         if (_instances.Current is not { } instance)
         {
+            _allRows = Array.Empty<SaveRowViewModel>();
             Rows = Array.Empty<SaveRowViewModel>();
             SelectedRow = null;
             ResetValidation();
@@ -403,6 +437,7 @@ public sealed partial class SavesPageViewModel : PageViewModel
             var result = await _saves.ListSavesAsync(instance.GameDir).ConfigureAwait(true);
             if (!result.IsSuccess || result.Value is null)
             {
+                _allRows = Array.Empty<SaveRowViewModel>();
                 Rows = Array.Empty<SaveRowViewModel>();
                 SelectedRow = null;
                 ResetValidation();
@@ -411,15 +446,18 @@ public sealed partial class SavesPageViewModel : PageViewModel
             }
 
             var rows = result.Value.Select(SaveRowViewModel.From).ToArray();
-            Rows = rows;
-            SelectedRow = Pick(rows, preferPath);
+            _allRows = rows;
+            ApplyRowFilter(preferPath);
             ResetValidation();
+            // 注意：这条状态句随后会被「选中即校验」的状态句覆盖，所以收起数量不放在这里，
+            // 而是体现在工具条勾选项的计数（自带存档（N））与页头徽标（共 M 个存档）上。
             StatusText = rows.Length == 0
                 ? Text("「{0}」的 saves/ 目录里没有存档。", LocalizationKeys.SavesStatusEmpty, instance.DisplayName)
                 : Text("已读取 {0} 个存档。", LocalizationKeys.SavesStatusLoaded, rows.Length);
         }
         catch (Exception ex)
         {
+            _allRows = Array.Empty<SaveRowViewModel>();
             Rows = Array.Empty<SaveRowViewModel>();
             SelectedRow = null;
             ResetValidation();
@@ -560,6 +598,18 @@ public sealed partial class SavesPageViewModel : PageViewModel
         _ = ValidateCoreAsync(row);
     }
 
+    /// <summary>按「显示自带存档」开关把 <see cref="_allRows"/> 投影成 <see cref="Rows"/>。</summary>
+    /// <param name="preferPath">刷新后尽量保留的选中项路径；为空时沿用首行。</param>
+    private void ApplyRowFilter(string? preferPath)
+    {
+        var visible = ShowStockSaves
+            ? _allRows
+            : _allRows.Where(row => !row.IsStock).ToArray();
+
+        Rows = visible;
+        SelectedRow = Pick(visible, preferPath);
+    }
+
     private static SaveRowViewModel? Pick(IReadOnlyList<SaveRowViewModel> rows, string? preferPath)
     {
         if (rows.Count == 0)
@@ -628,6 +678,18 @@ public sealed partial class SavesPageViewModel : PageViewModel
         OnPropertyChanged(nameof(HasRows));
         OnPropertyChanged(nameof(CountText));
         OnPropertyChanged(nameof(ShowEmptyState));
+        OnPropertyChanged(nameof(ShowStockOnlyState));
+        OnPropertyChanged(nameof(StockCount));
+        OnPropertyChanged(nameof(HasStockSaves));
+        OnPropertyChanged(nameof(StockToggleText));
+    }
+
+    partial void OnShowStockSavesChanged(bool value)
+    {
+        // 勾选状态一变就重投影：隐藏中的行如果正被选中，Pick 会退回可见集合的首行，
+        // 否则诊断面板会停留在一个已经不在列表里的存档上。
+        ApplyRowFilter(SelectedRow?.FilePath);
+        OnPropertyChanged(nameof(ShowStockOnlyState));
     }
 
     partial void OnSelectedRowChanged(SaveRowViewModel? value)

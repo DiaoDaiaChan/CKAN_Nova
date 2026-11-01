@@ -160,7 +160,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
 
     /// <summary>冲突区处理建议。</summary>
     public string ConflictHint => Text(
-        "请在「模组」页取消勾选其中一个，或用右侧「移除」把冲突项移出本变更集，然后点「重新计算」。本页不会替你自动裁决。",
+        "冲突需手动处理，本页不自动裁决。",
         LocalizationKeys.ChangesConflictHint);
 
     /// <summary>是否有告警（不阻断执行，但要显式展示）。</summary>
@@ -249,7 +249,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
                 return Text("变更集为空：所有请求项都已是最新状态，或被安装过滤器排除。", LocalizationKeys.ChangesEmptyHintEmptyPreview);
             }
 
-            return Text("请先在「模组」页勾选要安装或移除的模组，变更集结果会自动出现在这里。", LocalizationKeys.ChangesEmptyHintNoRequests);
+            return Text("先在「模组」页勾选要安装或移除的项。", LocalizationKeys.ChangesEmptyHintNoRequests);
         }
     }
 

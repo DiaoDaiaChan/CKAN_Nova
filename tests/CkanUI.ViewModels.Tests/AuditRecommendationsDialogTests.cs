@@ -89,7 +89,7 @@ public sealed class AuditRecommendationsDialogTests
         Assert.That(vm.Groups, Is.Empty);
         Assert.That(vm.HasCandidates, Is.False);
         Assert.That(vm.CanApply, Is.False);
-        Assert.That(vm.SummaryText, Does.Contain("未发现任何新的推荐或建议模组"));
+        Assert.That(vm.SummaryText, Does.Contain("未发现待安装的推荐或建议模组"));
     }
 
     [Test]

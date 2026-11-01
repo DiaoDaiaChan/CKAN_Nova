@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
+             xmlns:relations="clr-namespace:CkanUI.App.Views.Relations"
              x:Class="CkanUI.App.Views.Dialogs.ModDetailsView"
              x:DataType="vm:ModDetailsViewModel">
   <UserControl.Styles>
@@ -55,20 +56,21 @@
                 IsVisible="{Binding IsEmpty}"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
-                Spacing="12"
+                Spacing="10"
                 Margin="32">
-      <Border Width="56" Height="56" CornerRadius="28"
-              Background="{DynamicResource CkanSubtleBackgroundBrush}"
-              BorderBrush="{DynamicResource CkanBorderBrush}"
-              BorderThickness="1"
-              HorizontalAlignment="Center">
-        <PathIcon Width="24" Height="24"
-                  Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                  Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
+      <Border Classes="CkanIconTile Lg" HorizontalAlignment="Center">
+        <PathIcon Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
       </Border>
       <TextBlock Text="{Binding EmptyText}"
-                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource CkanTextPrimaryBrush}"
                  HorizontalAlignment="Center"
+                 TextWrapping="Wrap" />
+      <TextBlock Text="在左侧列表点选任意模组，即可查看版本、依赖树与安装文件。"
+                 Classes="CkanCaption"
+                 HorizontalAlignment="Center"
+                 TextAlignment="Center"
+                 MaxWidth="260"
                  TextWrapping="Wrap" />
     </StackPanel>
 
@@ -108,27 +110,30 @@
                        FontSize="{DynamicResource CkanFontSizeCaption}" />
 
             <!-- 元数据键值（标签与格式都在 VM 内集中，03 篇 §11） -->
-            <ItemsControl ItemsSource="{Binding MetadataItems}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:DiagnosticItem">
-                  <Grid ColumnDefinitions="96,*" Margin="0,1">
-                    <TextBlock Grid.Column="0"
-                               Text="{Binding Name}"
-                               Opacity="0.6"
-                               FontSize="{DynamicResource CkanFontSizeCaption}" />
-                    <SelectableTextBlock Grid.Column="1"
-                                         Text="{Binding Value}"
-                                         FontSize="{DynamicResource CkanFontSizeCaption}"
-                                         TextWrapping="Wrap" />
-                  </Grid>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <Border Classes="CkanSubtleCard" Padding="12,10">
+              <ItemsControl ItemsSource="{Binding MetadataItems}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:DiagnosticItem">
+                    <Grid ColumnDefinitions="96,*" Margin="0,2">
+                      <TextBlock Grid.Column="0"
+                                 Text="{Binding Name}"
+                                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+                      <SelectableTextBlock Grid.Column="1"
+                                           Text="{Binding Value}"
+                                           Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                                           TextWrapping="Wrap" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </Border>
 
             <!-- 单模组稳定性容忍度覆盖（F-13 / UI-07 / UI-29） -->
             <TextBlock Text="{Binding StabilityToleranceHeaderText}"
                        FontWeight="SemiBold"
-                       Margin="0,6,0,0" />
+                       Margin="0,4,0,0" />
             <ComboBox ItemsSource="{Binding StabilityToleranceOptions}"
                       SelectedItem="{Binding SelectedStabilityToleranceOverride, Mode=TwoWay}"
                       HorizontalAlignment="Stretch">
@@ -140,10 +145,13 @@
             </ComboBox>
 
             <!-- 描述（Markdown 原文；渲染由后续 Markdown 控件接入，UI-03 遗留项） -->
-            <TextBlock Text="{Binding DescriptionHeaderText}" FontWeight="SemiBold" Margin="0,6,0,0" />
-            <SelectableTextBlock Text="{Binding DescriptionText}"
-                                 TextWrapping="Wrap"
-                                 FontSize="{DynamicResource CkanFontSizeCaption}" />
+            <TextBlock Text="{Binding DescriptionHeaderText}" FontWeight="SemiBold" Margin="0,4,0,0" />
+            <Border Classes="CkanSubtleCard" Padding="12,10">
+              <SelectableTextBlock Text="{Binding DescriptionText}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                   FontSize="{DynamicResource CkanFontSizeCaption}" />
+            </Border>
           </StackPanel>
         </ScrollViewer>
       </TabItem>
@@ -153,6 +161,11 @@
         <Panel>
           <ScrollViewer IsVisible="{Binding HasRelations}" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="16,8,16,16" Spacing="12">
+              <!-- 交互式依赖关系树视图（F-28 / UI-18） -->
+              <Border IsVisible="{Binding RelationTree, Converter={x:Static ObjectConverters.IsNotNull}}" Margin="0,0,0,8">
+                <relations:RelationTreeView DataContext="{Binding RelationTree}" />
+              </Border>
+
               <!-- 依赖树：文字 + 状态双通道（03 篇 §9 不靠颜色单一通道） -->
               <TextBlock Text="{Binding DependenciesHeaderText}" FontWeight="SemiBold" />
               <TextBlock Text="{Binding DependencySummaryText}"

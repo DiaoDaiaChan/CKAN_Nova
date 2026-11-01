@@ -12,7 +12,8 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
-    <!-- M6 / PKG-02：exe 内嵌图标，资源管理器与任务栏显示品牌图标（16/32/48/64/128/256 六档）。 -->
+    <!-- M6 / PKG-02：exe 内嵌图标，资源管理器与任务栏显示品牌图标（16/24/32/48/64/128/256 七档）。
+         图标由 tools/icon-gen 按 Resources/Tokens.axaml 的配色现场生成，改令牌后重跑该工具即可。 -->
     <ApplicationIcon>Assets/ckan.ico</ApplicationIcon>
   </PropertyGroup>
 

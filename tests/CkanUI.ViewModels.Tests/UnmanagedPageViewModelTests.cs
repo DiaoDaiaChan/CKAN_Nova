@@ -39,7 +39,7 @@ public sealed class UnmanagedPageViewModelTests
         Assert.That(vm.HasInstance, Is.False);
         Assert.That(vm.ShowNoInstance, Is.True);
         Assert.That(vm.NoInstanceTitle, Is.EqualTo("还没有选定游戏实例"));
-        Assert.That(vm.NoInstanceHint, Does.Contain("实例页"));
+        Assert.That(vm.NoInstanceHint, Does.Contain("「实例」页"));
         Assert.That(vm.ShowEmptyState, Is.False, "无实例时不能同时显示空状态");
     }
 

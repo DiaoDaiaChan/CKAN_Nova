@@ -154,12 +154,20 @@ public sealed partial class DedupPageViewModel : PageViewModel
     /// <summary>是否展示「没有重复内容」空态。</summary>
     public bool ShowEmptyState => _scanned && !IsBusy && !HasError && GroupCount == 0;
 
+    /// <summary>是否有可用的游戏实例（至少 2 个才能跨实例去重）。</summary>
+    public bool HasInstances => Instances.Count > 0;
+
+    /// <summary>是否展示「未找到足够实例」空态。</summary>
+    public bool ShowNoInstance => !HasInstances && !IsBusy && !HasError;
+
+    /// <summary>是否展示未扫描时的初始引导空态。</summary>
+    public bool ShowInitialState => HasInstances && !_scanned && !IsBusy && !HasError;
+
     /// <summary>空态标题。</summary>
     public string EmptyStateTitle => Text("没有发现可去重的重复内容", LocalizationKeys.DedupEmptyTitle);
 
     /// <summary>空态说明。</summary>
-    public string EmptyStateHint =>
-        Text("只比较 {0} KiB 以上、非受管、非符号链接的文件；小于这个尺寸的文件去重收益低，也更容易被用户事后编辑。", LocalizationKeys.DedupEmptyHint, MinimumFileSizeKiB);
+    public string EmptyStateHint => Text("只比较 {0} KiB 以上的文件。", LocalizationKeys.DedupEmptyHint, MinimumFileSizeKiB);
 
     /// <summary>平台不支持时的提示。</summary>
     public string UnsupportedHint => Text("当前平台不支持创建硬链接，只能查看重复内容，不能执行去重。", LocalizationKeys.DedupUnsupportedHint);
@@ -167,6 +175,29 @@ public sealed partial class DedupPageViewModel : PageViewModel
     /// <summary>统计条文案。</summary>
     public string StatsText =>
         Text("重复：{0} 组、{1} 个文件，可释放 {2}；跳过 {3} 项", LocalizationKeys.DedupStatsText, GroupCount, DuplicateFileCount, UnmanagedFormat.FormatSize(ReclaimableBytes), SkippedCount);
+
+    /// <summary>去重前的总占用（每组大小 × 份数）。</summary>
+    public long OccupiedBytes => Groups.Sum(group => group.SizeBytes * group.FileCount);
+
+    /// <summary>去重后的预计占用（每组只留一份）。</summary>
+    public long DedupedBytes => Math.Max(0, OccupiedBytes - ReclaimableBytes);
+
+    /// <summary>可释放比例（0..100，驱动对比条）。</summary>
+    public double ReclaimPercent =>
+        OccupiedBytes <= 0 ? 0 : Math.Round(ReclaimableBytes * 100.0 / OccupiedBytes, 0, MidpointRounding.AwayFromZero);
+
+    /// <summary>对比条：释放前。</summary>
+    public string OccupiedText => Text("释放前 {0}", LocalizationKeys.DedupOccupiedBefore, UnmanagedFormat.FormatSize(OccupiedBytes));
+
+    /// <summary>对比条：释放后。</summary>
+    public string DedupedText => Text("释放后 {0}", LocalizationKeys.DedupOccupiedAfter, UnmanagedFormat.FormatSize(DedupedBytes));
+
+    /// <summary>对比条：可释放比例。</summary>
+    public string ReclaimPercentText =>
+        Text("可释放 {0}%", LocalizationKeys.DedupReclaimPercent, ReclaimPercent.ToString("0"));
+
+    /// <summary>是否展示容量对比条（扫描出结果后才有意义）。</summary>
+    public bool HasOccupancy => OccupiedBytes > 0;
 
     /// <summary>实例勾选提示。</summary>
     public string SelectionText => Text("已选 {0} / {1} 个实例", LocalizationKeys.DedupSelectionText, SelectedInstanceCount, Instances.Count);
@@ -176,13 +207,13 @@ public sealed partial class DedupPageViewModel : PageViewModel
 
     /// <summary>预演/写盘开关说明。</summary>
     public string DryRunHint => DryRun
-        ? Text("预演：只校验并列出将要改成硬链接的文件，不改动磁盘。", LocalizationKeys.DedupDryRunHint)
-        : Text("写盘：确认后会把重复文件改成硬链接（内容不变，但多个实例将共用同一份数据）。", LocalizationKeys.DedupWriteHint);
+        ? Text("预演：只列出改动，不写盘。", LocalizationKeys.DedupDryRunHint)
+        : Text("写盘：改成硬链接，多实例共用数据。", LocalizationKeys.DedupWriteHint);
 
     /// <summary>执行前二次确认文案（界面直接展示，让用户先看到后果）。</summary>
     public string ConfirmHintText => DryRun
         ? Text("预演不会写盘，可以直接执行。", LocalizationKeys.DedupConfirmDryRunHint)
-        : Text("将把 {0} 个文件改成硬链接，可释放 {1}。硬链接后多个实例共用同一份数据：删除或改动任一实例的文件都会影响其它实例。", LocalizationKeys.DedupConfirmWriteHint, DuplicateFileCount, UnmanagedFormat.FormatSize(ReclaimableBytes));
+        : Text("将把 {0} 个文件改成硬链接，可释放 {1}。硬链接后多实例共用同一份数据。", LocalizationKeys.DedupConfirmWriteHint, DuplicateFileCount, UnmanagedFormat.FormatSize(ReclaimableBytes));
 
     /// <summary>勾选/取消全部实例。</summary>
     [RelayCommand]
@@ -327,6 +358,7 @@ public sealed partial class DedupPageViewModel : PageViewModel
         OnPropertyChanged(nameof(SelectionText));
         OnPropertyChanged(nameof(ConfirmHintText));
         OnPropertyChanged(nameof(ShowEmptyState));
+        OnPropertyChanged(nameof(ShowInitialState));
         OnPropertyChanged(nameof(HasGroups));
         OnPropertyChanged(nameof(CanExecute));
         OnPropertyChanged(nameof(CanScan));
@@ -394,6 +426,9 @@ public sealed partial class DedupPageViewModel : PageViewModel
         SelectedInstanceCount = Instances.Count(option => option.IsSelected);
         OnPropertyChanged(nameof(SelectionText));
         OnPropertyChanged(nameof(CanScan));
+        OnPropertyChanged(nameof(HasInstances));
+        OnPropertyChanged(nameof(ShowNoInstance));
+        OnPropertyChanged(nameof(ShowInitialState));
     }
 
     private void OnOptionChanged(object? sender, PropertyChangedEventArgs e)
@@ -450,6 +485,7 @@ public sealed partial class DedupPageViewModel : PageViewModel
     partial void OnGroupsChanged(IReadOnlyList<DedupGroupRowViewModel> value)
     {
         OnPropertyChanged(nameof(HasGroups));
+        RaiseOccupancyChanged();
         OnPropertyChanged(nameof(ShowEmptyState));
         OnPropertyChanged(nameof(CanExecute));
     }
@@ -477,6 +513,8 @@ public sealed partial class DedupPageViewModel : PageViewModel
         OnPropertyChanged(nameof(CanScan));
         OnPropertyChanged(nameof(CanExecute));
         OnPropertyChanged(nameof(ShowEmptyState));
+        OnPropertyChanged(nameof(ShowNoInstance));
+        OnPropertyChanged(nameof(ShowInitialState));
     }
 
     partial void OnIsSupportedChanged(bool value)
@@ -491,6 +529,17 @@ public sealed partial class DedupPageViewModel : PageViewModel
     {
         OnPropertyChanged(nameof(StatsText));
         OnPropertyChanged(nameof(ConfirmHintText));
+    }
+
+    private void RaiseOccupancyChanged()
+    {
+        OnPropertyChanged(nameof(OccupiedBytes));
+        OnPropertyChanged(nameof(DedupedBytes));
+        OnPropertyChanged(nameof(ReclaimPercent));
+        OnPropertyChanged(nameof(OccupiedText));
+        OnPropertyChanged(nameof(DedupedText));
+        OnPropertyChanged(nameof(ReclaimPercentText));
+        OnPropertyChanged(nameof(HasOccupancy));
     }
 
     partial void OnReclaimableBytesChanged(long value)
@@ -511,6 +560,8 @@ public sealed partial class DedupPageViewModel : PageViewModel
     {
         OnPropertyChanged(nameof(HasError));
         OnPropertyChanged(nameof(ShowEmptyState));
+        OnPropertyChanged(nameof(ShowNoInstance));
+        OnPropertyChanged(nameof(ShowInitialState));
     }
 
     partial void OnErrorDetailChanged(string? value) => OnPropertyChanged(nameof(HasErrorDetail));

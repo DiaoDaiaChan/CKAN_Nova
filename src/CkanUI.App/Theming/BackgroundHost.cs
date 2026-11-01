@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 
+using CkanUI.App.Controls;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.Services.Settings;
@@ -20,7 +21,8 @@ namespace CkanUI.App.Theming;
 /// 为什么落在 App 层：这里要碰 <c>Bitmap</c>/<c>ImageBrush</c>/<c>BlurEffect</c>，而视图模型层
 /// 禁止引用 Avalonia（04 篇 §1 分层铁律）。背景层由 <c>MainWindow.axaml</c> 里的
 /// <c>BackgroundLayer</c>/<c>BackgroundImage</c>/<c>BackgroundDim</c>/<c>BackgroundScrim</c> 四个命名控件组成，
-/// 本类只按名字取控件、按设置刷画笔，不改 XAML 结构。
+/// 外加一个不吃设置项的 <c>BackgroundStarfield</c>（星空装饰层）。本类只按名字取控件、按设置刷画笔，
+/// 不改 XAML 结构。
 /// </remarks>
 public sealed class BackgroundHost : IDisposable
 {
@@ -35,6 +37,9 @@ public sealed class BackgroundHost : IDisposable
 
     /// <summary>表面洗白层（主题底色，压 74% 让底图隐约透出）。</summary>
     public const string ScrimControlName = "BackgroundScrim";
+
+    /// <summary>星空背景层（自绘装饰）：不读设置，只由高对比度与「用户自选了背景」决定是否露面。</summary>
+    public const string StarfieldControlName = "BackgroundStarfield";
 
     private static readonly ILog Log = LogManager.GetLogger(typeof(BackgroundHost));
 
@@ -121,6 +126,7 @@ public sealed class BackgroundHost : IDisposable
 
         var profile = ResolveProfile(settings);
         var highContrast = _application.ActualThemeVariant == ThemeHost.HighContrastVariant;
+        ApplyStarfieldVisibility(highContrast, profile.IsActive);
         if (highContrast || !profile.IsActive)
         {
             ClearLayers(layer, image, dim, scrim);
@@ -316,6 +322,24 @@ public sealed class BackgroundHost : IDisposable
     public static bool IsReferencedBy(object bitmap, object? imageSource, object? tiledSource) =>
         (imageSource is not null && ReferenceEquals(imageSource, bitmap))
         || (tiledSource is not null && ReferenceEquals(tiledSource, bitmap));
+
+    /// <summary>
+    /// 星空背景的可见性：系统高对比度优先级最高（THM-10），其次是用户自选的背景（不该被装饰层盖住）。
+    /// </summary>
+    /// <remarks>
+    /// 刻意不把星空做成 <see cref="BackgroundProfile"/> 的第五种 Kind：那会把「用户选的背景」和
+    /// 「应用自带的装饰层」混进同一个枚举，高对比度、无背景、按实例覆盖三条路径都得各判一次，更容易漏。
+    /// </remarks>
+    private void ApplyStarfieldVisibility(bool highContrast, bool customBackgroundActive)
+    {
+        var starfield = Find<StarfieldBackground>(StarfieldControlName);
+        if (starfield is null)
+        {
+            return;
+        }
+
+        starfield.IsVisible = !highContrast && !customBackgroundActive;
+    }
 
     private static void ClearLayers(Border layer, Image image, Border dim, Border scrim)
     {

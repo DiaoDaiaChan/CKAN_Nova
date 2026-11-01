@@ -1,0 +1,169 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:diag="using:CkanUI.App.Diagnostics"
+             x:Class="CkanUI.App.Diagnostics.PerformanceMonitorHud"
+             x:CompileBindings="False">
+  <Border Width="380"
+          Background="{DynamicResource CkanCardBackgroundBrush}"
+          BorderBrush="{DynamicResource CkanCardBorderBrush}"
+          BorderThickness="1"
+          CornerRadius="10"
+          Padding="14"
+          BoxShadow="{DynamicResource CkanElevationMedium}">
+    <StackPanel Spacing="10">
+      <!-- 头部：标题、快捷键提示与关闭按钮 -->
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Ellipse Width="10" Height="10"
+                   Fill="{DynamicResource CkanSuccessBrush}"
+                   VerticalAlignment="Center" />
+          <TextBlock Text="GUI 性能探针与 FPS 监控器"
+                     FontWeight="SemiBold"
+                     FontSize="13"
+                     VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="8,0,0,0">
+          <Border Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                  CornerRadius="3"
+                  Padding="4,1">
+            <TextBlock Text="{Binding DynamicRate.StatusDescription}"
+                       FontSize="10"
+                       Foreground="{DynamicResource CkanAccentBrush}" />
+          </Border>
+          <TextBlock Text="(F12)"
+                     FontSize="11"
+                     Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                     VerticalAlignment="Center" />
+        </StackPanel>
+        <Button Grid.Column="2"
+                Classes="CkanGhost"
+                Padding="4"
+                MinHeight="0"
+                MinWidth="0"
+                CornerRadius="4"
+                Click="OnCloseClick"
+                ToolTip.Tip="关闭监控 HUD (F12)">
+          <PathIcon Width="10" Height="10"
+                    Data="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+        </Button>
+      </Grid>
+
+      <Border Height="1" Background="{DynamicResource CkanBorderBrush}" Margin="0,2" />
+
+      <!-- 主指标网格 -->
+      <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,*">
+        <!-- 左侧：实时 FPS 与 1% Low -->
+        <Border Grid.Row="0" Grid.Column="0"
+                Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                CornerRadius="6"
+                Padding="10,8"
+                Margin="0,0,5,5">
+          <StackPanel Spacing="4">
+            <TextBlock Text="帧率 (FPS)" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="{Binding CurrentFps, StringFormat='{}{0:0.0}'}"
+                         FontSize="22"
+                         FontWeight="Bold"
+                         Foreground="{DynamicResource CkanPrimaryBrush}" />
+              <TextBlock Text="fps" FontSize="11" VerticalAlignment="Bottom" Margin="0,0,0,3" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            </StackPanel>
+            <TextBlock Text="{Binding AvgFps, StringFormat='均值: {0:0.0} | 1%Low: '}"
+                       FontSize="11"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}">
+            </TextBlock>
+            <TextBlock Text="{Binding OnePercentLowFps, StringFormat='1% 最慢: {0:0.0} fps'}"
+                       FontSize="11"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          </StackPanel>
+        </Border>
+
+        <!-- 右侧：帧耗时分位数 (p50 / p99 / Max) -->
+        <Border Grid.Row="0" Grid.Column="1"
+                Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                CornerRadius="6"
+                Padding="10,8"
+                Margin="5,0,0,5">
+          <StackPanel Spacing="4">
+            <TextBlock Text="帧耗时 (PERF-01 门禁)" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="{Binding CurrentFrameMs, StringFormat='{}{0:0.0}'}"
+                         FontSize="22"
+                         FontWeight="Bold"
+                         Foreground="{DynamicResource CkanAccentBrush}" />
+              <TextBlock Text="ms" FontSize="11" VerticalAlignment="Bottom" Margin="0,0,0,3" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            </StackPanel>
+            <TextBlock Text="{Binding P50FrameMs, StringFormat='p50: {0:0.0} ms (≤8ms)'}"
+                       FontSize="11"
+                       Foreground="{DynamicResource CkanSuccessBrush}" />
+            <TextBlock Text="{Binding P99FrameMs, StringFormat='p99: {0:0.0} ms (≤16.7ms)'}"
+                       FontSize="11"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          </StackPanel>
+        </Border>
+
+        <!-- 左下：主线程调度延迟与卡顿统计 -->
+        <Border Grid.Row="1" Grid.Column="0"
+                Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                CornerRadius="6"
+                Padding="10,8"
+                Margin="0,5,5,0">
+          <StackPanel Spacing="3">
+            <TextBlock Text="响应度 / 调度延迟" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            <TextBlock Text="{Binding DispatcherLagMs, StringFormat='Lag: {0:0.0} ms'}"
+                       FontSize="12"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+            <TextBlock Text="{Binding Hitches16Count, StringFormat='>16.7ms 掉帧: {0}'}"
+                       FontSize="11"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBlock Text="{Binding Hitches33Count, StringFormat='>33.3ms 卡顿: {0}'}"
+                       FontSize="11"
+                       Foreground="{DynamicResource CkanWarningBrush}" />
+          </StackPanel>
+        </Border>
+
+        <!-- 右下：内存分配与 GC 遥测 -->
+        <Border Grid.Row="1" Grid.Column="1"
+                Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                CornerRadius="6"
+                Padding="10,8"
+                Margin="5,5,0,0">
+          <StackPanel Spacing="3">
+            <TextBlock Text="内存与垃圾回收" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            <TextBlock Text="{Binding MemoryMb, StringFormat='Heap: {0:0.0} MB'}"
+                       FontSize="12"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+            <TextBlock Text="{Binding Gen0Count, StringFormat='Gen 0 回收: {0}'}"
+                       FontSize="11"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBlock Text="{Binding Gen1Count, StringFormat='Gen 1/2: {0} / '}"
+                       FontSize="11"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <!-- 火花线走势图 -->
+      <StackPanel Spacing="4" Margin="0,4,0,0">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0" Text="帧耗时走势 (近 120 帧)" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+          <TextBlock Grid.Column="1" Text="标线: 8ms / 16.7ms / 33ms" FontSize="10" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+        </Grid>
+        <Border CornerRadius="4" ClipToBounds="True" BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1">
+          <diag:PerformanceSparklineControl Durations="{Binding RecentDurations}" Height="54" />
+        </Border>
+      </StackPanel>
+
+      <!-- 底部诊断动作 -->
+      <Grid ColumnDefinitions="*,*,*" Margin="0,4,0,0">
+        <Button Grid.Column="0" Classes="CkanSecondary" Content="重置统计" Click="OnResetClick"
+                HorizontalAlignment="Stretch" Margin="0,0,4,0" Padding="0,5" FontSize="11" />
+        <Button Grid.Column="1" Classes="CkanSecondary" Content="强制 GC" Click="OnForceGcClick"
+                HorizontalAlignment="Stretch" Margin="2,0,2,0" Padding="0,5" FontSize="11" />
+        <Button Grid.Column="2" Classes="CkanSecondary" Content="复制诊断" Click="OnCopyDiagnosticsClick"
+                HorizontalAlignment="Stretch" Margin="4,0,0,0" Padding="0,5" FontSize="11" />
+      </Grid>
+    </StackPanel>
+  </Border>
+</UserControl>

@@ -351,6 +351,67 @@ public sealed class SavesPageViewModelTests
         Assert.That(vm.Title, Is.EqualTo("存档"));
     }
 
+    [Test]
+    public void IsStockSlot_UsesFirstSegmentOfSlotName()
+    {
+        // 服务层拼出的槽位名带 " / " 分隔，首段就是 saves/ 下的目录名（注意首段带尾空格）。
+        Assert.That(SaveRowViewModel.IsStockSlot("training / G_Docking"), Is.True);
+        Assert.That(SaveRowViewModel.IsStockSlot("scenarios / Space Station 1"), Is.True);
+        Assert.That(SaveRowViewModel.IsStockSlot("SCENARIOS / Mun Rover"), Is.True);
+        Assert.That(SaveRowViewModel.IsStockSlot("M6_FlightUI / persistent"), Is.False);
+        Assert.That(SaveRowViewModel.IsStockSlot("M6_FlightUI / Backup / persistent (2026_10_29_10_35_40)"), Is.False);
+        Assert.That(SaveRowViewModel.IsStockSlot("trainingX / persistent"), Is.False);
+        Assert.That(SaveRowViewModel.IsStockSlot("persistent"), Is.False);
+        Assert.That(SaveRowViewModel.IsStockSlot(""), Is.False);
+        Assert.That(SaveRowViewModel.IsStockSlot(null), Is.False);
+    }
+
+    [Test]
+    public async Task StockSaves_AreHiddenByDefault_AndRevealedByCommand()
+    {
+        var (vm, _, _, saves, _) = Create();
+        saves.ListResult = OperationResult<IReadOnlyList<SaveGameInfo>>.Ok(new[]
+        {
+            SavesFixtures.Save(slot: "M6_FlightUI / persistent", title: "远航号"),
+            SavesFixtures.Save(slot: "training / G_Docking", title: "#autoLOC_1200093"),
+        });
+
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(vm.Rows.Select(row => row.SlotName), Is.EqualTo(new[] { "M6_FlightUI / persistent" }));
+        Assert.That(vm.HasStockSaves, Is.True);
+        Assert.That(vm.StockCount, Is.EqualTo(1));
+        Assert.That(vm.StockToggleText, Is.EqualTo("自带存档（1）"));
+        Assert.That(vm.ShowStockOnlyState, Is.False);
+
+        vm.RevealStockSavesCommand.Execute(null);
+
+        Assert.That(vm.ShowStockSaves, Is.True);
+        Assert.That(vm.Rows.Count, Is.EqualTo(2));
+        Assert.That(vm.CountText, Is.EqualTo("共 2 个存档"));
+        Assert.That(vm.Rows[1].IsStock, Is.True);
+        // 未解析的本地化键不能当标题显示
+        Assert.That(vm.Rows[1].TitleText, Is.EqualTo("—"));
+    }
+
+    [Test]
+    public async Task OnlyStockSaves_ShowsStockOnlyStateWithRevealAction()
+    {
+        var (vm, _, _, saves, _) = Create();
+        saves.ListResult = OperationResult<IReadOnlyList<SaveGameInfo>>.Ok(new[]
+        {
+            SavesFixtures.Save(slot: "scenarios / Jool Aerobrake"),
+        });
+
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(vm.HasRows, Is.False);
+        Assert.That(vm.ShowStockOnlyState, Is.True);
+        Assert.That(vm.ShowEmptyState, Is.False);
+        Assert.That(vm.StockOnlyActionText, Is.EqualTo("显示自带存档"));
+        Assert.That(vm.RevealStockSavesCommand.CanExecute(null), Is.True);
+    }
+
     private static (
         SavesPageViewModel ViewModel,
         InstancesFakeDialogs Dialogs,

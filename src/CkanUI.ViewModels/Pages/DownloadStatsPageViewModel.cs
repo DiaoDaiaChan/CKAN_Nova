@@ -118,7 +118,7 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
     public string ModuleCountText => DownloadStatsFormat.Count(ModuleCount);
 
     /// <summary>提示条：有模组下载量不可用时说明来源。</summary>
-    public string UnavailableHint => Text("部分模组没有下载量数据（多为本地或刚入库的模组），这些行按 0 计。", LocalizationKeys.DownloadStatsUnavailableHint);
+    public string UnavailableHint => Text("部分模组没有下载量数据。", LocalizationKeys.DownloadStatsUnavailableHint);
 
     /// <summary>刷新。</summary>
     public IAsyncRelayCommand RefreshCommand { get; }
@@ -192,9 +192,10 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
             OnPropertyChanged(nameof(ChartSlices));
 
             Rows.Clear();
+            var maxDownloads = report.Rows.Count == 0 ? 0 : report.Rows.Max(row => row.DownloadCount);
             foreach (var row in report.Rows)
             {
-                Rows.Add(DownloadStatsRowViewModel.From(row));
+                Rows.Add(DownloadStatsRowViewModel.From(row, maxDownloads));
             }
 
             ModuleCount = report.ModuleCount;

@@ -47,8 +47,7 @@ public sealed partial class LaunchCommandsPanelViewModel : ObservableObject
     public string Title => $"启动命令：{InstanceName}";
 
     /// <summary>说明文案。</summary>
-    public string HintText =>
-        "每行是一条完整的启动命令（可执行文件在前，参数在后）。启动游戏时如果有多条命令，会先让你选一条。";
+    public string HintText => "每行一条完整命令，多条时启动前会问。";
 
     /// <summary>默认命令列表。</summary>
     public IReadOnlyList<string> Defaults { get; }

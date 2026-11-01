@@ -236,6 +236,28 @@ public sealed class DedupPageViewModelTests
     }
 
     [Test]
+    public void 实例清单变化会通知空态切换()
+    {
+        var instances = new UnmanagedFakeInstanceService();
+        var vm = new DedupPageViewModel(_service, instances, _errors, _dialogs);
+        vm.Activate();
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        Assert.That(vm.HasInstances, Is.False);
+        Assert.That(vm.ShowNoInstance, Is.True);
+
+        instances.Add(Instance("甲"));
+        instances.RaiseInstancesChanged();
+
+        Assert.That(vm.HasInstances, Is.True);
+        Assert.That(vm.ShowNoInstance, Is.False);
+        Assert.That(changed, Does.Contain(nameof(DedupPageViewModel.HasInstances)));
+        Assert.That(changed, Does.Contain(nameof(DedupPageViewModel.ShowNoInstance)));
+        Assert.That(changed, Does.Contain(nameof(DedupPageViewModel.ShowInitialState)));
+    }
+
+    [Test]
     public void 实例清单变化会刷新可选项()
     {
         var vm = Create();

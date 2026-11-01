@@ -2,10 +2,12 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Styling;
+using CkanUI.App.Controls;
 using CkanUI.App.Tests.Automation;
 using CkanUI.App.Theming;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.TestSupport;
 using NUnit.Framework;
 
 namespace CkanUI.App.Tests;
@@ -136,35 +138,22 @@ public sealed class BackgroundHostTests
     [Test]
     public void ResolveImagePathFor_FindsTheLatestScreenshotOfTheGameDirectory()
     {
-        var root = Path.Combine(Path.GetTempPath(), "ckanui-shot-" + Guid.NewGuid().ToString("N"));
+        using var temp = new TempWorkspace("ckanui-shot");
+        var root = temp.Path;
         var folder = Path.Combine(root, CkanUI.Services.Settings.BackgroundImageLocator.ScreenshotsFolderName);
         Directory.CreateDirectory(folder);
-        try
-        {
-            var older = Path.Combine(folder, "older.png");
-            var newer = Path.Combine(folder, "newer.png");
-            File.WriteAllBytes(older, new byte[] { 1 });
-            File.WriteAllBytes(newer, new byte[] { 1 });
-            File.SetLastWriteTimeUtc(older, new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-            File.SetLastWriteTimeUtc(newer, new DateTime(2024, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+        var older = Path.Combine(folder, "older.png");
+        var newer = Path.Combine(folder, "newer.png");
+        File.WriteAllBytes(older, new byte[] { 1 });
+        File.WriteAllBytes(newer, new byte[] { 1 });
+        File.SetLastWriteTimeUtc(older, new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        File.SetLastWriteTimeUtc(newer, new DateTime(2024, 6, 1, 0, 0, 0, DateTimeKind.Utc));
 
-            var profile = new BackgroundProfile { Kind = BackgroundProfile.KindScreenshot };
+        var profile = new BackgroundProfile { Kind = BackgroundProfile.KindScreenshot };
 
-            Assert.That(BackgroundHost.ResolveImagePathFor(profile, root), Is.EqualTo(newer));
-            // 没有截图目录时退化成「无背景」，而不是抛异常或留旧图。
-            Assert.That(BackgroundHost.ResolveImagePathFor(profile, Path.Combine(root, "现在不存在")), Is.Null);
-        }
-        finally
-        {
-            try
-            {
-                Directory.Delete(root, recursive: true);
-            }
-            catch (IOException)
-            {
-                // 清理失败不影响断言结论。
-            }
-        }
+        Assert.That(BackgroundHost.ResolveImagePathFor(profile, root), Is.EqualTo(newer));
+        // 没有截图目录时退化成「无背景」，而不是抛异常或留旧图。
+        Assert.That(BackgroundHost.ResolveImagePathFor(profile, Path.Combine(root, "现在不存在")), Is.Null);
     }
 
     [Test]
@@ -256,6 +245,71 @@ public sealed class BackgroundHostTests
                 // THM-10：系统高对比度优先，背景一层都不画。
                 Assert.That(controls.Layer.Background, Is.Null);
                 Assert.That(controls.Scrim.Opacity, Is.EqualTo(0));
+            }
+        }
+        finally
+        {
+            app.RequestedThemeVariant = original;
+            window.Close();
+        }
+    }
+
+    [Test]
+    public void Host_ShowsTheStarfieldWhenNoBackgroundIsChosen()
+    {
+        var (host, window, controls, _) = NewHost(new UiSettings());
+
+        using (host)
+        {
+            Assert.That(controls.Starfield.IsVisible, Is.False, "控件自己默认是隐藏的，露面只能由宿主开");
+
+            host.Install();
+
+            Assert.That(controls.Starfield.IsVisible, Is.True, "没有自选背景时星空是应用自带的装饰层");
+        }
+
+        window.Close();
+    }
+
+    [Test]
+    public void Host_HidesTheStarfieldBehindACustomBackground()
+    {
+        var (host, window, controls, store) = NewHost(new UiSettings
+        {
+            Background = new BackgroundProfile { Kind = BackgroundProfile.KindSolid, Color = "#123456" },
+        });
+
+        using (host)
+        {
+            host.Install();
+            Assert.That(controls.Starfield.IsVisible, Is.False, "用户选了背景，装饰层不能盖在上面");
+
+            store.Save(new UiSettings { Background = new BackgroundProfile { Kind = BackgroundProfile.KindNone } });
+
+            Assert.That(controls.Starfield.IsVisible, Is.True, "退回无背景后星空要自己回来");
+        }
+
+        window.Close();
+    }
+
+    [Test]
+    public void Host_HidesTheStarfieldInHighContrast()
+    {
+        HeadlessAppHost.EnsureInitialized();
+        var app = Application.Current!;
+        var original = app.RequestedThemeVariant;
+        app.RequestedThemeVariant = ThemeHost.HighContrastVariant;
+
+        var (host, window, controls, _) = NewHost(new UiSettings());
+
+        try
+        {
+            using (host)
+            {
+                host.Install();
+
+                // THM-10：高对比度下任何装饰层都不许出现。
+                Assert.That(controls.Starfield.IsVisible, Is.False);
             }
         }
         finally
@@ -378,7 +432,8 @@ public sealed class BackgroundHostTests
             Scope.Register(BackgroundHost.ImageControlName, Image);
             Scope.Register(BackgroundHost.DimControlName, Dim);
             Scope.Register(BackgroundHost.ScrimControlName, Scrim);
-            Root = new Panel { Children = { Layer, Image, Dim, Scrim } };
+            Scope.Register(BackgroundHost.StarfieldControlName, Starfield);
+            Root = new Panel { Children = { Layer, Image, Dim, Scrim, Starfield } };
             NameScope.SetNameScope(Root, Scope);
         }
 
@@ -393,6 +448,8 @@ public sealed class BackgroundHostTests
         public Border Dim { get; } = new() { Name = BackgroundHost.DimControlName };
 
         public Border Scrim { get; } = new() { Name = BackgroundHost.ScrimControlName };
+
+        public StarfieldBackground Starfield { get; } = new() { Name = BackgroundHost.StarfieldControlName };
     }
 
     private sealed class InlineDispatcher : IDispatcher

@@ -49,7 +49,13 @@ public sealed record SaveRowViewModel(
     public string SlotText => SlotName;
 
     /// <summary>存档标题（<c>GAME.Title</c>）；老存档可能没有，给可读占位。</summary>
-    public string TitleText => string.IsNullOrWhiteSpace(Title) ? "—" : Title!;
+    /// <remarks>
+    /// KSP 自带存档的标题常是未解析的本地化键（<c>#autoLOC_1200093</c>），直接显示等于把键名当标题，
+    /// 列表里只剩一串截断的 <c>#autoLOC_…</c>。这类值按"没有标题"处理，槽位列已经能区分存档。
+    /// </remarks>
+    public string TitleText => string.IsNullOrWhiteSpace(Title) || Title!.StartsWith("#autoLOC", StringComparison.OrdinalIgnoreCase)
+        ? "—"
+        : Title!;
 
     /// <summary>游戏模式：存档里是 <c>SANDBOX</c> / <c>CAREER</c> / <c>SCIENCE</c>，翻成中文。</summary>
     public string ModeText => Mode?.Trim().ToUpperInvariant() switch
@@ -57,6 +63,7 @@ public sealed record SaveRowViewModel(
         "SANDBOX" => "沙盒",
         "CAREER" => "生涯",
         "SCIENCE" => "科学",
+        "SCENARIO" => "场景",
         null or "" => "—",
         _ => Mode!.Trim(),
     };
@@ -96,4 +103,34 @@ public sealed record SaveRowViewModel(
 
     /// <summary>是否允许格式化（备份文件不参与，避免误伤）；服务层同样会拒绝结构损坏的存档。</summary>
     public bool CanFormat => !IsBackup;
+
+    /// <summary>是否 KSP 自带存档（<c>saves/training</c> 与 <c>saves/scenarios</c> 下的训练与场景存档）。</summary>
+    public bool IsStock => IsStockSlot(SlotName);
+
+    /// <summary>按槽位名判断是否自带存档：只看首段目录名，大小写不敏感。</summary>
+    /// <remarks>
+    /// 服务层拼出的 <see cref="SlotName"/> 形如 <c>training / tutorial_basic / persistent</c>，
+    /// 首段就是 <c>saves/</c> 下的存档目录名；<c>training</c> 与 <c>scenarios</c> 是 KSP 安装自带的，
+    /// 玩家自己的存档永远落在别的目录里，所以这两段是可靠且不需要改服务层 DTO 的判定依据。
+    /// </remarks>
+    public static bool IsStockSlot(string? slotName)
+    {
+        if (string.IsNullOrEmpty(slotName))
+        {
+            return false;
+        }
+
+        var head = slotName.AsSpan();
+        var separator = head.IndexOf('/');
+        if (separator >= 0)
+        {
+            head = head[..separator];
+        }
+
+        // 服务层用 " / " 分隔，切出来的首段带一个尾空格（"scenarios / xxx" → "scenarios "），必须先去空白。
+        head = head.Trim();
+
+        return head.Equals("training", StringComparison.OrdinalIgnoreCase)
+            || head.Equals("scenarios", StringComparison.OrdinalIgnoreCase);
+    }
 }

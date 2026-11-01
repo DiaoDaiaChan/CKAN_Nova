@@ -17,8 +17,9 @@
                      FontSize="{DynamicResource CkanFontSizeCaption}"
                      FontWeight="SemiBold"
                      VerticalAlignment="Center"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <TextBlock Text="多个值以空格分隔；前缀 - 表示排除；所有条件同时满足"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                     ToolTip.Tip="多个值以空格分隔；前缀 - 表示排除；所有条件同时满足" />
+          <TextBlock Text="空格分隔，- 排除"
                      Classes="CkanCaption" VerticalAlignment="Center" TextWrapping="Wrap" />
         </StackPanel>
         <Button Grid.Column="1" Content="清空条件"

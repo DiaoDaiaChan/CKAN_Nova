@@ -10,12 +10,19 @@
   <!-- 设置页：八组设置，改完即存（不再给每行一个「保存」按钮）。
        版式沿用 FluentAvalonia 官方的 SettingsExpander 组合：
        分组标题 + 每个设置项一个可折叠项（Header/Description 在左，编辑控件在 Footer）。 -->
-  <Grid RowDefinitions="Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}">
+  <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}">
 
     <!-- 页头：标题 + 状态 + 全局操作 -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Spacing="4">
-        <TextBlock Text="{Binding Title}" Classes="CkanPageTitle" />
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="{Binding Title}" Classes="CkanPageTitle" VerticalAlignment="Center" />
+          <Button Classes="CkanHelper" VerticalAlignment="Center"
+                  ToolTip.Tip="改动逐项保存并读回校验；失败的项可以在顶部提示条里单独重试，放弃则回到已落盘的值。">
+            <PathIcon Data="{StaticResource CkanIconHelp}" />
+          </Button>
+        </StackPanel>
+        <TextBlock Text="逐项保存的偏好设置" Classes="CkanCaption" TextWrapping="Wrap" />
         <StackPanel Orientation="Horizontal" Spacing="12">
           <TextBlock Text="{Binding StatusText}" Classes="CkanCaption" VerticalAlignment="Center" />
           <TextBlock Text="有未保存的修改" IsVisible="{Binding IsDirty}" FontWeight="SemiBold"
@@ -23,16 +30,27 @@
         </StackPanel>
       </StackPanel>
 
-      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
-        <Button Content="打开配置目录" Classes="CkanGhost" Command="{Binding OpenConfigFolderCommand}" />
-        <Button Content="重新读取" Classes="CkanGhost" Command="{Binding ReloadCommand}" IsEnabled="{Binding !IsLoading}" />
-        <Button Content="放弃修改" Classes="CkanGhost" Command="{Binding DiscardCommand}" IsEnabled="{Binding IsDirty}" />
-        <Button Content="重试失败项" Classes="CkanGhost" Command="{Binding RetryFailedCommand}"
-                IsEnabled="{Binding HasRetryableFailures}" />
-      </StackPanel>
     </Grid>
 
-    <StackPanel Grid.Row="1" Spacing="8">
+    <!-- 全局操作：与其它页面同一条工具条位置，不再浮在标题右侧 -->
+    <Border Grid.Row="1" Classes="CkanToolbar" Margin="0,0,0,8">
+      <WrapPanel Orientation="Horizontal">
+        <Button Content="重新读取" Classes="CkanSecondary" Margin="0,0,8,0"
+                Command="{Binding ReloadCommand}" IsEnabled="{Binding !IsLoading}"
+                ToolTip.Tip="重新读取 settings.json" />
+        <Button Content="放弃修改" Classes="CkanGhost" Margin="0,0,8,0"
+                Command="{Binding DiscardCommand}" IsEnabled="{Binding IsDirty}"
+                ToolTip.Tip="丢弃当前未保存的改动，恢复为磁盘上的值" />
+        <Button Content="重试失败项" Classes="CkanGhost" Margin="0,0,8,0"
+                Command="{Binding RetryFailedCommand}" IsEnabled="{Binding HasRetryableFailures}"
+                ToolTip.Tip="只重试上次保存失败的那些设置项" />
+        <Button Content="打开配置目录" Classes="CkanGhost"
+                Command="{Binding OpenConfigFolderCommand}"
+                ToolTip.Tip="打开包含 settings.json 的目录" />
+      </WrapPanel>
+    </Border>
+
+    <StackPanel Grid.Row="2" Spacing="8">
 
       <!-- 读取失败提示（不阻塞页面：其余项仍可编辑） -->
       <ui:FAInfoBar IsOpen="{Binding HasLoadError}" Severity="Error" IsClosable="False"
@@ -44,7 +62,7 @@
 
     </StackPanel>
 
-    <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
+    <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Spacing="4" Margin="0,8,0,0">
 
         <TextBlock Text="正在读取设置…" IsVisible="{Binding IsLoading}" Classes="CkanCaption" Margin="0,0,0,8" />
@@ -82,10 +100,12 @@
 
                             <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right"
                                         VerticalAlignment="Center">
+                              <!-- 编辑器列固定宽度：不同 kind 的行左边缘才不会各自漂移 -->
+                              <Grid Width="240" HorizontalAlignment="Right">
                               <!-- 文本 / 路径（单行） -->
                               <TextBox Text="{Binding EditValue, Mode=TwoWay}"
                                        IsVisible="{Binding IsSingleLine}"
-                                       Width="280"
+                                       HorizontalAlignment="Stretch"
                                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                                        MinHeight="{DynamicResource CkanRowHeight}" />
 
@@ -95,19 +115,20 @@
                                               Minimum="{Binding NumericMinimum}"
                                               Maximum="{Binding NumericMaximum}"
                                               SpinButtonPlacementMode="Inline"
-                                              Width="180" />
+                                              HorizontalAlignment="Stretch" />
 
                               <!-- 布尔开关：拨动即生效 -->
                               <ToggleSwitch IsVisible="{Binding IsBooleanKind}"
                                             IsChecked="{Binding BooleanValue, Mode=TwoWay}"
-                                            OnContent="已启用" OffContent="已关闭" />
+                                            OnContent="" OffContent=""
+                                            HorizontalAlignment="Left" />
 
                               <!-- 单选 -->
                               <ComboBox ItemsSource="{Binding Choices}"
                                         SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
                                         IsVisible="{Binding IsChoiceKind}"
-                                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                                        MinWidth="200">
+                                        HorizontalAlignment="Stretch"
+                                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}">
                                 <ComboBox.ItemTemplate>
                                   <DataTemplate x:DataType="st:SettingChoice">
                                     <TextBlock Text="{Binding Label}" />
@@ -115,14 +136,18 @@
                                 </ComboBox.ItemTemplate>
                               </ComboBox>
 
+                              </Grid>
+
                               <!-- 行内辅助动作（如「打开目录」） -->
                               <Button Content="{Binding AuxiliaryLabel}"
-                                      Classes="CkanGhost"
+                                      Classes="CkanGhost CkanSmall"
                                       Command="{Binding AuxiliaryCommand}"
                                       IsVisible="{Binding HasAuxiliaryAction}" />
 
                               <TextBlock Text="{Binding HintText}" IsVisible="{Binding HasHint}"
-                                         Classes="CkanCaption" VerticalAlignment="Center" />
+                                         VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="240"
+                                         FontSize="{DynamicResource CkanFontSizeCaption}"
+                                         Foreground="{DynamicResource CkanTextTertiaryBrush}" />
                             </StackPanel>
 
                             <!-- 行内校验/保存失败 -->

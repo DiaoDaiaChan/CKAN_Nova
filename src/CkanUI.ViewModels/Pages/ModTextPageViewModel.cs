@@ -40,6 +40,8 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 
         StorageDirectory = _service.BaseDirectory;
+        var initialLanguages = _service.GetAvailableLanguages();
+        AvailableLanguages = initialLanguages != null && initialLanguages.Count > 0 ? initialLanguages : new[] { "zh-cn" };
 
         SaveOverrideCommand = new AsyncRelayCommand(ExecuteSaveOverrideAsync, () => CanSaveOverride);
         DeleteOverrideCommand = new AsyncRelayCommand(ExecuteDeleteOverrideAsync, () => CanDeleteOverride);
@@ -65,11 +67,19 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
 
     /// <summary>当前包文件列表。</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPackFiles))]
     private IReadOnlyList<ModPackFileInfo> _packFiles = Array.Empty<ModPackFileInfo>();
+
+    /// <summary>是否发现了词库文件（决定文件清单卡的显示）。</summary>
+    public bool HasPackFiles => PackFiles.Count > 0;
 
     /// <summary>过滤后的展示条目列表。</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasEntries))]
     private IReadOnlyList<ModTextEntryItemViewModel> _entries = Array.Empty<ModTextEntryItemViewModel>();
+
+    /// <summary>当前过滤结果是否为空（决定列表区显示空状态）。</summary>
+    public bool HasEntries => Entries.Count > 0;
 
     /// <summary>当前选中的条目。</summary>
     [ObservableProperty]
@@ -290,7 +300,7 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
 
         var result = query.ToList();
         Entries = result;
-        SummaryText = Text("已显示 {0} / {1} 条条目", LocalizationKeys.ModTextSummaryShown, result.Count, _allEntries.Count);
+        SummaryText = Text("已显示 {0} / {1} 条", LocalizationKeys.ModTextSummaryShown, result.Count, _allEntries.Count);
     }
 
     private async Task ExecuteSaveOverrideAsync()

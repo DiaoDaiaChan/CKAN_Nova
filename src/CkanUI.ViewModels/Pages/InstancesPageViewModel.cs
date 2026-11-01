@@ -208,7 +208,7 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
     /// <summary>空状态说明。</summary>
     public string EmptyStateHint =>
-        Text("添加一个 KSP 安装目录即可开始：CKAN 会读取其中的版本号与已装模组数量，不会修改任何游戏文件。", LocalizationKeys.InstancesEmptyHint);
+        Text("添加一个 KSP 安装目录即可开始。", LocalizationKeys.InstancesEmptyHint);
 
     /// <summary>空状态主按钮文案。</summary>
     public string EmptyStateActionText => Text("添加实例", LocalizationKeys.InstancesEmptyAction);
@@ -1128,7 +1128,9 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         StatusText = Text("正在恢复数据…", LocalizationKeys.InstancesBusyRestoring);
 
         // 复用收尾链路（取消后续排程 + RestoreAsync + 统一错误出口），避免出现第二条恢复路径。
-        await StopReleaseScheduleAsync().ConfigureAwait(true);
+        var task = StopReleaseScheduleAsync();
+        _releaseShutdown = task;
+        await task.ConfigureAwait(true);
     }
 
     /// <summary>命令：编辑选中实例的启动命令（F-06）。</summary>

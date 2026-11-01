@@ -78,7 +78,7 @@ public sealed partial class AuditRecommendationsDialogViewModel : DialogViewMode
     /// <summary>顶部摘要文案。</summary>
     public string SummaryText => HasCandidates
         ? $"已扫描已安装模组，发现 {_groups.Count} 个模组提供了 {TotalCount} 项未安装的推荐/建议，已选 {SelectedCount} 项。"
-        : "未发现任何新的推荐或建议模组。所有推荐与建议模组均已安装或在待安装列表中。";
+        : "未发现待安装的推荐或建议模组。";
 
     /// <summary>全选所有可选项。</summary>
     [RelayCommand]

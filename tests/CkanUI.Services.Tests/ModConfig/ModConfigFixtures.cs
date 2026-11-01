@@ -76,12 +76,12 @@ internal static class ModConfigFixtures
 /// </summary>
 internal sealed class TempDirectory : IDisposable
 {
+    private readonly CkanUI.TestSupport.TempWorkspace _workspace;
+
     public TempDirectory(string label)
     {
-        Path = System.IO.Path.Combine(
-            System.IO.Path.GetTempPath(),
-            "ckan-ui-modconfig-" + label + "-" + Guid.NewGuid().ToString("N")[..8]);
-        Directory.CreateDirectory(Path);
+        _workspace = new CkanUI.TestSupport.TempWorkspace("modconfig-" + label);
+        Path = _workspace.Path;
     }
 
     /// <summary>临时目录绝对路径（仅测试进程内使用，不进源码产物）。</summary>
@@ -106,19 +106,6 @@ internal sealed class TempDirectory : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(Path))
-            {
-                Directory.Delete(Path, recursive: true);
-            }
-        }
-        catch (IOException)
-        {
-            // 临时目录清理失败不该让用例红。
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
+        _workspace.Dispose();
     }
 }

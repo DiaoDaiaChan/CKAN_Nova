@@ -90,13 +90,19 @@
 8. **页面 VM 运行期文案的本地化（第四轮已收口主体）**：机制见 `src/CkanUI.ViewModels/PageViewModel.cs` 的 `TextResolver`/`TextFormatter` 与 `Text(中文, 键)`，导航时由 `NavigationService` 用 `??=` 注入，没译文就回落中文原文；17 个页面 ViewModel 的标题与正文共 852 处已迁移（含 `ModConfigPageViewModel` 旧式 `T()` 的统一），文案键 76 → 930，中英两套包严格同步，代码 fallback 与 zh-CN 译文逐字一致由 `tests/CkanUI.Architecture.Tests/PageTextLocalizationTests.cs` 守护。**仍剩子 VM 与静态格式化器**（`ChangesFormatter` 39、`ChangesLabels` 19、`ModPackEditorText` 39、`ModsSearchPanelViewModel` 30、`LogGlyphs` 24、`SettingsDiagnosticsViewModel` 14、`StabilityToleranceFile` 14、`InstallHistoryText` 17 等），它们不是 `PageViewModel`，需先加 `Func<string,string,…>` 适配器；清单与理由见 `docs/design/i18n-runtime.md` 的「尚未覆盖」与 `docs/design/feature-matrix-verification.md` §11。
    仍剩：只有**子 VM 与静态格式化器**（`ChangesFormatter` 39、`ChangesLabels` 19、`ModPackEditorText` 39、`ModsSearchPanelViewModel` 30、`LogGlyphs` 24 等，清单见 `docs/design/feature-matrix-verification.md` §11.5）。原写的「其余页面正文未迁移」已随第四轮收口失效——17 个页面 ViewModel 的标题与正文共 852 处已全部迁完（取证 §11.1），`ModConfigPageViewModel` 的 `T()` 也已统一，错误栏兜底句同样入包。
 9. **沙箱里派生的 GUI 进程写不进 `%LocalAppData%\CKAN`**：本轮冒烟见状态栏「启动未完成：实例操作失败。」与模组汉化页 `Access to the path 'C:\Users\43701\AppData\Local\CKAN\ckan-ui\18n\packs' is denied.`；同一路径在 bash 里可写、GUI 进程不可写，判为沙箱派生进程的权限副作用而非产品缺陷。需在普通桌面（双击 exe）启动下复核：能写则撤销本条，仍报错按真缺陷修。
+10. **界面文本过载治理（本轮收口）**：19 个页签页头统一成「`CkanPageTitle` + 同行 `Button.CkanHelper`（ToolTip 承载机制/风险）+ ≤20 字 `CkanCaption` 副标题」；
+    正文 39 条常驻长句按「压成一句 / 原文移进 ToolTip / 整行删除」处置，i18n 两包（942 键）逐键同步、键集零差异，`LocalizationKeys` 的 `<summary>` 一并对齐。
+    治理后 `artifacts/snapshots/page_01..19` 全部重渲染通过，3127 例测试 0 失败（Services 仅 1 例显式 Ignore，符号链接用例）。
+    配套规则写进 `docs/design/theme-tokens.md` §5.3/§5.4（含「`CkanCornerRadiusPill` 不得回 999，否则非正方形容器会被渲染成真椭圆」）。
 
 ## 5. 如何复核本表
 
 ```bash
 cd ckan-ui
 dotnet build ckan-ui.sln -v q --nologo          # 期望 0 警告 0 错误
-dotnet run --project tests/CkanUI.TestRunner    # 期望 0 失败
+# 沙箱内必须直跑 dll 并把 TEMP 指到仓库内：dotnet run --project 会把 TEMP 落到 %LocalAppData%\Temp（不可写），
+# ModConfig/BackgroundHost 等造临时目录的用例会成片抛 UnauthorizedAccessException，看起来像回归。
+TEMP="$PWD/artifacts/tmp/temp" dotnet tests/CkanUI.TestRunner/bin/Release/net10.0/CkanUI.TestRunner.dll --config Release   # 期望 0 失败
 dotnet run --project tools/verify-layout -- --all   # 期望「结论: 绿」
 ```
 
@@ -120,6 +126,10 @@ dotnet run --project tools/verify-layout -- --all   # 期望「结论: 绿」
 | 资源释放 L0/L1 | `src/CkanUI.ViewModels/Pages/IPageProjectionTrim.cs`、`src/CkanUI.App/Lifecycle/UiViewResourceParticipant.cs` / `PageProjectionCacheParticipant.cs`、`src/CkanUI.Services/Lifecycle/LocalizerCacheParticipant.cs` | ResourceReleaseServiceTests / LifecycleParticipantTests |
 | Steam 库定位 | `src/CkanUI.Core/Steam/SteamLibraryParser.cs`、`src/CkanUI.Services/Platform/SteamLibraryLocator.cs` / `SteamRegistryProbe.cs`（config 版 vdf 优先、注册表根优先） | SteamLibraryParserTests / SteamLibraryLocatorTests |
 | 未管理文件接管（INT-09） | `src/CkanUI.Services/Unmanaged/UnmanagedAdopter.cs` / `ManagedDllMerge.cs` / `CkanManagedFileRegistrar.cs`、页面「接管为受管」 | UnmanagedAdopterTests / ManagedDllMergeTests / UnmanagedServiceTests |
+| 星空氛围层（星轨 + 流星） | `src/CkanUI.App/Controls/StarfieldModel.cs`（原有星点/星座/牵引线不动，新增 9 条左上角延时星轨 `CornerArc*` 与 12 条流星排程 `TryGetMeteor`）、`StarfieldBackground.cs`（`DrawCornerTrails` / `DrawMeteors`，Renders 顺序在星点之前） | StarfieldModelTests（37 例） |
+| 点击涟漪反馈层 | `src/CkanUI.App/Controls/ClickRippleModel.cs`（0.5 s、6 例上限、双环）、`ClickRippleLayer.cs`（16 ms 表、`IsHitTestVisible=false`）、`MainWindow.axaml` `ZIndex=15` + `MainWindow.axaml.cs` 的 Tunnel `PointerPressed` 转发 | ClickRippleModelTests（11 例） |
+| 导入导出页右栏观感 | `src/CkanUI.App/Views/ModPacksPageView.axaml`：两个空态从 `CkanEmptyStateCard Flat`（全透明）升为 `Elevated` 实体卡 + `CkanEmptyStateGlow` + `CkanIconTile Lg Muted` + 结果徽章行；导入/对比各加一条三步流程条（`CkanStepDot`，圆点绑 `IsIdle` / `HasPreviewRows` / `CanImport` / `CanCompare` / `HasDiffRows`） | ModPacksPageViewModelTests（视图无断言） |
+| PKG-02 自有品牌图标 | `tools/icon-gen`（零依赖 SDF 光栅器 + 自写 PNG/ICO 编码器，7 档 PNG-entry ICO 29 KB）、`src/CkanUI.App/Assets/ckan.ico`（替掉上游 CKAN 商标图形）、`src/CkanUI.App/Branding/AppIcon.cs`（窗口与托盘共用的唯一加载入口）、`Tray/TrayHost.cs` 改用它并在文件缺失时退回按强调色自绘的方块 | 像素探针 `artifacts/tmp/iconprobe.mjs`（构图逐点核对）；设计口径见 `docs/design/brand-icon.md` |
 
 ### 6.2 门禁结果（本次结档复跑）
 
@@ -139,6 +149,48 @@ dotnet run --project tools/verify-layout -- --all   # 期望「结论: 绿」
 
 临时产物（不入门禁，%TEMP% 可能被清理）：`C:\Users\43701\AppData\Local\Temp\ckan-demo\shot-print.png`（模组页带插件按钮的窗口截图）、`shot.ps1`（窗口捕捉）、`verify.ps1`（整段 UIA 驱动）；演示插件 dll 在 `%LocalAppData%\CKAN\plugins\DemoPlugin.dll`，源码在 `%LocalAppData%\Temp\ckan-demo\DemoPlugin`，按 `docs/design/plugins.md` §10 可重建。
 
-### 6.4 结档时仍然打开的项
+### 6.4 界面观感轮（2026-10-31，未结档）
+
+口号：信息过载 → 结构化；死黑空态 → 有实体。
+
+| 门禁 | 结果 |
+| --- | --- |
+| `dotnet build ckan-ui.sln -c Release` | 0 警告 0 错误（25.8 s） |
+| TestRunner App / ViewModels / Architecture / Localization | 205 / 1535 / 27 / 76，**0 失败**（App 需把 `TEMP` 指到仓库内目录，否则 `BackgroundHostTests` 在沙箱写 `%TEMP%` 报 UnauthorizedAccess） |
+| `dotnet run --project tools/ui-snapshot` | 19/19 渲染成功 |
+| `dotnet run --project tools/verify-layout -- --all` | 阻断 0 · 警告 0 · 绿 |
+
+像素复核（无视觉通道，靠解码 PNG 统计）：`page_05_modpacks.png` 与改前基线差 18.0% 像素，右栏 `(626,386)-(1262,642)` 从纯背景变为卡片面色连通域（636x256）；左上角星轨的半径直方图峰值落在 0.19/0.27/0.34/0.42/0.49/0.57/0.64/0.72（`unit=min(w,h)`），与 `CornerArcRadius` 的 `0.12+0.075i` 模型逐条吻合。
+
+### 6.5 品牌图标轮（2026-10-31）
+
+上游 CKAN 的图形是第三方商标，且与本应用的设计语汇无关；本轮换成生成式自有图标。
+
+| 项 | 结果 |
+| --- | --- |
+| 生成器 | `tools/icon-gen`（`CkanUI.Tools.IconGen.csproj`，不进 `ckan-ui.sln`）：SDF 光栅化 + 中心采样 + 自写 `ZLibStream`/CRC32 PNG 编码，**零第三方依赖**，配色直接读 Tokens |
+| 构图 | 圆角砖面 + 右下强调色辉光 + 轨道环与节点 + 三条左对齐列表行（第一行强调色），取自页签/变更集/星空的语汇 |
+| 分档 | ≥48 全要素（含 6 个星点）；32 去星点与节点、环 alpha 0.30；≤24 连环一起删（会糊）只留砖面 + 辉光 + 2 条粗行 |
+| 产物 | `src/CkanUI.App/Assets/ckan.ico`（7 档 PNG-entry，29 411 字节）+ `ckan-256.png` / `ckan-256-light.png` + `artifacts/icon/preview-sheet.png`（临时区） |
+| 消费方 | `<ApplicationIcon>`（exe 内嵌）、`Branding/AppIcon.TryLoad()`（`MainWindow` 图标）、`Tray/TrayHost.LoadIconImage()`（托盘优先用同一份 ICO，缺失时退回按 `CkanAccentBrush` 自绘的方块） |
+| 验证 | 构建 0 警告 0 错误；像素探针逐点核对（`(128,95)=#72A7FF` 第一行、`(128,128)` 55% 混合、`(70,140)` 环带、24px 档四角透明 544/576 不透明像素） |
+
+### 6.6 星空可读性与星座轮换轮（2026-10-31）
+
+用户反馈「星轨不太明显」，并要求星轨/星座轻微呼吸、每次启动星座样式不同。
+
+| 项 | 结果 |
+| --- | --- |
+| 星轨亮度 | `CornerArcPeakAlpha` 0.115 → **0.26**（`CornerArcFalloff` 0.07 → 0.055），天花板 `CornerArcAlphaCeiling` 0.13 → **0.34**；右上远景族峰值 0.075 → **0.125** |
+| 星轨线宽 | `CornerArcMaxWidth` 1.6 → **2.0**，`StrokeWidths` 增补 2.0 档；每条弧两遍绘制（宽淡晕 alpha×0.30 + 细芯），单像素细线不再被抗锯齿吃掉 |
+| 星座线 | `FigureAlpha` 基线 0.09+0.20·breath → **0.14+0.26·breath**（上限仍 0.6）；连线同样两遍（2.4 宽淡晕 alpha×0.26 + 1.4 细芯） |
+| 呼吸 | `CornerArcBreath(index)`（周期 9.5 s、深度 0.18、逐弧相位 0.7 rad）、`TrailBreath()`（13.5 s / 0.22）；系数恒在 [1−depth, 1]——只压不抬，峰值永远顶不穿天花板；星座周期 7.5–10 s → **8.5–11.5 s** |
+| 星轨转动 | 新增 `CornerArcRotationRate = 0.012` 弧度/秒（0.69°/s，整族绕宿极点同向转一圈约 `CornerArcRevolutionSeconds` ≈ 8.7 分钟），原来的奇偶反向漂移降为视差项 `CornerArcDrift` 0.010 → **0.0035**（相邻弧反向，避免九条弧像一块铁板）；渲染侧 `CornerArcStart` 直接喂给 `DrawCornerTrails`，无需改画的代码 |
+| 每次启动不同 | 默认种子由常量改为进程级 `LaunchSeed`（`Environment.TickCount64` 与 `Random.Shared` 混合，`StarfieldModel.LaunchSeedValue` 可读）；`StarfieldModel(seed: …)` 仍可固定复现；同进程内窗口重建共用同一片星空 |
+| 星座拓扑 | `FigureEdges` 单模板 → `FigureTemplates` **4 种**（闭合五边形+弦 / 折线带分叉 / 风筝 / 五角星骨架），每颗星按种子挑一种，边数 4–7 |
+| 验证 | App 段 **239/239**（StarfieldModelTests 37 例：拓扑多样性、启动种子共享、显式种子覆盖、星轨呼吸区间、alpha×breath 不破顶、远景呼吸、呼吸随时钟停、星座明灭幅度，以及「整族同向转动 + 视差只拉间距」与「转一圈 420–600 秒」）；ViewModels 1535 / Architecture 27 / Localization 76 全绿；构建 0 警告 0 错误；19/19 快照；verify-layout 阻断 0 · 警告 0 |
+| 像素复核 | `artifacts/tmp/arcband.cjs <基线> <新图>`：沿 9 条弧的半径取环带均值（极点 `(−0.06w, −0.10h)`、半径 `unit·(0.12+0.075i)`），并取半径 +0.028·unit 的对照环带。page_01 环带 28.79 → **34.85**（+6.05），对照环带 30.34 → 30.29（−0.05）；page_18 环带 26.80 → **32.93**（+6.13），对照 29.99 → 29.95（−0.04）。抬亮只落在弧线半径上，背景没被一起拉亮 |
+
+### 6.7 结档时仍然打开的项
 
 §4 现有 9 条：第四轮关掉了 2 条的后半段（第 3 条 L4 工作集归还已接 psapi，只剩真机量化；第 6 条背景「游戏截图」来源已接，只剩 v2 自动轮换），其余仍打开——真实下载端到端（第 1 条）、实例重命名不搬目录「已定取舍」（第 2 条）、托盘手测（第 4 条）、插件页签视图自带 + 工具项落点单一「设计约束」（第 5 条）、发布链路的真机性能/端到端与安装器签名体积（第 7 条）、i18n 子 VM（第 8 条）、沙箱写权限复核（第 9 条）；另有插件文档 §9 那批「需要 Lead 落地」条目其实已经落地，本轮只标注不清删。

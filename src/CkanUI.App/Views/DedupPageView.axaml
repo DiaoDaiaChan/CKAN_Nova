@@ -38,17 +38,38 @@
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
-        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+        Background="Transparent">
 
     <!-- 页头 -->
     <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
-      <TextBlock Text="跨实例去重" Classes="CkanPageTitle" />
-      <TextBlock Text="比较多个实例 GameData 里内容相同的文件，把它们改成硬链接以省磁盘。只处理 GameData 内、非受管、非符号链接、同卷且至少两份内容相同的文件。"
+      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <TextBlock Text="跨实例去重" Classes="CkanPageTitle" VerticalAlignment="Center" />
+        <Button Classes="CkanHelper" VerticalAlignment="Center"
+                ToolTip.Tip="比较多个实例 GameData 里内容相同的文件并建立硬链接以节省磁盘空间。只处理 GameData 内非受管、非符号链接、同卷且存在重复的文件。">
+          <PathIcon Data="{StaticResource CkanIconHelp}" />
+        </Button>
+      </StackPanel>
+      <TextBlock Text="合并重复文件以释放磁盘空间"
                  Classes="CkanCaption" TextWrapping="Wrap" />
+
+      <!-- 四步向导：勾实例 → 扫描 → 核对 → 写盘，让人知道下一步做什么 -->
+      <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,6,0,0" VerticalAlignment="Center">
+        <Border Classes="CkanStepDot"><TextBlock Text="1" /></Border>
+        <TextBlock Text="勾选参与比较的实例" Classes="CkanStepLabel" VerticalAlignment="Center" />
+        <TextBlock Text="›" Classes="CkanStepArrow" VerticalAlignment="Center" />
+        <Border Classes="CkanStepDot"><TextBlock Text="2" /></Border>
+        <TextBlock Text="扫描重复文件" Classes="CkanStepLabel" VerticalAlignment="Center" />
+        <TextBlock Text="›" Classes="CkanStepArrow" VerticalAlignment="Center" />
+        <Border Classes="CkanStepDot"><TextBlock Text="3" /></Border>
+        <TextBlock Text="核对预览与告警" Classes="CkanStepLabel" VerticalAlignment="Center" />
+        <TextBlock Text="›" Classes="CkanStepArrow" VerticalAlignment="Center" />
+        <Border Classes="CkanStepDot"><TextBlock Text="4" /></Border>
+        <TextBlock Text="关闭预演后执行" Classes="CkanStepLabel" VerticalAlignment="Center" />
+      </StackPanel>
     </StackPanel>
 
     <!-- 工具条：预演开关 + 最小尺寸 + 扫描 / 执行 -->
-    <Border Grid.Row="1" Classes="CkanToolbar">
+    <Border Grid.Row="1" Classes="CkanToolbar stagger-card">
       <WrapPanel Orientation="Horizontal">
         <Button Content="刷新实例" Command="{Binding RefreshInstancesCommand}"
                 IsEnabled="{Binding IsIdle}" Classes="CkanGhost" Margin="0,0,8,0"
@@ -73,7 +94,7 @@
     </Border>
 
     <!-- 实例多选 -->
-    <Border Grid.Row="2" Margin="0,12,0,0" Classes="CkanSubtleCard">
+    <Border Grid.Row="2" Margin="0,12,0,0" Classes="CkanSubtleCard stagger-card">
       <StackPanel Spacing="6">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Grid.Column="0" Text="参与比较的实例" Classes="CkanCaption" VerticalAlignment="Center" />
@@ -128,14 +149,28 @@
     </Border>
 
     <!-- 统计条 + 执行前提示 -->
-    <Border Grid.Row="4" Margin="0,12,0,0" Classes="CkanSubtleCard">
+    <Border Grid.Row="4" Margin="0,12,0,0" Classes="CkanSubtleCard stagger-card">
       <StackPanel Spacing="4">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Grid.Column="0" Text="{Binding StatsText}" Classes="CkanCaption"
                      VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
           <TextBlock Grid.Column="1" Text="{Binding DryRunHint}" Margin="12,0,0,0"
-                     Classes="CkanCaption" Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                     Classes="CkanCaption" Foreground="{DynamicResource CkanTextSecondaryBrush}"
                      VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
+        </Grid>
+        <!-- 容量对比：释放前 → 释放后，比例条给"能省多少"一个体感 -->
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Margin="0,4,0,0"
+              IsVisible="{Binding HasOccupancy}">
+          <TextBlock Grid.Column="0" Text="{Binding OccupiedText}" Classes="CkanNumeric"
+                     FontSize="{DynamicResource CkanFontSizeCaption}" VerticalAlignment="Center"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <ProgressBar Grid.Column="1" Minimum="0" Maximum="100" Height="6"
+                       Value="{Binding ReclaimPercent}" VerticalAlignment="Center"
+                       CornerRadius="{DynamicResource CkanCornerRadiusPill}"
+                       ToolTip.Tip="{Binding ReclaimPercentText}" />
+          <TextBlock Grid.Column="2" Text="{Binding DedupedText}" Classes="CkanNumeric"
+                     FontSize="{DynamicResource CkanFontSizeCaption}" VerticalAlignment="Center"
+                     Foreground="{DynamicResource CkanAccentBrush}" />
         </Grid>
         <TextBlock Text="{Binding ConfirmHintText}" TextWrapping="Wrap"
                    FontSize="{DynamicResource CkanFontSizeCaption}" FontWeight="Medium"
@@ -149,33 +184,34 @@
     </Border>
 
     <!-- 结果区：左分组表格，右组内文件 + 执行结果 -->
-    <Grid Grid.Row="5" Margin="0,12,0,0" ColumnDefinitions="3*,2*"
+    <Grid Grid.Row="5" Margin="0,12,0,0" ColumnDefinitions="*,6,380"
           IsVisible="{Binding HasGroups}">
       <Border Grid.Column="0" Classes="CkanCard" Padding="0">
         <Grid RowDefinitions="Auto,*">
-          <Border Padding="10,7" Background="{DynamicResource CkanSubtleBackgroundBrush}"
+          <Border Padding="12,7" Background="{DynamicResource CkanSubtleBackgroundBrush}"
                   BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
-            <Grid ColumnDefinitions="*,90,90,110">
+            <Grid ColumnDefinitions="*,90,90,110,16">
               <TextBlock Grid.Column="0" Text="内容哈希 / 涉及实例" Classes="CkanCaption" />
               <TextBlock Grid.Column="1" Text="文件数" Classes="CkanCaption" />
               <TextBlock Grid.Column="2" Text="大小" Classes="CkanCaption" />
               <TextBlock Grid.Column="3" Text="可回收" Classes="CkanCaption" />
             </Grid>
           </Border>
-          <ListBox Grid.Row="1" ItemsSource="{Binding Groups}" Padding="4"
+          <ListBox Grid.Row="1" ItemsSource="{Binding Groups}" Padding="0"
                    SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
                    BorderThickness="0" Background="Transparent">
             <ListBox.ItemTemplate>
               <DataTemplate>
-                <Grid ColumnDefinitions="*,90,90,110" MinHeight="{DynamicResource CkanRowHeight}">
+                <Grid ColumnDefinitions="*,90,90,110,16" Margin="12,0" MinHeight="{DynamicResource CkanRowHeight}">
                   <Rectangle Grid.ColumnSpan="4" Classes="SelectionBar" />
-                  <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding HashText}" Width="88" TextTrimming="CharacterEllipsis"
+                  <!-- 哈希定宽、实例名占剩余宽度：横向 StackPanel 会以无限宽测量，实例名截断不生效。 -->
+                  <Grid Grid.Column="0" ColumnDefinitions="88,*" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <TextBlock Grid.Column="0" Text="{Binding HashText}" TextTrimming="CharacterEllipsis"
                                FontSize="{DynamicResource CkanFontSizeCaption}"
                                Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                    <TextBlock Text="{Binding InstanceNamesText}" TextTrimming="CharacterEllipsis"
+                    <TextBlock Grid.Column="1" Text="{Binding InstanceNamesText}" TextTrimming="CharacterEllipsis"
                                Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                  </StackPanel>
+                  </Grid>
                   <TextBlock Grid.Column="1" Text="{Binding FileCount, StringFormat='{}{0} 个文件'}"
                              VerticalAlignment="Center" Classes="CkanNumeric"
                              FontSize="{DynamicResource CkanFontSizeCaption}" />
@@ -191,7 +227,11 @@
         </Grid>
       </Border>
 
-      <Grid Grid.Column="1" Margin="12,0,0,0" RowDefinitions="Auto,*,Auto,*">
+      <!-- 分割条（GridSplitter） -->
+      <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center"
+                    VerticalAlignment="Stretch" />
+
+      <Grid Grid.Column="2" MinWidth="280" MaxWidth="600" RowDefinitions="Auto,*,Auto,*">
         <TextBlock Grid.Row="0" Text="组内文件（第一份保留，其余改成它的硬链接）"
                    Classes="CkanCaption" TextWrapping="Wrap" Margin="0,0,0,6" />
         <Border Grid.Row="1" Classes="CkanCard" Padding="0"
@@ -213,6 +253,17 @@
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
+        </Border>
+        <Border Grid.Row="1" Classes="CkanCard" IsVisible="{Binding !HasSelectedGroup}">
+          <StackPanel Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16">
+            <Border Classes="CkanIconTile Muted" HorizontalAlignment="Center">
+              <PathIcon Data="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+            </Border>
+            <TextBlock Text="未选中重复组" FontWeight="SemiBold" HorizontalAlignment="Center"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+            <TextBlock Text="在左侧列表点选任意哈希分组，查看组内涉及的所有实例文件。"
+                       Classes="CkanCaption" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="240" />
+          </StackPanel>
         </Border>
 
         <TextBlock Grid.Row="2" Text="执行结果" Margin="0,12,0,6"
@@ -256,11 +307,8 @@
             IsVisible="{Binding ShowEmptyState}"
             HorizontalAlignment="Center" VerticalAlignment="Center">
       <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="480">
-        <Border Width="56" Height="56" HorizontalAlignment="Center"
-                Background="{DynamicResource CkanSuccessBackgroundBrush}" CornerRadius="28">
-          <PathIcon Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Foreground="{DynamicResource CkanSuccessBrush}"
-                    Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+        <Border Classes="CkanIconTile Lg Success" HorizontalAlignment="Center">
+          <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
         </Border>
         <TextBlock Text="{Binding EmptyStateTitle}" HorizontalAlignment="Center"
                    FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
@@ -274,14 +322,44 @@
       </StackPanel>
     </Border>
 
+    <!-- 未扫描 / 无实例时的占位：避免结果区留出一整屏空白 -->
+    <Border Grid.Row="5" Margin="0,12,0,0" Classes="CkanEmptyStateCard Flat"
+            IsVisible="{Binding ShowInitialState}"
+            HorizontalAlignment="Center" VerticalAlignment="Center">
+      <StackPanel Spacing="10" MaxWidth="420" HorizontalAlignment="Center">
+        <Border Classes="CkanIconTile Lg Muted" HorizontalAlignment="Center">
+          <PathIcon Data="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+        </Border>
+        <TextBlock Text="还没有比对结果" FontWeight="SemiBold" HorizontalAlignment="Center"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+        <TextBlock Text="勾选实例后点「扫描」。"
+                   TextWrapping="Wrap" TextAlignment="Center" Classes="CkanCaption" />
+      </StackPanel>
+    </Border>
+
+    <Border Grid.Row="5" Margin="0,12,0,0" Classes="CkanEmptyStateCard Flat"
+            IsVisible="{Binding ShowNoInstance}"
+            HorizontalAlignment="Center" VerticalAlignment="Center">
+      <StackPanel Spacing="10" MaxWidth="420" HorizontalAlignment="Center">
+        <Border Classes="CkanIconTile Lg Muted" HorizontalAlignment="Center">
+          <PathIcon Data="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z" />
+        </Border>
+        <TextBlock Text="跨实例去重需要至少两个实例" FontWeight="SemiBold" HorizontalAlignment="Center"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+        <Button Content="添加 KSP 实例" HorizontalAlignment="Center" Classes="CkanPrimary"
+                Command="{Binding $parent[Window].DataContext.NavigateCommand}"
+                CommandParameter="instances" />
+      </StackPanel>
+    </Border>
+
     <!-- 状态栏 -->
-    <Grid Grid.Row="6" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+    <Border Grid.Row="6" Classes="CkanPageFooter" Margin="0,12,0,0">
+          <Grid ColumnDefinitions="*,Auto">
       <TextBlock Grid.Column="0" Text="{Binding StatusText}" Classes="CkanCaption"
                  TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-      <TextBlock Grid.Column="1" Text="{Binding GroupCount, StringFormat='{}重复 {0} 组'}"
-                 Classes="CkanNumeric" FontSize="{DynamicResource CkanFontSizeCaption}"
-                 Margin="12,0,0,0" VerticalAlignment="Center" />
+
     </Grid>
+    </Border>
 
     <!-- 进行中遮罩：未出结果时走骨架屏，已有分组时走进度条（同一时刻只有一个脉动元素） -->
     <Border Grid.RowSpan="7" IsVisible="{Binding IsBusy}"

@@ -92,6 +92,9 @@ public sealed partial class ContentPageViewModel : PageViewModel, IPageProjectio
 
     public bool HasNodes => RootNodes.Count > 0;
 
+    /// <summary>树里是否选中了某个条目（右栏详情卡的显示条件）。</summary>
+    public bool HasSelection => SelectedNode is not null;
+
     public bool CanCancel => IsBusy;
 
     public bool CanCopyOrOpen => !IsBusy;
@@ -207,6 +210,8 @@ public sealed partial class ContentPageViewModel : PageViewModel, IPageProjectio
         SelectedNode = null;
         return released;
     }
+
+    partial void OnSelectedNodeChanged(ContentNodeViewModel? value) => OnPropertyChanged(nameof(HasSelection));
 
     private bool CanRun() => !IsBusy;
     private bool CanRetry() => !IsBusy && HasError;

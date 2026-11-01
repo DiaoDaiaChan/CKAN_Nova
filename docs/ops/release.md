@@ -188,7 +188,7 @@ publish 默认会带 pdb：自包含版 14 个 pdb 就占 **101 MB**（其中 `l
   CKAN.dll CKAN.xml           上游 CKAN Core 及其 XML 文档
   Avalonia*.dll SkiaSharp.dll libSkiaSharp.dll HarfBuzzSharp.dll ...   渲染栈与原生库
   log4net.dll log4net.xml     日志配置（必须与 exe 同目录，程序启动时会切到程序目录）
-  Assets/ckan.ico             应用图标（csproj 里以 Content 复制）
+  Assets/ckan.ico             应用图标（csproj 里以 Content 复制；exe 内嵌、窗口与托盘共用）
   i18n/packs/{en-US,zh-CN}.json   语言包
   README.txt                  面向用户的使用说明
   THIRD-PARTY-NOTICES.txt     第三方组件与许可证清单
@@ -280,7 +280,7 @@ sha256sum -c SHA256SUMS.txt
 | 安装器 | 随包 `install/{install.ps1,uninstall.ps1}`（每用户装/卸，已实测）+ Inno 6 模板 `install/CkanUISetup.iss`（本机无 Inno，未跑 ISCC） | M13 验收口径的 `CkanUISetup.exe` 待有 Inno 的机器产出；用法见 `docs/ops/install.md` |
 | 代码签名 | 通道已接（`Sign-Artifacts.ps1` 在 stage 后、打包前调用；`-SignDryRun` 预演；`manifest.signing` 记录） | 缺证书；拿到后去掉文件名 `-unsigned` 并置 `signed=true` |
 | macOS / Linux | 未冒烟（M6 不含，属 PKG-04） | 需要真机 |
-| 图标各尺寸 | 用 `external/CKAN/assets` 的 6 档 PNG 合成 PNG-entry ICO | 若设计给出矢量图标，替换 `src/CkanUI.App/Assets/ckan.ico` |
+| 图标各尺寸 | `tools/icon-gen` 自绘 7 档（16/24/32/48/64/128/256）PNG-entry ICO，29 KB，配色取自 `Resources/Tokens.axaml`；窗口、托盘、exe 共用同一份，见 `docs/design/brand-icon.md` | 无（改令牌后重跑 `dotnet run --project tools/icon-gen/CkanUI.Tools.IconGen.csproj -c Release` 并提交产物） |
 
 ## 修订记录
 
@@ -288,3 +288,4 @@ sha256sum -c SHA256SUMS.txt
 | --- | --- |
 | 2026-10-29 | 首版：M6 / PKG-01..03 出包链路、参数 Rationale、冒烟检查单、未签名分发与回滚 |
 | 2026-10-29 | v1.4 回填：程序名改 `CkanUI.exe`、包内新增 `LICENSE.md` 与 `install/`、签名通道与 `-SignDryRun`、`-NoReadyToRun` 与四形态体积实测（§3.5）、安装器与签名行 |
+| 2026-10-31 | 图标换成 `tools/icon-gen` 生成的 7 档自有图标（替掉上游 CKAN 商标图形），补齐 `Assets/ckan.ico` 的三处消费方口径 |

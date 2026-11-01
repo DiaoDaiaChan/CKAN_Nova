@@ -32,7 +32,7 @@ public sealed class ModConfigPageViewModelTests
         var vm = Create(new FakeConfigService(), translate: text => "T(" + text + ")");
 
         Assert.That(vm.Title, Is.EqualTo("T(Mod 配置)"));
-        Assert.That(vm.NoSelectionHintText, Is.EqualTo("T(左侧选择一个 mod 查看它的可配置项。)"));
+        Assert.That(vm.NoSelectionHintText, Is.EqualTo("T(选中一个 mod 后，这里会显示它的可配置项。)"));
     }
 
     [Test]

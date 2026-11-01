@@ -14,9 +14,6 @@
                  FontSize="{DynamicResource CkanFontSizeHeading}"
                  FontWeight="SemiBold"
                  Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-      <TextBlock Text="允许安装为其他 KSP 版本构建但仍可在此版本正常运行的模组。"
-                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
     </StackPanel>
 
     <!-- 实例与原生版本详情卡片 -->

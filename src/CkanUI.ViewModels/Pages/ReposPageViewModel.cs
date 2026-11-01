@@ -126,7 +126,7 @@ public sealed partial class ReposPageViewModel : PageViewModel
     public string EmptyStateTitle => Text("还没有配置任何仓库", LocalizationKeys.ReposEmptyTitle);
 
     /// <summary>空状态说明。</summary>
-    public string EmptyStateHint => Text("仓库决定模组索引从哪里来。可以恢复官方默认仓库，或手动添加一个索引地址。", LocalizationKeys.ReposEmptyHint);
+    public string EmptyStateHint => Text("仓库决定模组索引从哪来。", LocalizationKeys.ReposEmptyHint);
 
     /// <summary>选中仓库的一行摘要。</summary>
     public string SelectedDetailText => SelectedRow is { } row

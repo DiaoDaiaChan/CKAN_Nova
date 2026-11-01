@@ -11,10 +11,11 @@
     <!-- 头部说明信息 -->
     <StackPanel Grid.Row="0" Spacing="4">
       <TextBlock Text="首选下载主机优先级排序"
+                 ToolTip.Tip="当一个模组有多个下载源镜像时，将按照下表自上而下的顺序优先选择主机；「其余所有主机」代表未明确列出的常规源 fallback 位置。"
                  FontSize="{DynamicResource CkanFontSizeHeading}"
                  FontWeight="SemiBold"
                  Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-      <TextBlock Text="当一个模组有多个下载源镜像时，将按照下表自上而下的顺序优先选择主机；「其余所有主机」代表未明确列出的常规源 fallback 位置。"
+      <TextBlock Text="下载源按从上到下的顺序优先。"
                  FontSize="{DynamicResource CkanFontSizeCaption}"
                  Foreground="{DynamicResource CkanTextSecondaryBrush}"
                  TextWrapping="Wrap" />

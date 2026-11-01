@@ -39,6 +39,7 @@
 | [design/download-stats.md](design/download-stats.md) | F-47 下载统计：三档维度、环形图与不可用下载量口径 |
 | [design/modpack-editor.md](design/modpack-editor.md) | F-46 modpack 编辑器：CkanModule 往返、版本折叠与互斥校验 |
 | [design/tray.md](design/tray.md) | F-51 系统托盘：Avalonia 12 图标装配、七项菜单与两个开关 |
+| [design/brand-icon.md](design/brand-icon.md) | PKG-02 品牌图标：生成式 7 档 ICO、SDF 构图、尺寸分档与重新生成 |
 | [design/compatible-versions.md](design/compatible-versions.md) | F-14 兼容游戏版本管理：已知版本提取、通配计算、原生保护与 Core 实例持久化（UI-11） |
 | [design/mod-details-tabs.md](design/mod-details-tabs.md) | F-26 & F-30 模组详情多页签架构：元数据/关系树/全部版本/已装文件与内容跳转（UI-03） |
 | [design/preferred-hosts.md](design/preferred-hosts.md) | F-15 首选下载主机管理：优先级排序、主机拖拽/上下移与 Core 配置持久化（UI-30） |

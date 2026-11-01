@@ -8,10 +8,37 @@
     约束（03 篇 §9 / §11）：本文件不写任何用户可见文案、不写颜色字面量；
     所有文案来自 ChangesPageViewModel，所有颜色/字号/圆角来自 Resources/Tokens.axaml 的 Ckan* token。
   -->
-  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}">
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}">
 
-    <!-- 摘要区（03 篇 §4 摘要块）：数量统计 + 预计下载体积 + 状态徽章 -->
-    <Border Grid.Row="0" Classes="CkanCard" Padding="{DynamicResource CkanToolbarPadding}">
+    <!-- 页头：与其它页保持同一范式（H1 + 一句副标题） -->
+    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,10">
+      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <TextBlock Text="变更集" Classes="CkanPageTitle" VerticalAlignment="Center" />
+        <Button Classes="CkanHelper" VerticalAlignment="Center"
+                ToolTip.Tip="变更先堆在内存里，只有点「应用」才写盘；执行中可以取消，安装阶段取消会回滚到应用前。">
+          <PathIcon Data="{StaticResource CkanIconHelp}" />
+        </Button>
+      </StackPanel>
+      <TextBlock Text="审查待安装、升级与移除的变更"
+                 Classes="CkanCaption" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <!-- 步骤条（03 篇 §4）：把"计算 → 核对 → 写入"压成一行，替代长句说明 -->
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="0,0,0,10"
+                IsVisible="{Binding !ShowEmptyState}">
+      <Border Classes="CkanStepDot"><TextBlock Text="1" /></Border>
+      <TextBlock Text="计算变更" Classes="CkanStepLabel" />
+      <TextBlock Classes="CkanStepArrow" />
+      <Border Classes="CkanStepDot"><TextBlock Text="2" /></Border>
+      <TextBlock Text="核对冲突与告警" Classes="CkanStepLabel" />
+      <TextBlock Classes="CkanStepArrow" />
+      <Border Classes="CkanStepDot" Classes.Active="{Binding IsApplying}"><TextBlock Text="3" /></Border>
+      <TextBlock Text="写入实例" Classes="CkanStepLabel" />
+    </StackPanel>
+
+    <!-- 摘要区（03 篇 §4 摘要块）：数量统计 + 预计下载体积 + 状态徽章；空集时整块收起，避免与空状态重复 -->
+    <StackPanel Grid.Row="2" Spacing="12" IsVisible="{Binding !ShowEmptyState}">
+    <Border Classes="CkanCard stagger-card" Padding="{DynamicResource CkanToolbarPadding}">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
           <TextBlock Text="{Binding SummaryText}"
@@ -30,9 +57,10 @@
         </StackPanel>
       </Grid>
     </Border>
+    </StackPanel>
 
     <!-- 冲突区与游戏运行横幅共用一行（12 篇 F-33），纵向排列互不遮挡 -->
-    <StackPanel Grid.Row="1">
+    <StackPanel Grid.Row="3">
     <!-- 游戏正在运行（12 篇 F-33）：不直接禁止，先给横幅与"仍要执行" -->
     <Border IsVisible="{Binding HasGameRunningWarning}"
             Margin="0,8,0,0" Padding="{DynamicResource CkanToolbarPadding}"
@@ -48,6 +76,7 @@
                    Foreground="{DynamicResource CkanTextPrimaryBrush}" TextWrapping="Wrap" />
         <Button Content="{Binding ApplyAnywayButtonText}"
                 Command="{Binding ApplyAnywayCommand}"
+                Classes="CkanSecondary"
                 HorizontalAlignment="Left" />
       </StackPanel>
     </Border>
@@ -78,13 +107,15 @@
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" TextWrapping="Wrap" />
         <Button Content="{Binding ShowConflictDetailsButtonText}"
                 Command="{Binding ShowConflictDetailsCommand}"
+                Classes="CkanSecondary"
+                ToolTip.Tip="请在「模组」页取消勾选其中一个，或用右侧「移除」把冲突项移出本变更集，然后点「重新计算」。本页不会替你自动裁决。"
                 HorizontalAlignment="Left" Margin="0,4,0,0" />
       </StackPanel>
     </Border>
     </StackPanel>
 
     <!-- 告警区（不阻断执行，但必须显式可见） -->
-    <Border Grid.Row="2" IsVisible="{Binding HasWarnings}"
+    <Border Grid.Row="4" IsVisible="{Binding HasWarnings}"
             Margin="0,8,0,0" Padding="{DynamicResource CkanToolbarPadding}"
             CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
             Background="{DynamicResource CkanSurfaceBackgroundBrush}"
@@ -107,7 +138,7 @@
     </Border>
 
     <!-- 执行结果 / 错误（03 篇 §9 双通道：颜色 + 文字） -->
-    <StackPanel Grid.Row="3" Spacing="6" Margin="0,8,0,0">
+    <StackPanel Grid.Row="5" Spacing="6" Margin="0,8,0,0">
       <Border IsVisible="{Binding HasResult}"
               Padding="{DynamicResource CkanToolbarPadding}"
               CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
@@ -137,6 +168,7 @@
                        Foreground="{DynamicResource CkanTextPrimaryBrush}" TextWrapping="Wrap" />
           </StackPanel>
           <Button Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
+                  Classes="CkanSmall"
                   Content="{Binding RetryButtonText}"
                   Command="{Binding RetryCommand}"
                   IsVisible="{Binding CanRetry}" />
@@ -145,7 +177,8 @@
     </StackPanel>
 
     <!-- 明细表（03 篇 §4）：列头 + 虚拟化列表 + 空状态叠加 -->
-    <Grid Grid.Row="4" RowDefinitions="Auto,*" Margin="0,8,0,0">
+    <Grid Grid.Row="6" RowDefinitions="Auto,*" Margin="0,8,0,0"
+          IsVisible="{Binding !ShowEmptyState}">
       <Border Grid.Row="0" Padding="6,4"
               Background="{DynamicResource CkanStatusBarBackgroundBrush}"
               BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
@@ -231,7 +264,8 @@
                          HorizontalAlignment="Right" VerticalAlignment="Center"
                          Foreground="{DynamicResource CkanTextSecondaryBrush}"
                          FontSize="{DynamicResource CkanFontSizeBody}" />
-              <Button Grid.Column="6" Margin="0,1" Padding="6,0"
+              <Button Grid.Column="6" Margin="0,1" Padding="8,2"
+                      Classes="CkanSmall"
                       HorizontalAlignment="Right" VerticalAlignment="Center"
                       FontSize="{DynamicResource CkanFontSizeCaption}"
                       Content="{Binding RemoveButtonText}"
@@ -241,15 +275,17 @@
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
+    </Grid>
 
-      <!-- 空状态（03 篇 §10） -->
-      <Border Grid.Row="1" Classes="CkanEmptyStateCard" Margin="16" IsVisible="{Binding ShowEmptyState}">
+    <!-- 空状态（03 篇 §10）：页面级，不再嵌在明细表卡里（避免卡中卡） -->
+    <Border Grid.Row="6" Margin="0,8,0,0"
+            Classes="CkanEmptyStateCard Elevated stagger-card"
+            IsVisible="{Binding ShowEmptyState}">
+      <Grid>
+        <Border Classes="CkanEmptyStateGlow" />
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="460">
-          <Border Width="56" Height="56" CornerRadius="28" HorizontalAlignment="Center"
-                  Background="{DynamicResource CkanAccentSubtleBrush}">
-            <PathIcon Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center"
-                      Foreground="{DynamicResource CkanAccentBrush}"
-                      Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+          <Border Classes="CkanIconTile Lg" HorizontalAlignment="Center">
+            <PathIcon Data="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5h-2v6l5 3 1-1.7-4-2.3V7z" />
           </Border>
           <TextBlock Text="{Binding EmptyStateTitle}"
                      FontSize="{DynamicResource CkanFontSizeSubtitle}"
@@ -263,12 +299,13 @@
                   Classes="CkanSecondary"
                   HorizontalAlignment="Center" Margin="0,8,0,0" />
         </StackPanel>
-      </Border>
-    </Grid>
+      </Grid>
+    </Border>
 
     <!-- 状态栏 + 主按钮（03 篇 §4：开始 / 取消 / 重新计算） -->
-    <Border Grid.Row="5" Margin="0,8,0,0" Padding="{DynamicResource CkanToolbarPadding}"
+    <Border Grid.Row="7" Margin="0,8,0,0" Padding="{DynamicResource CkanToolbarPadding}"
             CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            IsVisible="{Binding !ShowEmptyState}"
             Background="{DynamicResource CkanStatusBarBackgroundBrush}"
             AutomationProperties.Name="{Binding StatusRegionName}">
       <Grid ColumnDefinitions="Auto,140,*,Auto,Auto,Auto,Auto">

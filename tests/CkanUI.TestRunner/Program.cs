@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using NUnitLite;
 
@@ -44,6 +45,30 @@ foreach (var (project, path) in selected)
     {
         var candidate = Path.Combine(directory, name.Name + ".dll");
         return File.Exists(candidate) ? ctx.LoadFromAssemblyPath(candidate) : null;
+    };
+    context.ResolvingUnmanagedDll += (assembly, dllName) =>
+    {
+        var name = dllName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? dllName : dllName + ".dll";
+        var candidate = Path.Combine(directory, name);
+        if (File.Exists(candidate))
+        {
+            return NativeLibrary.Load(candidate);
+        }
+
+        var arch = RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.X64 => "win-x64",
+            Architecture.Arm64 => "win-arm64",
+            Architecture.X86 => "win-x86",
+            _ => "win-x64"
+        };
+        var nativePath = Path.Combine(directory, "runtimes", arch, "native", name);
+        if (File.Exists(nativePath))
+        {
+            return NativeLibrary.Load(nativePath);
+        }
+
+        return IntPtr.Zero;
     };
 
     var assembly = context.LoadFromAssemblyPath(path);

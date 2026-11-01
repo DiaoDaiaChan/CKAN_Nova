@@ -324,6 +324,46 @@ public sealed class RepositoryCatalogTests
         Assert.That(result.Detail, Is.EqualTo("磁盘只读"));
         Assert.That(result.Retryable, Is.True);
     }
+
+    [Test]
+    public void EnsureDefaults_EmptyStore_WritesSeedEntry()
+    {
+        var seed = new[] { new RepositoryEntry("KSP-default", "https://example.com/meta.tar.gz", 0) };
+
+        var result = _catalog.EnsureDefaults(seed);
+
+        Assert.That(result.IsSuccess, Is.True);
+        Assert.That(result.Value!.Select(row => row.Name), Is.EqualTo(new[] { "KSP-default" }));
+        Assert.That(result.Value![0].Priority, Is.EqualTo(0));
+        Assert.That(_store.WriteCount, Is.EqualTo(1));
+        Assert.That(_catalog.Snapshot.Select(row => row.Name), Is.EqualTo(new[] { "KSP-default" }));
+    }
+
+    [Test]
+    public void EnsureDefaults_ExistingList_DoesNotOverwriteUserEntries()
+    {
+        _store.Seed(("Mine", "https://example.com/mine.json", 0));
+        var seed = new[] { new RepositoryEntry("KSP-default", "https://example.com/meta.tar.gz", 0) };
+
+        var result = _catalog.EnsureDefaults(seed);
+
+        Assert.That(result.IsSuccess, Is.True);
+        Assert.That(result.Value!.Select(row => row.Name), Is.EqualTo(new[] { "Mine" }));
+        Assert.That(_store.WriteCount, Is.Zero);
+    }
+
+    [Test]
+    public void EnsureDefaults_NoInstance_ReturnsEmptyWithoutWriting()
+    {
+        _store.IsAvailable = false;
+        var seed = new[] { new RepositoryEntry("KSP-default", "https://example.com/meta.tar.gz", 0) };
+
+        var result = _catalog.EnsureDefaults(seed);
+
+        Assert.That(result.IsSuccess, Is.True);
+        Assert.That(result.Value, Is.Empty);
+        Assert.That(_store.WriteCount, Is.Zero);
+    }
 }
 
 /// <summary>离线假存储：只用内存列表模拟注册表，可注入过期时长、官方默认列表与写盘异常。</summary>

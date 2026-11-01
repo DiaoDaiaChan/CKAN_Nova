@@ -9,11 +9,15 @@
                        Width="720"
                        Height="600">
   <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="12">
-    <!-- 顶部说明 -->
-    <TextBlock Grid.Row="0"
-               Text="以下是已安装模组声明推荐（recommends）或建议（suggests）、但当前尚未安装的模组（已按原发起模组分组呈现）："
-               TextWrapping="Wrap"
-               FontSize="{DynamicResource CkanFontSizeBody}" />
+    <!-- 顶部说明（长解释收进帮助按钮，可见句只留结论） -->
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
+      <TextBlock Text="以下为尚未安装的推荐或建议模组："
+                 FontSize="{DynamicResource CkanFontSizeBody}" />
+      <Button Classes="CkanHelper" VerticalAlignment="Center"
+              ToolTip.Tip="以下是已安装模组声明推荐（recommends）或建议（suggests）、但当前尚未安装的模组（已按原发起模组分组呈现）：">
+        <PathIcon Data="{StaticResource CkanIconHelp}" />
+      </Button>
+    </StackPanel>
 
     <!-- 摘要文案与全选/全不选工具条 -->
     <Grid Grid.Row="1" ColumnDefinitions="*,Auto">

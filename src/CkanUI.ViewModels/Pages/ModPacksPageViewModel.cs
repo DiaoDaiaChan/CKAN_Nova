@@ -61,6 +61,9 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
     /// <summary>导出表单。</summary>
     public ExportFormViewModel ExportForm { get; }
 
+    /// <summary>是否已经选中一个可用的游戏实例（页头徽标与导出/导入入口据此切换）。</summary>
+    public bool HasInstance => _modPacks.HasActiveInstance;
+
     /// <summary>当前实例的说明文案。</summary>
     public string InstanceTitleText => _modPacks.InstanceName is { Length: > 0 } name
         ? Text("当前实例：{0}", LocalizationKeys.ModPacksCurrentInstance, name)
@@ -134,7 +137,7 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
     public string PreviewEmptyStateTitle => Text("还没有导入预览", LocalizationKeys.ModPacksPreviewEmptyTitle);
 
     /// <summary>预览空状态提示。</summary>
-    public string PreviewEmptyStateHint => Text("在上面的路径框里每行填一个 .ckan 文件路径，然后点「预览导入」。预览只读取，不会安装任何东西。", LocalizationKeys.ModPacksPreviewEmptyHint);
+    public string PreviewEmptyStateHint => Text("每行填一个 .ckan 路径，再点「预览导入」。", LocalizationKeys.ModPacksPreviewEmptyHint);
 
     // ---- 比对 --------------------------------------------------------------
 
@@ -176,7 +179,7 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
     public string DiffEmptyStateTitle => Text("还没有对比结果", LocalizationKeys.ModPacksDiffEmptyTitle);
 
     /// <summary>对比空状态提示。</summary>
-    public string DiffEmptyStateHint => Text("选择左右两个实例后点「开始对比」，只会读取两个实例的已装列表，不会改动任何文件。", LocalizationKeys.ModPacksDiffEmptyHint);
+    public string DiffEmptyStateHint => Text("选两个实例后点「开始对比」，只读取。", LocalizationKeys.ModPacksDiffEmptyHint);
 
     // ---- 公共状态 ----------------------------------------------------------
 
@@ -601,6 +604,7 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
         }
 
         OnPropertyChanged(nameof(InstanceTitleText));
+        OnPropertyChanged(nameof(HasInstance));
         OnPropertyChanged(nameof(CanExport));
         OnPropertyChanged(nameof(CanCompare));
     }
@@ -610,6 +614,7 @@ public sealed partial class ModPacksPageViewModel : PageViewModel
     private void OnCurrentChanged(InstanceInfo? info)
     {
         OnPropertyChanged(nameof(InstanceTitleText));
+        OnPropertyChanged(nameof(HasInstance));
         OnPropertyChanged(nameof(CanExport));
     }
 

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading.Tasks;
 using CkanUI.ViewModels;
 using CkanUI.ViewModels.Navigation;
@@ -64,6 +65,34 @@ public sealed class ShellViewModelTests
         Assert.That(vm.NavItems[17].Title, Is.EqualTo("T:Ui_NavRail_Settings"));
         Assert.That(vm.NavItems[18].Title, Is.EqualTo("T:Ui_NavRail_ModConfig"));
         Assert.That(vm.NavItems.Count, Is.EqualTo(19));
+    }
+
+    [Test]
+    public async Task ModText_IsATabOfTheModsSection_NotTheToolsSection()
+    {
+        var navService = new NavigationService(key => key switch
+        {
+            "mods" => new ModsPageViewModel(),
+            "modtext" => new ModTextPageViewModel(),
+            "plugins" => new PluginsPageViewModel(),
+            _ => null
+        });
+
+        var vm = new ShellViewModel(navService);
+
+        // 模组汉化属于「模组」这个对象，作为该入口的第 6 个页签，而不是塞进「工具」。
+        await vm.NavigateCommand.ExecuteAsync("modtext");
+        Assert.That(vm.ActiveSection?.Key, Is.EqualTo("mods"));
+        Assert.That(vm.SectionTabs.Any(tab => tab.Key == "modtext"), Is.True);
+        Assert.That(vm.HasSectionTabs, Is.True);
+        Assert.That(vm.ActiveSection!.Tabs[5].Key, Is.EqualTo("modtext"));
+
+        // 工具入口只剩插件一页，页签条不再出现。
+        await vm.NavigateCommand.ExecuteAsync("plugins");
+        Assert.That(vm.ActiveSection?.Key, Is.EqualTo("plugins"));
+        Assert.That(vm.SectionTabs.Count, Is.EqualTo(1));
+        Assert.That(vm.SectionTabs[0].Key, Is.EqualTo("plugins"));
+        Assert.That(vm.HasSectionTabs, Is.False);
     }
 
     [Test]

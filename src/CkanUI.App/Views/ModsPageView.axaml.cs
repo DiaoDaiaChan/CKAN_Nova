@@ -238,6 +238,40 @@ public partial class ModsPageView : UserControl
         }
     }
 
+    // ---- 工具栏筛选 / 排序菜单（DropDownButton + MenuFlyout）---------------
+
+    private void OnInstallFilterClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { } vm && TryReadTag(sender, out var index))
+        {
+            vm.InstallFilterIndex = index;
+        }
+    }
+
+    private void OnCompatibilityFilterClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { } vm && TryReadTag(sender, out var index))
+        {
+            vm.CompatibilityFilterIndex = index;
+        }
+    }
+
+    private void OnSortColumnClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { } vm && TryReadTag(sender, out var index))
+        {
+            vm.SortColumnIndex = index;
+        }
+    }
+
+    private static bool TryReadTag(object? sender, out int index)
+    {
+        index = 0;
+        return sender is MenuItem { Tag: string tag }
+            && int.TryParse(tag, System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out index);
+    }
+
     private void OnSearchKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape)

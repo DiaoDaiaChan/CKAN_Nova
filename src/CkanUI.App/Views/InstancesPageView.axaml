@@ -8,11 +8,23 @@
   <!-- 实例页：工具条 + 左列表 + 右详情 + 状态栏 + 遮罩/表单覆盖层。 -->
   <Grid RowDefinitions="Auto,*,Auto" Margin="16,14,16,12">
 
-    <!-- 顶部命令栏：FluentAvalonia 官方 FACommandBar——高频操作常显，低频操作自动收进溢出菜单 -->
-    <Border Grid.Row="0" Padding="4,2" CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+    <!-- 页头 + 顶部命令栏：FluentAvalonia 官方 FACommandBar——高频操作常显，低频操作自动收进溢出菜单 -->
+    <StackPanel Grid.Row="0" Spacing="12">
+    <StackPanel Spacing="4">
+      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <TextBlock Text="游戏实例" Classes="CkanPageTitle" VerticalAlignment="Center" />
+        <Button Classes="CkanHelper" VerticalAlignment="Center"
+                ToolTip.Tip="同一时刻只有一个当前实例；「遗忘此实例」只移除实例记录，不会删除游戏文件。">
+          <PathIcon Data="{StaticResource CkanIconHelp}" />
+        </Button>
+      </StackPanel>
+      <TextBlock Text="多份 KSP 安装的注册与切换" Classes="CkanCaption" TextWrapping="Wrap" />
+    </StackPanel>
+    <Border Padding="4,2" CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
             Background="{DynamicResource CkanCardBackgroundBrush}"
             BorderBrush="{DynamicResource CkanCardBorderBrush}"
-            BorderThickness="1">
+            BorderThickness="1"
+            IsVisible="{Binding !ShowEmptyState}">
       <ui:FACommandBar DefaultLabelPosition="Right" ItemsAlignment="Left" OverflowButtonVisibility="Auto"
                        Background="Transparent" BorderThickness="0">
         <ui:FACommandBar.PrimaryCommands>
@@ -37,15 +49,16 @@
           <ui:FACommandBarButton IconSource="OpenFolder" Label="打开游戏目录" Command="{Binding OpenFolderCommand}"
                                  IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="在文件管理器中打开游戏目录" />
           <ui:FACommandBarButton IconSource="Edit" Label="编辑启动命令" Command="{Binding EditCommandsCommand}"
-                                 IsEnabled="{Binding CanEditCommands}" ToolTip.Tip="编辑该实例的启动命令列表（F-06）" />
+                                 IsEnabled="{Binding CanEditCommands}" ToolTip.Tip="编辑该实例的启动命令列表" />
           <ui:FACommandBarSeparator />
           <ui:FACommandBarButton IconSource="Repair" Label="实例自检" Command="{Binding DiagnoseCommand}"
-                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="只读检查锁、注册表与版本兼容性（F-08）" />
+                                 IsEnabled="{Binding CanOpenSelected}" ToolTip.Tip="只读检查锁、注册表与版本兼容性" />
           <ui:FACommandBarButton IconSource="Delete" Label="遗忘此实例" Command="{Binding ForgetCommand}"
                                  IsEnabled="{Binding CanForgetSelected}" ToolTip.Tip="只移除实例记录，不会删除游戏文件" />
         </ui:FACommandBar.SecondaryCommands>
       </ui:FACommandBar>
     </Border>
+    </StackPanel>
 
     <!-- 错误条：异常与失败统一收口到页面文本 -->
     <Border Grid.Row="1" VerticalAlignment="Top" Margin="0,10,0,0"
@@ -70,112 +83,162 @@
       </Grid>
     </Border>
 
-    <!-- 主体：左列表 Card + 右详情 Card -->
-    <Grid Grid.Row="1" ColumnDefinitions="*,6,380" Margin="0,10,0,0">
-
-      <Border Grid.Column="0"
-              Classes="stagger-card"
-              RenderTransform="translate(0px, 0px)"
-              Background="{DynamicResource CkanCardBackgroundBrush}"
-              BorderBrush="{DynamicResource CkanCardBorderBrush}"
-              BorderThickness="1"
-              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+    <!-- 主体：非空时显示「左列表 + 详情」，空状态时全宽居中展示引导卡片 -->
+    <Grid Grid.Row="1" Margin="0,10,0,0">
+      <!--
+        空状态：真正的欢迎面板（不是一片黑）。三段式 —— 图标+标题+一句说明、三条可点击的入口卡片、
+        最后才是主操作按钮。旧的实现只用了 view-layer 的 Opacity 互斥，两层同时参与布局与绘制，
+        于是"空状态文案"和"实例表格"直接叠在一起（Page 07 的严重重叠 Bug）。
+        现在改成严格互斥的 IsVisible，同一时刻只有一层存在于视觉树里。
+      -->
+      <Border Classes="CkanEmptyStateCard Elevated view-layer"
+              Classes.is-active="{Binding ShowEmptyState}"
+              IsHitTestVisible="{Binding ShowEmptyState}"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Center"
+              MaxWidth="820"
+              Padding="0"
               ClipToBounds="True">
-        <Grid RowDefinitions="Auto,*">
-          <!-- 列头 -->
-          <Border Grid.Row="0" Padding="8,8"
-                  Background="{DynamicResource CkanSubtleBackgroundBrush}"
-                  BorderBrush="{DynamicResource CkanBorderBrush}"
-                  BorderThickness="0,0,0,1">
-            <Grid ColumnDefinitions="3,*,120,90,140,90">
-              <TextBlock Grid.Column="1" Text="名称" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-              <TextBlock Grid.Column="2" Text="游戏版本" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-              <TextBlock Grid.Column="3" Text="模组数" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-              <TextBlock Grid.Column="4" Text="锁定" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-              <TextBlock Grid.Column="5" Text="状态" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            </Grid>
-          </Border>
-
-          <!--
-            实例列表（虚拟化，整表替换）。
-            与下方空状态同处 Grid.Row="1"：两层都在可视化树里，只切 .view-layer 的 is-active，
-            隐藏层的 IsHitTestVisible 同步为 false，鼠标事件穿透到可见层 —— 不用 IsVisible 硬切。
-          -->
-          <ListBox x:Name="InstancesList" Grid.Row="1"
-                   Classes="view-layer"
-                   Classes.is-active="{Binding !ShowEmptyState}"
-                   IsHitTestVisible="{Binding !ShowEmptyState}"
-                   ItemsSource="{Binding Rows}"
-                   SelectionChanged="OnRowSelectionChanged"
-                   Background="Transparent"
-                   BorderThickness="0">
-            <ListBox.ItemsPanel>
-              <ItemsPanelTemplate>
-                <VirtualizingStackPanel />
-              </ItemsPanelTemplate>
-            </ListBox.ItemsPanel>
-            <ListBox.ItemTemplate>
-              <DataTemplate>
-                <Grid ColumnDefinitions="3,*,120,90,140,90" Height="32">
-                  <!-- 当前实例绿色指示竖条 -->
-                  <Border Grid.Column="0" Width="3" Margin="0,4" CornerRadius="1.5"
-                          Background="{DynamicResource CkanSuccessBrush}" IsVisible="{Binding IsCurrent}" />
-                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="6,0">
-                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontWeight="Medium" />
-                    <Border Classes="CkanBadge Accent" IsVisible="{Binding IsDefault}">
-                      <TextBlock Text="默认" />
-                    </Border>
-                    <!-- 异常态：目录不存在 -->
-                    <Border Classes="CkanBadge Danger" IsVisible="{Binding IsPathMissing}">
-                      <TextBlock Text="⚠ 目录不存在" />
-                    </Border>
-                  </StackPanel>
-                  <TextBlock Grid.Column="2" Text="{Binding VersionText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                  <TextBlock Grid.Column="3" Text="{Binding ModuleCountText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                  <TextBlock Grid.Column="4" Text="{Binding LockText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                  <TextBlock Grid.Column="5" Text="{Binding CurrentText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                </Grid>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-
-          <!-- 空状态：与列表同格叠放，激活时盖住列表。 -->
-          <Border Grid.Row="1"
-                  Classes="view-layer"
-                  Classes.is-active="{Binding ShowEmptyState}"
-                  IsHitTestVisible="{Binding ShowEmptyState}"
-                  Background="{DynamicResource CkanCardBackgroundBrush}">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="14" MaxWidth="440" Margin="24">
-              <Border Width="56" Height="56" CornerRadius="28"
-                      Background="{DynamicResource CkanAccentSubtleBrush}"
-                      HorizontalAlignment="Center">
-                <PathIcon Width="26" Height="26"
-                          Foreground="{DynamicResource CkanAccentBrush}"
-                          HorizontalAlignment="Center" VerticalAlignment="Center"
-                          Data="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z" />
+        <Panel>
+          <Border Classes="CkanEmptyStateGlow" CornerRadius="{DynamicResource CkanCornerRadiusLarge}" />
+          <StackPanel Spacing="18" Margin="30,28">
+            <StackPanel Spacing="10" HorizontalAlignment="Center">
+              <Border Classes="CkanIconTile Lg" HorizontalAlignment="Center">
+                <PathIcon Data="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z" />
               </Border>
-              <TextBlock Text="{Binding EmptyStateTitle}" FontSize="{DynamicResource CkanFontSizeTitle}"
+              <TextBlock Text="{Binding EmptyStateTitle}" FontSize="{DynamicResource CkanFontSizeHeading}"
                          FontWeight="SemiBold" HorizontalAlignment="Center"
                          Foreground="{DynamicResource CkanTextPrimaryBrush}" />
               <TextBlock Text="{Binding EmptyStateHint}" Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                         TextWrapping="Wrap" TextAlignment="Center" />
-              <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" Margin="0,8,0,0">
-                <Button Content="{Binding EmptyStateActionText}" Command="{Binding AddCommand}"
-                        Classes="CkanPrimary"
-                        Padding="16,6" />
-                <Button Content="自动查找（Steam 库）" Command="{Binding ImportFromSteamCommand}"
-                        Classes="CkanSecondary"
-                        Padding="16,6" />
-              </StackPanel>
+                         TextWrapping="Wrap" TextAlignment="Center" MaxWidth="460" />
             </StackPanel>
-          </Border>
-        </Grid>
+
+            <!-- 三条入口卡片：把"黑洞"填成可选动作，每张都能直接点 -->
+            <Grid ColumnDefinitions="*,10,*,10,*">
+              <Button Grid.Column="0" Classes="CkanGuide" Command="{Binding ImportFromSteamCommand}"
+                      ToolTip.Tip="扫描 Steam 库里的 KSP 安装目录并登记为实例。CKAN 只读取版本号与已装模组数量，不会修改任何游戏文件。">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Grid.Column="0" Spacing="7">
+                    <Border Classes="CkanIconTile">
+                      <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
+                    </Border>
+                    <TextBlock Classes="GuideTitle" Text="从 Steam 库导入" />
+                    <TextBlock Classes="GuideDesc" Text="自动找出本机所有 KSP 安装，一次登记完成。" />
+                  </StackPanel>
+                  <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
+                            Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+                </Grid>
+              </Button>
+              <Button Grid.Column="2" Classes="CkanGuide" Command="{Binding AddCommand}"
+                      ToolTip.Tip="手动选择一个 KSP 安装目录。">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Grid.Column="0" Spacing="7">
+                    <Border Classes="CkanIconTile">
+                      <PathIcon Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </Border>
+                    <TextBlock Classes="GuideTitle" Text="手动添加目录" />
+                    <TextBlock Classes="GuideDesc" Text="已知安装路径？直接指向 KSP 根目录即可。" />
+                  </StackPanel>
+                  <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
+                            Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+                </Grid>
+              </Button>
+              <Button Grid.Column="4" Classes="CkanGuide" Command="{Binding RefreshCommand}"
+                      ToolTip.Tip="重新扫描本机实例（F5）。">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Grid.Column="0" Spacing="7">
+                    <Border Classes="CkanIconTile Muted">
+                      <PathIcon Data="M17.65 6.35A7.958 7.958 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+                    </Border>
+                    <TextBlock Classes="GuideTitle" Text="刷新列表" />
+                    <TextBlock Classes="GuideDesc" Text="已经装过？刷新一次就能把现有实例读回来。" />
+                  </StackPanel>
+                  <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
+                            Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+                </Grid>
+              </Button>
+            </Grid>
+
+            <Button Content="{Binding EmptyStateActionText}" Command="{Binding AddCommand}"
+                    Classes="CkanPrimary"
+                    HorizontalAlignment="Center"
+                    Padding="18,7" />
+          </StackPanel>
+        </Panel>
       </Border>
 
-      <GridSplitter Grid.Column="1" Background="Transparent" ResizeDirection="Columns" />
+      <!-- 非空主体：左列表 Card + 右详情 Card -->
+      <Grid ColumnDefinitions="*,6,380" Classes="view-layer"
+            Classes.is-active="{Binding !ShowEmptyState}"
+            IsHitTestVisible="{Binding !ShowEmptyState}">
+        <Border Grid.Column="0"
+                Classes="stagger-card"
+                RenderTransform="translate(0px, 0px)"
+                Background="{DynamicResource CkanCardBackgroundBrush}"
+                BorderBrush="{DynamicResource CkanCardBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+                ClipToBounds="True">
+          <Grid RowDefinitions="Auto,*">
+            <!-- 列头 -->
+            <Border Grid.Row="0" Padding="8,8"
+                    Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                    BorderBrush="{DynamicResource CkanBorderBrush}"
+                    BorderThickness="0,0,0,1">
+              <Grid ColumnDefinitions="3,*,104,64,104,84">
+                <TextBlock Grid.Column="1" Text="名称" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="2" Text="游戏版本" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="3" Text="模组数" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="4" Text="锁定" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="5" Text="状态" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              </Grid>
+            </Border>
 
-      <!-- 详情面板 Card -->
-      <Border Grid.Column="2" Padding="16"
+            <!-- 实例列表（虚拟化，整表替换） -->
+            <ListBox x:Name="InstancesList" Grid.Row="1"
+                     ItemsSource="{Binding Rows}"
+                     SelectionChanged="OnRowSelectionChanged"
+                     Background="Transparent"
+                     BorderThickness="0">
+              <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <VirtualizingStackPanel />
+                </ItemsPanelTemplate>
+              </ListBox.ItemsPanel>
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Grid ColumnDefinitions="3,*,104,64,104,84" Height="32">
+                    <!-- 当前实例绿色指示竖条 -->
+                    <Border Grid.Column="0" Width="3" Margin="0,4" CornerRadius="1.5"
+                            Background="{DynamicResource CkanSuccessBrush}" IsVisible="{Binding IsCurrent}" />
+                    <!-- 名称要能省略号截断：横向 StackPanel 会以无限宽测量子元素，TextTrimming 永远不会生效。 -->
+                    <Grid Grid.Column="1" ColumnDefinitions="*,Auto,Auto" VerticalAlignment="Center" Margin="6,0">
+                      <TextBlock Grid.Column="0" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                 ToolTip.Tip="{Binding Name}"
+                                 VerticalAlignment="Center" FontWeight="Medium" Margin="0,0,6,0" />
+                      <Border Grid.Column="1" Classes="CkanBadge Accent" IsVisible="{Binding IsDefault}" Margin="0,0,4,0">
+                        <TextBlock Text="默认" />
+                      </Border>
+                      <!-- 异常态：目录不存在 -->
+                      <Border Grid.Column="2" Classes="CkanBadge Danger" IsVisible="{Binding IsPathMissing}">
+                        <TextBlock Text="⚠ 目录不存在" />
+                      </Border>
+                    </Grid>
+                    <TextBlock Grid.Column="2" Text="{Binding VersionText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    <TextBlock Grid.Column="3" Text="{Binding ModuleCountText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    <TextBlock Grid.Column="4" Text="{Binding LockText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    <TextBlock Grid.Column="5" Text="{Binding CurrentText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </Grid>
+        </Border>
+
+        <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
+
+        <!-- 详情面板 Card -->
+        <Border Grid.Column="2" Padding="16"
               Classes="stagger-card"
               RenderTransform="translate(0px, 0px)"
               CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
@@ -186,7 +249,7 @@
           <!-- 状态 A：未选择实例时的极简引导（不发灰的按钮墙，只留一句话）。 -->
           <StackPanel Classes="view-layer"
                       Classes.is-active="{Binding !HasSelection}"
-                      IsHitTestVisible="False"
+                      IsHitTestVisible="{Binding !HasSelection}"
                       VerticalAlignment="Center"
                       HorizontalAlignment="Center"
                       Spacing="10"
@@ -300,10 +363,13 @@
           </ScrollViewer>
         </Grid>
       </Border>
+      </Grid>
     </Grid>
 
     <!-- 状态栏：计数 / 当前实例 / 启动阶段 / 精简模式与「恢复数据」出口 / 主状态文案 -->
-    <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*" Margin="0,10,0,0">
+    <Border Grid.Row="2" Classes="CkanPageFooter" Margin="0,12,0,0"
+            IsVisible="{Binding !ShowEmptyState}">
+    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*">
       <TextBlock Grid.Column="0" Text="{Binding CountText}" FontSize="12"
                  Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
       <TextBlock Grid.Column="1" Text="{Binding CurrentSummary}" FontSize="12" Margin="14,0,0,0"
@@ -321,6 +387,7 @@
       <TextBlock Grid.Column="5" Text="{Binding StatusText}" FontSize="12" Margin="14,0,0,0"
                  Foreground="{DynamicResource CkanTextTertiaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
     </Grid>
+    </Border>
 
     <!-- 内联表单覆盖层 -->
     <Border Grid.RowSpan="3" IsVisible="{Binding HasForm}" Background="{DynamicResource CkanScrimBrush}">

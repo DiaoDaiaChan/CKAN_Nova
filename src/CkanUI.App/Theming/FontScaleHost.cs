@@ -35,7 +35,7 @@ public sealed class FontScaleHost : IDisposable
     /// <summary>小标题 token（基准 17）。</summary>
     public const string HeadingKey = "CkanFontSizeHeading";
 
-    /// <summary>标题 token（基准 20）。</summary>
+    /// <summary>标题 token（基准 26）。</summary>
     public const string TitleKey = "CkanFontSizeTitle";
 
     /// <summary>token 与 Tokens.axaml 里的基准字号一一对应（顺序即覆盖顺序）。</summary>
@@ -45,7 +45,7 @@ public sealed class FontScaleHost : IDisposable
         (BodyKey, 13),
         (SubtitleKey, 15),
         (HeadingKey, 17),
-        (TitleKey, 20),
+        (TitleKey, 26),
     };
 
     private readonly IUiSettingsStore _settings;

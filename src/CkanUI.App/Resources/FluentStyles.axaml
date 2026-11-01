@@ -1,13 +1,59 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:ui="using:FluentAvalonia.UI.Controls">
-
-  <!--
-    全局字体回退链（16 篇 §7.1）：From Window 继承到所有子控件，中/日/韩文案不会退化成方框。
-    用 DynamicResource 而非字面量，方便主题层将来整体换字体（20 篇 P-09 只缩放字号，不改字体）。
-  -->
+        xmlns:ui="using:FluentAvalonia.UI.Controls"
+        xmlns:uip="using:FluentAvalonia.UI.Controls.Primitives"
+        xmlns:dialogs="using:CkanUI.App.Views.Dialogs">
+  <!-- 全局字体回退链：从 Window 继承到子控件，避免 CJK 文案退化为方框。 -->
   <Style Selector="Window">
     <Setter Property="FontFamily" Value="{DynamicResource CkanUiFontFamily}" />
+  </Style>
+
+  <!-- 模态对话框统一背景设计令牌接入（:is 匹配所有继承自 DialogWindow 的派生窗口） -->
+  <Style Selector=":is(dialogs|DialogWindow)">
+    <Setter Property="Background" Value="{DynamicResource CkanDialogBackgroundBrush}" />
+  </Style>
+
+  <!-- Fluent 文本层级：字号与颜色沿用现有语义 token，局部间距按 4/8px 网格。 -->
+  <Style Selector="TextBlock.Title">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeTitle}" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="Margin" Value="0,0,0,16" />
+  </Style>
+
+  <Style Selector="TextBlock.Subtitle">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeHeading}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="Margin" Value="0,0,0,12" />
+  </Style>
+
+  <Style Selector="TextBlock.Body">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="Margin" Value="0,0,0,8" />
+  </Style>
+
+  <Style Selector="TextBlock.Caption">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+    <Setter Property="Margin" Value="0,0,0,4" />
+  </Style>
+
+  <Style Selector="TextBlock.Header">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeSubtitle}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="Margin" Value="0,0,0,8" />
+  </Style>
+
+  <!-- 滚动条自动隐藏由 Avalonia 原生属性提供，页面过渡由 MainWindow 代码装配。 -->
+  <Style Selector="ScrollViewer">
+    <Setter Property="AllowAutoHide" Value="True" />
+  </Style>
+
+  <Style Selector="ScrollBar">
+    <Setter Property="AllowAutoHide" Value="True" />
   </Style>
 
   <!-- ========================================== -->
@@ -71,8 +117,18 @@
     <Setter Property="RenderTransform" Value="translateY(-1px)" />
   </Style>
 
+  <Style Selector="Button.CkanPrimary:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentTextBrush}" />
+  </Style>
+
   <Style Selector="Button.CkanPrimary:pressed">
     <Setter Property="RenderTransform" Value="scale(0.97)" />
+  </Style>
+
+  <Style Selector="Button.CkanPrimary:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentTextBrush}" />
   </Style>
 
   <!-- ========================================== -->
@@ -128,8 +184,8 @@
   <!-- 现代轻量化筛选胶囊 (Filter Chips)            -->
   <!-- ========================================== -->
   <Style Selector="Button.CkanChip">
-    <Setter Property="CornerRadius" Value="14" />
-    <Setter Property="Padding" Value="12,4" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Padding" Value="10,4" />
     <Setter Property="MinHeight" Value="28" />
     <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
     <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
@@ -170,6 +226,28 @@
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
+  <Style Selector="Button.CkanChip:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+  </Style>
+
+  <Style Selector="Button.CkanChip.Active /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <Style Selector="Button.CkanChip:disabled">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+
+  <Style Selector="Button.CkanChip:disabled /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+  </Style>
+
   <!-- ========================================== -->
   <!-- 现代化输入框 (TextBox & SearchBox)          -->
   <!-- ========================================== -->
@@ -200,8 +278,8 @@
   </Style>
 
   <Style Selector="TextBox.CkanSearchBox">
-    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusPill}" />
-    <Setter Property="Padding" Value="14,6" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Padding" Value="10,6" />
     <Setter Property="MinHeight" Value="{DynamicResource CkanControlHeightMedium}" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
@@ -324,10 +402,51 @@
   </Style>
 
   <!--
-    卡片入场锚点：默认就位（页面上没有错峰行为的场合保持静止）。
-    错峰由 App/Animations/StaggerAnimator 在页面切换时临时挂 .stagger-prepare 再逐个摘除来驱动。
+    上面两条 Control.view-layer 是架构测试（MotionSkeletonTests）钉住的契约锚点，必须原样保留。
+    但 Avalonia 的类型选择器只匹配"类型恰好等于"的元素 —— Control.view-layer 匹配不到 Border / Grid /
+    StackPanel / ScrollViewer（实测这些元素 Opacity 恒为 1），所以真正让叠层生效的是下面这对纯类选择器：
+    只要挂了 view-layer 类，任何控件都会被压到 Opacity 0。
+  -->
+  <Style Selector=".view-layer" x:SetterTargetType="Control">
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="RenderTransform" Value="scale(0.98, 0.98) translate(0px, 6px)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+        <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector=".view-layer.is-active" x:SetterTargetType="Control">
+    <Setter Property="Opacity" Value="1" />
+    <Setter Property="RenderTransform" Value="scale(1, 1) translate(0px, 0px)" />
+  </Style>
+
+  <!--
+    一级卡片锚点：永远是「已就位」状态。页面切换已改成瞬时替换（见 MainWindow 的 OnPageHostPropertyChanged 说明），
+    没有任何入口再挂 .stagger-prepare；锚点与弹簧过渡留着，给以后需要「整页错峰入场」的场合直接复用。
   -->
   <Style Selector="Control.stagger-card">
+    <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+        <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <!-- 与 view-layer 同理：类型选择器只匹配精确类型 Control，这里补一份能命中 Border / Grid 的类选择器版本。 -->
+  <Style Selector=".stagger-card" x:SetterTargetType="Control">
     <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
     <Setter Property="Transitions">
       <Transitions>
@@ -348,8 +467,92 @@
   -->
   <Style Selector="Control.stagger-card.stagger-prepare">
     <Setter Property="Transitions" Value="{x:Null}" />
-    <Setter Property="Opacity" Value="0" />
     <Setter Property="RenderTransform" Value="translate(0px, 14px)" />
+  </Style>
+
+  <Style Selector=".stagger-card.stagger-prepare" x:SetterTargetType="Control">
+    <Setter Property="Transitions" Value="{x:Null}" />
+    <Setter Property="RenderTransform" Value="translate(0px, 14px)" />
+  </Style>
+
+  <Style Selector="Control.stagger-card.stagger-prepare-right">
+    <Setter Property="Transitions" Value="{x:Null}" />
+    <Setter Property="RenderTransform" Value="translate(18px, 10px)" />
+  </Style>
+
+  <Style Selector=".stagger-card.stagger-prepare-right" x:SetterTargetType="Control">
+    <Setter Property="Transitions" Value="{x:Null}" />
+    <Setter Property="RenderTransform" Value="translate(18px, 10px)" />
+  </Style>
+
+  <Style Selector="Control.stagger-card.stagger-prepare-left">
+    <Setter Property="Transitions" Value="{x:Null}" />
+    <Setter Property="RenderTransform" Value="translate(-18px, 10px)" />
+  </Style>
+
+  <Style Selector=".stagger-card.stagger-prepare-left" x:SetterTargetType="Control">
+    <Setter Property="Transitions" Value="{x:Null}" />
+    <Setter Property="RenderTransform" Value="translate(-18px, 10px)" />
+  </Style>
+
+  <!--
+    页面与页签内容舞台（.tab-stage）：在同组页签切换时提供 8px 临界阻尼水平平滑滑入，跨组切换时提供 6px 轻柔上浮。
+    走档位 1（临界阻尼 m=1 k=180 c=26）：绝对不过冲、不回弹，避免阅读区文字与表格线条晃动。
+  -->
+  <Style Selector="Control.tab-stage">
+    <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector=".tab-stage" x:SetterTargetType="Control">
+    <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Control.tab-stage.tab-prepare-right">
+    <Setter Property="Transitions" Value="{x:Null}" />
+    <Setter Property="RenderTransform" Value="translate(8px, 0px)" />
+  </Style>
+
+  <Style Selector=".tab-stage.tab-prepare-right" x:SetterTargetType="Control">
+    <Setter Property="Transitions" Value="{x:Null}" />
+    <Setter Property="RenderTransform" Value="translate(8px, 0px)" />
+  </Style>
+
+  <Style Selector="Control.tab-stage.tab-prepare-left">
+    <Setter Property="Transitions" Value="{x:Null}" />
+    <Setter Property="RenderTransform" Value="translate(-8px, 0px)" />
+  </Style>
+
+  <Style Selector=".tab-stage.tab-prepare-left" x:SetterTargetType="Control">
+    <Setter Property="Transitions" Value="{x:Null}" />
+    <Setter Property="RenderTransform" Value="translate(-8px, 0px)" />
+  </Style>
+
+  <Style Selector="Control.tab-stage.tab-prepare-up">
+    <Setter Property="Transitions" Value="{x:Null}" />
+    <Setter Property="RenderTransform" Value="translate(0px, 6px)" />
+  </Style>
+
+  <Style Selector=".tab-stage.tab-prepare-up" x:SetterTargetType="Control">
+    <Setter Property="Transitions" Value="{x:Null}" />
+    <Setter Property="RenderTransform" Value="translate(0px, 6px)" />
   </Style>
 
   <!--
@@ -370,11 +573,29 @@
     </Setter>
   </Style>
 
+  <Style Selector=".is-invalid" x:SetterTargetType="Control">
+    <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringImpulse}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="650" Damping="14" InitialVelocity="30" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+      </Transitions>
+    </Setter>
+  </Style>
+
   <Style Selector="TextBox.is-invalid, ComboBox.is-invalid">
     <Setter Property="BorderBrush" Value="{DynamicResource CkanDangerBrush}" />
   </Style>
 
   <Style Selector="Control.shake-impulse">
+    <Setter Property="Transitions" Value="{x:Null}" />
+    <Setter Property="RenderTransform" Value="translate(8px, 0px)" />
+  </Style>
+
+  <Style Selector=".shake-impulse" x:SetterTargetType="Control">
     <Setter Property="Transitions" Value="{x:Null}" />
     <Setter Property="RenderTransform" Value="translate(8px, 0px)" />
   </Style>
@@ -405,6 +626,19 @@
 
   <Style Selector="ui|FANavigationViewItem.nav-catch-up">
     <Setter Property="RenderTransform" Value="translate(4px, 0px)" />
+  </Style>
+
+  <!--
+    单选指示条：FluentAvalonia 的每个导航项各自带一条 #SelectionIndicator，
+    切页时旧项淡出的 600ms 内会与新项同时可见（截图里就是两条蓝杠并排）。
+    这里让未选中项立即隐藏自己的指示条，只保留当前选中项的一条，视觉上永远是单选。
+  -->
+  <Style Selector="uip|FANavigationViewItemPresenter /template/ Border#SelectionIndicator">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+
+  <Style Selector="ui|FANavigationViewItem.nav-selected uip|FANavigationViewItemPresenter /template/ Border#SelectionIndicator">
+    <Setter Property="IsVisible" Value="True" />
   </Style>
 
   <!-- ========================================== -->
@@ -484,18 +718,330 @@
   <!-- ========================================== -->
   <!-- 空状态容器 (Empty State)                    -->
   <!-- ========================================== -->
+  <!--
+    空状态必须有「实体」：早期版本为了不给内容区套框，把它做成全透明，
+    结果 19 个页面里 12 个的空状态就是一片死黑 —— 这正是"无生机"的根因。
+    现在它是一块真实存在的 Surface：卡片层底色 + 顶光描边 + 内嵌一层柔光。
+  -->
   <Style Selector="Border.CkanEmptyStateCard">
-    <Setter Property="Background" Value="{DynamicResource CkanCardBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource CkanCardBorderBrush}" />
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanHairlineBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
-    <Setter Property="Padding" Value="32,24" />
+    <Setter Property="Padding" Value="28,32" />
+  </Style>
+
+  <!-- 独立使用的空状态（外面没有卡片包着）：升到卡片层 + 低投影，成为页面的视觉主体 -->
+  <Style Selector="Border.CkanEmptyStateCard.Elevated">
+    <Setter Property="Background" Value="{DynamicResource CkanLayerCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanCardBorderBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusLarge}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource CkanElevationLow}" />
+  </Style>
+
+  <!-- 嵌在已有卡片/表格框里的空状态：不再套第二层边框，只留内容 -->
+  <Style Selector="Border.CkanEmptyStateCard.Flat">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="24,28" />
+  </Style>
+
+  <!-- 空状态里的柔光背景：贴在卡片内部做径向强调，替掉原先"整屏黑"的观感 -->
+  <Style Selector="Border.CkanEmptyStateGlow">
+    <Setter Property="Background" Value="{DynamicResource CkanEmptyStateGlowBrush}" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+  </Style>
+
+  <!-- 步骤条：流程引导（序号圆点 + 标签 + 箭头），避免用长句解释操作顺序 -->
+  <Style Selector="Border.CkanStepDot">
+    <Setter Property="Width" Value="22" />
+    <Setter Property="Height" Value="22" />
+    <Setter Property="CornerRadius" Value="11" />
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.CkanStepDot TextBlock">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.CkanStepDot.Active">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+  <Style Selector="Border.CkanStepDot.Active TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+  <Style Selector="TextBlock.CkanStepLabel">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBlock.CkanStepArrow">
+    <Setter Property="Text" Value="›" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="2,0" />
+  </Style>
+
+  <!-- 图标方块：空状态 / 引导卡片 / 指标卡共用的小尺寸图标底座 -->
+  <Style Selector="Border.CkanIconTile">
+    <Setter Property="Width" Value="40" />
+    <Setter Property="Height" Value="40" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanHairlineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.CkanIconTile.Lg">
+    <Setter Property="Width" Value="56" />
+    <Setter Property="Height" Value="56" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+  </Style>
+  <Style Selector="Border.CkanIconTile PathIcon">
+    <Setter Property="Width" Value="20" />
+    <Setter Property="Height" Value="20" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.CkanIconTile.Muted">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+  </Style>
+  <Style Selector="Border.CkanIconTile.Muted PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+  </Style>
+  <!-- 次按钮 / 主按钮禁用态：保住描边与形状，只降文字权重（整体压暗会让工具条变成一串裸灰字） -->
+  <Style Selector="Button.CkanSecondary:disabled">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="Button.CkanSecondary:disabled /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+  </Style>
+  <Style Selector="Button.CkanPrimary:disabled">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="Button.CkanPrimary:disabled /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+  </Style>
+  <Style Selector="Button.CkanPrimary:disabled PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+  </Style>
+  <Style Selector="Button.CkanDanger:disabled">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <!-- 危险按钮禁用态：保留描边与文字可读性，不靠整体压暗（那会把 #FF6B5E 压到 2.2:1） -->
+  <Style Selector="Button.CkanDanger:disabled /template/ ContentPresenter">
+    <Setter Property="Opacity" Value="1" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+  </Style>
+
+  <Style Selector="Border.CkanIconTile.Success">
+    <Setter Property="Background" Value="{DynamicResource CkanSuccessBackgroundBrush}" />
+  </Style>
+  <Style Selector="Border.CkanIconTile.Success PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource CkanSuccessBrush}" />
+  </Style>
+
+  <!--
+    引导卡片：空状态里"下一步做什么"的具象入口（欢迎页 / 首启动 / 无数据）。
+    与 CkanCardInteractive 的区别是它自带图标槽 + 标题 + 说明 + 右侧箭头，可直接当按钮用。
+  -->
+  <Style Selector="Border.CkanGuideCard">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanHairlineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+    <Setter Property="Padding" Value="14,12" />
+    <Setter Property="Cursor" Value="Hand" />
     <Setter Property="Transitions">
       <Transitions>
         <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
         <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringCrisp}" />
       </Transitions>
     </Setter>
+  </Style>
+  <Style Selector="Border.CkanGuideCard:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanElevatedCardHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="RenderTransform" Value="translateY(-2px)" />
+  </Style>
+  <Style Selector="Border.CkanGuideCard:pressed">
+    <Setter Property="RenderTransform" Value="scale(0.985)" />
+  </Style>
+
+  <!--
+    按钮版引导卡片：同一套视觉，但用 Button 承载，空状态里的"下一步"必须真的能点。
+    独立成类而不是复用 Border 版，是因为 Avalonia 的类型选择器不会跨 Button/Border 命中。
+  -->
+  <Style Selector="Button.CkanGuide">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanHairlineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+    <Setter Property="Padding" Value="14,12" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.CkanGuide /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanHairlineBrush}" />
+  </Style>
+  <Style Selector="Button.CkanGuide:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanElevatedCardHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="RenderTransform" Value="translateY(-2px)" />
+  </Style>
+  <Style Selector="Button.CkanGuide:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CkanElevatedCardHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+  <Style Selector="Button.CkanGuide:pressed">
+    <Setter Property="RenderTransform" Value="scale(0.99)" />
+  </Style>
+  <Style Selector="Button.CkanGuide:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+  <Style Selector="Button.CkanGuide:disabled">
+    <Setter Property="Opacity" Value="0.6" />
+  </Style>
+  <Style Selector="Button.CkanGuide:disabled /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+  </Style>
+  <Style Selector="Button.CkanGuide TextBlock.GuideTitle">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+  <Style Selector="Button.CkanGuide TextBlock.GuideDesc">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="MaxLines" Value="2" />
+  </Style>
+  <Style Selector="Button.CkanGuide PathIcon.GuideArrow">
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Foreground" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationFast}" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="Button.CkanGuide:pointerover PathIcon.GuideArrow">
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="RenderTransform" Value="translate(3px, 0px)" />
+  </Style>
+
+  <!-- 引导卡片的排版槽位：标题一行、说明两行封顶，长度失控不会把卡片撑变形 -->
+  <Style Selector="Border.CkanGuideCard TextBlock.GuideTitle">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+  <Style Selector="Border.CkanGuideCard TextBlock.GuideDesc">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="MaxLines" Value="2" />
+  </Style>
+  <Style Selector="Border.CkanGuideCard PathIcon.GuideArrow">
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!--
+    统计指标卡：Dashboard 三列骨架（总时长 / 最近实例 / 占用空间）。
+    数字用 CkanNumeric 等宽体，标题用 CkanEyebrow 小字距，避免"顶部指标挤作一团"。
+  -->
+  <Style Selector="Border.CkanStatCard">
+    <Setter Property="Background" Value="{DynamicResource CkanLayerCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanHairlineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+    <Setter Property="Padding" Value="16,14" />
+    <Setter Property="BoxShadow" Value="{DynamicResource CkanElevationLow}" />
+  </Style>
+
+  <!-- 眉标：小节之上的全大写微型标签，给版面一个"呼吸层"（CJK 不加字距） -->
+  <Style Selector="TextBlock.CkanEyebrow">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+    <Setter Property="LetterSpacing" Value="0.6" />
+  </Style>
+
+  <!--
+    底部状态条：原先散落在页脚边缘的裸灰色文字（"未压缩大小合计: 0 B"）统一收进这个胶囊，
+    左图标 + 若干键值对，读起来像状态栏而不是调试 Log。
+  -->
+  <!--
+    页面页脚条：整条铺满内容宽度、顶部 1px 分隔 + 表面底色。
+    原先状态文字直接贴在窗口底边，像调试 Log；收进一条栏之后才像桌面应用的状态栏。
+  -->
+  <Style Selector="Border.CkanPageFooter">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+    <Setter Property="Padding" Value="12,6" />
+  </Style>
+
+  <Style Selector="Border.CkanPageFooter TextBlock">
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Border.CkanStatusStrip">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanHairlineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Padding" Value="10,4" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.CkanStatusStrip TextBlock">
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.CkanStatusStrip TextBlock.Value">
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="FontWeight" Value="Medium" />
+  </Style>
+
+  <!-- 键值分隔：状态条里两条指标之间的竖线 -->
+  <Style Selector="Border.CkanStatusStrip Border.Divider">
+    <Setter Property="Width" Value="1" />
+    <Setter Property="Height" Value="10" />
+    <Setter Property="Margin" Value="10,0" />
+    <Setter Property="Background" Value="{DynamicResource CkanBorderBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 
   <!-- ========================================== -->
@@ -571,9 +1117,20 @@
     <Setter Property="RenderTransform" Value="translateY(-1px)" />
   </Style>
 
+  <Style Selector="Button.CkanSecondary:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+  </Style>
+
   <Style Selector="Button.CkanSecondary:pressed">
     <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
     <Setter Property="RenderTransform" Value="scale(0.98)" />
+  </Style>
+
+  <Style Selector="Button.CkanSecondary:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
   </Style>
 
   <Style Selector="Button.CkanGhost">
@@ -601,6 +1158,38 @@
   <Style Selector="Button.CkanGhost:pressed">
     <Setter Property="Background" Value="{DynamicResource CkanPressedOverlayBrush}" />
     <Setter Property="RenderTransform" Value="scale(0.98)" />
+  </Style>
+
+  <!-- DropDownButton 派生自 Button，Avalonia 类型选择器不会命中派生类型，用 :is() 补齐。 -->
+  <Style Selector=":is(DropDownButton).CkanSecondary">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="MinHeight" Value="{DynamicResource CkanControlHeightMedium}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector=":is(DropDownButton).CkanSecondary:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <Style Selector=":is(DropDownButton).CkanGhost">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="MinHeight" Value="{DynamicResource CkanControlHeightMedium}" />
+  </Style>
+
+  <Style Selector=":is(DropDownButton).CkanGhost:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanHoverOverlayBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
   </Style>
 
   <Style Selector="Button.CkanDanger">
@@ -631,6 +1220,45 @@
     <Setter Property="RenderTransform" Value="scale(0.98)" />
   </Style>
 
+  <!-- 现代筛选/开关按钮（原 CkanPill）：统一圆角矩形，选中态使用淡雅强调色。 -->
+  <Style Selector="ToggleButton.CkanPill">
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="MinHeight" Value="{DynamicResource CkanControlHeightMedium}" />
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="BorderBrush" Duration="{DynamicResource CkanMotionDurationBase}" />
+        <BrushTransition Property="Foreground" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="ToggleButton.CkanPill:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanElevatedCardHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <Style Selector="ToggleButton.CkanPill:checked, ToggleButton.CkanPill.is-active">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- Fluent 的 ToggleButton 模板会用主题强调色画 ContentPresenter，必须穿透模板部件，
+       否则深色主题下已选胶囊会变成刺眼的实心亮青，盖住 CkanAccentSubtleBrush。 -->
+  <Style Selector="ToggleButton.CkanPill:checked /template/ ContentPresenter#PART_ContentPresenter,
+                   ToggleButton.CkanPill.is-active /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
   <Style Selector="Button.CkanIcon">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
@@ -645,6 +1273,44 @@
   <Style Selector="Button.CkanIcon:pointerover">
     <Setter Property="Background" Value="{DynamicResource CkanHoverOverlayBrush}" />
     <Setter Property="RenderTransform" Value="none" />
+  </Style>
+
+  <!-- 悬浮帮助（Helper）：微型问号/信息图标按钮，精简界面文本并承载长提示（ToolTip） -->
+  <Style Selector="Button.CkanHelper">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Width" Value="20" />
+    <Setter Property="Height" Value="20" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusPill}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Help" />
+    <Setter Property="Focusable" Value="False" />
+  </Style>
+  <Style Selector="Button.CkanHelper PathIcon">
+    <Setter Property="Width" Value="13" />
+    <Setter Property="Height" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+    <Setter Property="Data" Value="{StaticResource CkanIconHelp}" />
+  </Style>
+  <Style Selector="Button.CkanHelper:pointerover">
+    <Setter Property="Background" Value="{DynamicResource CkanHoverOverlayBrush}" />
+    <Setter Property="RenderTransform" Value="none" />
+  </Style>
+  <Style Selector="Button.CkanHelper:pointerover PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <Style Selector="PathIcon.CkanHelper">
+    <Setter Property="Width" Value="13" />
+    <Setter Property="Height" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+    <Setter Property="Cursor" Value="Help" />
+    <Setter Property="Data" Value="{StaticResource CkanIconHelp}" />
+  </Style>
+  <Style Selector="PathIcon.CkanHelper:pointerover">
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
   </Style>
 
   <!-- 小号按钮：表格行内操作、工具条次要动作 -->
@@ -817,23 +1483,131 @@
   </Style>
 
   <!-- ========================================== -->
+  <!-- 外壳页签条（Button.CkanTab）：侧栏某个入口下的多个面 -->
+  <!-- 保持「文字 + 底部弹簧指示线」，字重恒定 Medium 防止切换时字宽变化推挤相邻页签。 -->
+  <!-- ========================================== -->
+  <Style Selector="Border.CkanTabUnderline">
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+  </Style>
+
+  <Style Selector="Border.CkanTabIndicator">
+    <Setter Property="Height" Value="2" />
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="Margin" Value="8,0" />
+    <Setter Property="VerticalAlignment" Value="Bottom" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Background" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="RenderTransform" Value="scaleX(0.35)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationFast}" Easing="CubicEaseOut" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Border.CkanTabUnderline:pointerover Border.CkanTabIndicator">
+    <Setter Property="Opacity" Value="0.35" />
+    <Setter Property="RenderTransform" Value="scaleX(0.6)" />
+  </Style>
+
+  <Style Selector="Border.CkanTabUnderline.Active Border.CkanTabIndicator">
+    <Setter Property="Opacity" Value="1" />
+    <Setter Property="RenderTransform" Value="scaleX(1)" />
+  </Style>
+
+  <Style Selector="Button.CkanTab">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="6,6,0,0" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    <Setter Property="RenderTransform" Value="none" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+
+  <Style Selector="Button.CkanTab /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="6,6,0,0" />
+  </Style>
+
+  <Style Selector="Button.CkanTab:pointerover">
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="RenderTransform" Value="none" />
+  </Style>
+
+  <Style Selector="Button.CkanTab:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+  </Style>
+
+  <Style Selector="Button.CkanTab:pressed">
+    <Setter Property="RenderTransform" Value="none" />
+  </Style>
+
+  <Style Selector="Button.CkanTab:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="Border.CkanTabUnderline.Active Button.CkanTab">
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="FontWeight" Value="Medium" />
+  </Style>
+
+  <Style Selector="Border.CkanTabUnderline.Active Button.CkanTab /template/ ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <!-- ========================================== -->
   <!-- 页签（TabControl / TabItem）：下划线指示器   -->
-  <!-- 下划线用透明度 + 横向缩放两条过渡，时长走 token -->
+  <!-- 下划线用透明度 + 临界阻尼弹簧横向展开，内容舞台走平滑滑入 -->
   <!-- ========================================== -->
   <Style Selector="TabControl">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Padding" Value="0" />
   </Style>
 
+  <Style Selector="TabControl /template/ ContentPresenter#PART_SelectedContentHost">
+    <Setter Property="RenderTransform" Value="translate(0px, 0px)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+      </Transitions>
+    </Setter>
+  </Style>
+
   <Style Selector="TabItem">
     <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeBody}" />
+    <Setter Property="FontWeight" Value="Medium" />
     <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
     <Setter Property="Padding" Value="14,8" />
     <Setter Property="MinHeight" Value="36" />
     <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="RenderTransform" Value="none" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Foreground" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
     <Setter Property="Template">
       <ControlTemplate>
-        <Border Background="Transparent" Padding="{TemplateBinding Padding}">
+        <Border Background="Transparent" CornerRadius="6,6,0,0" Padding="{TemplateBinding Padding}">
           <StackPanel Spacing="6">
             <ContentPresenter Content="{TemplateBinding Header}"
                               ContentTemplate="{TemplateBinding HeaderTemplate}"
@@ -844,11 +1618,15 @@
                     CornerRadius="1"
                     Background="{DynamicResource CkanAccentBrush}"
                     Opacity="0"
-                    RenderTransform="scaleX(0.4)">
+                    RenderTransform="scaleX(0.35)">
               <Border.Transitions>
                 <Transitions>
-                  <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
-                  <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationBase}" />
+                  <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationFast}" Easing="CubicEaseOut" />
+                  <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
+                    <TransformOperationsTransition.Easing>
+                      <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
+                    </TransformOperationsTransition.Easing>
+                  </TransformOperationsTransition>
                 </Transitions>
               </Border.Transitions>
             </Border>
@@ -860,11 +1638,21 @@
 
   <Style Selector="TabItem:pointerover">
     <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    <Setter Property="RenderTransform" Value="none" />
+  </Style>
+
+  <Style Selector="TabItem:pressed">
+    <Setter Property="RenderTransform" Value="none" />
+  </Style>
+
+  <Style Selector="TabItem:pointerover /template/ Border#PART_TabUnderline">
+    <Setter Property="Opacity" Value="0.35" />
+    <Setter Property="RenderTransform" Value="scaleX(0.6)" />
   </Style>
 
   <Style Selector="TabItem:selected">
     <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
-    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="FontWeight" Value="Medium" />
   </Style>
 
   <Style Selector="TabItem:selected /template/ Border#PART_TabUnderline">
@@ -889,6 +1677,9 @@
     <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
     <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
     <Setter Property="MaxWidth" Value="420" />
+  </Style>
+  <Style Selector="ToolTip TextBlock">
+    <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
 
   <!-- ========================================== -->
@@ -919,20 +1710,35 @@
   </Style>
 
   <!-- ========================================== -->
-  <!-- 滚动条：细身、圆头、hover 才明显             -->
+  <!-- 滚动条：悬浮细条，指针不在滚动条上时完全隐藏。 -->
+  <!-- 原生 AllowAutoHide 只收起两端按钮，主题仍保留  -->
+  <!-- 14px 常驻轨道，因此这里用 Opacity 做悬浮显隐。 -->
   <!-- ========================================== -->
   <Style Selector="ScrollBar:vertical">
-    <Setter Property="Width" Value="10" />
-    <Setter Property="MinWidth" Value="10" />
+    <Setter Property="Width" Value="8" />
+    <Setter Property="MinWidth" Value="8" />
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+      </Transitions>
+    </Setter>
   </Style>
-
   <Style Selector="ScrollBar:horizontal">
-    <Setter Property="Height" Value="10" />
-    <Setter Property="MinHeight" Value="10" />
+    <Setter Property="Height" Value="8" />
+    <Setter Property="MinHeight" Value="8" />
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+      </Transitions>
+    </Setter>
   </Style>
-
+  <Style Selector="ScrollBar:pointerover">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
   <Style Selector="ScrollBar Thumb">
-    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="CornerRadius" Value="4" />
   </Style>
 
   <!-- ========================================== -->
@@ -952,13 +1758,20 @@
   </Style>
 
   <Style Selector="GridSplitter">
-    <Setter Property="Background" Value="Transparent" />
-    <Setter Property="MinWidth" Value="6" />
-    <Setter Property="MinHeight" Value="6" />
+    <Setter Property="Background" Value="{DynamicResource CkanHairlineBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusPill}" />
+    <Setter Property="Margin" Value="2,10" />
+    <Setter Property="MinWidth" Value="4" />
+    <Setter Property="MinHeight" Value="4" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
   </Style>
 
   <Style Selector="GridSplitter:pointerover">
-    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="Background" Value="{DynamicResource CkanAccentBrush}" />
   </Style>
 
   <!-- ========================================== -->

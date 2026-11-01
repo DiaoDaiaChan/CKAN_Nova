@@ -1,10 +1,17 @@
 using System;
 using System.ComponentModel;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 
 using CkanUI.App.Animations;
 using CkanUI.ViewModels.Dialogs;
+using CkanUI.ViewModels.Dialogs.InstanceDialogs;
 
 namespace CkanUI.App.Views.Dialogs.InstanceDialogs;
 
@@ -43,6 +50,70 @@ public partial class InstanceFormPanel : UserControl
         {
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         }
+    }
+
+    private async void OnBrowseGameDirectoryClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not InstanceFormViewModel form)
+        {
+            return;
+        }
+
+        var storage = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (storage is null || !storage.CanPickFolder)
+        {
+            return;
+        }
+
+        var start = await ResolveStartFolderAsync(storage, form.Path);
+        var folders = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "选择 KSP 安装目录",
+            AllowMultiple = false,
+            SuggestedStartLocation = start,
+        });
+        if (folders.Count > 0)
+        {
+            form.Path = folders[0].Path.LocalPath;
+        }
+    }
+
+    private static async Task<IStorageFolder?> ResolveStartFolderAsync(IStorageProvider storage, string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            return await storage.TryGetFolderFromPathAsync(new Uri(path));
+        }
+        catch (Exception ex) when (ex is ArgumentException or UriFormatException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private void OnGameDirectoryDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = e.DataTransfer.Contains(DataFormat.File) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnGameDirectoryDrop(object? sender, DragEventArgs e)
+    {
+        if (DataContext is not InstanceFormViewModel form || !e.DataTransfer.Contains(DataFormat.File))
+        {
+            return;
+        }
+
+        var directory = DataTransferExtensions.TryGetFiles(e.DataTransfer)?.FirstOrDefault(item => Directory.Exists(item.Path.LocalPath));
+        if (directory is not null)
+        {
+            form.Path = directory.Path.LocalPath;
+        }
+        e.Handled = true;
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

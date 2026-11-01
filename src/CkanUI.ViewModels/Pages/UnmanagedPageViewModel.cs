@@ -141,7 +141,7 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
     public string NoInstanceTitle => Text("还没有选定游戏实例", LocalizationKeys.UnmanagedNoInstanceTitle);
 
     /// <summary>无实例时的说明。</summary>
-    public string NoInstanceHint => Text("未管理文件页要读取实例的 GameData，请先到实例页自动查找或手动添加一个 KSP 实例。", LocalizationKeys.UnmanagedNoInstanceHint);
+    public string NoInstanceHint => Text("请先在「实例」页选择或添加一个实例。", LocalizationKeys.UnmanagedNoInstanceHint);
 
     /// <summary>统计条文案。</summary>
     public string StatsText => Text(

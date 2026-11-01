@@ -56,7 +56,7 @@ public static class LocalizationKeys
     /// <summary>导航栏：插件（F-17）。</summary>
     public const string NavRailPlugins = "Ui_NavRail_Plugins";
 
-    /// <summary>导航栏：模组汉化/文本。</summary>
+    /// <summary>导航栏：模组翻译（词条检索与人工覆盖；属于「模组」入口的第 6 个页签）。</summary>
     public const string NavRailModText = "Ui_NavRail_ModText";
 
     /// <summary>导航栏：日志与诊断（M8 / 14 篇 §4.1 / UI-LOG-01）。</summary>
@@ -67,6 +67,12 @@ public static class LocalizationKeys
 
     /// <summary>导航栏：Mod 配置适配层（M9）。</summary>
     public const string NavRailModConfig = "Ui_NavRail_ModConfig";
+
+    /// <summary>导航入口：数据（下载缓存 / 下载统计 / 跨实例去重同处一个入口）。</summary>
+    public const string NavRailData = "Ui_NavRail_Data";
+
+    /// <summary>导航入口：工具（目前只有插件一页，页签条不会出现）。</summary>
+    public const string NavRailTools = "Ui_NavRail_Tools";
 
     /// <summary>导航栏：收起为图标栏（提示文案与无障碍名称）。</summary>
     public const string NavRailCollapse = "Ui_NavRail_Collapse";
@@ -318,7 +324,7 @@ public static class LocalizationKeys
     /// <summary>模组管理页（ModsPageViewModel）：请先在「实例」页添加或选择一个 KSP 安装目录。</summary>
     public const string ManageModsEmptyNoInstanceHint = "Ui_ManageMods_EmptyNoInstanceHint";
 
-    /// <summary>模组管理页（ModsPageViewModel）：仓库索引为空：点击「刷新仓库」联网获取索引，或检查网络与仓库地址。</summary>
+    /// <summary>模组管理页（ModsPageViewModel）：仓库索引为空，点「刷新仓库」重试。</summary>
     public const string ManageModsEmptyNoIndexHint = "Ui_ManageMods_EmptyNoIndexHint";
 
     /// <summary>模组管理页（ModsPageViewModel）：试着放宽过滤条件，或按 Esc 清空搜索。</summary>
@@ -464,7 +470,7 @@ public static class LocalizationKeys
     /// <summary>实例页（InstancesPageViewModel）：还没有游戏实例</summary>
     public const string InstancesEmptyTitle = "Ui_Instances_EmptyTitle";
 
-    /// <summary>实例页（InstancesPageViewModel）：添加一个 KSP 安装目录即可开始：CKAN 会读取其中的版本号与已装模组数量，不会修改任何游戏文件。</summary>
+    /// <summary>实例页（InstancesPageViewModel）：添加一个 KSP 安装目录即可开始。</summary>
     public const string InstancesEmptyHint = "Ui_Instances_EmptyHint";
 
     /// <summary>实例页（InstancesPageViewModel）：添加实例</summary>
@@ -780,6 +786,15 @@ public static class LocalizationKeys
     /// <summary>游戏时长页（PlayTimePageViewModel）：{0}（可重试）</summary>
     public const string PlayTimeRetryableSuffix = "Ui_PlayTime_RetryableSuffix";
 
+    /// <summary>游戏时长页（PlayTimePageViewModel）：{0} 小时</summary>
+    public const string PlayTimeTotalHours = "Ui_PlayTime_TotalHours";
+
+    /// <summary>游戏时长页（PlayTimePageViewModel）：{0} 个实例</summary>
+    public const string PlayTimeInstanceCount = "Ui_PlayTime_InstanceCount";
+
+    /// <summary>游戏时长页（PlayTimePageViewModel）：暂无记录</summary>
+    public const string PlayTimeLongestEmpty = "Ui_PlayTime_LongestEmpty";
+
     // 内容预览页（ContentPageViewModel）
 
     /// <summary>内容预览页（ContentPageViewModel）：请先在列表中选中一个文件或目录。</summary>
@@ -842,7 +857,7 @@ public static class LocalizationKeys
     /// <summary>下载统计页（DownloadStatsPageViewModel）：模组</summary>
     public const string DownloadStatsDimensionMods = "Ui_DownloadStats_DimensionMods";
 
-    /// <summary>下载统计页（DownloadStatsPageViewModel）：部分模组没有下载量数据（多为本地或刚入库的模组），这些行按 0 计。</summary>
+    /// <summary>下载统计页（DownloadStatsPageViewModel）：部分模组没有下载量数据。</summary>
     public const string DownloadStatsUnavailableHint = "Ui_DownloadStats_UnavailableHint";
 
     /// <summary>下载统计页（DownloadStatsPageViewModel）：无法读取下载统计。</summary>
@@ -862,7 +877,7 @@ public static class LocalizationKeys
     /// <summary>仓库页（ReposPageViewModel）：还没有配置任何仓库</summary>
     public const string ReposEmptyTitle = "Ui_Repos_EmptyTitle";
 
-    /// <summary>仓库页（ReposPageViewModel）：仓库决定模组索引从哪里来。可以恢复官方默认仓库，或手动添加一个索引地址。</summary>
+    /// <summary>仓库页（ReposPageViewModel）：仓库决定模组索引从哪来。</summary>
     public const string ReposEmptyHint = "Ui_Repos_EmptyHint";
 
     /// <summary>仓库页（ReposPageViewModel）：选择一个仓库查看详情。</summary>
@@ -1034,7 +1049,7 @@ public static class LocalizationKeys
     /// <summary>ModConfig 页（ModConfigPageViewModel）：选择左侧的 mod 查看可配置项；没有适配器的 mod 只提供原始只读视图。</summary>
     public const string ModConfigStatusHint = "Ui_ModConfig_StatusHint";
 
-    /// <summary>ModConfig 页（ModConfigPageViewModel）：KSP 正在运行：写入配置需要重启 KSP 才生效，写盘前会再确认一次。</summary>
+    /// <summary>ModConfig 页（ModConfigPageViewModel）：KSP 正在运行，写入需重启生效。</summary>
     public const string ModConfigKspRunningHint = "Ui_ModConfig_KspRunningHint";
 
     /// <summary>ModConfig 页（ModConfigPageViewModel）：未选择 mod</summary>
@@ -1046,7 +1061,7 @@ public static class LocalizationKeys
     /// <summary>ModConfig 页（ModConfigPageViewModel）：保存 {0} 项改动</summary>
     public const string ModConfigSaveButtonPending = "Ui_ModConfig_SaveButtonPending";
 
-    /// <summary>ModConfig 页（ModConfigPageViewModel）：保存时逐文件写盘：写前快照、写后重新解析自校验；某个文件失败时只报它，其余改动与输入都保留。</summary>
+    /// <summary>ModConfig 页（ModConfigPageViewModel）：保存时逐文件写盘，失败只报该文件。</summary>
     public const string ModConfigWriteNote = "Ui_ModConfig_WriteNote";
 
     /// <summary>ModConfig 页（ModConfigPageViewModel）：恢复上次快照</summary>
@@ -1156,10 +1171,10 @@ public static class LocalizationKeys
     /// <summary>日志页（LogPageViewModel）：没有新的错误或警告</summary>
     public const string LogsSummaryClean = "Ui_Logs_SummaryClean";
 
-    /// <summary>日志页（LogPageViewModel）：当前过滤条件不会命中任何日志，试试点「恢复默认」或放宽级别的勾选。</summary>
+    /// <summary>日志页（LogPageViewModel）：当前过滤不命中，试试恢复默认。</summary>
     public const string LogsEmptyFiltered = "Ui_Logs_EmptyFiltered";
 
-    /// <summary>日志页（LogPageViewModel）：缓冲区里还没有日志。四路采集（log4net / 用户消息 / 未捕获异常 / 子进程）任一产生日志后这里就会出现。</summary>
+    /// <summary>日志页（LogPageViewModel）：缓冲区还没有日志，采集到后自动出现。</summary>
     public const string LogsEmptyNoLogs = "Ui_Logs_EmptyNoLogs";
 
     /// <summary>日志页（LogPageViewModel）：按「级别 + 族 + 消息骨架」折叠，取前 {0} 组</summary>
@@ -1197,7 +1212,7 @@ public static class LocalizationKeys
     /// <summary>跨实例去重页（DedupPageViewModel）：没有发现可去重的重复内容</summary>
     public const string DedupEmptyTitle = "Ui_Dedup_EmptyTitle";
 
-    /// <summary>跨实例去重页（DedupPageViewModel）：只比较 {0} KiB 以上、非受管、非符号链接的文件；小于这个尺寸的文件去重收益低，也更容易被用户事后编辑。</summary>
+    /// <summary>跨实例去重页（DedupPageViewModel）：没有发现可合并的重复文件。</summary>
     public const string DedupEmptyHint = "Ui_Dedup_EmptyHint";
 
     /// <summary>跨实例去重页（DedupPageViewModel）：当前平台不支持创建硬链接，只能查看重复内容，不能执行去重。</summary>
@@ -1205,6 +1220,15 @@ public static class LocalizationKeys
 
     /// <summary>跨实例去重页（DedupPageViewModel）：重复：{0} 组、{1} 个文件，可释放 {2}；跳过 {3} 项</summary>
     public const string DedupStatsText = "Ui_Dedup_StatsText";
+
+    /// <summary>跨实例去重页（DedupPageViewModel）：释放前 {0}</summary>
+    public const string DedupOccupiedBefore = "Ui_Dedup_OccupiedBefore";
+
+    /// <summary>跨实例去重页（DedupPageViewModel）：释放后 {0}</summary>
+    public const string DedupOccupiedAfter = "Ui_Dedup_OccupiedAfter";
+
+    /// <summary>跨实例去重页（DedupPageViewModel）：可释放 {0}%</summary>
+    public const string DedupReclaimPercent = "Ui_Dedup_ReclaimPercent";
 
     /// <summary>跨实例去重页（DedupPageViewModel）：已选 {0} / {1} 个实例</summary>
     public const string DedupSelectionText = "Ui_Dedup_SelectionText";
@@ -1215,16 +1239,16 @@ public static class LocalizationKeys
     /// <summary>跨实例去重页（DedupPageViewModel）：执行去重</summary>
     public const string DedupExecuteReal = "Ui_Dedup_ExecuteReal";
 
-    /// <summary>跨实例去重页（DedupPageViewModel）：预演：只校验并列出将要改成硬链接的文件，不改动磁盘。</summary>
+    /// <summary>跨实例去重页（DedupPageViewModel）：预演：只列出改动，不写盘。</summary>
     public const string DedupDryRunHint = "Ui_Dedup_DryRunHint";
 
-    /// <summary>跨实例去重页（DedupPageViewModel）：写盘：确认后会把重复文件改成硬链接（内容不变，但多个实例将共用同一份数据）。</summary>
+    /// <summary>跨实例去重页（DedupPageViewModel）：写盘：改成硬链接，多实例共用数据。</summary>
     public const string DedupWriteHint = "Ui_Dedup_WriteHint";
 
     /// <summary>跨实例去重页（DedupPageViewModel）：预演不会写盘，可以直接执行。</summary>
     public const string DedupConfirmDryRunHint = "Ui_Dedup_ConfirmDryRunHint";
 
-    /// <summary>跨实例去重页（DedupPageViewModel）：将把 {0} 个文件改成硬链接，可释放 {1}。硬链接后多个实例共用同一份数据：删除或改动任一实例的文件都会影响其它实例。</summary>
+    /// <summary>跨实例去重页（DedupPageViewModel）：将把 {0} 个文件改成硬链接，可释放 {1}。硬链接后多实例共用同一份数据。</summary>
     public const string DedupConfirmWriteHint = "Ui_Dedup_ConfirmWriteHint";
 
     /// <summary>跨实例去重页（DedupPageViewModel）：扫描失败。</summary>
@@ -1435,10 +1459,22 @@ public static class LocalizationKeys
     /// <summary>存档页（SavesPageViewModel）：共 {0} 个存档</summary>
     public const string SavesCountText = "Ui_Saves_CountText";
 
+    /// <summary>存档页（SavesPageViewModel）：自带存档（{0}）</summary>
+    public const string SavesStockToggle = "Ui_Saves_StockToggle";
+
+    /// <summary>存档页（SavesPageViewModel）：存档都被过滤器收起了</summary>
+    public const string SavesStockOnlyTitle = "Ui_Saves_StockOnlyTitle";
+
+    /// <summary>存档页（SavesPageViewModel）：勾上「自带存档」就能看到它们。</summary>
+    public const string SavesStockOnlyHint = "Ui_Saves_StockOnlyHint";
+
+    /// <summary>存档页（SavesPageViewModel）：显示自带存档</summary>
+    public const string SavesStockOnlyAction = "Ui_Saves_StockOnlyAction";
+
     /// <summary>存档页（SavesPageViewModel）：这个实例还没有存档</summary>
     public const string SavesEmptyTitle = "Ui_Saves_EmptyTitle";
 
-    /// <summary>存档页（SavesPageViewModel）：在游戏里保存一次就会出现，或者先打开 saves/ 目录看看里面有什么。</summary>
+    /// <summary>存档页（SavesPageViewModel）：在游戏里保存一次就会出现在这里。</summary>
     public const string SavesEmptyHint = "Ui_Saves_EmptyHint";
 
     /// <summary>存档页（SavesPageViewModel）：打开 saves/ 目录</summary>
@@ -1777,7 +1813,7 @@ public static class LocalizationKeys
     /// <summary>模组包页（ModPacksPageViewModel）：还没有导入预览</summary>
     public const string ModPacksPreviewEmptyTitle = "Ui_ModPacks_PreviewEmptyTitle";
 
-    /// <summary>模组包页（ModPacksPageViewModel）：在上面的路径框里每行填一个 .ckan 文件路径，然后点「预览导入」。预览只读取，不会安装任何东西。</summary>
+    /// <summary>模组包页（ModPacksPageViewModel）：每行填一个 .ckan 路径，再点「预览导入」。</summary>
     public const string ModPacksPreviewEmptyHint = "Ui_ModPacks_PreviewEmptyHint";
 
     /// <summary>模组包页（ModPacksPageViewModel）：两个实例的模组列表一致。</summary>
@@ -1789,7 +1825,7 @@ public static class LocalizationKeys
     /// <summary>模组包页（ModPacksPageViewModel）：还没有对比结果</summary>
     public const string ModPacksDiffEmptyTitle = "Ui_ModPacks_DiffEmptyTitle";
 
-    /// <summary>模组包页（ModPacksPageViewModel）：选择左右两个实例后点「开始对比」，只会读取两个实例的已装列表，不会改动任何文件。</summary>
+    /// <summary>模组包页（ModPacksPageViewModel）：选两个实例后点「开始对比」，只读取。</summary>
     public const string ModPacksDiffEmptyHint = "Ui_ModPacks_DiffEmptyHint";
 
     /// <summary>模组包页（ModPacksPageViewModel）：当前没有选中的游戏实例，请先选择一个实例。</summary>
@@ -2437,7 +2473,7 @@ public static class LocalizationKeys
     /// <summary>未管理文件页（UnmanagedPageViewModel）：还没有选定游戏实例</summary>
     public const string UnmanagedNoInstanceTitle = "Ui_Unmanaged_NoInstance_Title";
 
-    /// <summary>未管理文件页（UnmanagedPageViewModel）：未管理文件页要读取实例的 GameData，请先到实例页自动查找或手动添加一个 KSP 实例。</summary>
+    /// <summary>未管理文件页（UnmanagedPageViewModel）：请先在「实例」页选择或添加一个实例。</summary>
     public const string UnmanagedNoInstanceHint = "Ui_Unmanaged_NoInstance_Hint";
 
     /// <summary>未管理文件页（UnmanagedPageViewModel）：未管理：{0} 个文件、{1} 个目录，合计 {2}</summary>
@@ -2749,7 +2785,7 @@ public static class LocalizationKeys
     /// <summary>变更集页（ChangesPageViewModel）：存在 {0} 个冲突，解决后才能开始</summary>
     public const string ChangesConflictTitle = "Ui_Changes_Conflict_Title";
 
-    /// <summary>变更集页（ChangesPageViewModel）：请在「模组」页取消勾选其中一个，或用右侧「移除」把冲突项移出本变更集，然后点「重新计算」。本页不会替你自动裁决。</summary>
+    /// <summary>变更集页（ChangesPageViewModel）：冲突需手动处理，本页不自动裁决。</summary>
     public const string ChangesConflictHint = "Ui_Changes_Conflict_Hint";
 
     /// <summary>变更集页（ChangesPageViewModel）：游戏正在运行</summary>
@@ -2773,7 +2809,7 @@ public static class LocalizationKeys
     /// <summary>变更集页（ChangesPageViewModel）：变更集为空：所有请求项都已是最新状态，或被安装过滤器排除。</summary>
     public const string ChangesEmptyHintEmptyPreview = "Ui_Changes_Empty_Hint_Empty_Preview";
 
-    /// <summary>变更集页（ChangesPageViewModel）：请先在「模组」页勾选要安装或移除的模组，变更集结果会自动出现在这里。</summary>
+    /// <summary>变更集页（ChangesPageViewModel）：先在「模组」页勾选要安装或移除的项。</summary>
     public const string ChangesEmptyHintNoRequests = "Ui_Changes_Empty_Hint_No_Requests";
 
     /// <summary>变更集页（ChangesPageViewModel）：变更集服务尚未接入（INT-07），暂时只能看到请求数量，无法解析依赖与冲突。</summary>

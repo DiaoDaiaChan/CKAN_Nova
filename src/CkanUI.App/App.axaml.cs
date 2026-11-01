@@ -266,6 +266,23 @@ public sealed partial class App : Application
                     Log.Warn("启动期深链处理失败。", ex);
                 }
             }
+
+            // 首屏兜底：启动序列失败时（实例读不出来、注册表损坏）导航服务一次都没跳转过，
+            // 内容区会一直空白，用户只能靠点侧栏自救。只要还没落过页面，就落到侧栏第一个入口。
+            try
+            {
+                await dispatcher.InvokeAsync(() =>
+                {
+                    if (shell.CurrentPage is null && shell.RailItems.Count > 0)
+                    {
+                        shell.NavigateCommand.Execute(shell.RailItems[0].Key);
+                    }
+                }).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("首屏兜底导航失败。", ex);
+            }
         }
     }
 

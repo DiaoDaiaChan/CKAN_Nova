@@ -33,7 +33,7 @@
                 Background="{DynamicResource CkanCardBackgroundBrush}"
                 BorderBrush="{DynamicResource CkanCardBorderBrush}"
                 BorderThickness="1" CornerRadius="4">
-            <TextBlock Text="管理模组自定义标签组。设置标签属性、提醒机制或特定游戏实例可见范围。"
+            <TextBlock Text="管理模组自定义标签组。"
                        FontSize="12"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
         </Border>

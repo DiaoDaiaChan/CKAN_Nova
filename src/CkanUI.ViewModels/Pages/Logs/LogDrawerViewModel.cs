@@ -179,16 +179,55 @@ public sealed partial class LogDrawerViewModel : ObservableObject
 
     private void OpenPage() => OpenPageRequested?.Invoke(this, EventArgs.Empty);
 
+    private int _refreshRequested;
+    private int _refreshRunning;
+
     private void OnStoreChanged(object? sender, LogStoreChangedEventArgs args)
     {
-        var sync = _sync;
-        if (sync is null || sync == SynchronizationContext.Current)
+        ScheduleRefresh();
+    }
+
+    private void ScheduleRefresh()
+    {
+        Interlocked.Exchange(ref _refreshRequested, 1);
+        if (Interlocked.CompareExchange(ref _refreshRunning, 1, 0) != 0)
         {
-            Refresh();
             return;
         }
 
-        sync.Post(static state => ((LogDrawerViewModel)state!).Refresh(), this);
+        var sync = _sync;
+        if (sync is null)
+        {
+            RunCoalescedRefresh();
+            return;
+        }
+
+        sync.Post(static state => ((LogDrawerViewModel)state!).RunCoalescedRefresh(), this);
+    }
+
+    private void RunCoalescedRefresh()
+    {
+        try
+        {
+            Interlocked.Exchange(ref _refreshRequested, 0);
+            Refresh();
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _refreshRunning, 0);
+            if (Volatile.Read(ref _refreshRequested) != 0 && Interlocked.CompareExchange(ref _refreshRunning, 1, 0) == 0)
+            {
+                var sync = _sync;
+                if (sync is null)
+                {
+                    RunCoalescedRefresh();
+                }
+                else
+                {
+                    sync.Post(static state => ((LogDrawerViewModel)state!).RunCoalescedRefresh(), this);
+                }
+            }
+        }
     }
 
     partial void OnIsOpenChanged(bool value)

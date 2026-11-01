@@ -3,6 +3,7 @@
              xmlns:app="using:CkanUI.App.Theming"
              xmlns:modsViews="using:CkanUI.App.Views.Mods"
              xmlns:dialogs="using:CkanUI.App.Views.Dialogs"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
              x:Class="CkanUI.App.Views.ModsPageView"
              x:CompileBindings="False"
              KeyDown="OnRootKeyDown">
@@ -17,6 +18,13 @@
     <Style Selector="DataGridRow">
       <Setter Property="BorderThickness" Value="0" />
     </Style>
+
+    <!-- 空状态不再套卡片：表格容器让出背景与描边，只留表头与居中的引导内容。 -->
+    <Style Selector="Border.CkanCard.is-empty">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
@@ -25,135 +33,179 @@
     <!-- 页面标题与主操作：把高频操作从筛选工具条中解放出来。 -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
       <StackPanel Spacing="4" VerticalAlignment="Center">
-        <TextBlock Text="模组管理" FontSize="{DynamicResource CkanFontSizeTitle}" FontWeight="SemiBold" />
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <TextBlock Text="探索、筛选并管理你的 Kerbal Space Program 模组"
-                     Classes="CkanCaption" VerticalAlignment="Center" />
-          <Border Background="{DynamicResource CkanAccentSubtleBrush}"
-                  CornerRadius="{DynamicResource CkanCornerRadiusPill}" Padding="8,2">
-            <TextBlock Text="{Binding CountText}" Classes="CkanCaption"
-                       Foreground="{DynamicResource CkanAccentBrush}" />
-          </Border>
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <TextBlock Text="模组管理" Classes="CkanPageTitle" VerticalAlignment="Center" />
+          <ui:FAInfoBadge Value="{Binding VisibleCount}"
+                          IsVisible="{Binding HasInstance}"
+                          VerticalAlignment="Center"
+                          Background="{DynamicResource CkanAccentBrush}"
+                          ToolTip.Tip="当前筛选下的模组数量" />
+          <Button Classes="CkanHelper" VerticalAlignment="Center"
+                  ToolTip.Tip="列表来自仓库索引（刷新需联网）；勾选只是加入变更集，点「应用变更」才写盘。">
+            <PathIcon Data="{StaticResource CkanIconHelp}" />
+          </Button>
         </StackPanel>
+        <TextBlock Text="检索、筛选与应用变更集"
+                   Classes="CkanCaption" VerticalAlignment="Center" />
       </StackPanel>
       <Button Grid.Column="1" Command="{Binding ApplyChangesCommand}"
               Classes="CkanPrimary" Padding="18,8" VerticalAlignment="Center"
-              ToolTip.Tip="审查并应用当前变更集（F-32）">
+              IsVisible="{Binding HasInstance}"
+              ToolTip.Tip="审查并应用当前变更集">
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <PathIcon Width="13" Height="13" Foreground="{DynamicResource CkanAccentTextBrush}"
+          <PathIcon Width="13" Height="13"
                     Data="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
           <TextBlock Text="应用变更" VerticalAlignment="Center" />
         </StackPanel>
       </Button>
     </Grid>
 
-    <!-- 顶部工具条：用 WrapPanel 承载，窄窗口自动换行而不是横向溢出。 -->
-    <Border Grid.Row="1" Classes="CkanToolbar" Margin="0,16,0,0">
-      <StackPanel Spacing="8">
+    <!-- Fluent v2 工具条：搜索与筛选左对齐，仓库与重置动作右对齐，消除右侧空洞。 -->
+    <Border Grid.Row="1" Classes="CkanToolbar stagger-card" Margin="0,16,0,0"
+            IsVisible="{Binding HasInstance}">
+      <StackPanel Spacing="10">
+        <Grid ColumnDefinitions="*,Auto">
+          <WrapPanel Grid.Column="0" Orientation="Horizontal" ItemSpacing="8" LineSpacing="8" VerticalAlignment="Center">
+            <TextBox x:Name="SearchBox" Width="320"
+                     Classes="CkanSearchBox"
+                     AutomationProperties.Name="搜索模组"
+                     Text="{Binding SearchText, Mode=TwoWay}"
+                     PlaceholderText="名称 / @作者 / tag: / is:installed / -否定"
+                     KeyDown="OnSearchKeyDown">
+              <TextBox.InnerRightContent>
+                <Button Classes="CkanIcon" Command="{Binding ClearSearchTextCommand}"
+                        Margin="0,0,4,0"
+                        IsVisible="{Binding SearchText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                        ToolTip.Tip="清空搜索（Esc）"
+                        AutomationProperties.Name="清空搜索" Focusable="False">
+                  <PathIcon Width="12" Height="12"
+                            Data="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                </Button>
+              </TextBox.InnerRightContent>
+            </TextBox>
 
-        <WrapPanel Orientation="Horizontal">
-          <TextBox x:Name="SearchBox" Width="360" Margin="0,0,8,0"
-                   Classes="CkanSearchBox"
-                   Text="{Binding SearchText, Mode=TwoWay}"
-                   PlaceholderText="搜索模组：名称 / @作者 / tag: / is:installed / -否定"
-                   KeyDown="OnSearchKeyDown" />
+            <!-- 组合搜索面板开关（F-20/F-21）：保留原命令与状态。 -->
+            <ToggleButton Classes="CkanPill"
+                          Content="{Binding SearchPanel.SummaryText}"
+                          IsChecked="{Binding SearchPanel.IsExpanded}"
+                          VerticalAlignment="Center"
+                          ToolTip.Tip="展开 / 收起组合搜索面板（18 个字段逐项筛选）"
+                          AutomationProperties.Name="{Binding SearchPanel.SummaryText}" />
 
-          <Button Command="{Binding ClearSearchTextCommand}"
-                  Classes="CkanGhost" Margin="0,0,8,0"
-                  ToolTip.Tip="清空搜索（Esc）">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-              <PathIcon Width="11" Height="11" Data="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-              <TextBlock Text="清空" FontSize="{DynamicResource CkanFontSizeCaption}" VerticalAlignment="Center" />
-            </StackPanel>
-          </Button>
+            <DropDownButton Classes="CkanSecondary" VerticalAlignment="Center"
+                            ToolTip.Tip="安装状态与兼容性筛选"
+                            AutomationProperties.Name="状态筛选">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Width="13" Height="13" Data="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z" />
+                <TextBlock Text="状态筛选" VerticalAlignment="Center" />
+              </StackPanel>
+              <DropDownButton.Flyout>
+                <ui:FAMenuFlyout Placement="BottomEdgeAlignedLeft">
+                  <ui:FAMenuFlyoutSubItem Text="安装状态" IconSource="Filter">
+                    <MenuItem Header="全部" Click="OnInstallFilterClick" Tag="0" />
+                    <MenuItem Header="已装" Click="OnInstallFilterClick" Tag="1" />
+                    <MenuItem Header="未装" Click="OnInstallFilterClick" Tag="2" />
+                    <MenuItem Header="有更新" Click="OnInstallFilterClick" Tag="3" />
+                  </ui:FAMenuFlyoutSubItem>
+                  <ui:FAMenuFlyoutSubItem Text="兼容性" IconSource="Accept">
+                    <MenuItem Header="全部" Click="OnCompatibilityFilterClick" Tag="0" />
+                    <MenuItem Header="仅兼容" Click="OnCompatibilityFilterClick" Tag="1" />
+                    <MenuItem Header="仅不兼容" Click="OnCompatibilityFilterClick" Tag="2" />
+                  </ui:FAMenuFlyoutSubItem>
+                  <ui:FAMenuFlyoutSeparator />
+                  <ui:FAMenuFlyoutItem Text="重置筛选" IconSource="Refresh"
+                                       Command="{Binding ResetFiltersCommand}" />
+                </ui:FAMenuFlyout>
+              </DropDownButton.Flyout>
+            </DropDownButton>
 
-          <!-- 组合搜索面板开关（F-20/F-21）：逐字段填写，生成同一套搜索语法 -->
-          <Button Content="{Binding SearchPanel.SummaryText}"
-                  Command="{Binding SearchPanel.ToggleExpandedCommand}"
-                  Classes="CkanSecondary" Margin="0,0,8,0"
-                  ToolTip.Tip="展开 / 收起组合搜索面板（18 个字段逐项筛选）" />
+            <DropDownButton Classes="CkanSecondary" VerticalAlignment="Center"
+                            ToolTip.Tip="选择排序依据"
+                            AutomationProperties.Name="选择排序依据">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Width="13" Height="13" Data="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z" />
+                <TextBlock Text="排序" VerticalAlignment="Center" />
+              </StackPanel>
+              <DropDownButton.Flyout>
+                <ui:FAMenuFlyout Placement="BottomEdgeAlignedLeft">
+                  <MenuItem Header="名称" Click="OnSortColumnClick" Tag="0" />
+                  <MenuItem Header="标识符" Click="OnSortColumnClick" Tag="1" />
+                  <MenuItem Header="已装版本" Click="OnSortColumnClick" Tag="2" />
+                  <MenuItem Header="最新版本" Click="OnSortColumnClick" Tag="3" />
+                  <MenuItem Header="作者" Click="OnSortColumnClick" Tag="4" />
+                  <MenuItem Header="下载量" Click="OnSortColumnClick" Tag="5" />
+                  <MenuItem Header="体积" Click="OnSortColumnClick" Tag="6" />
+                  <MenuItem Header="已装状态" Click="OnSortColumnClick" Tag="7" />
+                  <Separator />
+                  <MenuItem Header="切换升序 / 降序" Command="{Binding ToggleSortCommand}" />
+                </ui:FAMenuFlyout>
+              </DropDownButton.Flyout>
+            </DropDownButton>
 
-          <ComboBox Margin="0,0,8,0" MinWidth="110" VerticalAlignment="Center"
-                    SelectedIndex="{Binding InstallFilterIndex, Mode=TwoWay}"
-                    ToolTip.Tip="安装状态过滤">
-            <ComboBoxItem>全部</ComboBoxItem>
-            <ComboBoxItem>已装</ComboBoxItem>
-            <ComboBoxItem>未装</ComboBoxItem>
-            <ComboBoxItem>有更新</ComboBoxItem>
-          </ComboBox>
+            <!-- 排序方向按钮：采用统一 CkanSecondary 样式，平齐下拉按钮。 -->
+            <Button Classes="CkanSecondary" VerticalAlignment="Center"
+                    Command="{Binding ToggleSortDirectionCommand}"
+                    ToolTip.Tip="切换升序 / 降序"
+                    AutomationProperties.Name="切换升序或降序">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <PathIcon Width="12" Height="12" Data="M0 8l6-6 6 6z"
+                          IsVisible="{Binding SortAscending}" />
+                <PathIcon Width="12" Height="12" Data="M12 8l-6 6-6-6z"
+                          IsVisible="{Binding !SortAscending}" />
+                <TextBlock Text="升序" VerticalAlignment="Center"
+                           IsVisible="{Binding SortAscending}" />
+                <TextBlock Text="降序" VerticalAlignment="Center"
+                           IsVisible="{Binding !SortAscending}" />
+              </StackPanel>
+            </Button>
 
-          <ComboBox Margin="0,0,8,0" MinWidth="115" VerticalAlignment="Center"
-                    SelectedIndex="{Binding CompatibilityFilterIndex, Mode=TwoWay}"
-                    ToolTip.Tip="兼容性过滤（默认仅兼容）">
-            <ComboBoxItem>全部</ComboBoxItem>
-            <ComboBoxItem>仅兼容</ComboBoxItem>
-            <ComboBoxItem>仅不兼容</ComboBoxItem>
-          </ComboBox>
+            <!-- 插件工具项（12 篇 F-17）：没有插件声明时整块不占位。 -->
+            <ItemsControl VerticalAlignment="Center" IsVisible="{Binding HasPluginTools}"
+                          ItemsSource="{Binding PluginTools}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal" Spacing="6" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button Content="{Binding Title}" Command="{Binding ExecuteCommand}"
+                          IsEnabled="{Binding !IsBusy}" Classes="CkanSmall"
+                          ToolTip.Tip="{Binding ToolTipText}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </WrapPanel>
 
-          <ComboBox Margin="0,0,8,0" MinWidth="120" VerticalAlignment="Center"
-                    SelectedIndex="{Binding SortColumnIndex, Mode=TwoWay}"
-                    ToolTip.Tip="排序依据">
-            <ComboBoxItem>名称</ComboBoxItem>
-            <ComboBoxItem>标识符</ComboBoxItem>
-            <ComboBoxItem>已装版本</ComboBoxItem>
-            <ComboBoxItem>最新版本</ComboBoxItem>
-            <ComboBoxItem>作者</ComboBoxItem>
-            <ComboBoxItem>下载量</ComboBoxItem>
-            <ComboBoxItem>体积</ComboBoxItem>
-            <ComboBoxItem>已装状态</ComboBoxItem>
-          </ComboBox>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="12,0,0,0">
+            <Button Classes="CkanSecondary"
+                    Command="{Binding RefreshRepositoriesCommand}"
+                    ToolTip.Tip="联网刷新仓库索引（Ctrl+R）">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Width="13" Height="13"
+                          Data="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+                <TextBlock Text="刷新仓库" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Classes="CkanSecondary"
+                    Command="{Binding UpdateAllCommand}"
+                    ToolTip.Tip="勾选所有可更新模组">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Width="13" Height="13"
+                          Data="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                <TextBlock Text="全量更新" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Classes="CkanGhost"
+                    Content="重置筛选"
+                    Command="{Binding ResetFiltersCommand}"
+                    ToolTip.Tip="清除所有搜索词与筛选条件" />
+          </StackPanel>
+        </Grid>
 
-          <Button Command="{Binding ToggleSortCommand}"
-                  Classes="CkanGhost" Margin="0,0,8,0"
-                  ToolTip.Tip="切换升序 / 降序">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-              <PathIcon Width="12" Height="12" Data="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z" />
-              <TextBlock Text="排序" FontSize="{DynamicResource CkanFontSizeCaption}" VerticalAlignment="Center" />
-            </StackPanel>
-          </Button>
-
-          <Button Command="{Binding RefreshRepositoriesCommand}"
-                  Classes="CkanSecondary" Margin="0,0,8,0"
-                  ToolTip.Tip="联网刷新仓库索引（Ctrl+R）">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <PathIcon Width="12" Height="12" Data="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
-              <TextBlock Text="刷新仓库" VerticalAlignment="Center" />
-            </StackPanel>
-          </Button>
-
-          <Button Command="{Binding UpdateAllCommand}"
-                  Classes="CkanSecondary" Margin="0,0,8,0"
-                  ToolTip.Tip="勾选所有可更新模组（F-32）">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <PathIcon Width="12" Height="12" Data="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z" />
-              <TextBlock Text="全量更新" VerticalAlignment="Center" />
-            </StackPanel>
-          </Button>
-
-          <!-- 插件工具项（12 篇 F-17）：没有插件声明时整块不占位 -->
-          <ItemsControl VerticalAlignment="Center" Margin="0,0,8,0"
-                        IsVisible="{Binding HasPluginTools}"
-                        ItemsSource="{Binding PluginTools}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <StackPanel Orientation="Horizontal" Spacing="6" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <Button Content="{Binding Title}"
-                        Command="{Binding ExecuteCommand}"
-                        IsEnabled="{Binding !IsBusy}"
-                        Classes="CkanSmall"
-                        ToolTip.Tip="{Binding ToolTipText}" />
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </WrapPanel>
-
-        <!-- 标签组筛选行 -->
-        <Border Classes="CkanSubtleCard" Padding="10,6" IsVisible="{Binding HasLabelService}">
-          <StackPanel Orientation="Horizontal" Spacing="8">
+        <!-- 标签组筛选行：左标签胶囊、右管理动作，铺满工具条宽度 -->
+        <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasLabelService}">
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
             <TextBlock Text="标签组" Classes="CkanCaption" VerticalAlignment="Center" />
             <ItemsControl ItemsSource="{Binding LabelFilters}" VerticalAlignment="Center">
               <ItemsControl.ItemsPanel>
@@ -172,13 +224,15 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <Button Content="清除标签筛选" Command="{Binding ResetLabelFiltersCommand}"
                     Classes="CkanSmall" ToolTip.Tip="取消全部标签组筛选" />
             <Button Content="管理标签..." Command="{Binding ManageLabelsCommand}"
-                    Classes="CkanSmall" Margin="4,0,0,0"
-                    ToolTip.Tip="打开标签组管理对话框 (F-23 / F-24)" />
+                    Classes="CkanSmall"
+                    ToolTip.Tip="打开标签组管理对话框" />
           </StackPanel>
-        </Border>
+        </Grid>
 
         <!-- 组合搜索面板（F-20/F-21）：DataContext 换成面板自身，展开状态与字段都在面板里 -->
         <modsViews:ModsSearchPanelView
@@ -189,14 +243,16 @@
       </StackPanel>
     </Border>
 
-    <!-- 主体区域：左侧表格 Card + 右侧详情 Card -->
-    <Grid Grid.Row="2" ColumnDefinitions="*,8,400" Margin="0,12,0,0">
+    <!-- 主体区域：左侧表格 Card + 右侧详情 Card；空状态时整块让位给页面级空状态卡 -->
+    <Grid Grid.Row="2" ColumnDefinitions="*,8,400" Margin="0,12,0,0"
+          IsVisible="{Binding !ShowEmptyState}">
 
       <!-- 左侧模组列表 Card -->
-      <Border Grid.Column="0" Classes="CkanCard" Padding="0" ClipToBounds="True">
+      <Border Grid.Column="0" Classes="CkanCard stagger-card" Padding="0" ClipToBounds="True">
         <Grid>
           <DataGrid x:Name="ModsGrid"
                     ItemsSource="{Binding Rows}"
+                    IsVisible="{Binding HasInstance}"
                     SelectionChanged="OnRowSelectionChanged"
                     AutoGenerateColumns="False"
                     IsReadOnly="True"
@@ -240,21 +296,24 @@
               <DataGridTemplateColumn Header="名称" Width="280">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="6,0">
-                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontWeight="Medium" />
-                      <Border Classes="CkanBadge Accent" IsVisible="{Binding ShowUpdateBadge}">
+                    <!-- 名称要能省略号截断：横向 StackPanel 以无限宽测量子元素，TextTrimming 会失效。 -->
+                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" VerticalAlignment="Center" Margin="6,0">
+                      <TextBlock Grid.Column="0" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                 ToolTip.Tip="{Binding Name}"
+                                 VerticalAlignment="Center" FontWeight="Medium" Margin="0,0,6,0" />
+                      <Border Grid.Column="1" Classes="CkanBadge Accent" IsVisible="{Binding ShowUpdateBadge}" Margin="0,0,4,0">
                         <TextBlock Text="↑ 更新" />
                       </Border>
-                      <Border Classes="CkanBadge" IsVisible="{Binding ShowAutoBadge}">
+                      <Border Grid.Column="2" Classes="CkanBadge" IsVisible="{Binding ShowAutoBadge}" Margin="0,0,4,0">
                         <TextBlock Text="自动" />
                       </Border>
-                      <Border Classes="CkanBadge Info" IsVisible="{Binding ShowDependencyBadge}">
+                      <Border Grid.Column="3" Classes="CkanBadge Info" IsVisible="{Binding ShowDependencyBadge}" Margin="0,0,4,0">
                         <TextBlock Text="依赖" />
                       </Border>
-                      <Border Classes="CkanBadge Warning" IsVisible="{Binding ShowIncompatibleBadge}">
+                      <Border Grid.Column="4" Classes="CkanBadge Warning" IsVisible="{Binding ShowIncompatibleBadge}">
                         <TextBlock Text="⚠ 不兼容" />
                       </Border>
-                    </StackPanel>
+                    </Grid>
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
@@ -274,110 +333,190 @@
             </DataGrid.Columns>
           </DataGrid>
 
-          <!-- 空状态 Card：图标 + 一句解释 + 当前过滤条件 + 主操作 -->
-          <Border Classes="CkanEmptyStateCard" Margin="12" IsVisible="{Binding ShowEmptyState}">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="440">
-              <Border Width="56" Height="56" CornerRadius="28" HorizontalAlignment="Center"
-                      Background="{DynamicResource CkanAccentSubtleBrush}">
-                <PathIcon Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center"
-                          Foreground="{DynamicResource CkanAccentBrush}"
-                          Data="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
-              </Border>
-              <TextBlock Text="{Binding EmptyStateTitle}" HorizontalAlignment="Center"
-                         FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
-                         Foreground="{DynamicResource CkanTextPrimaryBrush}" TextWrapping="Wrap" TextAlignment="Center" />
-              <TextBlock Text="{Binding EmptyStateHint}" Classes="CkanCaption"
-                         TextWrapping="Wrap" TextAlignment="Center" />
-              <ItemsControl ItemsSource="{Binding ActiveFilterChips}" HorizontalAlignment="Center">
-                <ItemsControl.ItemsPanel>
-                  <ItemsPanelTemplate>
-                    <WrapPanel />
-                  </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate>
-                    <Border Classes="CkanBadge" Margin="3">
-                      <TextBlock Text="{Binding}" />
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-              <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" Margin="0,8,0,0">
-                <Button Content="清除过滤条件" Command="{Binding ResetFiltersCommand}"
-                        Classes="CkanSecondary" />
-                <Button Content="立即刷新" Command="{Binding RefreshRepositoriesCommand}"
-                        Classes="CkanPrimary" IsVisible="{Binding CanRefreshFromEmptyState}" />
-              </StackPanel>
-            </StackPanel>
-          </Border>
+          <!-- 空状态已上提到页面层（见下方 Grid.Row=2 的 ColumnSpan 卡），不再嵌在表格卡里 -->
         </Grid>
       </Border>
 
       <!-- 拖拽分割条 -->
-      <GridSplitter Grid.Column="1" Background="Transparent" ResizeDirection="Columns" />
+      <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
 
       <!-- 右侧模组详情面板（F-26）：历史选择 + 标签组快开 + 四页签富详情 -->
-      <Border Grid.Column="2" Classes="CkanCard stagger-card">
+      <Border Grid.Column="2" Classes="CkanCard stagger-card" MinWidth="320" MaxWidth="640"
+              IsVisible="{Binding HasInstance}">
         <DockPanel>
-          <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" ItemSpacing="4" LineSpacing="4" Margin="0,0,0,6">
-            <Button Command="{Binding GoBackSelectionCommand}"
-                    IsEnabled="{Binding CanGoBackSelection}"
-                    Classes="CkanSmall"
-                    Padding="8,4"
-                    ToolTip.Tip="上一个选中模组">
-              <PathIcon Width="11" Height="11" Data="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
-            </Button>
-            <Button Command="{Binding GoForwardSelectionCommand}"
-                    IsEnabled="{Binding CanGoForwardSelection}"
-                    Classes="CkanSmall"
-                    Padding="8,4"
-                    ToolTip.Tip="下一个选中模组">
-              <PathIcon Width="11" Height="11" Data="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
-            </Button>
-            <Button Classes="CkanChip"
-                    Classes.Active="{Binding DetailIsFavourite}"
-                    Content="收藏"
-                    IsVisible="{Binding HasLabelService}"
-                    Command="{Binding ToggleFavouriteCommand}"
-                    ToolTip.Tip="加入 / 移出收藏标签组" />
-            <Button Classes="CkanChip"
-                    Classes.Active="{Binding DetailIsHidden}"
-                    Content="隐藏"
-                    IsVisible="{Binding HasLabelService}"
-                    Command="{Binding ToggleHiddenCommand}"
-                    ToolTip.Tip="加入 / 移出隐藏标签组（隐藏组默认不在其它过滤器里显示）" />
-            <Button Classes="CkanChip"
-                    Classes.Active="{Binding DetailIsHeld}"
-                    Content="锁定版本"
-                    IsVisible="{Binding HasLabelService}"
-                    Command="{Binding ToggleHeldCommand}"
-                    ToolTip.Tip="加入 / 移出锁定版本标签组（不参与升级）" />
-          </WrapPanel>
-          <TextBlock DockPanel.Dock="Bottom"
-                     Text="{Binding StatusText}"
-                     Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                     TextWrapping="Wrap" Margin="0,6,0,0" />
+          <Border DockPanel.Dock="Top" Padding="0,0,0,10" Margin="0,0,0,6"
+                  BorderBrush="{DynamicResource CkanHairlineBrush}" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <Button Command="{Binding GoBackSelectionCommand}"
+                        IsEnabled="{Binding CanGoBackSelection}"
+                        Classes="CkanSmall"
+                        Padding="8,4"
+                        ToolTip.Tip="上一个选中模组"
+                        AutomationProperties.Name="上一个选中模组">
+                  <PathIcon Width="11" Height="11" Data="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+                </Button>
+                <Button Command="{Binding GoForwardSelectionCommand}"
+                        IsEnabled="{Binding CanGoForwardSelection}"
+                        Classes="CkanSmall"
+                        Padding="8,4"
+                        ToolTip.Tip="下一个选中模组"
+                        AutomationProperties.Name="下一个选中模组">
+                  <PathIcon Width="11" Height="11" Data="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+                </Button>
+              </StackPanel>
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                          IsVisible="{Binding HasLabelService}">
+                <ToggleButton Classes="CkanPill"
+                              Classes.is-active="{Binding DetailIsFavourite}"
+                              Content="收藏"
+                              Command="{Binding ToggleFavouriteCommand}"
+                              ToolTip.Tip="加入 / 移出收藏标签组" />
+                <ToggleButton Classes="CkanPill"
+                              Classes.is-active="{Binding DetailIsHidden}"
+                              Content="隐藏"
+                              Command="{Binding ToggleHiddenCommand}"
+                              ToolTip.Tip="加入 / 移出隐藏标签组（隐藏组默认不在其它过滤器里显示）" />
+                <ToggleButton Classes="CkanPill"
+                              Classes.is-active="{Binding DetailIsHeld}"
+                              Content="锁定版本"
+                              Command="{Binding ToggleHeldCommand}"
+                              ToolTip.Tip="加入 / 移出锁定版本标签组（不参与升级）" />
+              </StackPanel>
+            </Grid>
+          </Border>
           <dialogs:ModDetailsView DataContext="{Binding Details}" />
         </DockPanel>
       </Border>
     </Grid>
 
+    <!-- 空状态：页面层独立卡，跨满整行，避免右列 400px 在空态下留出死区。
+         无实例时走"欢迎面板"三段式（图标+标题+入口卡片），把整片黑洞填成可选动作。 -->
+    <Border Grid.Row="2" Classes="CkanEmptyStateCard Elevated stagger-card" Margin="0,12,0,0"
+            IsVisible="{Binding ShowEmptyState}">
+      <Panel>
+        <Border Classes="CkanEmptyStateGlow" />
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="14" MaxWidth="760" Margin="24,20">
+        <Border Classes="CkanIconTile Lg" HorizontalAlignment="Center">
+          <Panel>
+            <PathIcon IsVisible="{Binding HasInstance}"
+                      Data="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+            <PathIcon IsVisible="{Binding !HasInstance}"
+                      Data="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2zm12.5-1.5 3 3-1.4 1.4-1.6-1.6-1.6 1.6-1.4-1.4 3-3z" />
+          </Panel>
+        </Border>
+        <TextBlock Text="{Binding EmptyStateTitle}" HorizontalAlignment="Center"
+                   FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}" TextWrapping="Wrap" TextAlignment="Center" />
+        <TextBlock Text="{Binding EmptyStateHint}" Classes="CkanCaption"
+                   TextWrapping="Wrap" TextAlignment="Center" />
+        <ItemsControl ItemsSource="{Binding ActiveFilterChips}" HorizontalAlignment="Center"
+                      IsVisible="{Binding HasInstance}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Classes="CkanBadge" Margin="3">
+                <TextBlock Text="{Binding}" />
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" Margin="0,8,0,0">
+          <Button Content="清除过滤条件" Command="{Binding ResetFiltersCommand}"
+                  Classes="CkanSecondary" IsVisible="{Binding HasInstance}" />
+          <Button Content="立即刷新" Command="{Binding RefreshRepositoriesCommand}"
+                  Classes="CkanPrimary" IsVisible="{Binding CanRefreshFromEmptyState}" />
+          <Button Content="添加 KSP 实例"
+                  Command="{Binding $parent[Window].DataContext.NavigateCommand}"
+                  CommandParameter="instances"
+                  Classes="CkanPrimary" IsVisible="{Binding !HasInstance}" />
+        </StackPanel>
+
+        <!-- 三条入口卡片：只在"没有实例"时出现，第一次打开就有明确的下一步 -->
+        <Grid ColumnDefinitions="*,10,*,10,*" IsVisible="{Binding !HasInstance}"
+              HorizontalAlignment="Stretch" Margin="0,4,0,0">
+          <Button Grid.Column="0" Classes="CkanGuide"
+                  Command="{Binding $parent[Window].DataContext.NavigateCommand}"
+                  CommandParameter="instances"
+                  ToolTip.Tip="到「实例」页点「从 Steam 库导入」，自动登记本机所有 KSP 安装">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Grid.Column="0" Spacing="7">
+                <Border Classes="CkanIconTile">
+                  <PathIcon Data="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z" />
+                </Border>
+                <TextBlock Classes="GuideTitle" Text="自动扫描本机安装" />
+                <TextBlock Classes="GuideDesc" Text="读 Steam 库里的 KSP 目录，一次登记完成。" />
+              </StackPanel>
+              <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
+                        Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+            </Grid>
+          </Button>
+          <Button Grid.Column="2" Classes="CkanGuide"
+                  Command="{Binding $parent[Window].DataContext.NavigateCommand}"
+                  CommandParameter="instances"
+                  ToolTip.Tip="到「实例」页点「手动添加目录」，直接指向 KSP 根目录">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Grid.Column="0" Spacing="7">
+                <Border Classes="CkanIconTile">
+                  <PathIcon Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                </Border>
+                <TextBlock Classes="GuideTitle" Text="手动选择目录" />
+                <TextBlock Classes="GuideDesc" Text="已知安装路径？直接指向 KSP 根目录即可。" />
+              </StackPanel>
+              <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
+                        Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+            </Grid>
+          </Button>
+          <Button Grid.Column="4" Classes="CkanGuide"
+                  Command="{Binding $parent[Window].DataContext.NavigateCommand}"
+                  CommandParameter="modpacks"
+                  ToolTip.Tip="到「导入导出」页把 .ckan 模组列表导入进来">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Grid.Column="0" Spacing="7">
+                <Border Classes="CkanIconTile Muted">
+                  <PathIcon Data="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm0 2.5L18.5 9H14V4.5zM6 20V4h6v6h6v10H6z" />
+                </Border>
+                <TextBlock Classes="GuideTitle" Text="导入 Modpack" />
+                <TextBlock Classes="GuideDesc" Text="已经有一份 .ckan？先导入列表再装模组。" />
+              </StackPanel>
+              <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
+                        Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+            </Grid>
+          </Button>
+        </Grid>
+        </StackPanel>
+      </Panel>
+    </Border>
+
     <!-- 底部状态与操作栏 -->
-    <Grid Grid.Row="3" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,10,0,0">
-      <TextBlock Grid.Column="0" Text="{Binding CountText}" Classes="CkanCaption" VerticalAlignment="Center" />
-      <TextBlock Grid.Column="1" Text="{Binding SelectionSummary}" Classes="CkanCaption" Margin="14,0,0,0"
-                 VerticalAlignment="Center" />
-      <TextBlock Grid.Column="2" Text="{Binding StatusText}" Classes="CkanCaption" Margin="14,0,0,0"
+    <Border Grid.Row="3" Classes="CkanPageFooter" Margin="0,12,0,0" Padding="12,8"
+            IsVisible="{Binding HasInstance}">
+    <Grid ColumnDefinitions="*,Auto">
+      <TextBlock Grid.Column="0" Text="{Binding StatusText}" Classes="CkanCaption"
                  Foreground="{DynamicResource CkanTextTertiaryBrush}"
                  VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-      <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
-        <TextBlock Text="{Binding DownloadSummary}" Classes="CkanCaption" VerticalAlignment="Center" />
-        <Button Content="预览变更" Command="{Binding PreviewChangesCommand}"
-                Classes="CkanSecondary" />
-        <Button Content="去变更集" Command="{Binding ReviewChangesCommand}"
-                Classes="CkanPrimary" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="{Binding DownloadSummary}" Classes="CkanCaption" VerticalAlignment="Center"
+                   Margin="0,0,4,0" />
+        <Button Command="{Binding PreviewChangesCommand}" Classes="CkanSecondary">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <PathIcon Width="12" Height="12" Data="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+            <TextBlock Text="预览变更" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <Button Command="{Binding ReviewChangesCommand}" Classes="CkanPrimary">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <PathIcon Width="12" Height="12" Data="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z" />
+            <TextBlock Text="去变更集" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
       </StackPanel>
     </Grid>
+    </Border>
 
     <!-- 进行中遮罩：无行时骨架屏，有行时进度条（同一时刻只有一个脉动元素） -->
     <Border Grid.RowSpan="3" IsVisible="{Binding IsBusy}"

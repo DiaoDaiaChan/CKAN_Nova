@@ -5,6 +5,7 @@
        前缀判定简单且不会误伤。 -->
   <PropertyGroup>
     <NuGetAudit>false</NuGetAudit>
+    <AvaloniaBuildServicesTelemetryEnabled>false</AvaloniaBuildServicesTelemetryEnabled>
     <CkanIsOwnProject>false</CkanIsOwnProject>
     <CkanIsOwnProject Condition="$(MSBuildProjectName.StartsWith('CkanUI'))">true</CkanIsOwnProject>
   </PropertyGroup>

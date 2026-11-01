@@ -69,9 +69,9 @@ public sealed partial class InstanceFormViewModel : ObservableObject
     /// <summary>模式说明（告诉用户这个动作会/不会碰磁盘文件）。</summary>
     public string HintText => Mode switch
     {
-        InstanceFormMode.Add => "会把该目录注册为游戏实例，不会复制或修改任何游戏文件。",
-        InstanceFormMode.Clone => "会把源实例的整个游戏目录复制到同级的新目录，耗时取决于目录大小。",
-        _ => "只修改实例记录中的名称，不会移动或重命名游戏目录。",
+        InstanceFormMode.Add => "只登记为游戏实例，不复制不修改文件。",
+        InstanceFormMode.Clone => "会把整个游戏目录复制到同级新目录。",
+        _ => "只改实例记录里的名称，不动游戏目录。",
     };
 
     /// <summary>实例名称（新增时默认取目录名，克隆时默认「源名 - 副本」）。</summary>

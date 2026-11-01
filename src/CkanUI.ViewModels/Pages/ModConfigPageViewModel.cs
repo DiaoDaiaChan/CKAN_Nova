@@ -132,7 +132,11 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
 
     /// <summary>实例摘要（"实例：默认｜游戏目录：…"）。</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasInstanceSummary))]
     private string _instanceSummaryText = string.Empty;
+
+    /// <summary>是否有实例摘要（没有实例时页头不该留一个空胶囊）。</summary>
+    public bool HasInstanceSummary => InstanceSummaryText.Length > 0;
 
     /// <summary>最近一次保存/回滚的逐文件失败说明（每项一行）。</summary>
     [ObservableProperty]
@@ -170,7 +174,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
 
     /// <summary>KSP 运行中的顶部警示文案。</summary>
     public string GameRunningWarningText => IsGameRunning
-        ? T("KSP 正在运行：写入配置需要重启 KSP 才生效，写盘前会再确认一次。", LocalizationKeys.ModConfigKspRunningHint)
+        ? T("KSP 正在运行，写入需重启生效。", LocalizationKeys.ModConfigKspRunningHint)
         : string.Empty;
 
     /// <summary>是否显示运行中警示。</summary>
@@ -242,7 +246,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     public string SaveButtonText => PendingChangeCount == 0 ? T("保存改动", LocalizationKeys.ModConfigSaveButton) : T("保存 {0} 项改动", LocalizationKeys.ModConfigSaveButtonPending, PendingChangeCount);
 
     /// <summary>底部写盘说明（写前快照 + 写后自校验 + 部分失败不丢输入）。</summary>
-    public string WriteNoteText => T("保存时逐文件写盘：写前快照、写后重新解析自校验；某个文件失败时只报它，其余改动与输入都保留。", LocalizationKeys.ModConfigWriteNote);
+    public string WriteNoteText => T("保存时逐文件写盘，失败只报该文件。", LocalizationKeys.ModConfigWriteNote);
 
     /// <summary>是否显示底部动作条（有改动、有快照或上次保存失败时都要显示）。</summary>
     public bool ShowActionBar => HasChanges || HasBackups || HasSaveFailures;
@@ -274,7 +278,10 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     public bool HasSelectedWarning => SelectedWarningText.Length > 0;
 
     /// <summary>未选中时的提示文案。</summary>
-    public string NoSelectionHintText => T("左侧选择一个 mod 查看它的可配置项。", LocalizationKeys.ModConfigNoSelectionHint);
+    public string NoSelectionHintText => T("选中一个 mod 后，这里会显示它的可配置项。", LocalizationKeys.ModConfigNoSelectionHint);
+
+    /// <summary>左侧列表为空时的提示文案。</summary>
+    public string EmptyModsHintText => T("未找到带配置适配器的 Mod。", LocalizationKeys.ModConfigNoSelectionHint);
 
     /// <summary>是否有适配器清单。</summary>
     public bool HasAdapters => Adapters.Count > 0;
@@ -307,7 +314,14 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
             if (!result.IsSuccess || result.Value is not { } model)
             {
                 ApplyModelCore(null, null);
-                SetError(result.Message ?? T("读取 mod 配置失败。", LocalizationKeys.ModConfigErrorLoad), result.Detail);
+                if (result.Message?.Contains("没有选中的游戏实例") == true)
+                {
+                    StatusText = result.Message;
+                }
+                else
+                {
+                    SetError(result.Message ?? T("读取 mod 配置失败。", LocalizationKeys.ModConfigErrorLoad), result.Detail);
+                }
                 return;
             }
 

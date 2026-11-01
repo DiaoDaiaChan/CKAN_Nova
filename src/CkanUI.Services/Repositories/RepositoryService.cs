@@ -142,7 +142,17 @@ public sealed class RepositoryService : IRepositoryService, IDisposable
         GuardAsync(() =>
         {
             ct.ThrowIfCancellationRequested();
-            return Apply(_catalog.Load());
+
+            // 仓库列表不留给用户自己去配：全新安装（或刚加的实例）里它是空的，模组页就一片空白。
+            // 这里顺手补上离线内置的官方源（不联网，只写注册表），索引下载仍交给 RefreshAsync。
+            var wasEmpty = _catalog.Snapshot.Count == 0;
+            var result = Apply(_catalog.EnsureDefaults(OfficialRepositoryDefaults.Seed));
+            if (wasEmpty && result.IsSuccess && result.Value is { Count: > 0 } seeded)
+            {
+                Log.Info($"仓库列表为空，已写入内置官方源：{string.Join("、", seeded.Select(row => row.Name))}。");
+            }
+
+            return result;
         });
 
     /// <inheritdoc />

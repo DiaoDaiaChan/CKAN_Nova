@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 
+using CkanUI.App.Branding;
 using CkanUI.Services.Abstractions;
 using CkanUI.ViewModels.Shell;
 
@@ -144,7 +145,7 @@ public sealed class TrayHost : IDisposable
             IsVisible = true,
         };
 
-        if (CreateIconImage() is { } image)
+        if (LoadIconImage() is { } image)
         {
             icon.Icon = image;
         }
@@ -189,19 +190,26 @@ public sealed class TrayHost : IDisposable
     }
 
     /// <summary>
-    /// 图标位图：用 Avalonia 内置几何现画一个 32×32 的方块 + 两道横杠，
-    /// 不新增任何二进制资源（12 篇 F-51 的资源口径）。
+    /// 托盘图标：优先用随包分发的 <see cref="AppIcon"/>（与窗口、资源管理器同一个 7 档 ICO），
+    /// 保证托盘和 exe 图标是同一张脸；图标文件缺失或损坏时才退回自绘方块。
+    /// </summary>
+    private WindowIcon? LoadIconImage() => AppIcon.TryLoad() ?? DrawFallbackIcon();
+
+    /// <summary>
+    /// 兜底图标：用 Avalonia 内置几何现画一个 32×32 的方块 + 三条横杠（与正式图标同一套
+    /// 「列表行」语汇），底色取当前强调色，不新增任何二进制资源（12 篇 F-51 的资源口径）。
     /// 画不出来（没有渲染后端）时返回 null，托盘图标退回平台默认外观。
     /// </summary>
-    private static WindowIcon? CreateIconImage()
+    private WindowIcon? DrawFallbackIcon()
     {
         try
         {
+            var background = new SolidColorBrush(ResolveAccent());
+            // 方块上的横杠用最深的表面色而不是纯白：亮强调色（如高对比度的黄）上也要有对比度。
+            var foreground = new SolidColorBrush(Color.FromRgb(0x0F, 0x12, 0x18));
             using var bitmap = new RenderTargetBitmap(new PixelSize(32, 32), new Vector(96, 96));
             using (var context = bitmap.CreateDrawingContext())
             {
-                var background = new SolidColorBrush(Color.FromRgb(0x2F, 0x81, 0xF7));
-                var foreground = new SolidColorBrush(Colors.White);
                 context.DrawRectangle(background, null, new Rect(0, 0, 32, 32), 7, 7);
                 context.DrawRectangle(foreground, null, new Rect(7, 9, 18, 4), 2, 2);
                 context.DrawRectangle(foreground, null, new Rect(7, 15, 18, 4), 2, 2);
@@ -218,6 +226,12 @@ public sealed class TrayHost : IDisposable
             return null;
         }
     }
+
+    /// <summary>当前强调色（取不到就退回 Tokens 里的暗色默认蓝，保证兜底图标不会是透明方块）。</summary>
+    private Color ResolveAccent() =>
+        _application.TryFindResource("CkanAccentBrush", out object? accent) && accent is ISolidColorBrush brush
+            ? brush.Color
+            : Color.FromRgb(0x72, 0xA7, 0xFF);
 
     private void OnSettingsChanged(UiSettings settings)
     {

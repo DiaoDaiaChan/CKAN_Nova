@@ -228,7 +228,7 @@ public sealed class ModTextLayerTests
     {
         public TempDirectory()
         {
-            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ckan-ui-modtext-" + Guid.NewGuid().ToString("n"));
+            Path = System.IO.Path.Combine(AppContext.BaseDirectory, "ckan-ui-modtext-" + Guid.NewGuid().ToString("n"));
             Directory.CreateDirectory(Path);
         }
 

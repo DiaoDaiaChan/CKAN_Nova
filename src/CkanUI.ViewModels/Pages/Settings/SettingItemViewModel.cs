@@ -12,7 +12,7 @@ namespace CkanUI.ViewModels.Pages.Settings;
 /// </summary>
 public sealed partial class SettingItemViewModel : ObservableObject
 {
-    private readonly Func<SettingItemViewModel, Task>? _saveHandler;
+    private Func<SettingItemViewModel, Task>? _saveHandler;
     private readonly Func<string, string>? _toWire;
     private readonly Func<string?, string>? _fromWire;
 
@@ -314,6 +314,17 @@ public sealed partial class SettingItemViewModel : ObservableObject
 
     /// <summary>是否显示失败处理提示。</summary>
     public bool HasFailureHint => HasError;
+
+    /// <summary>
+    /// 补挂保存委托。页面装配完所有行之后统一接线用：漏挂的行既不会自动保存，
+    /// 行内「保存」也是空操作，表现就是「改了没反应」——这类漏挂没法靠类型系统拦住，只能靠入口收口。
+    /// </summary>
+    /// <param name="handler">页面的保存委托；重复调用以最后一次为准。</param>
+    public void AttachSaveHandler(Func<SettingItemViewModel, Task> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        _saveHandler = handler;
+    }
 
     /// <summary>页面加载时直接写入已落盘值（不经线格式转换，用于 UI 自有设置）。</summary>
     /// <param name="editValue">编辑空间的值。</param>

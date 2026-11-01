@@ -94,6 +94,24 @@ public sealed class MotionSkeletonTests
             Assert.That(styles, Does.Contain("Selector=\"" + selector + "\""), "缺少动效骨骼状态类：" + selector);
         }
 
+        // Avalonia 的类型选择器只匹配"类型恰好等于 Control"的元素，Control.xxx 对 Border / Grid 一律不生效。
+        // 因此每条基础类型选择器都必须配一条纯类选择器版本（带 x:SetterTargetType="Control"），否则动效整体静默失效。
+        foreach (var classOnly in new[]
+                 {
+                     ".view-layer",
+                     ".view-layer.is-active",
+                     ".stagger-card",
+                     ".stagger-card.stagger-prepare",
+                     ".is-invalid",
+                     ".shake-impulse",
+                 })
+        {
+            Assert.That(
+                styles,
+                Does.Contain("Selector=\"" + classOnly + "\" x:SetterTargetType=\"Control\""),
+                "基础类型选择器需要一条纯类选择器孪生样式才能真正命中：" + classOnly);
+        }
+
         // 状态类只允许动 Opacity / RenderTransform：一旦出现 Margin / Height / Width 就会触发重排。
         foreach (var property in new[] { "Margin", "Height", "Width", "Padding" })
         {

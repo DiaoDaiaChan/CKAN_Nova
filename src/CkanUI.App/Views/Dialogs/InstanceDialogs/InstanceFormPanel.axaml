@@ -12,8 +12,8 @@
           RenderTransform="translate(0px, 0px)"
           Classes.is-invalid="{Binding HasValidationError}"
           ClipToBounds="False"
-          Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
-          BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+          Background="{DynamicResource CkanCardBackgroundBrush}"
+          BorderBrush="{DynamicResource CkanCardBorderBrush}"
           BorderThickness="1">
     <StackPanel Spacing="10">
       <TextBlock Text="{Binding Title}" FontSize="18" />

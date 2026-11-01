@@ -9,16 +9,23 @@
   </UserControl.Resources>
 
   <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
-        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+        Background="Transparent">
 
     <!-- 页头 -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Grid.Column="0" Spacing="4">
-        <TextBlock Text="Mod 配置" Classes="CkanPageTitle" />
-        <TextBlock Text="适配器驱动的图形化配置：改值只碰目标那一行，保存时逐文件写盘（写前快照、写后重新解析自校验）；颜色与按键组合本版只读。"
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="Mod 配置" Classes="CkanPageTitle" VerticalAlignment="Center" />
+          <Button Classes="CkanHelper" VerticalAlignment="Center"
+                  ToolTip.Tip="适配器驱动的图形化配置：改值只更新目标行，保存时逐文件写盘（含写前快照与写后自校验）；颜色与按键组合当前为只读模式。">
+            <PathIcon Data="{StaticResource CkanIconHelp}" />
+          </Button>
+        </StackPanel>
+        <TextBlock Text="按适配器编辑 cfg 字段"
                    Classes="CkanCaption" TextWrapping="Wrap" />
       </StackPanel>
-      <Border Grid.Column="1" Classes="CkanBadge" VerticalAlignment="Center" Margin="12,0,0,0">
+      <Border Grid.Column="1" Classes="CkanBadge" VerticalAlignment="Center" Margin="12,0,0,0"
+              IsVisible="{Binding HasInstanceSummary}">
         <TextBlock Text="{Binding InstanceSummaryText}" TextWrapping="Wrap" MaxWidth="380" />
       </Border>
     </Grid>
@@ -44,12 +51,13 @@
     </Border>
 
     <!-- 工具条：搜索 + 仅看已改 + 刷新 -->
-    <Border Grid.Row="3" Classes="CkanToolbar">
+    <Border Grid.Row="3" Classes="CkanToolbar stagger-card">
+      <StackPanel Spacing="0">
       <WrapPanel Orientation="Horizontal">
         <TextBox Text="{Binding SearchText, Mode=TwoWay}"
                  Classes="CkanSearchBox"
                  Width="240" Margin="0,0,8,0"
-                 PlaceholderText="{Binding SearchPlaceholder}"
+                 PlaceholderText="按名称 / 分组筛选…"
                  ToolTip.Tip="按键名、显示名、注释三路匹配" />
         <Button Content="清空" Command="{Binding ClearSearchCommand}" Classes="CkanGhost" Margin="0,0,12,0" />
         <CheckBox Content="仅看已改" IsChecked="{Binding OnlyModified, Mode=TwoWay}" Margin="0,0,12,0"
@@ -64,16 +72,19 @@
                 ToolTip.Tip="从本地 .json 或 .zip 包安装第三方适配器（包内有 sha256 校验清单），装完自动重扫目录" />
         <TextBlock Text="{Binding VisibleCountText}" VerticalAlignment="Center" Margin="0,0,12,0"
                    Classes="CkanCaption" />
-        <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"
-                   MaxWidth="520" TextWrapping="Wrap"
-                   Classes="CkanCaption" />
       </WrapPanel>
+
+      <!-- 状态句单独一行：和按钮同排时长句会把工具条挤成两段 -->
+      <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Margin="0,6,0,0"
+                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                 Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+      </StackPanel>
     </Border>
 
     <!-- 左：mod 卡片列表；右：字段行 -->
     <Grid Grid.Row="4" ColumnDefinitions="340,*" Margin="0,12,0,0">
 
-      <Border Grid.Column="0" Classes="CkanCard" Padding="4">
+      <Border Grid.Column="0" Classes="CkanCard stagger-card" Padding="4">
         <Grid RowDefinitions="Auto,*,Auto">
           <Border Grid.Row="0" Padding="10,8"
                   BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
@@ -129,10 +140,27 @@
             </ListBox.ItemTemplate>
           </ListBox>
 
-          <TextBlock Grid.Row="1" Text="{Binding NoSelectionHintText}"
-                     IsVisible="{Binding ShowEmptyState}"
-                     TextWrapping="Wrap" Margin="12"
-                     Classes="CkanCaption" />
+          <Border Grid.Row="1" Classes="CkanEmptyStateCard Flat" Padding="16,24"
+                  IsVisible="{Binding ShowEmptyState}">
+            <StackPanel Spacing="10" VerticalAlignment="Center" MaxWidth="260">
+              <Border Classes="CkanIconTile Muted" HorizontalAlignment="Left">
+                <PathIcon Data="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+              </Border>
+              <TextBlock Text="还没有可编辑的配置"
+                         TextWrapping="Wrap"
+                         FontWeight="SemiBold"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+              <TextBlock Text="先选择实例以加载 mod 列表。"
+                         TextWrapping="Wrap"
+                         Classes="CkanCaption" />
+              <Button Content="前往实例页"
+                      Classes="CkanSecondary CkanSmall"
+                      HorizontalAlignment="Left"
+                      Command="{Binding $parent[Window].DataContext.NavigateCommand}"
+                      CommandParameter="instances"
+                      ToolTip.Tip="在「实例」页选中或添加一个 KSP 实例，回来才有可编辑的配置" />
+            </StackPanel>
+          </Border>
 
           <!-- 底部：无适配器的 mod 计数 + 已加载适配器清单 -->
           <Border Grid.Row="2" Padding="10,8"
@@ -168,7 +196,7 @@
 
       <!-- 右：选中 mod 的字段 -->
       <Grid Grid.Column="1" RowDefinitions="Auto,*" Margin="16,0,0,0">
-        <Border Grid.Row="0" Padding="0,0,0,10"
+        <Border Grid.Row="0" Padding="0,0,0,10" IsVisible="{Binding !IsSelectionEmpty}"
                 BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
           <StackPanel Spacing="4">
             <TextBlock Text="{Binding HeaderTitleText}"
@@ -186,12 +214,61 @@
           </StackPanel>
         </Border>
 
-        <ScrollViewer Grid.Row="1" Margin="0,10,0,0">
+        <!-- 空态放在滚动区之外：滚动区里的内容无法垂直居中 -->
+        <Border Grid.Row="1"
+                Classes="CkanEmptyStateCard Elevated stagger-card" Padding="24,28"
+                IsVisible="{Binding IsSelectionEmpty}">
+          <Grid>
+            <Border Classes="CkanEmptyStateGlow" />
+            <StackPanel Spacing="12" MaxWidth="360" VerticalAlignment="Center" HorizontalAlignment="Center">
+              <Border Classes="CkanIconTile Lg" HorizontalAlignment="Center">
+                <PathIcon Data="M4 4h16v2H4V4zm0 5h16v2H4V9zm0 5h10v2H4v-2zm0 5h7v2H4v-2z" />
+              </Border>
+              <TextBlock Text="未选择 mod" FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                         FontWeight="SemiBold" HorizontalAlignment="Center"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+              <TextBlock Text="{Binding NoSelectionHintText}"
+                         TextWrapping="Wrap" TextAlignment="Center"
+                         Classes="CkanCaption" />
+              <!-- 两张入口卡：空态不该只有一句"没选中"，要给得出去的下一步 -->
+              <Button Classes="CkanGuide" HorizontalAlignment="Stretch"
+                      Command="{Binding $parent[Window].DataContext.NavigateCommand}"
+                      CommandParameter="mods"
+                      ToolTip.Tip="在「模组」页选中一个 mod，再回到这里配置它">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Grid.Column="0" Spacing="6">
+                    <Border Classes="CkanIconTile">
+                      <PathIcon Data="M4 5h16v2H4V5zm0 6h16v2H4v-2zm0 6h10v2H4v-2z" />
+                    </Border>
+                    <TextBlock Classes="GuideTitle" Text="挑一个 mod" />
+                    <TextBlock Classes="GuideDesc" Text="去模组页选中它，右侧就会出现可编辑的配置项。" />
+                  </StackPanel>
+                  <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
+                            Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+                </Grid>
+              </Button>
+              <Button Classes="CkanGuide" HorizontalAlignment="Stretch"
+                      Command="{Binding $parent[Window].DataContext.NavigateCommand}"
+                      CommandParameter="instances"
+                      ToolTip.Tip="适配器只在实例加载完成后才可用">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Grid.Column="0" Spacing="6">
+                    <Border Classes="CkanIconTile Muted">
+                      <PathIcon Data="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                    </Border>
+                    <TextBlock Classes="GuideTitle" Text="先让实例就绪" />
+                    <TextBlock Classes="GuideDesc" Text="实例没加载完时左侧适配器是空的，去实例页确认一下。" />
+                  </StackPanel>
+                  <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="8,0,0,0"
+                            Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+                </Grid>
+              </Button>
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" Margin="0,10,0,0" IsVisible="{Binding !IsSelectionEmpty}">
           <StackPanel Spacing="12">
-            <TextBlock Text="{Binding NoSelectionHintText}"
-                       IsVisible="{Binding IsSelectionEmpty}"
-                       TextWrapping="Wrap"
-                       Classes="CkanCaption" />
 
             <!-- 字段分组：标题来自 // #### 分节注释（无标题的组不画表头） -->
             <ItemsControl ItemsSource="{Binding FieldGroups}">
@@ -323,7 +400,7 @@
                                            IsVisible="{Binding HasPendingChange}"
                                            FontSize="{DynamicResource CkanFontSizeCaption}"
                                            FontWeight="SemiBold"
-                                           Foreground="{DynamicResource CkanAccentTextBrush}" />
+                                           Foreground="{DynamicResource CkanAccentBrush}" />
                               </StackPanel>
                             </Grid>
                           </Border>
@@ -350,7 +427,7 @@
                      Foreground="{DynamicResource CkanTextPrimaryBrush}" />
           <Button Content="{Binding SaveButtonText}" Command="{Binding SaveCommand}"
                   IsEnabled="{Binding CanSave}" Classes="CkanPrimary" Margin="0,0,8,0"
-                  ToolTip.Tip="Ctrl+S：把页面上所有待保存的改动逐文件写盘" />
+                  ToolTip.Tip="Ctrl+S：保存时逐文件写盘，写前快照、写后重新解析自校验；某个文件失败时只报它，其余改动与输入都保留。" />
           <Button Content="放弃未保存的改动" Command="{Binding DiscardPendingCommand}"
                   IsEnabled="{Binding CanDiscardPending}" Classes="CkanDanger" Margin="0,0,8,0" />
           <Button Content="{Binding RestoreButtonText}" Command="{Binding RestoreBackupsCommand}"

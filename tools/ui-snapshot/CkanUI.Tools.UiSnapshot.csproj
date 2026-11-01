@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>ui-snapshot</AssemblyName>
+    <RootNamespace>CkanUI.Tools.UiSnapshot</RootNamespace>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" />
+    <PackageReference Include="Avalonia.Skia" />
+    <ProjectReference Include="../../src/CkanUI.App/CkanUI.App.csproj" />
+  </ItemGroup>
+</Project>

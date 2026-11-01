@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="using:CkanUI.App.Theming"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
              x:Class="CkanUI.App.Views.ReposPageView"
              x:CompileBindings="False">
   <UserControl.Styles>
@@ -47,57 +48,81 @@
   <!-- 仓库管理页：工具条 + 有序仓库表 + 新增表单 + 状态栏。
        全部颜色走 Tokens.axaml 的语义 token。 -->
   <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
-        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+        Background="Transparent">
 
     <!-- 页头 -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
       <StackPanel Grid.Column="0" Spacing="4">
-        <TextBlock Text="仓库管理" Classes="CkanPageTitle" />
-        <TextBlock Text="越靠上的仓库优先级越高，同名模组以高优先级仓库的元数据为准。"
-                   Classes="CkanCaption"
-                   TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="仓库管理" Classes="CkanPageTitle" VerticalAlignment="Center" />
+          <Button Classes="CkanHelper" VerticalAlignment="Center"
+                  ToolTip.Tip="越靠上的仓库优先级越高；同名模组的元数据以高优先级仓库为准，低优先级仓库只在该模组缺失时参与解析。">
+            <PathIcon Data="{StaticResource CkanIconHelp}" />
+          </Button>
+        </StackPanel>
+        <TextBlock Text="元数据源的排序与增删"
+                   Classes="CkanCaption" TextWrapping="Wrap" />
       </StackPanel>
       <Border Grid.Column="1" Classes="CkanBadge" VerticalAlignment="Center">
         <TextBlock Text="{Binding CountText}" />
       </Border>
     </Grid>
 
-    <!-- 工具条 Card -->
-    <Border Grid.Row="1" Classes="CkanToolbar">
-      <WrapPanel Orientation="Horizontal">
-        <Button Content="添加仓库" Command="{Binding BeginAddCommand}"
-                Classes="CkanPrimary"
-                IsEnabled="{Binding CanEdit}" Margin="0,0,8,0"
-                ToolTip.Tip="填写名称与索引地址后加入列表" />
-        <Button Content="移除" Command="{Binding RemoveCommand}"
-                Classes="CkanSecondary"
-                IsEnabled="{Binding CanRemoveSelected}" Margin="0,0,8,0"
-                ToolTip.Tip="从列表移除选中的仓库（至少要保留一个）" />
-        <Button Content="上移" Command="{Binding MoveUpCommand}"
-                Classes="CkanSecondary"
-                IsEnabled="{Binding CanMoveUpSelected}" Margin="0,0,4,0"
-                ToolTip.Tip="提高选中仓库的优先级" />
-        <Button Content="下移" Command="{Binding MoveDownCommand}"
-                Classes="CkanSecondary"
-                IsEnabled="{Binding CanMoveDownSelected}" Margin="0,0,8,0"
-                ToolTip.Tip="降低选中仓库的优先级" />
-        <Button Content="刷新此仓库" Command="{Binding RefreshSelectedCommand}"
-                Classes="CkanSecondary"
-                IsEnabled="{Binding CanRefreshSelected}" Margin="0,0,8,0"
-                ToolTip.Tip="只重新下载选中仓库的索引" />
-        <Button Content="刷新全部" Command="{Binding RefreshAllCommand}"
-                Classes="CkanSecondary"
-                IsEnabled="{Binding IsIdle}" Margin="0,0,8,0"
-                ToolTip.Tip="重新下载全部仓库的索引" />
-        <Button Content="恢复默认" Command="{Binding RestoreDefaultsCommand}"
-                Classes="CkanSecondary"
-                IsEnabled="{Binding IsIdle}" Margin="0,0,8,0"
-                ToolTip.Tip="替换为官方默认仓库列表（需要联网）" />
-        <Button Content="重新读取" Command="{Binding ReloadCommand}"
-                Classes="CkanSecondary"
-                IsEnabled="{Binding IsIdle}"
-                ToolTip.Tip="重新读取本地注册表中的仓库列表" />
-      </WrapPanel>
+    <!--
+      工具条：原先 8 个同权重矩形按钮一字铺开，用户一眼看不出主任务。
+      现在收敛成「1 主 + 2 常用 + 1 个「更多」下拉」：高频的添加/刷新留下，
+      排序与恢复这类低频且不可逆的操作收进官方 FAMenuFlyout，误触率也一起降下来。
+    -->
+    <Border Grid.Row="1" Classes="CkanToolbar stagger-card" Padding="12,8">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+          <Button Content="添加仓库" Command="{Binding BeginAddCommand}"
+                  Classes="CkanPrimary"
+                  IsEnabled="{Binding CanEdit}"
+                  ToolTip.Tip="填写名称与索引地址后加入列表" />
+          <Button Content="刷新全部" Command="{Binding RefreshAllCommand}"
+                  Classes="CkanSecondary"
+                  IsEnabled="{Binding IsIdle}"
+                  ToolTip.Tip="重新下载全部仓库的索引" />
+          <Button Content="刷新此仓库" Command="{Binding RefreshSelectedCommand}"
+                  Classes="CkanSecondary"
+                  IsEnabled="{Binding CanRefreshSelected}"
+                  ToolTip.Tip="只重新下载选中仓库的索引" />
+
+          <Button Content="更多" Classes="CkanSecondary" Margin="4,0,0,0"
+                  ToolTip.Tip="排序、移除与恢复默认等低频操作">
+            <Button.Flyout>
+              <ui:FAMenuFlyout Placement="Bottom">
+                <ui:FAMenuFlyoutItem Text="上移（提高优先级）" IconSource="Up"
+                                     Command="{Binding MoveUpCommand}"
+                                     IsEnabled="{Binding CanMoveUpSelected}" />
+                <ui:FAMenuFlyoutItem Text="下移（降低优先级）" IconSource="Down"
+                                     Command="{Binding MoveDownCommand}"
+                                     IsEnabled="{Binding CanMoveDownSelected}" />
+                <ui:FAMenuFlyoutSeparator />
+                <ui:FAMenuFlyoutItem Text="重新读取本地注册表" IconSource="Refresh"
+                                     Command="{Binding ReloadCommand}"
+                                     IsEnabled="{Binding IsIdle}" />
+                <ui:FAMenuFlyoutItem Text="恢复默认仓库列表" IconSource="Undo"
+                                     Command="{Binding RestoreDefaultsCommand}"
+                                     IsEnabled="{Binding IsIdle}" />
+                <ui:FAMenuFlyoutSeparator />
+                <ui:FAMenuFlyoutItem Text="移除选中的仓库" IconSource="Delete"
+                                     Command="{Binding RemoveCommand}"
+                                     IsEnabled="{Binding CanRemoveSelected}" />
+              </ui:FAMenuFlyout>
+            </Button.Flyout>
+          </Button>
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <Button Content="恢复默认源"
+                  Command="{Binding RestoreDefaultsCommand}"
+                  Classes="CkanGhost"
+                  IsEnabled="{Binding IsIdle}"
+                  ToolTip.Tip="替换为 KSP-CKAN 官方默认仓库列表" />
+        </StackPanel>
+      </Grid>
     </Border>
 
     <!-- 新增表单 Card -->
@@ -171,6 +196,7 @@
 
     <!-- 仓库表 Card -->
     <Border Grid.Row="4" Margin="0,12,0,0"
+            Classes="stagger-card"
             Background="{DynamicResource CkanCardBackgroundBrush}"
             BorderBrush="{DynamicResource CkanCardBorderBrush}"
             BorderThickness="1"
@@ -179,6 +205,7 @@
       <Grid RowDefinitions="Auto,*">
         <!-- 列头 -->
         <Border Grid.Row="0" Padding="14,10"
+                IsVisible="{Binding HasRows}"
                 Background="{DynamicResource CkanSubtleBackgroundBrush}"
                 BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
           <Grid ColumnDefinitions="*,2*,80,140,100">
@@ -205,14 +232,16 @@
             <DataTemplate>
               <Grid ColumnDefinitions="*,2*,80,140,100" MinHeight="{DynamicResource CkanRowHeight}">
                 <Rectangle Grid.ColumnSpan="5" Classes="SelectionBar" />
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"
-                             VerticalAlignment="Center" FontWeight="Medium"
+                <!-- 仓库名放在横向 StackPanel 里会以无限宽测量，TextTrimming 不生效 → 换成两列 Grid。 -->
+                <Grid Grid.Column="0" ColumnDefinitions="*,Auto" VerticalAlignment="Center" Margin="0,0,8,0">
+                  <TextBlock Grid.Column="0" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"
+                             ToolTip.Tip="{Binding DisplayName}"
+                             VerticalAlignment="Center" FontWeight="Medium" Margin="0,0,8,0"
                              Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                  <Border Classes="CkanBadge Accent" IsVisible="{Binding ShowDefaultBadge}">
+                  <Border Grid.Column="1" Classes="CkanBadge Accent" IsVisible="{Binding ShowDefaultBadge}">
                     <TextBlock Text="{Binding DefaultText}" />
                   </Border>
-                </StackPanel>
+                </Grid>
                 <TextBlock Grid.Column="1" Text="{Binding Uri}" TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" Margin="0,0,8,0"
                            FontSize="{DynamicResource CkanFontSizeCaption}"
@@ -245,51 +274,84 @@
 
         <!-- 空状态 -->
         <Border Grid.Row="1" IsVisible="{Binding ShowEmptyState}"
-                Classes="CkanEmptyStateCard" Margin="12">
-          <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16" MaxWidth="480">
-            <!-- 现代空状态轻量矢量图标 -->
-            <Border Width="56" Height="56" CornerRadius="28"
-                    Background="{DynamicResource CkanSubtleBackgroundBrush}"
-                    BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1"
-                    HorizontalAlignment="Center">
-              <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"
-                        Width="26" Height="26"
-                        Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                        HorizontalAlignment="Center" VerticalAlignment="Center" />
-            </Border>
-            <StackPanel Spacing="6" HorizontalAlignment="Center">
-              <TextBlock Text="{Binding EmptyStateTitle}"
-                         HorizontalAlignment="Center"
-                         FontSize="{DynamicResource CkanFontSizeSubtitle}"
-                         FontWeight="SemiBold"
-                         Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-              <TextBlock Text="{Binding EmptyStateHint}" TextWrapping="Wrap" TextAlignment="Center"
-                         FontSize="{DynamicResource CkanFontSizeBody}"
-                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                Classes="CkanEmptyStateCard Flat" Margin="0">
+          <Grid>
+            <Border Classes="CkanEmptyStateGlow" />
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="18" MaxWidth="640">
+              <StackPanel Spacing="8" HorizontalAlignment="Center">
+                <Border Classes="CkanIconTile Lg" HorizontalAlignment="Center">
+                  <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                </Border>
+                <TextBlock Text="{Binding EmptyStateTitle}"
+                           HorizontalAlignment="Center"
+                           FontSize="{DynamicResource CkanFontSizeHeading}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                <TextBlock Text="{Binding EmptyStateHint}" TextWrapping="Wrap" TextAlignment="Center"
+                           FontSize="{DynamicResource CkanFontSizeBody}"
+                           MaxWidth="420"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              </StackPanel>
+
+              <!-- 一键预置官方安全源，是这条空状态里唯一值得当主按钮的动作 -->
+              <Grid ColumnDefinitions="*,12,*">
+                <Button Grid.Column="0" Classes="CkanGuide" Command="{Binding RestoreDefaultsCommand}"
+                        ToolTip.Tip="替换为官方默认仓库列表（需要联网）">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="7">
+                      <Border Classes="CkanIconTile">
+                        <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                      </Border>
+                      <TextBlock Classes="GuideTitle" Text="一键预置官方安全源" />
+                      <TextBlock Classes="GuideDesc" Text="写入 KSP-CKAN 官方列表，索引立即可用。" />
+                    </StackPanel>
+                    <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="10,0,0,0"
+                              Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+                  </Grid>
+                </Button>
+                <Button Grid.Column="2" Classes="CkanGuide" Command="{Binding BeginAddCommand}">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="7">
+                      <Border Classes="CkanIconTile Muted">
+                        <PathIcon Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                      </Border>
+                      <TextBlock Classes="GuideTitle" Text="添加私有 / 镜像源" />
+                      <TextBlock Classes="GuideDesc" Text="填名称与索引地址，按顺序决定优先级。" />
+                    </StackPanel>
+                    <PathIcon Grid.Column="1" Classes="GuideArrow" Margin="10,0,0,0"
+                              Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+                  </Grid>
+                </Button>
+              </Grid>
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" Margin="0,4,0,0">
-              <Button Content="恢复默认" Command="{Binding RestoreDefaultsCommand}"
-                      Classes="CkanPrimary" Padding="16,7"
-                      ToolTip.Tip="替换为官方默认仓库列表（需要联网）" />
-              <Button Content="添加仓库" Command="{Binding BeginAddCommand}"
-                      Classes="CkanSecondary" Padding="16,7" />
-            </StackPanel>
-          </StackPanel>
+          </Grid>
         </Border>
       </Grid>
     </Border>
 
-    <!-- 状态栏 -->
-    <Grid Grid.Row="5" ColumnDefinitions="Auto,*" Margin="0,12,0,0">
-      <TextBlock Grid.Column="0" Text="{Binding SelectedDetailText}"
-                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                 VerticalAlignment="Center" />
-      <TextBlock Grid.Column="1" Text="{Binding StatusText}" Margin="12,0,0,0"
-                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                 TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-    </Grid>
+    <!--
+      状态条：原来两段裸灰文字直接贴在窗口边缘，像 CLI 提示符。
+      现在收进 CkanStatusStrip 胶囊，选中项与最近一次操作分成两段，中间一条竖线断开。
+    -->
+    <Border Grid.Row="5" Classes="CkanStatusStrip" Margin="0,12,0,0"
+            HorizontalAlignment="Stretch" Padding="12,6">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+          <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                    Width="12" Height="12" Margin="0,0,6,0"
+                    Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                    VerticalAlignment="Center" />
+          <TextBlock Text="{Binding SelectedDetailText}"
+                     TextTrimming="CharacterEllipsis" MaxWidth="520" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+          <Border Classes="Divider" />
+          <TextBlock Text="{Binding StatusText}"
+                     Classes="Value"
+                     TextTrimming="CharacterEllipsis" MaxWidth="460" />
+        </StackPanel>
+      </Grid>
+    </Border>
 
     <!-- 进行中遮罩：无数据走首屏骨架屏，有数据走进度条（同一次 IsBusy 里二选一） -->
     <Border Grid.RowSpan="6" IsVisible="{Binding IsBusy}"

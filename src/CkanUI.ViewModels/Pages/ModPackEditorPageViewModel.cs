@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -179,6 +180,37 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
 
     /// <summary>问题数量文案。</summary>
     public string IssueSummary => Issues.Count == 0 ? string.Empty : Text("共 {0} 条问题", LocalizationKeys.ModPackEditorIssueSummary, Issues.Count);
+
+    /// <summary>
+    /// 实时 JSON 预览：把当前表单拼成一份与 <c>.ckan</c> 结构对齐的只读文本。
+    /// </summary>
+    /// <remarks>
+    /// 只用于"看得见自己正在填什么"，不参与校验也不参与保存——保存仍走 <see cref="ToDocument"/>，
+    /// 因此这里的键序、空值省略规则即便与服务层推导出的最终文件有差异也不会影响写盘结果。
+    /// </remarks>
+    public string JsonPreviewText
+    {
+        get
+        {
+            var entries = new List<string>();
+            AddJsonText(entries, "identifier", Identifier);
+            AddJsonText(entries, "name", Name);
+            AddJsonText(entries, "abstract", Abstract);
+            AddJsonText(entries, "description", Description);
+            AddJsonText(entries, "version", Version);
+            AddJsonText(entries, "release_status", ReleaseStatus);
+            AddJsonText(entries, "kind", Kind);
+            AddJsonText(entries, "ksp_version", KspVersion);
+            AddJsonText(entries, "ksp_version_min", KspVersionMin);
+            AddJsonText(entries, "ksp_version_max", KspVersionMax);
+            AddJsonText(entries, "spec_version", SpecVersion);
+            AddJsonText(entries, "download", DownloadUrl);
+            AddJsonArray(entries, "author", Authors.Select(row => row.ToValue()));
+            AddJsonArray(entries, "license", Licenses.Select(row => row.ToValue()));
+
+            return entries.Count == 0 ? "{ }" : "{\n" + string.Join(",\n", entries) + "\n}";
+        }
+    }
 
     /// <summary>发布状态下拉项。</summary>
     public IReadOnlyList<string> ReleaseStatusOptions => ModPackEditorText.ReleaseStatusOptions;
@@ -449,6 +481,11 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
     {
         base.OnPropertyChanged(e);
 
+        if (IsJsonSourceProperty(e.PropertyName))
+        {
+            OnPropertyChanged(nameof(JsonPreviewText));
+        }
+
         if (e.PropertyName == nameof(ErrorText))
         {
             OnPropertyChanged(nameof(HasError));
@@ -463,6 +500,53 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
         MarkDirty();
     }
 
+    /// <summary>实时 JSON 预览里出现的字段：任一变化都要刷新预览文本。</summary>
+    private static bool IsJsonSourceProperty(string? name) => name is
+        nameof(Identifier)
+        or nameof(Name)
+        or nameof(Abstract)
+        or nameof(Description)
+        or nameof(Version)
+        or nameof(ReleaseStatus)
+        or nameof(Kind)
+        or nameof(KspVersion)
+        or nameof(KspVersionMin)
+        or nameof(KspVersionMax)
+        or nameof(SpecVersion)
+        or nameof(DownloadUrl)
+        or nameof(Authors)
+        or nameof(Licenses);
+
+    private static void AddJsonText(List<string> entries, string key, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        entries.Add($"  \"{key}\": \"{EscapeJson(value.Trim())}\"");
+    }
+
+    private static void AddJsonArray(List<string> entries, string key, IEnumerable<string> values)
+    {
+        var items = values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => $"\"{EscapeJson(value.Trim())}\"")
+            .ToList();
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        entries.Add($"  \"{key}\": [{string.Join(", ", items)}]");
+    }
+
+    private static string EscapeJson(string value) => value
+        .Replace("\\", "\\\\", StringComparison.Ordinal)
+        .Replace("\"", "\\\"", StringComparison.Ordinal)
+        .Replace("\r", string.Empty, StringComparison.Ordinal)
+        .Replace("\n", "\\n", StringComparison.Ordinal);
+
     private static bool IsInfrastructureProperty(string? name) => name is
         nameof(IsDirty)
         or nameof(IsBusy)
@@ -474,10 +558,19 @@ public sealed partial class ModPackEditorPageViewModel : PageViewModel, IUnsaved
         or nameof(InvalidFields)
         or nameof(IssueSummary)
         or nameof(ShowEmptyRelations)
+        or nameof(JsonPreviewText)
         or nameof(NewAuthor)
         or nameof(NewLicense);
 
-    private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => MarkDirty();
+    private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (sender is IEnumerable<ModPackEditorRowViewModel>)
+        {
+            OnPropertyChanged(nameof(JsonPreviewText));
+        }
+
+        MarkDirty();
+    }
 
     private void MarkDirty()
     {

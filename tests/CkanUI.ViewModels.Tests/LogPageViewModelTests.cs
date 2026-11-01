@@ -25,7 +25,7 @@ public sealed class LogPageViewModelTests
 
         Assert.That(page.Rows, Is.Empty);
         Assert.That(page.ShowEmptyState, Is.True);
-        Assert.That(page.EmptyHint, Does.Contain("四路采集"));
+        Assert.That(page.EmptyHint, Does.Contain("缓冲区还没有日志"));
     }
 
     [Test]
@@ -113,7 +113,7 @@ public sealed class LogPageViewModelTests
         Assert.That(page.Rows, Is.Empty);
         Assert.That(page.SelectedRow, Is.Null);
         Assert.That(page.ShowEmptyState, Is.True);
-        Assert.That(page.EmptyHint, Does.Contain("不会命中"));
+        Assert.That(page.EmptyHint, Does.Contain("不命中"));
     }
 
     [Test]

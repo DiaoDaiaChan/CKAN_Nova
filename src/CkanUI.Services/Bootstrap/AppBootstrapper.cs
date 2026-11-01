@@ -1,6 +1,7 @@
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.Services.Logging;
+using CkanUI.Services.Repositories;
 using log4net;
 
 namespace CkanUI.Services.Bootstrap;
@@ -66,6 +67,18 @@ public sealed class AppBootstrapper : IAppBootstrapper
                 Log.Error($"切换到实例“{target.Name}”失败：{switched.Message} {switched.Detail}");
                 _errors.Report("启动", switched.Message ?? "切换游戏实例失败", switched.Detail);
                 return OperationResult.Fail(switched.Message ?? "切换游戏实例失败。", switched.Detail, switched.Retryable);
+            }
+
+            // ⑨pre：先把仓库列表读出来再刷新索引。列表为空时服务层会补上内置的官方 CKAN 源
+            // （离线写入，不需要用户先点「恢复为官方默认仓库列表」），首次启动后台刷新才有东西可下。
+            var repositories = await _repositories.LoadRepositoriesAsync(cancellationToken).ConfigureAwait(false);
+            if (!repositories.IsSuccess)
+            {
+                Log.Warn($"读取仓库列表失败：{repositories.Message} {repositories.Detail}");
+            }
+            else if (repositories.Value is { Count: > 0 } listedRepositories)
+            {
+                Log.Info($"仓库列表：{string.Join("、", listedRepositories.Select(row => row.Name))}。");
             }
 
             // ⑨：先出本地缓存让列表立刻可见，联网刷新放后台，失败只上报不影响启动。

@@ -59,7 +59,7 @@ public sealed partial class ModsSearchPanelViewModel : ObservableObject
     public bool HasActiveFilters => ActiveCount > 0;
 
     /// <summary>工具栏按钮上的状态文案（无障碍：不只靠颜色表达）。</summary>
-    public string SummaryText => ActiveCount > 0 ? $"筛选（{ActiveCount}）" : "筛选";
+    public string SummaryText => ActiveCount > 0 ? $"高级筛选（{ActiveCount}）" : "高级筛选";
 
     /// <summary>字段变化后抛出的查询文本（页面据此写回搜索框）。</summary>
     public event Action<string>? CombinedChanged;

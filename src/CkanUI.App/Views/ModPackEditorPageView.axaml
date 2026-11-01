@@ -4,14 +4,20 @@
              x:CompileBindings="False">
   <!-- modpack 编辑器（06 篇 UI-24 的编辑部分）：基础表单 + 关系表 + 校验问题栏 + 状态栏。
        颜色只用 Tokens.axaml 的语义 token，间距一律 4 的倍数。 -->
-  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="16"
-        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
+        Background="Transparent">
 
     <!-- 页头 -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
       <StackPanel Grid.Column="0" Spacing="4">
-        <TextBlock Text="modpack 编辑器" Classes="CkanPageTitle" />
-        <TextBlock Text="编辑一个 .ckan 元数据包：标识、说明、许可证与依赖关系，保存后可直接被 CKAN / 启动器消费。"
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="modpack 编辑器" Classes="CkanPageTitle" VerticalAlignment="Center" />
+          <Button Classes="CkanHelper" VerticalAlignment="Center"
+                  ToolTip.Tip="编辑一个 .ckan 元数据包：标识、说明、许可证与依赖关系，保存后可直接被 CKAN / 启动器消费。">
+            <PathIcon Data="{StaticResource CkanIconHelp}" />
+          </Button>
+        </StackPanel>
+        <TextBlock Text="创建与编辑 .ckan 元数据包"
                    Classes="CkanCaption" TextWrapping="Wrap" />
       </StackPanel>
       <Border Grid.Column="1" Classes="CkanBadge Warning" IsVisible="{Binding IsDirty}" VerticalAlignment="Center">
@@ -62,9 +68,9 @@
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Grid.Column="0" Text="{Binding ErrorText}" TextWrapping="Wrap"
                        Foreground="{DynamicResource CkanDangerBrush}" />
-            <Button Grid.Column="1" Content="关闭" Command="{Binding ValidateCommand}"
+            <Button Grid.Column="1" Content="重新校验" Command="{Binding ValidateCommand}"
                     Classes="CkanGhost CkanSmall"
-                    ToolTip.Tip="重新校验以刷新错误栏" />
+                    ToolTip.Tip="重新校验这个 .ckan，错误栏会随之刷新" />
           </Grid>
         </StackPanel>
       </Border>
@@ -90,137 +96,171 @@
     </StackPanel>
 
     <!-- 基础表单 -->
-    <Border Grid.Row="3" Margin="0,8,0,0"
-            Padding="{DynamicResource CkanToolbarPadding}"
-            Classes="CkanCard stagger-card"
-            RenderTransform="translate(0px, 0px)">
-      <Grid ColumnDefinitions="88,*,88,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
-            RowSpacing="6" ColumnSpacing="8">
+    <!-- 可滚动内容区：三张元数据卡 + 关系表 -->
+    <ScrollViewer Grid.Row="3" Margin="0,12,0,0" HorizontalScrollBarVisibility="Disabled">
+    <!-- 左：可编辑表单（三段式卡片 + 关系表）；右：实时 JSON 预览（Studio 式对照） -->
+    <Grid ColumnDefinitions="*,12,340">
+    <StackPanel Grid.Column="0" Spacing="12">
 
-        <TextBlock Grid.Row="0" Grid.Column="0" Text="标识" VerticalAlignment="Center"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="0" Grid.Column="1" Tag="Identifier" Text="{Binding Identifier, Mode=TwoWay}"
-                 PlaceholderText="小写字母 / 数字 / 连字符" />
-        <TextBlock Grid.Row="0" Grid.Column="2" Text="名称" VerticalAlignment="Center"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="0" Grid.Column="3" Tag="Name" Text="{Binding Name, Mode=TwoWay}" />
+    <!-- 基础表单拆成三张语义卡（标识与版本 / 说明 / 作者与许可证），避免一张长表 8 行平铺 -->
+    <StackPanel Spacing="12">
 
-        <TextBlock Grid.Row="1" Grid.Column="0" Text="版本" VerticalAlignment="Center"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="1" Grid.Column="1" Tag="Version" Text="{Binding Version, Mode=TwoWay}" PlaceholderText="例如 1.0.0" />
-        <TextBlock Grid.Row="1" Grid.Column="2" Text="规范版本" VerticalAlignment="Center"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="1" Grid.Column="3" Tag="SpecVersion" Text="{Binding SpecVersion, Mode=TwoWay}"
-                 PlaceholderText="留空则由 CKAN 自动推导" />
+      <!-- ① 标识与版本 -->
+      <Border Classes="CkanCard" Padding="{DynamicResource CkanToolbarPadding}">
+        <StackPanel Spacing="10">
+          <TextBlock Text="标识与版本" Classes="CkanSectionTitle" />
+          <Grid ColumnDefinitions="88,*,88,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                RowSpacing="8" ColumnSpacing="8">
 
-        <TextBlock Grid.Row="2" Grid.Column="0" Text="发布状态" VerticalAlignment="Center"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <ComboBox Grid.Row="2" Grid.Column="1" Tag="ReleaseStatus" ItemsSource="{Binding ReleaseStatusOptions}"
-                  SelectedItem="{Binding ReleaseStatus, Mode=TwoWay}" HorizontalAlignment="Stretch" />
-        <TextBlock Grid.Row="2" Grid.Column="2" Text="包类型" VerticalAlignment="Center"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <ComboBox Grid.Row="2" Grid.Column="3" Tag="Kind" ItemsSource="{Binding KindOptions}"
-                  SelectedItem="{Binding Kind, Mode=TwoWay}" HorizontalAlignment="Stretch" />
-
-        <TextBlock Grid.Row="3" Grid.Column="0" Text="游戏版本" VerticalAlignment="Center"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="3" Grid.Column="1" Tag="KspVersion" Text="{Binding KspVersion, Mode=TwoWay}" PlaceholderText="例如 1.12.5" />
-        <TextBlock Grid.Row="3" Grid.Column="2" Text="版本下限" VerticalAlignment="Center"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="3" Grid.Column="3" Tag="KspVersionMin" Text="{Binding KspVersionMin, Mode=TwoWay}" />
-
-        <TextBlock Grid.Row="4" Grid.Column="0" Text="版本上限" VerticalAlignment="Center"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="4" Grid.Column="1" Tag="KspVersionMax" Text="{Binding KspVersionMax, Mode=TwoWay}" />
-        <TextBlock Grid.Row="4" Grid.Column="2" Text="下载地址" VerticalAlignment="Center"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="4" Grid.Column="3" Tag="DownloadUrl" Text="{Binding DownloadUrl, Mode=TwoWay}"
-                 PlaceholderText="kind=package 时必填" />
-
-        <TextBlock Grid.Row="5" Grid.Column="0" Text="摘要" VerticalAlignment="Center"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="3" Tag="Abstract" Text="{Binding Abstract, Mode=TwoWay}" />
-
-        <TextBlock Grid.Row="6" Grid.Column="0" Text="描述" VerticalAlignment="Top" Margin="0,4,0,0"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-        <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Description, Mode=TwoWay}"
-                 AcceptsReturn="True" TextWrapping="Wrap" MinHeight="56" />
-
-        <Grid Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="3" ColumnDefinitions="*,*" ColumnSpacing="12">
-          <StackPanel Grid.Column="0" Spacing="4">
-            <TextBlock Text="作者" FontSize="{DynamicResource CkanFontSizeCaption}"
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="标识" VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-              <TextBox Grid.Column="0" Text="{Binding NewAuthor, Mode=TwoWay}" PlaceholderText="按回车或点「添加」" />
-              <Button Grid.Column="1" Content="添加" Classes="CkanSecondary CkanSmall" Command="{Binding AddAuthorCommand}" />
-            </Grid>
-            <ItemsControl ItemsSource="{Binding Authors}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Grid ColumnDefinitions="*,Auto" Height="{DynamicResource CkanRowHeight}">
-                    <TextBlock Grid.Column="0" Text="{Binding DisplayText}" VerticalAlignment="Center"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                    <Button Grid.Column="1" Content="删除" Classes="CkanGhost CkanSmall"
-                            Command="{Binding $parent[ItemsControl].DataContext.RemoveAuthorCommand}"
-                            CommandParameter="{Binding}" />
-                  </Grid>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </StackPanel>
-
-          <StackPanel Grid.Column="1" Spacing="4">
-            <TextBlock Text="许可证" FontSize="{DynamicResource CkanFontSizeCaption}"
+            <TextBox Grid.Row="0" Grid.Column="1" Tag="Identifier" Text="{Binding Identifier, Mode=TwoWay}"
+                     PlaceholderText="小写字母 / 数字 / 连字符" />
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="名称" VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-              <TextBox Grid.Column="0" Text="{Binding NewLicense, Mode=TwoWay}" PlaceholderText="例如 MIT、GPL-3.0、unknown" />
-              <Button Grid.Column="1" Content="添加" Classes="CkanSecondary CkanSmall" Command="{Binding AddLicenseCommand}" />
-            </Grid>
-            <ItemsControl ItemsSource="{Binding Licenses}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Grid ColumnDefinitions="*,Auto" Height="{DynamicResource CkanRowHeight}">
-                    <TextBlock Grid.Column="0" Text="{Binding DisplayText}" VerticalAlignment="Center"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                    <Button Grid.Column="1" Content="删除" Classes="CkanGhost CkanSmall"
-                            Command="{Binding $parent[ItemsControl].DataContext.RemoveLicenseCommand}"
-                            CommandParameter="{Binding}" />
-                  </Grid>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </StackPanel>
-        </Grid>
-      </Grid>
-    </Border>
+            <TextBox Grid.Row="0" Grid.Column="3" Tag="Name" Text="{Binding Name, Mode=TwoWay}" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="版本" VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBox Grid.Row="1" Grid.Column="1" Tag="Version" Text="{Binding Version, Mode=TwoWay}" PlaceholderText="例如 1.0.0" />
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="规范版本" VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBox Grid.Row="1" Grid.Column="3" Tag="SpecVersion" Text="{Binding SpecVersion, Mode=TwoWay}"
+                     PlaceholderText="留空则由 CKAN 自动推导" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="发布状态" VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <ComboBox Grid.Row="2" Grid.Column="1" Tag="ReleaseStatus" ItemsSource="{Binding ReleaseStatusOptions}"
+                      SelectedItem="{Binding ReleaseStatus, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+            <TextBlock Grid.Row="2" Grid.Column="2" Text="包类型" VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <ComboBox Grid.Row="2" Grid.Column="3" Tag="Kind" ItemsSource="{Binding KindOptions}"
+                      SelectedItem="{Binding Kind, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="游戏版本" VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBox Grid.Row="3" Grid.Column="1" Tag="KspVersion" Text="{Binding KspVersion, Mode=TwoWay}" PlaceholderText="例如 1.12.5" />
+            <TextBlock Grid.Row="3" Grid.Column="2" Text="版本下限" VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBox Grid.Row="3" Grid.Column="3" Tag="KspVersionMin" Text="{Binding KspVersionMin, Mode=TwoWay}" />
+
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="版本上限" VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBox Grid.Row="4" Grid.Column="1" Tag="KspVersionMax" Text="{Binding KspVersionMax, Mode=TwoWay}" />
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- ② 说明与下载 -->
+      <Border Classes="CkanCard stagger-card" Padding="{DynamicResource CkanToolbarPadding}">
+        <StackPanel Spacing="10">
+          <TextBlock Text="说明与下载" Classes="CkanSectionTitle" />
+          <Grid ColumnDefinitions="88,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="8">
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="摘要" VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBox Grid.Row="0" Grid.Column="1" Tag="Abstract" Text="{Binding Abstract, Mode=TwoWay}" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="描述" VerticalAlignment="Top" Margin="0,4,0,0"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Description, Mode=TwoWay}"
+                     AcceptsReturn="True" TextWrapping="Wrap" MinHeight="56" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="下载地址" VerticalAlignment="Center"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            <TextBox Grid.Row="2" Grid.Column="1" Tag="DownloadUrl" Text="{Binding DownloadUrl, Mode=TwoWay}"
+                     PlaceholderText="kind=package 时必填" />
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- ③ 作者与许可证 -->
+      <Border Classes="CkanCard stagger-card" Padding="{DynamicResource CkanToolbarPadding}">
+        <StackPanel Spacing="10">
+          <TextBlock Text="作者与许可证" Classes="CkanSectionTitle" />
+          <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+            <StackPanel Grid.Column="0" Spacing="4">
+              <TextBlock Text="作者" FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <TextBox Grid.Column="0" Text="{Binding NewAuthor, Mode=TwoWay}" PlaceholderText="按回车或点「添加」" />
+                <Button Grid.Column="1" Content="添加" Classes="CkanSecondary CkanSmall" Command="{Binding AddAuthorCommand}" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding Authors}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="*,Auto" Height="{DynamicResource CkanRowHeight}">
+                      <TextBlock Grid.Column="0" Text="{Binding DisplayText}" VerticalAlignment="Center"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                      <Button Grid.Column="1" Content="删除" Classes="CkanGhost CkanSmall"
+                              Command="{Binding $parent[ItemsControl].DataContext.RemoveAuthorCommand}"
+                              CommandParameter="{Binding}" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Spacing="4">
+              <TextBlock Text="许可证" FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <TextBox Grid.Column="0" Text="{Binding NewLicense, Mode=TwoWay}" PlaceholderText="例如 MIT、GPL-3.0、unknown" />
+                <Button Grid.Column="1" Content="添加" Classes="CkanSecondary CkanSmall" Command="{Binding AddLicenseCommand}" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding Licenses}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="*,Auto" Height="{DynamicResource CkanRowHeight}">
+                      <TextBlock Grid.Column="0" Text="{Binding DisplayText}" VerticalAlignment="Center"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                      <Button Grid.Column="1" Content="删除" Classes="CkanGhost CkanSmall"
+                              Command="{Binding $parent[ItemsControl].DataContext.RemoveLicenseCommand}"
+                              CommandParameter="{Binding}" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </Border>
+    </StackPanel>
 
     <!-- 关系表 -->
-    <Grid Grid.Row="4" RowDefinitions="Auto,Auto,*,Auto" Margin="0,8,0,0"
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto"
           Classes="stagger-card"
           RenderTransform="translate(0px, 0px)">
       <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
-        <TextBlock Grid.Column="0" Text="关系（依赖 / 推荐 / 建议 / 冲突 / 支持）"
-                   FontSize="{DynamicResource CkanFontSizeSubtitle}"
-                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="模组关系"
+                     FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                     VerticalAlignment="Center" />
+          <Button Classes="CkanHelper" VerticalAlignment="Center"
+                  ToolTip.Tip="支持依赖 (depends)、推荐 (recommends)、建议 (suggests)、冲突 (conflicts)、支持 (supports) 五类关系">
+            <PathIcon Data="{StaticResource CkanIconHelp}" />
+          </Button>
+        </StackPanel>
         <Button Grid.Column="1" Content="添加关系" Classes="CkanPrimary" Command="{Binding AddRelationCommand}"
                 ToolTip.Tip="追加一行，再选择关系类型与语义模式" />
       </Grid>
 
-      <Border Grid.Row="1" Padding="8,4"
+      <Border Grid.Row="1" Padding="8,4" IsVisible="{Binding !ShowEmptyRelations}"
               CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
               BorderBrush="{DynamicResource CkanBorderBrush}"
               BorderThickness="1"
@@ -241,7 +281,7 @@
         </Grid>
       </Border>
 
-      <ListBox Grid.Row="2" ItemsSource="{Binding Relations}"
+      <ListBox Grid.Row="2" Height="200" ItemsSource="{Binding Relations}"
                BorderBrush="{DynamicResource CkanBorderBrush}"
                BorderThickness="0">
         <ListBox.ItemTemplate>
@@ -285,16 +325,44 @@
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" />
       </Border>
     </Grid>
+    </StackPanel>
+
+    <!-- 实时 JSON 预览：只读镜像，随表单即时刷新 -->
+    <Border Grid.Column="2" Classes="CkanCard" Padding="12"
+            VerticalAlignment="Top">
+      <StackPanel Spacing="8">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Text="实时 JSON" Classes="CkanSectionTitle" VerticalAlignment="Center" />
+          <PathIcon Width="13" Height="13" VerticalAlignment="Center"
+                    Data="{StaticResource CkanIconHelp}"
+                    Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                    ToolTip.Tip="只读镜像：按当前表单即时拼出 .ckan 结构，方便对照；不参与校验与保存，空字段不会出现。" />
+        </StackPanel>
+        <Border Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="10,8">
+          <SelectableTextBlock Text="{Binding JsonPreviewText}"
+                               FontFamily="Consolas,Menlo,monospace"
+                               FontSize="11"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </Border>
+      </StackPanel>
+    </Border>
+    </Grid>
+    </ScrollViewer>
 
     <!-- 状态栏 -->
-    <Grid Grid.Row="5" ColumnDefinitions="Auto,*" Margin="0,8,0,0">
+    <Border Grid.Row="4" Classes="CkanPageFooter" Margin="0,12,0,0">
+    <Grid ColumnDefinitions="Auto,*">
       <TextBlock Grid.Column="0" Text="{Binding BusyText}" IsVisible="{Binding IsBusy}"
                  Margin="0,0,8,0"
                  FontSize="{DynamicResource CkanFontSizeCaption}"
-                 Foreground="{DynamicResource CkanAccentTextBrush}" />
+                 Foreground="{DynamicResource CkanAccentBrush}" />
       <TextBlock Grid.Column="1" Text="{Binding StatusText}" TextWrapping="Wrap"
                  FontSize="{DynamicResource CkanFontSizeCaption}"
                  Foreground="{DynamicResource CkanTextSecondaryBrush}" />
     </Grid>
+    </Border>
   </Grid>
 </UserControl>
