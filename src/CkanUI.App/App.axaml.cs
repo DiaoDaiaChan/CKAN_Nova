@@ -42,6 +42,37 @@ public sealed partial class App : Application
     private LogExceptionRouter? _logRouter;
     private bool _shutdownDone;
 
+    /// <summary>启动计时：从 XAML 加载前到首个窗口可交互，一次启动只打一行总账与各阶段耗时。</summary>
+    /// <remarks>
+    /// 真机启动实测 2.4-2.7 秒、其中约 1.5 秒 CPU、其余在等 I/O，光看一个总数没法判断该动哪一段，
+    /// 所以把组装顺序上的几个必然经过的点插上标记。开销只有几次 Stopwatch 读数。
+    /// </remarks>
+    private readonly System.Diagnostics.Stopwatch _startupWatch = new();
+
+    /// <summary>启动阶段标记的落点：进 log4net，另外在 CKANUI_STARTUP_TRACE 指向文件时追加一行。</summary>
+    /// <remarks>
+    /// 只写 log4net 不好事后核对 —— 落盘目录跟着实例走、被并行测试进程混写，抓一次要翻半天。
+    /// 环境变量是给测量脚本用的显式开关，不设就只多一次字符串拼接。
+    /// </remarks>
+    private static void TraceStartup(string line)
+    {
+        Log.Info(line);
+        var path = Environment.GetEnvironmentVariable("CKANUI_STARTUP_TRACE");
+        if (string.IsNullOrWhiteSpace(path)) return;
+        try
+        {
+            File.AppendAllText(path, $"{DateTime.Now:HH:mm:ss.fff} {line}{Environment.NewLine}");
+        }
+        catch (IOException)
+        {
+            // 追写失败只是丢一行诊断，不影响启动。
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // 同上。
+        }
+    }
+
     /// <summary>当前应用实例（供单实例转发把外部参数送进窗口）。</summary>
     public static App? Instance { get; private set; }
 
@@ -49,7 +80,9 @@ public sealed partial class App : Application
     public override void Initialize()
     {
         Instance = this;
+        _startupWatch.Restart();
         AvaloniaXamlLoader.Load(this);
+        TraceStartup($"[启动计时] app-xaml={_startupWatch.ElapsedMilliseconds}ms");
     }
 
     /// <inheritdoc />
@@ -57,17 +90,28 @@ public sealed partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            var lastMarkMs = _startupWatch.ElapsedMilliseconds;
+            void Mark(string phase)
+            {
+                var now = _startupWatch.ElapsedMilliseconds;
+                TraceStartup($"[启动计时] {phase}={now}ms (+{now - lastMarkMs}ms)");
+                lastMarkMs = now;
+            }
+
             _services = ServiceRegistration.Build(() => desktop.MainWindow);
+            Mark("di-build");
 
             // 日志域（M8 / 14 篇 §3.2）：Program 里已跑过 LoggingSetup.Initialize()，这里把缓冲挂到 log4net 仓库。
             // 顺序不能反 —— Install() 会把仓库标记为 Configured，抢在 LoggingSetup 之前就会跳过 log4net.xml。
             // 文件 appender 建不出来只是降级（缓冲照常工作），绝不能因为写不了盘就不启动。
             InstallLogPipeline();
+            Mark("log-pipeline");
 
             // 语言包必须在窗口显示前灌进资源字典，否则首帧会看到裸 key（i18n-guide §6.2）。
             var localizer = _services.GetRequiredService<ILocalizer>();
             _localization = new LocalizationHost(localizer, _services.GetRequiredService<IDispatcher>(), this);
             _localization.Install();
+            Mark("localization");
 
             // 主题与语言一样必须在首帧前生效，否则会看到默认变体闪一下（20 篇 P-08）。
             // 系统高对比度是最高优先级（20 篇 §15 / P-02）：探针直读平台设置，开了就压过用户选的主题与强调色。
@@ -77,6 +121,7 @@ public sealed partial class App : Application
                 this,
                 () => ThemeHost.IsSystemHighContrast(this));
             _theme.Install();
+            Mark("theme");
 
             // 密度与主题同理：首帧前落地，否则会看到默认行高跳一下（20 篇 P-08、THM-06）。
             _density = new DensityHost(
@@ -84,6 +129,7 @@ public sealed partial class App : Application
                 _services.GetRequiredService<IDispatcher>(),
                 this);
             _density.Install();
+            Mark("density");
 
             // 字号缩放紧随密度（20 篇 P-09）：同样首帧前落地，避免第一帧用基准字号再跳一档。
             _fonts = new Theming.FontScaleHost(
@@ -91,14 +137,21 @@ public sealed partial class App : Application
                 _services.GetRequiredService<IDispatcher>(),
                 this);
             _fonts.Install();
+            Mark("fonts");
 
             // 强调色与圆角宿主：首帧前落地，初始化 12 预设强调色与圆角缩放 token（20 篇 P-03、P-05）
+            // 实例服务解析 = 初始化 Core 的实例管理（读 config.json + 探测实例目录），实测 140ms。
+            // 试过把它挪到首帧之后：这 140ms 会原样搬到 ShellViewModel 构造里（外壳要实例列表），
+            // 一秒都没省，反而让侧栏实例名晚出现，所以保持首帧前解析。
+            var instanceService = _services.GetService<IInstanceService>();
+            Mark("instance-service-resolved");
             _accent = new Theming.AccentHost(
                 _services.GetRequiredService<IUiSettingsStore>(),
                 _services.GetRequiredService<IDispatcher>(),
                 this,
-                _services.GetService<IInstanceService>());
+                instanceService);
             _accent.Install();
+            Mark("accent");
 
             // 高对比度开关一变，主题变体与强调色都要重算（强调色依赖主题变体，故排在其后订阅）。
             _theme.ForcedStateChanged += _ => _accent?.Refresh();
@@ -109,14 +162,17 @@ public sealed partial class App : Application
                 _services.GetRequiredService<IDispatcher>(),
                 this);
             _motion.Install();
+            Mark("motion");
 
             _radius = new Theming.RadiusHost(
                 _services.GetRequiredService<IUiSettingsStore>(),
                 _services.GetRequiredService<IDispatcher>(),
                 this);
             _radius.Install();
+            Mark("radius");
 
             var shell = _services.GetRequiredService<ShellViewModel>();
+            Mark("shell-vm");
 
             // 日志抽屉（UI-LOG-01）：外壳负责挂载位置与跳转，抽屉自己只管缓冲与徽标。
             // 事件而不是直接依赖导航服务 —— 抽屉是被外壳实例化的，不该反过来认识外壳的导航实现。
@@ -124,6 +180,7 @@ public sealed partial class App : Application
             shell.LogDrawer.OpenPageRequested += (_, _) => shell.NavigateCommand.Execute("logs");
 
             var window = new MainWindow { DataContext = shell };
+            Mark("main-window-new");
 
             // 命令面板（UI-27）：键位与「命令 Id → 动作」的映射留在外壳，这里只交 VM、目录与动作落点。
             window.AttachCommandPalette(
@@ -149,8 +206,9 @@ public sealed partial class App : Application
                 _services.GetRequiredService<IDispatcher>(),
                 this,
                 window,
-                _services.GetService<IInstanceService>());
+                instanceService);
             _background.Install();
+            Mark("backdrop+background");
 
             // 资源释放的 L0 参与方要拿到背景宿主才能放位图（18 篇 §3）：容器解析时不带窗口参数，只能回填。
             if (_services.GetService<Lifecycle.UiViewResourceParticipant>() is { } viewParticipant)
@@ -165,11 +223,13 @@ public sealed partial class App : Application
                 _services.GetServices<CkanUI.ViewModels.Navigation.IPluginToolHost>(),
                 _services.GetRequiredService<IDispatcher>());
             _pluginTools.Install();
+            Mark("plugin-tools");
 
             // 托盘（12 篇 F-51）：窗口建好后再装图标；「最小化到托盘 / 关闭到托盘」两个开关的生效点就在这里。
             var trayMenu = _services.GetRequiredService<TrayMenuViewModel>();
             _tray = _services.GetRequiredService<TrayHost>();
             _tray.Install();
+            Mark("tray");
 
             window.Closing += (_, e) =>
             {
@@ -190,6 +250,20 @@ public sealed partial class App : Application
 
             // 启动序列放后台跑：UI 线程必须保持空闲，否则 02 篇 §1 里的网络/磁盘步骤会冻住窗口。
             // 首个进程用 ckan:// 直接启动时同样要执行深链，所以把启动参数一并交给启动序列，在它收尾后落点。
+            // 首帧布局：Opened 只表示窗口已映射，真正把可视树量完排完发生在之后的布局轮，
+            // 所以用 Loaded 优先级的 Post 兜住这一段，把「组装」和「首帧布局」分开计数。
+            window.Opened += (_, _) =>
+            {
+                TraceStartup($"[启动计时] window-opened={_startupWatch.ElapsedMilliseconds}ms");
+                Avalonia.Threading.Dispatcher.UIThread.Post(
+                    () => TraceStartup($"[启动计时] first-layout={_startupWatch.ElapsedMilliseconds}ms"),
+                    Avalonia.Threading.DispatcherPriority.Loaded);
+                Avalonia.Threading.Dispatcher.UIThread.Post(
+                    () => TraceStartup($"[启动计时] first-paint={_startupWatch.ElapsedMilliseconds}ms"),
+                    Avalonia.Threading.DispatcherPriority.Background);
+            };
+
+            Mark("assembly-done");
             _ = StartAsync(shell, desktop.Args ?? Array.Empty<string>());
         }
 
@@ -230,14 +304,19 @@ public sealed partial class App : Application
 
     private async Task StartAsync(ShellViewModel shell, IReadOnlyList<string>? launchArgs = null)
     {
+        // 这段同步序言会挡住窗口显示 —— 它跑在 Avalonia 调用 Show() 之前，于是这里多花的时间
+        // 直接算进「从启动到看见窗口」。
+        TraceStartup($"[启动计时] start-async-sync-begin={_startupWatch.ElapsedMilliseconds}ms");
         var services = _services!;
         var dispatcher = services.GetRequiredService<IDispatcher>();
         var errors = services.GetRequiredService<IErrorReporter>();
         try
         {
+            TraceStartup($"[启动计时] bootstrap-called={_startupWatch.ElapsedMilliseconds}ms");
             var result = await services.GetRequiredService<IAppBootstrapper>()
                                        .StartupAsync(CancellationToken.None)
                                        .ConfigureAwait(false);
+            TraceStartup($"[启动计时] bootstrap-done={_startupWatch.ElapsedMilliseconds}ms");
             var localizer = services.GetRequiredService<ILocalizer>();
             var status = result.IsSuccess
                 ? localizer.Get("Ui_Common_Status_Ready")

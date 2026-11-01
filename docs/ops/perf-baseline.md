@@ -237,3 +237,48 @@ t+45~55s 才被压回 440-514 MB。对 8 GB 机器来说，前 50 秒就一直�
 > 度量口径提醒：工作集是**平台态**指标，回收后才落到底；读 `Process.WorkingSet64` 就够，
 > 不要拿 `GC.GetTotalMemory` 判断——它看不见提交未释放的页，那才是这 500 MB 的主体。
 
+
+## 8. 真机启动归因（进程内打点）
+
+`MainWindowHandle` 轮询测出的 2.4–2.7 s 是**探测滞后**，不是应用时间：原生窗口早已可见，脚本还在等句柄。
+
+权威口径只能来自进程内部。`src/CkanUI.App/App.axaml.cs` 里加了 `_startupWatch` + `Mark(phase)` 打点（`StartAsync` 另有三点），沿路输出 `[启动计时] {phase}={累计 ms} (+{本段 ms})`。
+日志默认走 log4net，而 log4net 的落盘目录跟实例走、还会被并行跑的测试进程污染——所以打点同时支持环境变量直写文件：
+
+```bash
+CKANUI_STARTUP_TRACE=C:/Users/43701/Documents/github/ckan-ui/artifacts/perf/startup-trace.log \
+  timeout 10 ./src/CkanUI.App/bin/Release/net10.0/CkanUI.exe
+```
+
+（`artifacts/perf/startup-phases.ps1` 是等价的 PowerShell 采样脚本，会被 Start-Process 等待卡住，直接 timeout 起进程更稳。）
+
+Release / 1280×800 / 三次一致，单位 ms：
+
+| 阶段 | 累计 | 本段 | 备注 |
+| --- | --- | --- | --- |
+| app-xaml | 184–194 | 184–194 | `App.axaml` 反序列化，含 Tokens/FluentStyles 引用 |
+| di-build | 227–230 | +12–14 | 容器注册 |
+| log-pipeline | 239–242 | +11–14 | |
+| localization | 299–307 | +59–68 | 建已本地化键表 |
+| theme → radius | 302–325 | +11–17 | 六组设置宿主，各自只 2–4 ms |
+| instance-service-resolved | 308–318 | +0–1 | **140 ms 已在上一段花掉**，见下 |
+| shell-vm | 447–468 | +132–143 | 外壳 VM 构造（要实例列表） |
+| main-window-new | 755–783 | +308–315 | `new MainWindow()` 反序列化整个 XAML |
+| backdrop+background → tray | 786–819 | +32–36 | |
+| assembly-done | 787–820 | +1 | 托管装配结束 |
+| window-opened | 1065–1103 | +257–276 | Show()：建原生窗口 + 首次布局 |
+| first-layout | 1124–1162 | +59–68 | |
+| first-paint | 1527–1550 | +305–427 | 第一次真正光栅化 |
+| **总计** | **1417–1563** | | |
+
+首帧前四大块：`main-window-new` ~320 / `first-paint` ~380 / `window-opened` ~265 / `app-xaml` ~188。
+
+**已被否定的改法（留证，别重复走）**：把 `IInstanceService` 解析推迟到首帧之后。逐宿主插桩证明 theme/density/fonts 各只 2–4 ms、accent 自身 apply 只 1–2 ms，那 140 ms 全在 `_services.GetService<IInstanceService>()`（初始化 Core 的实例管理：读 config.json + 探测实例目录）。改成首帧后再挂 `AccentHost.AttachInstances`/`BackgroundHost.AttachInstances` 之后，**140 ms 原样搬到 `shell-vm`**（+132/+143 ms）——外壳要实例列表才能建，一秒都没省，还让侧栏实例名晚出现。已回退。
+
+剩余空间都在并行改动中的文件上，等那一路落地再动：
+
+| 目标 | 预计 | 需要改的文件 |
+| --- | --- | --- |
+| main-window-new 320 ms | 诊断 HUD/覆盖层子树改成延迟内容 | `src/CkanUI.App/MainWindow.axaml` |
+| app-xaml 188 ms | 拆资源字典、按需加载 | `src/CkanUI.App/Resources/Tokens.axaml`:1、`FluentStyles.axaml`:1 |
+| localization 60 ms | 惰性建键表 | `src/CkanUI.App/Localization/LocalizationHost.cs`:1 |
