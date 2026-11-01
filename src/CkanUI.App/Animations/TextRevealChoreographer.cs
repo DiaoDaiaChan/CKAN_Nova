@@ -1,8 +1,11 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace CkanUI.App.Animations;
@@ -36,6 +39,8 @@ public static class TextRevealChoreographer
     /// <summary>扫描上限，防止超长页面（虚拟化列表/大表格）在换页时走一整棵树。</summary>
     private const int MaxVisited = 2400;
 
+    private static readonly ConditionalWeakTable<TabControl, object> Watched = new();
+
     /// <summary>对 <paramref name="root"/> 内的文字做逐行入场；返回被编排的文本块数量。</summary>
     /// <param name="root">页面或区域的根。</param>
     /// <param name="includeOpacity">是否同时压不透明度（只做位移时传 false）。</param>
@@ -45,6 +50,8 @@ public static class TextRevealChoreographer
         {
             return 0;
         }
+
+        Watch(root);
 
         var targets = Collect(root);
         if (targets.Count == 0)
@@ -77,6 +84,60 @@ public static class TextRevealChoreographer
 
         return targets.Count;
     }
+
+    /// <summary>页内页签（<see cref="TabControl"/>）切换时，让新内容的文字同样逐行上屏。</summary>
+    /// <remarks>
+    /// 页签切换发生在同一页内部，不走换页编排，新内容此前是硬出现的。这里只订阅一次
+    /// <c>SelectionChanged</c>，把新选中的内容宿主重新排一遍；模板还没套上时排到 <c>Loaded</c> 再来一次。
+    /// </remarks>
+    private static void Watch(Visual root)
+    {
+        foreach (var tabControl in FindTabControls(root))
+        {
+            if (Watched.TryGetValue(tabControl, out _))
+            {
+                continue;
+            }
+
+            Watched.Add(tabControl, tabControl);
+            tabControl.SelectionChanged += (_, _) => Dispatcher.UIThread.Post(
+                () => Play(SelectedHost(tabControl)),
+                DispatcherPriority.Loaded);
+        }
+    }
+
+    private static IEnumerable<TabControl> FindTabControls(Visual root)
+    {
+        var stack = new Stack<(Visual Node, int Depth)>();
+        stack.Push((root, 0));
+        var visited = 0;
+
+        while (stack.Count > 0 && visited < MaxVisited)
+        {
+            var (node, depth) = stack.Pop();
+            visited++;
+
+            if (node is TabControl tabControl)
+            {
+                yield return tabControl;
+            }
+
+            if (depth >= MaxDepth)
+            {
+                continue;
+            }
+
+            foreach (var child in node.GetVisualChildren())
+            {
+                stack.Push((child, depth + 1));
+            }
+        }
+    }
+
+    private static ContentPresenter? SelectedHost(TabControl tabControl) =>
+        tabControl.GetVisualDescendants().OfType<ContentPresenter>()
+            .FirstOrDefault(presenter => presenter.Name == "PART_SelectedContentHost")
+        ?? tabControl.GetVisualDescendants().OfType<ContentPresenter>().LastOrDefault();
 
     /// <summary>按视觉顺序收集有文字的可见 <see cref="TextBlock"/>（前序深度优先，跳过表格行）。</summary>
     private static List<TextBlock> Collect(Visual root)

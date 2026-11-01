@@ -173,6 +173,38 @@ public sealed class TextRevealChoreographerTests
         }
     }
 
+    [Test]
+    public void SwitchingTabsReplaysTheTextOfTheNewContent()
+    {
+        var first = new TextBlock { Text = "第一个页签的文字" };
+        var second = new TextBlock { Text = "第二个页签的文字" };
+        var tabs = new TabControl
+        {
+            Items =
+            {
+                new TabItem { Header = "一", Content = first },
+                new TabItem { Header = "二", Content = second },
+            },
+        };
+        var window = HeadlessAppHost.CreateTestWindow(tabs, 420, 240);
+
+        try
+        {
+            TextRevealChoreographer.Play(window);
+            Tick(2);
+
+            tabs.SelectedIndex = 1;
+            Tick(4);
+
+            Assert.That(TranslateY(second), Is.GreaterThan(0.5), "页内页签切换后，新内容文字也要逐行上屏");
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
     private static TextBlock[] CreateLines(Panel panel, int count)
     {
         var lines = new TextBlock[count];
