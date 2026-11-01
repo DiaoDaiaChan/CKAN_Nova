@@ -838,3 +838,21 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 
 验证：`CkanUI.App.Tests` 457 项全绿；`dotnet build ckan-ui.sln` 0 警告 0 错误；真实窗口探针 24 页重新采样，
 `hoverLift` 与 `popped` 覆盖不变（各页 4/4 项中的图标按钮仍按 §5.9.25 排除），说明提幅度没有破坏接管范围。
+
+#### 5.9.28 平滑滚动：把目标带进视野时不再瞬跳
+
+`src/CkanUI.App/Animations/SmoothScrollMotion.cs`。列表默认走 `ScrollIntoView`：一按方向键内容整屏换位，眼睛要重新找位置。
+这里只改"怎么到那儿"——**目标位置仍由可见性算法算**，弹簧只负责滑过去，并且能被下一次按键打断。
+
+| 项 | 口径 |
+| --- | --- |
+| 触发 | 窗口级 `GotFocus` 冒泡（键盘方向键、Tab、命令式 `EnsureVisible(Control)` 三条路同一个入口） |
+| 目标计算 | 控件顶/底相对 `ScrollViewer` 的坐标 + `EdgeMarginPixels=28`（视口不足 1/4 时收到 1/4），夹到 `[0, Extent-Viewport]` |
+| 通道 | `SpringChannel`（`SpringSpec.Glide`，静止阈 0.5 px / 6 px·s⁻¹），只驱 Y；X 原样保留（横向流由页面自己处理） |
+| 打断 | `Retarget` 前 `SnapTo(当前偏移)`：换目标时位置与速度都连贯，不会跳回原点重新起步 |
+| 帧泵 | `MotionFramePump` 从"只推 `TransformSpring`"改成推 `IMotionTicker`（`TransformSpring` 显式实现）；滚动通道与变换弹簧共用同一条 VSync 泵，空闲自动停 |
+| 三档 | `none` 直接写 `Offset` 落位、不排帧；`reduced/full` 同样滑（滚动位移不是"装饰幅度"，压缩它会变成别扭的半程滚动） |
+| 接入点 | `MainWindow.PlayPageReveal` 与 `DialogEntrance.Play` 各挂一次（幂等） |
+| 门禁 | `SmoothScrollMotionTests` 4 项：跨屏滑入不瞬跳、已可见不动、换目标保持当前位置（一帧走完新距离一半以内）、关闭档直落 |
+
+不接：鼠标滚轮与触摸拖动（用户已经在直接控制偏移，再加弹簧会"抢方向"）、横向内容流（`Viewport.Width > Extent.Height` 的那些由 `ScrollRevealMotion` 的横向分支负责入场）。
