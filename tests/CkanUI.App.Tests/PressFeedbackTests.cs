@@ -119,6 +119,41 @@ public sealed class PressFeedbackTests
         }
     }
 
+    [Test]
+    public void PressingAnInteractiveCardDipsIt()
+    {
+        var card = new Border
+        {
+            Width = 300,
+            Height = 150,
+            Classes = { InteractionMotion.CardClass },
+            Background = Brushes.Transparent,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        var window = HeadlessAppHost.CreateTestWindow(card, 400, 300);
+        window.AddHandler(InputElement.PointerPressedEvent, (_, e) => InteractionMotion.Press(e, window), RoutingStrategies.Tunnel, handledEventsToo: true);
+        window.AddHandler(InputElement.PointerReleasedEvent, (_, _) => InteractionMotion.Release(), RoutingStrategies.Tunnel, handledEventsToo: true);
+        Pump(5);
+
+        try
+        {
+            Press(window, new Point(150, 75));
+            var scale = ScaleOf(card);
+            Assert.That(scale, Is.LessThan(0.9999), "可点卡片按下必须真的缩");
+            Assert.That(scale, Is.GreaterThan(0.95), "整张卡按 12 px 收会塌，卡片用 6 px");
+
+            window.MouseUp(new Point(150, 75), MouseButton.Left);
+            Pump(80);
+            Assert.That(ScaleOf(card), Is.EqualTo(1d).Within(0.01), "松手要弹回去");
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
     private static Button CreateButton() => new()
     {
         Width = 120,
