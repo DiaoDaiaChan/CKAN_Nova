@@ -809,7 +809,17 @@ public static class PageSwitchProbe
     {
         HeadlessAppHost.EnsureInitialized();
         using var services = ServiceRegistration.Build(() => null);
-        _ = services.GetService(typeof(IInstanceService));
+        var instanceService = (IInstanceService)services.GetService(typeof(IInstanceService))!;
+        if (Environment.GetEnvironmentVariable("CKANUI_PROBE_INSTANCE") == "1")
+        {
+            // 带数据的直方图：空实例下页面只有骨架，节点数会被严重低估。
+            instanceService.RefreshAsync().GetAwaiter().GetResult();
+            if (instanceService.Current is null && instanceService.Instances.Count > 0)
+            {
+                instanceService.SwitchAsync(instanceService.Instances[0].Name).GetAwaiter().GetResult();
+            }
+        }
+
         HeadlessAppHost.PumpJobs();
 
         if (!ServiceRegistration.PageTypes.TryGetValue(key, out var type))

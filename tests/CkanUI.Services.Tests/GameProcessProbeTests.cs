@@ -36,6 +36,47 @@ public sealed class GameProcessProbeTests
         Assert.That(GameProcessProbe.IsInsideGameDir("C:\\a\\0\0::bad", "C:\\a"), Is.False);
 
     [Test]
+    public void GetProcessImagePaths_ReusesScanWithinCacheWindow()
+    {
+        var now = DateTimeOffset.UnixEpoch;
+        var scans = 0;
+        var probe = new GameProcessProbe(
+            () =>
+            {
+                scans++;
+                return new[] { @"C:\Games\KSP\KSP_x64.exe" };
+            },
+            () => now);
+
+        var first = probe.GetProcessImagePaths();
+        now = now.AddMilliseconds(300);
+        var second = probe.GetProcessImagePaths();
+
+        Assert.That(scans, Is.EqualTo(1), "一秒内重复问不该再扫一遍进程表");
+        Assert.That(ReferenceEquals(first, second), Is.True);
+    }
+
+    [Test]
+    public void GetProcessImagePaths_RescansAfterCacheWindow()
+    {
+        var now = DateTimeOffset.UnixEpoch;
+        var scans = 0;
+        var probe = new GameProcessProbe(
+            () =>
+            {
+                scans++;
+                return Array.Empty<string>();
+            },
+            () => now);
+
+        _ = probe.GetProcessImagePaths();
+        now = now.Add(GameProcessProbe.CacheTtl);
+        _ = probe.GetProcessImagePaths();
+
+        Assert.That(scans, Is.EqualTo(2));
+    }
+
+    [Test]
     public void GetProcessImagePaths_NeverThrows()
     {
         var paths = new GameProcessProbe().GetProcessImagePaths();

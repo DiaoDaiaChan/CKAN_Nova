@@ -1319,3 +1319,47 @@ CKANUI_PROBE_REAL_CONFIG=1 CKANUI_PROBE_INSTANCE=1 TEMP=… TMP=… \
 
 代价说明：别的进程直接改 `.cfg` 而注册表没动时，页面会显示上一次的结果，用户点「刷新」即可——
 这比"每次进页面都扫 90ms"更符合实际使用；注册表变化（安装/卸载/更新）仍会自动失效。
+
+## 28. 带真实实例的全 tab 收口（HEAD 0774328）
+
+### 28.1 口径
+`CKANUI_PROBE_REAL_CONFIG=1 CKANUI_PROBE_INSTANCE=1 perf-probe.exe --pages-real`：探针读真实 CKAN 配置、
+切到 `Kerbal Space Program_newmod`（D:/Kerbal Space Program newmod，105 个模块）后逐页往返两轮。
+round2 就是用户每次点同一个 tab 的成本（round1 含首次解析与首次建视图）。机器：32 核，采样时并行编译在跑。
+
+### 28.2 round2 实测（ms）
+| 页面 | activate | layout | render | 节点 |
+| --- | ---: | ---: | ---: | ---: |
+| settings | 1.41 | 872.6 | 5.1 | 2346 |
+| unmanaged | 0.00 | 421.5 | 14.6 | 1167 |
+| mods | 3.82 | 319.5 | — | 2540 |
+| saves | 0.60 | 144.7 | — | 517 |
+| home | 1.27 | 129.6 | 1.7 | 225 |
+| flags | 0.61 | 96.4 | — | 522 |
+| instances | 3.60 | 85.2 | — | 296 |
+| ships | 0.32 | 84.8 | — | 391 |
+| dedup | 1.09 | 60.3 | 0.4 | 171 |
+| modconfig | 1.57 | 46.6 | 0.4 | 146 |
+| changes | 2.66 | 42.9 | — | 89 |
+
+结论：round2 的 `activate` 全页已在 5ms 以内（mods 3.82 最高）——切页重灌数据的问题已收干净，
+剩下的全是 **可视树落地** 成本，单价约 0.12–0.37ms/节点。
+
+### 28.3 本轮新增两处
+- `changes` 页 activate 53.3 → **2.66ms**：`IGameProcessProbe` 的 `GameProcessProbe` 每次调用都要遍历全部进程读
+  MainModule（≈50ms），配置页/变更页/实例页都会在激活时问一次。给它加 1 秒结果复用窗口
+  （`public static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(1);`，可测构造注入 scan/clock），
+  同一秒内重复问不再扫进程表；最多迟一秒感知游戏启动/退出。
+- `modconfig` 页 activate 93.4 → **1.57ms**（见 §27.6）。
+
+### 28.4 为什么不动 settings / unmanaged / mods
+- settings 2346 节点：36 行 `FASettingsExpander`（每行 65 节点）。三条虚拟化路线全部取证否决（§20），
+  ItemsRepeater 在 Avalonia 12.1.4 已移出核心且独立包最高 12.0.0。
+- unmanaged 1167 节点：给 TreeView 换 `VirtualizingStackPanel` 后节点 1167→661、layout 384→387ms 不变（§27.5）——
+  成本在行本身的 Measure/Arrange，不在实体化行数。
+- mods 2540 节点里 `DataGridRow` 只有 20 个（虚拟化正常），`Rectangle` 804 个来自 DataGrid 默认单元格的焦点框模板；
+  换行高/列宽/集合类型都不动它（§23）。
+
+### 28.5 门禁与回归
+`--gate-mem` 全部 PASS（滚动 97675 B/帧 ≤130000、首屏后 212.4MB ≤260、峰值 228.4MB ≤300、光栅档空转 7.70% ≤22、线程 9 ≤24）；
+`--gate-pages` ALL PASS；solution 构建 0 警告 0 错误；TestRunner 3525 例 0 失败（1 例显式 Skip）。

@@ -19,9 +19,56 @@ public interface IGameProcessProbe
 }
 
 /// <summary>基于 <see cref="Process"/> 的实现。任何探测异常都退化成空结果。</summary>
+/// <remarks>
+/// 一次全进程扫描要读每个进程的 MainModule，实测约 50ms。多个页面（配置页、变更页、
+/// 实例页）都会在激活时问一次"游戏在不在跑"，所以结果在 <see cref="CacheTtl"/> 内复用：
+/// 一秒之内重复问不会得到不同答案，但用户刚启动/刚退出游戏最多迟一秒才被看到。
+/// </remarks>
 public sealed class GameProcessProbe : IGameProcessProbe
 {
+    /// <summary>结果复用窗口。</summary>
+    public static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(1);
+
+    private readonly Func<IReadOnlyList<string>> _scan;
+    private readonly Func<DateTimeOffset> _clock;
+    private readonly object _gate = new();
+    private IReadOnlyList<string>? _cached;
+    private DateTimeOffset _cachedAt;
+
+    /// <summary>生产用构造。</summary>
+    public GameProcessProbe()
+        : this(null, null)
+    {
+    }
+
+    /// <summary>可测构造：注入扫描与时钟。</summary>
+    /// <param name="scan">真正的扫描；为 null 时读本机进程表。</param>
+    /// <param name="clock">时钟；为 null 时用系统时间。</param>
+    public GameProcessProbe(Func<IReadOnlyList<string>>? scan, Func<DateTimeOffset>? clock = null)
+    {
+        _scan = scan ?? ScanProcesses;
+        _clock = clock ?? (static () => DateTimeOffset.UtcNow);
+    }
+
+    /// <inheritdoc />
     public IReadOnlyList<string> GetProcessImagePaths()
+    {
+        lock (_gate)
+        {
+            var now = _clock();
+            if (_cached is { } cached && now - _cachedAt < CacheTtl)
+            {
+                return cached;
+            }
+
+            var paths = _scan();
+            _cached = paths;
+            _cachedAt = now;
+            return paths;
+        }
+    }
+
+    private static IReadOnlyList<string> ScanProcesses()
     {
         var paths = new List<string>();
         Process[] processes;
