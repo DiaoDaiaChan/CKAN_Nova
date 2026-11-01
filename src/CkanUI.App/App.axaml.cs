@@ -101,6 +101,12 @@ public sealed partial class App : Application
             _services = ServiceRegistration.Build(() => desktop.MainWindow);
             Mark("di-build");
 
+            // 实例服务解析 = 初始化 Core 的实例管理（读 config.json + 探测实例目录），实测 140ms 纯磁盘 I/O。
+            // 它到强调色宿主才被用到，中间还排着日志管道、语言包、主题、密度、字号几段 UI 线程工作，
+            // 所以在后台线程先把它造好，主线程继续往下走，用到时直接拿成品（单例，容器并发解析安全）。
+            // 注意这不等于「挪到首帧之后」—— 那样这 140ms 会原样搬到 ShellViewModel 构造里，一秒都不省。
+            Task<IInstanceService?>? instanceWarmup = Task.Run(() => _services.GetService<IInstanceService>());
+
             // 日志域（M8 / 14 篇 §3.2）：Program 里已跑过 LoggingSetup.Initialize()，这里把缓冲挂到 log4net 仓库。
             // 顺序不能反 —— Install() 会把仓库标记为 Configured，抢在 LoggingSetup 之前就会跳过 log4net.xml。
             // 文件 appender 建不出来只是降级（缓冲照常工作），绝不能因为写不了盘就不启动。
@@ -140,10 +146,7 @@ public sealed partial class App : Application
             Mark("fonts");
 
             // 强调色与圆角宿主：首帧前落地，初始化 12 预设强调色与圆角缩放 token（20 篇 P-03、P-05）
-            // 实例服务解析 = 初始化 Core 的实例管理（读 config.json + 探测实例目录），实测 140ms。
-            // 试过把它挪到首帧之后：这 140ms 会原样搬到 ShellViewModel 构造里（外壳要实例列表），
-            // 一秒都没省，反而让侧栏实例名晚出现，所以保持首帧前解析。
-            var instanceService = _services.GetService<IInstanceService>();
+            var instanceService = instanceWarmup.GetAwaiter().GetResult();
             Mark("instance-service-resolved");
             _accent = new Theming.AccentHost(
                 _services.GetRequiredService<IUiSettingsStore>(),

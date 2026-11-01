@@ -332,3 +332,43 @@ Release / 1280×800 / 三次一致，单位 ms：
 | 真机启动 1.4–1.6 s | 首屏 0.9 s 中约 0.6 s 在 DataGrid 单元格/表头模板与 `window-show` | `src/CkanUI.App/Views/ModsPageView.axaml`、`src/CkanUI.App/MainWindow.axaml` 正被并行改动 |
 | main-window-new 320 ms / app-xaml 188 ms | 见 §8 表格 | 同上 + `Resources/Tokens.axaml`、`Resources/FluentStyles.axaml` |
 | mods 页搜索/选中路径 | 已用 `perf-probe --search` / `--select` 量化排除（见 §9.3），不再列为空间 | — |
+
+## 10. 真机启动分段计时与实例服务后台预取
+
+### 10.1 打点设施（已有，别再加一套）
+
+`src/CkanUI.App/App.axaml.cs:50` 的 `_startupWatch` + `:57` 的 `TraceStartup(string)` 逐段打点（写 log4net）；**设了环境变量 `CKANUI_STARTUP_TRACE=<路径>` 时**额外把每段 `[启动计时] <phase>=<累计>ms (+<增量>ms)` 追加到该文件。段名：`app-xaml / di-build / log-pipeline / localization / theme / density / fonts / instance-service-resolved / accent / motion / radius / shell-vm / main-window-new / backdrop+background / plugin-tools / tray / assembly-done / start-async-sync-begin / window-opened / first-layout / first-paint`。
+
+采样口径（踩过的坑）：
+
+- 用 node `spawn` 起 `src/CkanUI.App/bin/Release/net10.0/CkanUI.exe`，`cwd` 设为该目录，`stdio` 必须是 `pipe`；`stdio: "ignore"` 时 trace 文件读不到。
+- 每次采样前 `taskkill /F /IM CkanUI.exe`，等 1.2–1.5 s 再起（否则 exe 被锁、或新进程被单实例守卫吃掉）；再轮询 trace 出现 `first-paint` 为止。
+- 解析数字不要用带转义的正则，直接取 `<key>=` 之后连续的数字。
+- 冷盘首跑可到 3.0 s（一次性 I/O），A/B 必须交替多轮取中位。
+
+### 10.2 优化：实例服务在后台线程预取
+
+`IInstanceService` 首次解析 = 读 `config.json` + 探测实例目录，实测 **140–156 ms 纯磁盘 I/O**，而它的消费者（`AccentHost` / 背景宿主）要等语言包、主题、密度、字号几段 UI 线程工作之后才轮到。改为在 `di-build` 之后立即 `Task.Run(() => _services.GetService<IInstanceService>())`，主线程继续往下走，用到时 `instanceWarmup.GetAwaiter().GetResult()` 直接拿成品。
+
+- 容器对单例的并发解析是线程安全的，拿到的仍与原路径同一个实例；首帧前的可见时序完全不变。
+- **注意这不等于「整体挪到首帧之后」**：那样这 140 ms 会原样搬进 `ShellViewModel` 构造（外壳要实例列表），一秒都不省。
+
+A/B（隔离 worktree `/c/Users/43701/ckan-ui-dg`，HEAD=10075c5，交替各重建 4 轮取中位）：
+
+| 分段 | 基线（HEAD） | 预取后 | 变化 |
+| --- | --- | --- | --- |
+| `instance-service-resolved` | 509 ms | 414 ms | −95 ms |
+| `main-window-new` | 866 ms | 783 ms | 噪声（同步等待消失后队列提前） |
+| `window-opened` | 1466 ms | 1213 ms | −253 ms |
+| `first-paint`（总计） | 1401 ms | 1270 ms | **−131 ms（−9.4%）** |
+
+主仓 Release 实测（同机）：`instance-service-resolved` 417–419 ms、`first-paint` 1483–1576 ms。
+
+### 10.3 启动剩余大头
+
+| 分段 | 量级 | 说明 |
+| --- | --- | --- |
+| `main-window-new` | 780–870 ms | 主窗口构建（含 mods 页视图创建 182–216 ms）；`src/CkanUI.App/MainWindow.axaml` 在并行改动 |
+| `window-opened` → `first-layout` | 410–490 ms | 窗口显示后的首轮布局；DataGrid 表头/单元格模板 728 个 `Rectangle`（见 §6.6） |
+| `first-paint` 收尾 | 60–80 ms | 首次光栅 |
+
