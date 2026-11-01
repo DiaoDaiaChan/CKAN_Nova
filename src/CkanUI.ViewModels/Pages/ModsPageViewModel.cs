@@ -1254,13 +1254,21 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             views = updates;
         }
 
-        Rows = new ObservableCollection<ModsRowView>(views);
+        // 结果与当前集合逐项相同时不换表：DataGrid 换 ItemsSource 会重建全部行容器，
+        // 实测 3,000 行约 150–250ms（docs/ops/perf-baseline.md §23）。事件驱动的
+        // 刷新（仓库变更、勾选后重算等）经常算出完全一致的列表，此时换表纯属白付。
+        if (Rows.Count != views.Count || !Rows.SequenceEqual(views))
+        {
+            Rows = new ObservableCollection<ModsRowView>(views);
+        }
 
         // 选中行按标识符重新解析，避免整体替换后详情面板丢失。
+        // 注意解析对象必须是 Rows 的元素：跳过换表时 views 里的对象不在集合里，
+        // 直接赋给 SelectedRow 会让 DataGrid 的选中态与详情面板对不上。
         var selectedIdentifier = SelectedRow?.Identifier;
         SelectedRow = selectedIdentifier is null
             ? null
-            : views.FirstOrDefault(view => string.Equals(view.Identifier, selectedIdentifier, StringComparison.OrdinalIgnoreCase));
+            : Rows.FirstOrDefault(view => string.Equals(view.Identifier, selectedIdentifier, StringComparison.OrdinalIgnoreCase));
 
         UpdateStatusText();
         RefreshDerived();

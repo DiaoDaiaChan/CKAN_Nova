@@ -128,6 +128,37 @@ public sealed class ModsPageViewModelTests
     }
 
     [Test]
+    public void ApplyFilter_WithUnchangedResult_KeepsRowCollectionInstance()
+    {
+        // DataGrid 换 ItemsSource 会重建全部行容器（3,000 行约 150–250ms，见
+        // docs/ops/perf-baseline.md §23）。事件驱动的刷新经常算出完全一致的列表，
+        // 此时必须复用同一集合实例，否则每次刷新都白付一次行重建。
+        SeedThreeRows();
+        var vm = CreateViewModel();
+        vm.Activate();
+
+        var before = vm.Rows;
+        vm.ApplyFilter();
+
+        Assert.That(vm.Rows, Is.SameAs(before));
+    }
+
+    [Test]
+    public void ApplyFilter_WithChangedResult_ReplacesRowCollection()
+    {
+        SeedThreeRows();
+        var vm = CreateViewModel();
+        vm.Activate();
+
+        var before = vm.Rows;
+        vm.SearchText = "alp";
+        vm.ApplyFilter();
+
+        Assert.That(vm.Rows, Is.Not.SameAs(before));
+        Assert.That(vm.Rows, Has.Count.EqualTo(1));
+    }
+
+    [Test]
     public void SearchDebounce_StaysWithinAcceptanceBudget()
     {
         // 06 篇 VM-01 验收：搜索延迟 ≤100ms。

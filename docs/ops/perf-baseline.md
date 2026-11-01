@@ -1147,3 +1147,30 @@ DataGrid 换 `ItemsSource` 的 **150–250 ms 是控件自身成本**，与行�
 1. 搜索/排序结果延迟到输入空闲再换表，并给列表加一层遮罩淡入（会改变交互手感）。
 2. 换掉 DataGrid，用 ListBox + 自绘表头（视觉重构）。
 3. 把排序交给 `ICollectionView` 的 `SortDescriptions`，让控件自己做增量排序（能否绕开重置未经验证）。
+
+## 24 结果未变时不换表：省掉事件驱动的整表重建
+
+§23 证明 DataGrid 换 `ItemsSource` 的 150–250 ms 压不下去，那就只剩「不换」。`ApplyFilter` 每次都会重建 `ObservableCollection`，但这条路径除了用户真正改搜索/排序/过滤器，还会被一批事件触发：仓库刷新完成、勾选后重算派生值、`ClearSearch` 之类。这些触发算出来的行列表经常和当前完全一致——此时换表纯属白付 150–250 ms。
+
+### 24.1 改法（`src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs`）
+
+```csharp
+if (Rows.Count != views.Count || !Rows.SequenceEqual(views))
+{
+    Rows = new ObservableCollection<ModsRowView>(views);
+}
+```
+
+`ModsRowView` 是 `sealed record`，`SequenceEqual` 走值相等，3,000 行的比较成本远低于一次换表（毫秒级 vs 百毫秒级）。
+
+配套改动：`SelectedRow` 的重新解析从 `views.FirstOrDefault(...)` 改成 `Rows.FirstOrDefault(...)`。这是必须的——跳过换表时 `views` 里都是新构造的对象、不在集合里，直接把那种对象赋给 `SelectedRow` 会让 DataGrid 的选中态和详情面板对不上。
+
+### 24.2 覆盖
+
+- `ApplyFilter_WithUnchangedResult_KeepsRowCollectionInstance`：同数据二次 `ApplyFilter` 断言 `Rows` 是同一实例。
+- `ApplyFilter_WithChangedResult_ReplacesRowCollection`：搜索词收窄后断言集合被换掉且只剩 1 行。
+
+### 24.3 边界
+
+- 勾选路径已在 §22 改成就地替换，不经过这里。
+- 「结果相同但某行的派生显示值变了」不会漏更新：`ModsRowView` 是值记录，显示值变了就不相等，必然换表。
