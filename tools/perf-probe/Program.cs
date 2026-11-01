@@ -23,6 +23,17 @@ public static class Program
             return RunMemoryProfile();
         }
 
+        // --rows N：首屏成本按行数扫描用，不影响门禁口径（默认 3,000）
+        var modRows = 3000;
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (string.Equals(args[i], "--rows", StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(args[i + 1], out var parsedRows) && parsedRows > 0)
+            {
+                modRows = parsedRows;
+            }
+        }
+
         var allPassed = true;
 
         // 1. 基准测试 1: 冷启动到首帧
@@ -42,8 +53,8 @@ public static class Program
         Console.ResetColor();
 
         // 2. 基准测试 2: 冷启动到可交互 (3,000 模组列表首屏呈现)
-        Console.Write("[2/4] 测试: 冷启动到可交互 (3,000 mods, PERF-01 门禁 <= 3000ms)... ");
-        var (interactiveMs, interactivePassed, view, vm, window) = BenchmarkRunner.RunColdStartToInteractive();
+        Console.Write($"[2/4] 测试: 冷启动到可交互 ({modRows:N0} mods, PERF-01 门禁 <= 3000ms)... ");
+        var (interactiveMs, interactivePassed, view, vm, window) = BenchmarkRunner.RunColdStartToInteractive(modRows);
         if (interactivePassed)
         {
             Console.ForegroundColor = ConsoleColor.Green;

@@ -173,6 +173,41 @@ t+45~55s 才被压回 440-514 MB。对 8 GB 机器来说，前 50 秒就一直�
 > （CPU 从 400%+ 一路衰减），预热不足时采到的是加载，不是空转。真机稳态一律预热 ≥30 秒。
 > 另：默认非侵入模式也会看到 `foreground=True`，因为应用启动时自己抢了前台；要看后台空转就等它被别处夺焦。
 
+### 6.6 首屏那 1.3 秒到底花在哪（2026-11-01，探针分段计时）
+
+给 `perf-probe` 加了分段计时（`[InteractivePhases]`）、`--rows N` 行数扫描和控件树普查（`[VisualTree]`），
+才看清「冷启动到可交互 1.27s」的构成——此前一直以为是 3,000 条模组的加载/投影成本：
+
+| 段 | 耗时（3,000 行） |
+| --- | --- |
+| headless-init | 0.1 ms |
+| mock-data-3000 | 7.6 ms |
+| vm-reload（快照→行投影/过滤/排序） | 29.0 ms |
+| view-new | 150.9 ms |
+| window-new | 63.9 ms |
+| **window-show（套模板 + 样式解析 + 首轮布局）** | **920-1244 ms** |
+| measure-arrange | 65.9 ms |
+| first-render | 0.0 ms |
+
+对照实验（同一个 exe，只改行数）：
+
+| 行数 | window-show |
+| --- | --- |
+| 3,000 | 920-1244 ms |
+| 600 | 1072 ms |
+| 60 | 883-1009 ms |
+
+**行数从 3,000 降到 60，首屏只快了 0-10%** —— 虚拟化是好的（`DataGridCell` 恒为 180 个），
+那 0.9-1.2 秒买的是一个**固定 2,428 个控件**的树：`Rectangle x728 / Grid x378 / Border x347 / TextBlock x216 / ContentPresenter x201 / DataGridCell x180`。
+第二个同构窗口再 Show 一次仍要 858 ms，所以也不是 JIT 一次性成本，而是**每个控件实例都要走一遍样式解析**（约 0.35 ms/控件）。
+
+728 个 `Rectangle` 的来源已定位（`[VisualTree] rect-chain`）：DataGrid 默认单元格/表头模板为每个 cell 生成
+`FocusVisualPrimary`/`FocusVisualSecondary`/`VerticalSeparator` 三个矩形装饰。
+
+下一步（未做，需动 `Views/ModsPageView.axaml` 与其 DataGrid 模板，当前正被并行改动占用）：
+给 `DataGridCell`/`DataGridColumnHeader` 换一套精简模板（去掉 focus 装饰矩形、合并分隔线），
+预期把 show 段从 ~0.9s 压到 0.4-0.5s；这一步会改焦点框视觉，必须先与设计口径对齐，不能只看数字。
+
 ## 7. 空闲内存回收（`IdleMemoryReclaimer`）
 
 诊断依据：满载 3,000 模组会话的托管活对象只有约 200 MB（`dotnet-gcdump` 量级），但托管堆占 645 MB、

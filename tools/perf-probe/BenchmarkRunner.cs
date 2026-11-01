@@ -54,14 +54,18 @@ public static class BenchmarkRunner
     /// 冷启动到可交互基准：加载 3,000 个模组元数据并完成 ModsPageView DataGrid 首屏布局与呈现。
     /// PERF-01 目标：冷启动到可交互（3,000 mods） <= 3.0s (3000ms)。
     /// </summary>
-    public static (double DurationMs, bool Passed, ModsPageView View, ModsPageViewModel ViewModel, Window Window) RunColdStartToInteractive()
+    /// <param name="modCount">生成多少条模组；用于按行数扫首屏成本（默认 3,000 = PERF-01 门禁口径）。</param>
+    public static (double DurationMs, bool Passed, ModsPageView View, ModsPageViewModel ViewModel, Window Window) RunColdStartToInteractive(int modCount = 3000)
     {
         var sw = Stopwatch.StartNew();
+        var phases = new List<(string Name, double Ms)>();
 
         HeadlessAppHost.EnsureInitialized();
+        phases.Add(("headless-init", sw.Elapsed.TotalMilliseconds));
 
         // 1. 生成 3,000 模组数据集
-        var (mods, installed) = MockModDataGenerator.Generate(3000);
+        var (mods, installed) = MockModDataGenerator.Generate(modCount);
+        phases.Add(($"mock-data-{modCount}", sw.Elapsed.TotalMilliseconds));
         var instance = new InstanceInfo("KSP-PerfInstance", "D:/Games/KSP_Perf", "1.12.5", true, false, mods.Count);
 
         var repoSvc = new MockRepositoryService(mods);
@@ -72,6 +76,7 @@ public static class BenchmarkRunner
         // 2. 构造 ViewModel 并加载快照
         var vm = new ModsPageViewModel(repoSvc, regSvc, instSvc, errReporter);
         vm.ReloadFromSnapshots();
+        phases.Add(("vm-reload", sw.Elapsed.TotalMilliseconds));
 
         // 3. 构造 ModsPageView 并挂载至窗口排版
         var view = new ModsPageView
@@ -81,24 +86,80 @@ public static class BenchmarkRunner
             Height = 800
         };
 
+        phases.Add(("view-new", sw.Elapsed.TotalMilliseconds));
+
         var window = new Window
         {
             Width = 1280,
             Height = 800,
             Content = view
         };
+        phases.Add(("window-new", sw.Elapsed.TotalMilliseconds));
+
         window.Show();
+        phases.Add(("window-show", sw.Elapsed.TotalMilliseconds));
 
         HeadlessAppHost.PumpJobs();
         window.Measure(new Size(1280, 800));
         window.Arrange(new Rect(0, 0, 1280, 800));
+        phases.Add(("measure-arrange", sw.Elapsed.TotalMilliseconds));
+
         AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
         HeadlessAppHost.PumpJobs();
+        phases.Add(("first-render", sw.Elapsed.TotalMilliseconds));
 
         sw.Stop();
         var elapsedMs = sw.Elapsed.TotalMilliseconds;
 
+        Console.WriteLine($"[InteractivePhases] {string.Join(" | ", PhaseDeltas(phases))}");
+
+        // 第二次同构窗口：用来区分「每视图都要付的成本」和「进程内一次性成本（JIT / 样式解析缓存）」。
+        var secondSw = Stopwatch.StartNew();
+        var secondView = new ModsPageView { DataContext = vm, Width = 1280, Height = 800 };
+        var secondWindow = new Window { Width = 1280, Height = 800, Content = secondView };
+        secondWindow.Show();
+        HeadlessAppHost.PumpJobs();
+        secondWindow.Measure(new Size(1280, 800));
+        secondWindow.Arrange(new Rect(0, 0, 1280, 800));
+        secondWindow.Close();
+        HeadlessAppHost.PumpJobs();
+        Console.WriteLine($"[InteractivePhases2] second-window-total={secondSw.Elapsed.TotalMilliseconds:F1}ms");
+
+        // 控件树规模：首屏成本若随控件数走，就要先看是谁在堆节点。
+        var descendants = view.GetVisualDescendants().ToList();
+        var byType = descendants
+            .GroupBy(d => d.GetType().Name)
+            .OrderByDescending(g => g.Count())
+            .Take(12)
+            .Select(g => $"{g.Key}x{g.Count()}");
+        Console.WriteLine($"[VisualTree] total={descendants.Count} | {string.Join(" ", byType)}");
+
+        // 728 个 Rectangle 是谁生的：取前 3 个，打印它们的祖先链（上限 6 层）。
+        foreach (var rect in descendants.Where(d => d.GetType().Name == "Rectangle").Take(3))
+        {
+            var chain = new List<string>();
+            Avalonia.Visual? cursor = rect;
+            for (var depth = 0; depth < 6 && cursor is not null; depth++)
+            {
+                chain.Add($"{cursor.GetType().Name}({(cursor as StyledElement)?.Name ?? "-"})");
+                cursor = cursor.GetVisualParent();
+            }
+
+            Console.WriteLine($"[VisualTree] rect-chain: {string.Join(" < ", chain)}");
+        }
+
         return (elapsedMs, elapsedMs <= 3000.0, view, vm, window);
+    }
+
+    /// <summary>把累计时间戳换算成每段耗时文本，便于定位首屏那 1 秒多花在哪一段。</summary>
+    private static IEnumerable<string> PhaseDeltas(List<(string Name, double Ms)> phases)
+    {
+        var previous = 0d;
+        foreach (var (name, ms) in phases)
+        {
+            yield return $"{name}={ms - previous:F1}ms";
+            previous = ms;
+        }
     }
 
     /// <summary>
