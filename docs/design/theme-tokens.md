@@ -873,7 +873,11 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | 线程 | 续体可能落在帧泵之外（取消路径），写控件前 `Dispatcher.UIThread.CheckAccess()`，必要时 `InvokeAsync`；真实应用里不额外调度 |
 | 三档 | `none` → `PageTransition = null`（瞬时替换）；`reduced` 行程 ×0.45；`full` 全行程 |
 | 接入点 | `MainWindow.ApplyPageTransition()`：`PageHost.PageTransition = MotionBudget.IsCollapsed ? null : SlideTransition` |
-| 门禁 | `SpringPageSlideTests` 4 项：正向扫过（新页先在外、旧页随后让位、120 帧两页归零、两页不透明度始终为 1）、反向镜像、取消即归位、关闭档不接管 `RenderTransform` |
+| 门禁 | `SpringPageSlideTests` 5 项：正向扫过（新页先在外、旧页随后让位、120 帧两页归零、两页不透明度始终为 1）、反向镜像、取消即归位、关闭档不接管 `RenderTransform`、**宿主集成**（真 `TransitioningContentControl` 换 `Content` 时两个呈现器确实横移并回位） |
+
+与页面入场编排的分工：幕布在场时 `PlayPageReveal` 不再给 `PageHost` 本身加减整页姿态——宿主机一淡，旧页跟着一起暗，
+就是当初那个亮度凹陷；整页姿态只在 `PageHost.PageTransition` 为空时兜底（设计期、或外部清空）。块级错峰、文字逐行、
+滚动/数据到达这些"页内"编排照旧运行，所以观感是"帘子扫过 + 新页内容自己长出来"。
 
 不做：任何不透明度混合（双影的根源）、3D 翻转（文字在 headless/Skia 下会发虚）、按导航层级换方向（`PageHost` 拿不到导航深度，
 硬塞方向会出现"同级页签也横着甩"的假语义）。
