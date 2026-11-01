@@ -5,7 +5,7 @@
 .DESCRIPTION
     无头探针（perf-probe --mem）量的是托管堆与 Lab 环境下的帧成本，量不到真实进程的
     WorkingSet、线程数与"桌面挂机时到底烧多少 CPU"。本脚本补这一段：
-    1. 启动 exe -> 忽略前 WarmupSeconds 秒（JIT/首屏/资源加载尾账）；
+    1. 启动 exe -> 先静置 WarmupSeconds 秒等启动瞬态结束（JIT/首屏/资源加载/实例扫描尾账）；
     2. 之后在 IdleSeconds 秒窗口内按 TotalProcessorTime 差值算单核占用率；
     3. 同一窗口取 WorkingSet64 / PrivateMemorySize64 / Threads / HandleCount 的峰值与末值；
     4. 采样结束强制结束进程（脚本自己拉起，不碰用户已开的实例）。
@@ -13,8 +13,10 @@
 [CmdletBinding()]
 param(
     [string]$Exe = "src/CkanUI.App/bin/Release/net10.0/CkanUI.exe",
-    [int]$WarmupSeconds = 8,
-    [int]$IdleSeconds = 10,
+    # 启动瞬态实测能持续 20 秒以上（CPU 从 400%+ 一路衰减到 9-19%）。静置不足就把加载当空转，
+    # 同一份代码能测出 5 倍差异——所以默认值取 45 秒，而不是以往的 8 秒。
+    [int]$WarmupSeconds = 45,
+    [int]$IdleSeconds = 20,
     [int]$SampleIntervalMs = 250,
     [string]$Out = "artifacts/perf/live-profile.json",
     # 传 -NoForeground 可测"窗口不在前台"的另一种空转口径；默认前台，保证与基线可比。
@@ -66,7 +68,9 @@ public class Win32Focus {
 
 Write-Host ("[live] start " + $Exe)
 $proc = Start-Process -FilePath $Exe -PassThru
-Start-Sleep -Seconds 2
+$deadline = (Get-Date).AddSeconds(12)
+while ($proc.MainWindowHandle -eq [IntPtr]::Zero -and -not $proc.HasExited -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 150 }
+Start-Sleep -Milliseconds 500
 $proc.Refresh()
 $hwnd = $proc.MainWindowHandle
 $centerX = 0

@@ -98,11 +98,17 @@ public sealed class StarfieldBackground : Control
     /// <summary>按线宽档位 × alpha 档位缓存的 accent 画笔：星轨与流星线宽不同，才需要第二维。</summary>
     private readonly Pen?[,] _strokePens = new Pen?[StrokeWidths.Length, AlphaSteps + 1];
 
+    /// <summary>光标位移判定阈值（DIP）：低于这个值不重画，肉眼也看不出差别。</summary>
+    private const double PointerMoveThreshold = 0.5;
+
     /// <summary>两族星轨的离屏位图：重建一次贴一帧，替掉每帧 604 条 DrawLine。</summary>
     private RenderTargetBitmap? _trailLayer;
 
     /// <summary>当前后端给不出离屏位图（部分无头后端没有 render target）时置位，之后一直走逐帧线绘。</summary>
     private bool _trailLayerUnavailable;
+
+    /// <summary>上一次真正生效的光标位置（DIP）；位移小于 <see cref="PointerMoveThreshold"/> 视为没动。</summary>
+    private Point? _lastPointerPosition;
 
     private long _trailStamp = long.MinValue;
     private double _trailIntensity = double.NaN;
@@ -140,10 +146,26 @@ public sealed class StarfieldBackground : Control
     {
         if (position is { } point)
         {
+            // Avalonia 的悬停重算在光标停住时仍会持续发 PointerMoved（实测 8 秒 2040 次），
+            // 位置没动就重画整窗星空是纯白烧；亚像素位移肉眼也看不出来，直接丢弃。
+            if (_lastPointerPosition is { } last
+                && Math.Abs(last.X - point.X) < PointerMoveThreshold
+                && Math.Abs(last.Y - point.Y) < PointerMoveThreshold)
+            {
+                return;
+            }
+
+            _lastPointerPosition = point;
             _model.SetPointer(point.X, point.Y);
         }
         else
         {
+            if (_lastPointerPosition is null)
+            {
+                return;
+            }
+
+            _lastPointerPosition = null;
             _model.ClearPointer();
         }
 
@@ -151,9 +173,16 @@ public sealed class StarfieldBackground : Control
         if (!IsMotionEnabled)
         {
             _model.RefreshPointer();
+            InvalidateVisual();
+            return;
         }
 
-        InvalidateVisual();
+        // 动效开着时指针只是改目标值，画面上的位置要等下一次 tick 推进才变；
+        // tick 在跑就交给它刷（≤33ms），别在这里按指针事件频率重画整窗。
+        if (_timer is not { IsEnabled: true })
+        {
+            InvalidateVisual();
+        }
     }
 
     /// <inheritdoc />

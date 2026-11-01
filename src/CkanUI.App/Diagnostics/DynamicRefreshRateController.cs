@@ -123,6 +123,9 @@ public sealed class DynamicRefreshRateController : INotifyPropertyChanged
         _hasLastPointerPosition = false;
         _inactivityTimer.Start();
         NotifyUserActivity();
+
+        // 空闲态由本控制器产出，回收器只消费事件：挂在这里就不必再改 MainWindow 的窗口生命周期。
+        IdleMemoryReclaimer.Instance.Attach();
     }
 
     /// <summary>从当前窗口解绑。</summary>
@@ -145,6 +148,7 @@ public sealed class DynamicRefreshRateController : INotifyPropertyChanged
 
         _inactivityTimer.Stop();
         _attachedTopLevel = null;
+        IdleMemoryReclaimer.Instance.Detach();
     }
 
     /// <summary>主动通知发生了一次用户交互，立即退出空闲降频状态。</summary>
@@ -189,7 +193,9 @@ public sealed class DynamicRefreshRateController : INotifyPropertyChanged
 
     private void OnWindowActivated(object? sender, EventArgs e)
     {
-        NotifyUserActivity();
+        // 窗口被激活本身不是用户操作：多任务/多 agent 的机器上别的进程会不停抢焦点，
+        // 把每次 Activated 都算活动会让空闲降频与空闲回收永远进不去（实测 20 秒丢 74 次焦点）。
+        // 真正的用户输入仍由指针/键盘事件通知。
     }
 
     private void OnWindowDeactivated(object? sender, EventArgs e)
