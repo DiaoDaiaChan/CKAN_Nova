@@ -955,6 +955,19 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | --- | --- |
 | 旧做法 | 帧泵累计到 0.42 s 就收货，两页各 `MoveTo(snap: true)` 归零 |
 | 问题 | 掉帧/低帧率时弹簧还没停住，最后几像素被"啪"地抹掉——幕布收尾的一下轻跳 |
-| 新做法 | `TransformSpring.IsSettled`（四通道 `IsMoving` 全假，排队等 hold 的也算在动）+ `SpringPageSlide.SettleTicker`：`elapsed >= 0.42 s` **且**两页都静止才收；另有 `HardCapSeconds = 0.5 s` 兜底，过渡不会挂着不走 |
-| 为什么用帧累计而不等事件 | 定时器在无头测试里不随 `ForceRenderTimerTick` 推进，过渡会永远完不成；帧通道与弹簧同源，测试与应用走同一条路径 |
+| 新做法 | `TransformSpring.IsSettled`（四通道 `IsMoving` 全假，排队等 hold 的也算在动）+ `SpringPageSlide.SettleHandle`：订阅两页的 `Settled` 事件，两页都静止的那一刻立刻收货；`HardCapSeconds = 0.5 s` 作为帧累计兜底，过渡不会挂着不走 |
+| 为什么不用定时器 | 定时器在无头测试里不随 `ForceRenderTimerTick` 推进，过渡会永远完不成 |
+| 为什么也不能只等帧 | 弹簧一停就没有新的失效，合成器不再排帧——等"下一帧"的等待器会永远挂着。精简档实测把旧页留在行程终点（`48.00`），`frame n=1 / request n=1` 之后回调再也不来 |
 | 门禁 | `SpringSettleTests` 3 项：snap 算静止、新目标未到不算、hold 排队算在动；`SpringPageSlideTests` 5 项仍全绿 |
+
+#### 5.9.35 幕布收尾改由弹簧自报静止（`TransformSpring.Settled`）
+
+| 项 | 口径 |
+| --- | --- |
+| 事件 | `public event EventHandler? Settled`：`Advance` 里从"在动"变成"四通道全静"时发一次，同时把 `_topLevel` 置空 |
+| 等待器 | `SpringPageSlide.SettleHandle`：构造时订阅两页 `Settled`，并在构造末尾自查一次 `IsSettled`（起跑姿态是 `snap` 出来的，可能已经静止）；`Complete()` 先退订再 `TrySetResult` |
+| 兜底 | `SettleHandle` 同时是 `IMotionTicker`，按帧累计到 `SettleSeconds + HardCapSeconds = 0.92 s` 强制收货——只在别的动画还在跑、帧还在流动时才用得上 |
+| 续体线程 | 完成于 UI 线程时 `Dispatcher.UIThread.CheckAccess()` 为真，直接原地 `Reset`；否则 `InvokeAsync` 回 UI 线程，避免线程池线程写控件抛 `InvalidOperationException` |
+| 帧泵韧性 | `MotionFramePump.OnFrame` 逐根 `Advance` 包 `try/catch`：一根弹簧炸了只摘它自己，同一窗口其它动画继续排帧 |
+| 精简档行程 | `SpringPageSlide.ReducedTravelPixels = 48d`：精简档按 `MotionBudget.Amplitude` 缩到 0.45 倍后仍有 400 px 左右，对"精简"就是一次整屏横扫，故再夹一次上限 |
+| 门禁 | `SpringSettleTests` 3 项（snap 出来的算静止、刚 `MoveTo` 的算在动、`hold` 排队算在动；未挂树的控件 `MoveTo` 会 `SnapAll` 立刻静止，必须放进真窗口）+ `SpringPageSlideTests.ReducedMotionKeepsTheCurtainShort`（起点 ≤ 48+1 px，两个方向都归 0） |
