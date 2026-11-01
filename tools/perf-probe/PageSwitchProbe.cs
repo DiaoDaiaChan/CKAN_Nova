@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Headless;
+using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CkanUI.App;
@@ -326,13 +327,15 @@ public static class PageSwitchProbe
     /// <summary>量化「换掉整表 ItemsSource」相对「原地不动」多花的布局时间（行容器重建成本）。</summary>
     /// <param name="rows">列表行数。</param>
     /// <param name="rounds">每组采样次数。</param>
-    public static void ListRebindCost(int rows = 200, int rounds = 5)
+    public static void ListRebindCost(int rows = 200, int rounds = 5, bool wrapPanel = false)
     {
         HeadlessAppHost.EnsureInitialized();
 
         var template = new FuncDataTemplate<ProbeRow>((item, _) => new Grid
         {
             ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            Width = wrapPanel ? 120 : double.NaN,
+            Height = wrapPanel ? 80 : double.NaN,
             Children =
             {
                 new TextBlock { Text = item.Name, Margin = new Thickness(4, 2) },
@@ -340,7 +343,16 @@ public static class PageSwitchProbe
             },
         }, supportsRecycling: true);
 
-        var list = new ListBox { ItemTemplate = template, Height = 600, Width = 460 };
+        ItemsControl list = wrapPanel
+            ? new ItemsControl
+            {
+                Width = 1000,
+                Height = 620,
+                ItemTemplate = template,
+                ItemsPanel = new FuncTemplate<Panel?>(() => new WrapPanel { Orientation = Orientation.Horizontal }),
+            }
+            : new ListBox { ItemTemplate = template, Height = 600, Width = 460 };
+        list.ItemsSource = null;
         var host = new Window { Width = 1280, Height = 800, Content = list };
         host.Show();
         HeadlessAppHost.PumpJobs();
@@ -376,7 +388,7 @@ public static class PageSwitchProbe
         Array.Sort(steady);
         var rebindP50 = rebind[rounds / 2];
         var steadyP50 = steady[rounds / 2];
-        Console.WriteLine($"[ListRebind] rows={rows} replaceP50={rebindP50:F2}ms replaceMin={rebind[0]:F2}ms steadyP50={steadyP50:F2}ms delta={rebindP50 - steadyP50:F2}ms");
+        Console.WriteLine($"[ListRebind] wrap={wrapPanel} rows={rows} replaceP50={rebindP50:F2}ms replaceMin={rebind[0]:F2}ms steadyP50={steadyP50:F2}ms delta={rebindP50 - steadyP50:F2}ms");
 
         host.Close();
         HeadlessAppHost.PumpJobs();

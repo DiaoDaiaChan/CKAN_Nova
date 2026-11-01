@@ -129,7 +129,7 @@ public static class Program
             var rows = rebindIndex + 1 < args.Length && int.TryParse(args[rebindIndex + 1], out var parsedRebindRows)
                 ? parsedRebindRows
                 : 200;
-            PageSwitchProbe.ListRebindCost(rows);
+            PageSwitchProbe.ListRebindCost(rows, wrapPanel: args.Contains("--wrap"));
             return 0;
         }
 

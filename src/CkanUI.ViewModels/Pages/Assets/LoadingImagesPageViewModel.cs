@@ -16,6 +16,9 @@ public sealed partial class LoadingImagesPageViewModel : AssetPageViewModel
 
     private readonly ILoadingImageService _images;
 
+    // 上一次扫描到的资产：值不变就不重建卡片列表。
+    private IReadOnlyList<LoadingImageAsset>? _lastAssets;
+
     private bool _subscribed;
 
     /// <summary>构造页面。</summary>
@@ -306,6 +309,15 @@ public sealed partial class LoadingImagesPageViewModel : AssetPageViewModel
             return;
         }
 
+        // 磁盘扫描结果没变：保留已实例化的卡片，重排整片 WrapPanel 才是切回本页的卡顿来源。
+        if (_lastAssets is not null && _lastAssets.Count == items.Count && _lastAssets.SequenceEqual(items)
+            && Images.Count == items.Count)
+        {
+            NotifyEmptyState();
+            return;
+        }
+
+        _lastAssets = items.ToArray();
         var selectedPath = SelectedImage?.FilePath;
         Images.Clear();
         foreach (var asset in items)

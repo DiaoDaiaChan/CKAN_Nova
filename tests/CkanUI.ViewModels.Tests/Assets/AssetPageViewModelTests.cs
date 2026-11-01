@@ -283,6 +283,57 @@ public sealed class AssetPageViewModelTests
         return new ShipsPageViewModel(GameInstances(), crafts, new InstancesFakeErrorReporter(), new InstancesFakeDialogs());
     }
 
+    [Test]
+    public async Task Flags_RefreshTwice_KeepsCardsWhenNothingChanged()
+    {
+        var page = NewFlagsPage(out var flags);
+        flags.Assets.Add(Flag("default", "Squad/Flags/default"));
+        flags.Assets.Add(Flag("red", "CkanUI/Flags/red"));
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        var firstCard = page.Flags[0];
+        var changes = 0;
+        page.Flags.CollectionChanged += (_, _) => changes++;
+
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(changes, Is.Zero, "磁盘与默认旗帜都没变就不该重排整片卡片。");
+        Assert.That(page.Flags[0], Is.SameAs(firstCard), "卡片实例要复用，缩略图才不会重解码。");
+    }
+
+    [Test]
+    public async Task Flags_RefreshTwice_RebuildsWhenDefaultFlagChanged()
+    {
+        var page = NewFlagsPage(out var flags);
+        flags.Assets.Add(Flag("default", "Squad/Flags/default"));
+        flags.Assets.Add(Flag("red", "CkanUI/Flags/red"));
+        flags.CurrentFlag = "Squad/Flags/default";
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        flags.CurrentFlag = "CkanUI/Flags/red";
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(page.Flags[1].IsDefault, Is.True, "默认旗帜换了，徽标必须跟着换，不能被「没变化」的门挡住。");
+    }
+
+    [Test]
+    public async Task Loading_RefreshTwice_KeepsCardsWhenNothingChanged()
+    {
+        var page = NewLoadingPage(out var images);
+        images.Folders.Add("D:/KSP/Screenshots");
+        images.Images.Add(Image("a.png", "D:/KSP/Screenshots"));
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        var firstCard = page.Images[0];
+        var changes = 0;
+        page.Images.CollectionChanged += (_, _) => changes++;
+
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(changes, Is.Zero, "扫描结果没变就不该重建画廊，否则每切回来都要重排整片卡片。");
+        Assert.That(page.Images[0], Is.SameAs(firstCard));
+    }
+
     private static FlagsPageViewModel NewFlagsPage(out FakeFlagLibrary flags)
     {
         flags = new FakeFlagLibrary();

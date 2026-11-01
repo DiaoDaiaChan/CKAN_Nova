@@ -831,3 +831,23 @@ settings 的 2338 节点 / 686–778 ms 布局仍然是全场唯一 O(700ms) 项
 差值近似常数（19–24 ms，20 行那次被机器负载抬高），因为虚拟化下真正落地的容器数量只跟视口有关，跟总行数无关。即每次无意义重建 ≈ 一帧多的整表布局，正是切子页时那种「顿一下」。门命中后就为 0。
 
 > 量法注意事项：在已经落地的窗口上只调 `Measure/Arrange` 会短路，实测恒为 0.00 ms；必须在 `InvalidateMeasure` 之后 `Dispatcher.UIThread.RunJobs(DispatcherPriority.Loaded)` 把布局队列跑空，数字才有意义。
+
+## 18.10 旗帜 / 加载图页：扫描结果没变就不重建卡片（WrapPanel 是重排重灾区）
+
+这两页的卡片网格用的是显式 `WrapPanel`（非虚拟化），每次激活 `RefreshCoreAsync` 都 `Clear()` 后逐张重加，整片卡片要重新测量排布。改法与存档/飞船页同构：
+
+| 页 | 判据 | 命中后的行为 |
+| --- | --- | --- |
+| 旗帜 `FlagsPageViewModel` | `_lastAssets`（`FlagAsset` record）、数量一致、且默认旗帜 `_lastDefaultConfig` 未变 | `NotifyEmptyState()` 后返回，卡片与选中项都保留 |
+| 加载图 `LoadingImagesPageViewModel` | `_lastAssets`（`LoadingImageAsset` record）与数量一致 | 同上 |
+
+旗帜把「默认旗帜」也纳入判据，是因为默认徽标挂在卡片上：只比资产会让「设为默认」后徽标不刷新（`Flags_RefreshTwice_RebuildsWhenDefaultFlagChanged` 看着这条）。
+
+### WrapPanel 重建成本（`perf-probe --list-rebind <rows> --wrap`）
+
+| 卡片数 | 换表 p50 | 不动 p50 | 差值 |
+| --- | --- | --- | --- |
+| 40 | 106.9 ms | 0.03 ms | 106.8 ms |
+| 200 | 280.9 ms | 3.44 ms | 277.4 ms |
+
+非虚拟化的 `WrapPanel` 是线性成本（每张约 1.3–2.7 ms），200 张卡片重建一次接近 0.3 秒 —— 这就是旗旈/加载图页「切回来卡一下」的全部来源。门命中后这一步归零，画面与数据完全不变（卡片、缩略图、选中态都还是原来那批实例）。

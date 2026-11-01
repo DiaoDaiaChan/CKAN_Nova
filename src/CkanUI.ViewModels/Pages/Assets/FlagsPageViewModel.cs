@@ -16,6 +16,10 @@ public sealed partial class FlagsPageViewModel : AssetPageViewModel
 
     private readonly IFlagLibraryService _flags;
 
+    // 上一次扫描到的资产与默认旗帜：值不变就不重建卡片列表。
+    private IReadOnlyList<FlagAsset>? _lastAssets;
+    private string? _lastDefaultConfig;
+
     private bool _subscribed;
 
     /// <summary>构造页面。</summary>
@@ -262,6 +266,20 @@ public sealed partial class FlagsPageViewModel : AssetPageViewModel
 
         var current = _flags.ReadDefaultFlag(gameDir);
         var currentConfig = current.IsSuccess ? current.Value : null;
+        // 磁盘与默认旗帜都没变（FlagAsset 是 record，值相等即可判定）：不必重建卡片，重排整片 WrapPanel 才是卡顿来源。
+        var unchanged = _lastAssets is not null
+            && _lastAssets.Count == items.Count
+            && _lastAssets.SequenceEqual(items)
+            && Flags.Count == items.Count
+            && string.Equals(_lastDefaultConfig, currentConfig, StringComparison.OrdinalIgnoreCase);
+        _lastAssets = items.ToArray();
+        _lastDefaultConfig = currentConfig;
+        if (unchanged)
+        {
+            NotifyEmptyState();
+            return;
+        }
+
         var selectedPath = SelectedFlag?.ConfigPath;
 
         Flags.Clear();
