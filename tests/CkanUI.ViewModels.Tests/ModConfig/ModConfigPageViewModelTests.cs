@@ -344,7 +344,7 @@ public sealed class ModConfigPageViewModelTests
 
         private readonly List<string> _calls = [];
 
-        public Task<OperationResult<ModConfigInstanceModel>> LoadAsync(string instanceName, CancellationToken cancellationToken = default)
+        public Task<OperationResult<ModConfigInstanceModel>> LoadAsync(string instanceName, bool forceReload = false, CancellationToken cancellationToken = default)
         {
             _calls.Add(instanceName);
             return Task.FromResult(Result);
@@ -354,7 +354,7 @@ public sealed class ModConfigPageViewModelTests
     /// <summary>抛异常的配置服务替身（验证页面兜底）。</summary>
     private sealed class ThrowingConfigService : IModConfigService
     {
-        public Task<OperationResult<ModConfigInstanceModel>> LoadAsync(string instanceName, CancellationToken cancellationToken = default)
+        public Task<OperationResult<ModConfigInstanceModel>> LoadAsync(string instanceName, bool forceReload = false, CancellationToken cancellationToken = default)
             => throw new InvalidOperationException("boom");
     }
 

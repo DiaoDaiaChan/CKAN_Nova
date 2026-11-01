@@ -1298,3 +1298,24 @@ CKANUI_PROBE_REAL_CONFIG=1 CKANUI_PROBE_INSTANCE=1 TEMP=… TMP=… \
 而是这些行本身在 Measure/Arrange 里就要花掉——与 0.33ms/节点 的固定单价一致（661 × 0.33 ≈ 218，剩余部分是树容器的层级开销）。
 按「不影响视觉效果」约束，改动已回退（`git checkout -- src/CkanUI.App/Views/UnmanagedPageView.axaml`）。
 要真正压下去只能减少行的可见数量（分页/懒展开），那是产品行为变更，不在本约束范围内。
+
+### 27.6 配置页不再每次进页面都重扫适配器（modconfig activate 93.4ms → 3.0ms）
+带真实实例时 `modconfig` 页每次激活的 `activate` 段是 93.4ms：`ModConfigPageViewModel.OnActivated` 无条件走
+`LoadCommand` → `IModConfigService.LoadAsync` → `ModConfigService.LoadCore` 逐个 adapter 重读源文件。
+适配器源文件没变、注册表没变时，这次重扫是纯粹的重复劳动。
+
+改法（三层都按"用户显式刷新才是权威"的原则）：
+- `src/CkanUI.Services.Abstractions/ModConfig/IModConfigPorts.cs`：`LoadAsync(string instanceName, bool forceReload = false, CancellationToken cancellationToken = default)`。
+- `src/CkanUI.Services/ModConfig/ModConfigService.cs`：缓存键 = 实例名 + GameDir + GameVersion + 注册表条目数；构造里订阅 `_registry.Changed` 把缓存键清空（安装/卸载/刷新注册表立刻失效），`forceReload: true` 直接绕过缓存。
+- `src/CkanUI.ViewModels/Pages/ModConfigPageViewModel.cs`：`[RelayCommand] LoadAsync()` 变成 `LoadCoreAsync(forceReload: true)` 的薄壳（「刷新」按钮与 `RetryCommand` 仍强制重读），`OnActivated` 改走 `LoadCoreAsync(forceReload: false)`，写盘之后的 `RefreshModelAsync` 用 `forceReload: true` 保证读到刚写的值。
+
+实测（`--pages-real modconfig`，真实实例 105 模块，同 exe）：
+
+| 轮次 | activate | layout | 节点 |
+| --- | ---: | ---: | ---: |
+| 改前 r2 | 93.4 | 26.0 | 146 |
+| 改后 r2 | **3.0** | 81.1 | 146 |
+| 改后 r1 | 105.4（首次仍要真扫） | 305.7 | 146 |
+
+代价说明：别的进程直接改 `.cfg` 而注册表没动时，页面会显示上一次的结果，用户点「刷新」即可——
+这比"每次进页面都扫 90ms"更符合实际使用；注册表变化（安装/卸载/更新）仍会自动失效。

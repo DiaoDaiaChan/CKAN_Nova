@@ -297,7 +297,13 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
 
     /// <summary>读盘并重建页面（页面激活时自动执行一次，"刷新"按钮也走这里）。</summary>
     [RelayCommand(CanExecute = nameof(CanLoad))]
-    private async Task LoadAsync()
+    private Task LoadAsync() => LoadCoreAsync(forceReload: true);
+
+    /// <summary>
+    /// 读盘并重建页面。<paramref name="forceReload"/> 为 false 时允许服务层复用上一次结果——
+    /// 页面每次激活都重扫适配器源文件（真实实例上约 90ms）没有必要，注册表变化会让缓存自己失效。
+    /// </summary>
+    private async Task LoadCoreAsync(bool forceReload)
     {
         if (IsBusy)
         {
@@ -310,7 +316,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         try
         {
             LoadAdapters();
-            var result = await _config.LoadAsync(string.Empty).ConfigureAwait(true);
+            var result = await _config.LoadAsync(string.Empty, forceReload).ConfigureAwait(true);
             if (!result.IsSuccess || result.Value is not { } model)
             {
                 ApplyModelCore(null, null);
@@ -890,7 +896,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     {
         try
         {
-            var result = await _config.LoadAsync(string.Empty).ConfigureAwait(true);
+            var result = await _config.LoadAsync(string.Empty, forceReload: true).ConfigureAwait(true);
             if (result.IsSuccess && result.Value is { } model)
             {
                 ApplyModelCore(model, SelectedMod?.AdapterId);
@@ -1035,8 +1041,8 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     {
         base.OnActivated();
 
-        // 每次进页面都重读：别的页面（安装/卸载）可能刚改过 registry 与磁盘。
-        LoadCommand.Execute(null);
+        // 进页面就要看到最新状态，但不重扫磁盘：注册表变化会由服务层缓存失效，用户要强制重读走「刷新」。
+        _ = LoadCoreAsync(forceReload: false);
     }
 
     partial void OnSelectedModChanged(ModConfigModCardViewModel? value) => RebuildGroups();
@@ -1088,7 +1094,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     /// <summary>设计时/预览用的空实现：什么都没装，页面显示空状态而不是崩。</summary>
     private sealed class EmptyModConfigService : IModConfigService
     {
-        public Task<OperationResult<ModConfigInstanceModel>> LoadAsync(string instanceName, CancellationToken cancellationToken = default)
+        public Task<OperationResult<ModConfigInstanceModel>> LoadAsync(string instanceName, bool forceReload = false, CancellationToken cancellationToken = default)
             => Task.FromResult(OperationResult<ModConfigInstanceModel>.Fail("设计时预览：没有可用的 mod 配置服务。"));
     }
 }

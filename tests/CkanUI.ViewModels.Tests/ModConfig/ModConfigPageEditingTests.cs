@@ -525,9 +525,7 @@ public sealed class ModConfigPageEditingTests
 
         public List<string> Calls { get; } = [];
 
-        public Task<OperationResult<ModConfigInstanceModel>> LoadAsync(
-            string instanceName,
-            CancellationToken cancellationToken = default)
+        public Task<OperationResult<ModConfigInstanceModel>> LoadAsync(string instanceName, bool forceReload = false, CancellationToken cancellationToken = default)
         {
             Calls.Add(instanceName);
             return Task.FromResult(OperationResult<ModConfigInstanceModel>.Ok(Current));

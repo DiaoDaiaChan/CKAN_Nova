@@ -18,6 +18,12 @@ public sealed class ModConfigService : IModConfigService
     private readonly IRegistryService _registry;
     private readonly IGameRunningProbe _gameRunningProbe;
 
+    /// <summary>上一次成功组装的缓存键（实例 + 目录 + 版本 + 注册表规模）。</summary>
+    private string? _cachedKey;
+
+    /// <summary>与 <see cref="_cachedKey"/> 配套的上一次结果。</summary>
+    private OperationResult<ModConfigInstanceModel>? _cached;
+
     /// <summary>构造。</summary>
     /// <param name="catalog">适配器目录。</param>
     /// <param name="instances">实例服务（取游戏目录）。</param>
@@ -37,16 +43,45 @@ public sealed class ModConfigService : IModConfigService
         _instances = instances;
         _registry = registry;
         _gameRunningProbe = gameRunningProbe ?? new InstanceGameRunningProbe(instances);
+
+        // 注册表一变（安装/卸载/刷新），上次读出来的配置模型就可能过期，直接丢缓存。
+        _registry.Changed += OnRegistryChanged;
     }
+
+    private void OnRegistryChanged(RegistrySnapshot snapshot) => _cachedKey = null;
+
 
     /// <inheritdoc />
     public Task<OperationResult<ModConfigInstanceModel>> LoadAsync(
         string instanceName,
+        bool forceReload = false,
         CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
+
+        // 重复进同一个页面时不必重新扫适配器源文件：键里带上实例、目录、版本与注册表规模，
+        // 任何一项变化都会自然落空；注册表事件额外把缓存清掉，防止规模相同内容不同。
+        var key = BuildCacheKey(instanceName);
+        if (!forceReload && _cachedKey == key && _cached is { } cached)
+        {
+            return Task.FromResult(cached);
+        }
+
         var result = LoadCore(instanceName, ct);
+        _cachedKey = key;
+        _cached = result;
         return Task.FromResult(result);
+    }
+
+    private string BuildCacheKey(string instanceName)
+    {
+        var instance = FindInstance(instanceName);
+        var installed = _registry.Current.Installed.Count;
+        return string.Join('\u0001',
+            instanceName,
+            instance?.GameDir ?? "-",
+            instance?.GameVersion ?? "-",
+            installed.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private OperationResult<ModConfigInstanceModel> LoadCore(string instanceName, CancellationToken ct)

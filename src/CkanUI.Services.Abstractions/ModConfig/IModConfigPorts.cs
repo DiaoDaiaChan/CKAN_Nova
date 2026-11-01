@@ -23,8 +23,16 @@ public interface IAdapterCatalog
 public interface IModConfigService
 {
     /// <summary>读取指定实例的配置页模型。</summary>
+    /// <param name="instanceName">实例名；空串表示当前实例。</param>
+    /// <param name="forceReload">
+    /// true 时强制重读磁盘。false（默认）允许服务层复用上一次结果：同一个实例、同一份注册表快照下
+    /// 重复进页面不必再扫一遍适配器源文件；注册表一变（安装/卸载/刷新）、切实例都会让缓存失效。
+    /// 用户点「刷新」必须传 true，否则看到的还是缓存。
+    /// </param>
+    /// <param name="cancellationToken">取消。</param>
     Task<OperationResult<ModConfigInstanceModel>> LoadAsync(
         string instanceName,
+        bool forceReload = false,
         CancellationToken cancellationToken = default);
 }
 

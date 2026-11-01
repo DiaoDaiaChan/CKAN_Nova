@@ -153,9 +153,7 @@ public sealed class ModConfigAdapterImportTests
 
     private sealed class StubConfigService(ModConfigInstanceModel model) : IModConfigService
     {
-        public Task<OperationResult<ModConfigInstanceModel>> LoadAsync(
-            string instanceName,
-            CancellationToken cancellationToken = default)
+        public Task<OperationResult<ModConfigInstanceModel>> LoadAsync(string instanceName, bool forceReload = false, CancellationToken cancellationToken = default)
             => Task.FromResult(OperationResult<ModConfigInstanceModel>.Ok(model));
     }
 
