@@ -42,7 +42,7 @@ public sealed class HoverLiftMotionTests
         Assert.That(TranslateY(card), Is.LessThan(-0.5), "悬停要真的抬起来");
 
         Tick(45);
-        Assert.That(TranslateY(card), Is.EqualTo(-HoverLiftMotion.LiftPixels).Within(0.05));
+        Assert.That(TranslateY(card), Is.EqualTo(-MotionBudget.Amplitude(HoverLiftMotion.LiftPixels)).Within(0.05));
 
         HoverLiftMotion.Apply(card, hovered: false);
         Tick(45);
@@ -141,7 +141,7 @@ public sealed class HoverLiftMotionTests
             var row = rows.Children.OfType<ListBoxItem>().Single();
             HoverLiftMotion.Apply(row, hovered: true);
             Tick(45);
-            Assert.That(TranslateY(row), Is.EqualTo(-HoverLiftMotion.RowLiftPixels).Within(0.05));
+            Assert.That(TranslateY(row), Is.EqualTo(-MotionBudget.Amplitude(HoverLiftMotion.RowLiftPixels)).Within(0.05));
         }
         finally
         {
@@ -159,7 +159,7 @@ public sealed class HoverLiftMotionTests
         HoverLiftMotion.Apply(button, hovered: true);
         Tick(45);
 
-        Assert.That(TranslateY(button), Is.EqualTo(-HoverLiftMotion.LiftPixels).Within(0.05));
+        Assert.That(TranslateY(button), Is.EqualTo(-MotionBudget.Amplitude(HoverLiftMotion.LiftPixels)).Within(0.05));
     }
 
     [Test]
@@ -180,7 +180,7 @@ public sealed class HoverLiftMotionTests
             HoverLiftMotion.Apply((DataGridRow)rows.Children[0], hovered: true);
             Tick(45);
 
-            Assert.That(TranslateY((DataGridRow)rows.Children[0]), Is.EqualTo(-HoverLiftMotion.RowLiftPixels).Within(0.05));
+            Assert.That(TranslateY((DataGridRow)rows.Children[0]), Is.EqualTo(-MotionBudget.Amplitude(HoverLiftMotion.RowLiftPixels)).Within(0.05));
         }
         finally
         {
@@ -198,7 +198,7 @@ public sealed class HoverLiftMotionTests
         HoverLiftMotion.Apply(button, hovered: true);
         Tick(45);
 
-        Assert.That(TranslateY(button), Is.EqualTo(-HoverLiftMotion.ButtonLiftPixels).Within(0.05));
+        Assert.That(TranslateY(button), Is.EqualTo(-MotionBudget.Amplitude(HoverLiftMotion.ButtonLiftPixels)).Within(0.05));
     }
 
     [Test]
@@ -284,7 +284,7 @@ public sealed class HoverLiftMotionTests
         HoverLiftMotion.Apply(card, hovered: true);
         Tick(45);
 
-        Assert.That(TranslateX(arrow), Is.EqualTo(HoverLiftMotion.ArrowTravelPixels).Within(0.05), "箭头要跟卡片一起滑出去");
+        Assert.That(TranslateX(arrow), Is.EqualTo(MotionBudget.Amplitude(HoverLiftMotion.ArrowTravelPixels)).Within(0.05), "箭头要跟卡片一起滑出去");
 
         HoverLiftMotion.Apply(card, hovered: false);
         Tick(45);

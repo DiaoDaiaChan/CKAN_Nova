@@ -36,13 +36,13 @@ public static class HoverLiftMotion
     public const string GuideButtonClass = "CkanGuide";
 
     /// <summary>悬停抬升距离（像素，向上为负）。</summary>
-    public const double LiftPixels = 2d;
+    public const double LiftPixels = 2.75d;
 
     /// <summary>列表/树的整行抬升距离：整行比卡片宽，2 px 会像抖动，减半。</summary>
-    public const double RowLiftPixels = 1d;
+    public const double RowLiftPixels = 1.35d;
 
     /// <summary>普通按钮的悬停抬升距离：样式里是 1 px，这里略加重到 1.5 px 才看得出来。</summary>
-    public const double ButtonLiftPixels = 1.5d;
+    public const double ButtonLiftPixels = 2d;
 
     /// <summary>图标按钮的类名：不接管位移，悬停反馈由图标自身的旋转动画负责。</summary>
     public const string IconButtonClass = "CkanIcon";
@@ -51,7 +51,7 @@ public static class HoverLiftMotion
     public const string ArrowClass = "GuideArrow";
 
     /// <summary>箭头滑出距离（像素）。</summary>
-    public const double ArrowTravelPixels = 3d;
+    public const double ArrowTravelPixels = 4d;
 
     private const int MaxDepth = 24;
 

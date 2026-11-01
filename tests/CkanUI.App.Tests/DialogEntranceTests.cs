@@ -108,7 +108,7 @@ public sealed class DialogEntranceTests
             DialogEntrance.Play(window);
 
             Assert.That(layer.RenderTransform, Is.InstanceOf<TransformGroup>(), "对话框里的视图层也要接上弹簧");
-            Assert.That(TranslateY(layer), Is.EqualTo(ViewLayerMotion.ClosedOffsetPixels).Within(0.01));
+            Assert.That(TranslateY(layer), Is.EqualTo(MotionBudget.Amplitude(ViewLayerMotion.ClosedOffsetPixels)).Within(0.01));
             Assert.That(ScaleX(layer), Is.EqualTo(ViewLayerMotion.ClosedScale).Within(0.001));
         }
         finally

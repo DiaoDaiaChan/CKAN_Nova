@@ -23,10 +23,10 @@ public static class EntranceChoreographer
     public const int StepMilliseconds = 30;
 
     /// <summary>完整档的上浮起点（像素）。</summary>
-    public const double OffsetPixels = 18d;
+    public const double OffsetPixels = 24d;
 
     /// <summary>精简档的上浮起点（像素）。</summary>
-    public const double ReducedOffsetPixels = 4d;
+    public const double ReducedOffsetPixels = 5d;
 
     /// <summary>低于这个数量就继续往下一层补，避免只有两个元素在错峰。</summary>
     private const int MinTargets = 3;

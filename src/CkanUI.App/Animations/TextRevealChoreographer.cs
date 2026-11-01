@@ -29,10 +29,10 @@ public static class TextRevealChoreographer
     public const int StepMilliseconds = 12;
 
     /// <summary>完整档的文字上浮起点（像素）。</summary>
-    public const double OffsetPixels = 7d;
+    public const double OffsetPixels = 9.5d;
 
     /// <summary>精简档的文字上浮起点（像素）。</summary>
-    public const double ReducedOffsetPixels = 2d;
+    public const double ReducedOffsetPixels = 2.5d;
 
     private const int MaxDepth = 10;
 

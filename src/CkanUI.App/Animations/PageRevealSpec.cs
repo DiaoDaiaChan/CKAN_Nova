@@ -20,13 +20,13 @@ public readonly record struct PageRevealPose(double OffsetX, double OffsetY, dou
 public static class PageRevealSpec
 {
     /// <summary>页签横切时的水平起点（完整档，像素）。</summary>
-    public const double DirectionalHorizontalPixels = 28d;
+    public const double DirectionalHorizontalPixels = 36d;
 
     /// <summary>页签横切时保留的垂直分量（完整档，像素）。</summary>
-    public const double DirectionalVerticalPixels = 10d;
+    public const double DirectionalVerticalPixels = 13d;
 
     /// <summary>一级导航换页（无方向）时的上浮起点（完整档，像素）。</summary>
-    public const double LiftOnlyPixels = 22d;
+    public const double LiftOnlyPixels = 28d;
 
     /// <summary>起点缩放（完整档）。</summary>
     public const double StartScale = 0.986d;

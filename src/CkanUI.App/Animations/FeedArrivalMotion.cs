@@ -28,10 +28,10 @@ public static class FeedArrivalMotion
     public const int StepMilliseconds = 24;
 
     /// <summary>起点下移距离（完整档，像素）。</summary>
-    public const double OffsetPixels = 14d;
+    public const double OffsetPixels = 18d;
 
     /// <summary>起点下移距离（精简档，像素）。</summary>
-    public const double ReducedOffsetPixels = 4d;
+    public const double ReducedOffsetPixels = 5d;
 
     private const int MaxDepth = 10;
 

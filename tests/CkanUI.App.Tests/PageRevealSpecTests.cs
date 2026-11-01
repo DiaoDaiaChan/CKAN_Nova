@@ -30,8 +30,8 @@ public sealed class PageRevealSpecTests
     {
         var pose = PageRevealSpec.For(1);
 
-        Assert.That(pose.OffsetX, Is.EqualTo(PageRevealSpec.DirectionalHorizontalPixels).Within(1e-9));
-        Assert.That(pose.OffsetY, Is.EqualTo(PageRevealSpec.DirectionalVerticalPixels).Within(1e-9));
+        Assert.That(pose.OffsetX, Is.EqualTo(MotionBudget.Amplitude(PageRevealSpec.DirectionalHorizontalPixels)).Within(1e-9));
+        Assert.That(pose.OffsetY, Is.EqualTo(MotionBudget.Amplitude(PageRevealSpec.DirectionalVerticalPixels)).Within(1e-9));
         Assert.That(pose.StartScale, Is.EqualTo(PageRevealSpec.StartScale).Within(1e-9));
         Assert.That(pose.StartOpacity, Is.EqualTo(PageRevealSpec.DirectionalStartOpacity).Within(1e-9));
     }
@@ -39,7 +39,7 @@ public sealed class PageRevealSpecTests
     [Test]
     public void BackwardSwitchMirrorsTheHorizontalOffset()
     {
-        Assert.That(PageRevealSpec.For(-1).OffsetX, Is.EqualTo(-PageRevealSpec.DirectionalHorizontalPixels).Within(1e-9));
+        Assert.That(PageRevealSpec.For(-1).OffsetX, Is.EqualTo(-MotionBudget.Amplitude(PageRevealSpec.DirectionalHorizontalPixels)).Within(1e-9));
     }
 
     [Test]
@@ -56,7 +56,7 @@ public sealed class PageRevealSpecTests
         var pose = PageRevealSpec.For(0);
 
         Assert.That(pose.OffsetX, Is.EqualTo(0).Within(1e-9), "没有方向时不许横移");
-        Assert.That(pose.OffsetY, Is.EqualTo(PageRevealSpec.LiftOnlyPixels).Within(1e-9));
+        Assert.That(pose.OffsetY, Is.EqualTo(MotionBudget.Amplitude(PageRevealSpec.LiftOnlyPixels)).Within(1e-9));
         Assert.That(pose.OffsetY, Is.GreaterThan(PageRevealSpec.DirectionalVerticalPixels));
     }
 

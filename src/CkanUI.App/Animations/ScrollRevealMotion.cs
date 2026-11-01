@@ -26,10 +26,10 @@ namespace CkanUI.App.Animations;
 public static class ScrollRevealMotion
 {
     /// <summary>起点下移距离（完整档，像素）。</summary>
-    public const double OffsetPixels = 18d;
+    public const double OffsetPixels = 24d;
 
     /// <summary>起点下移距离（精简档，像素）。</summary>
-    public const double ReducedOffsetPixels = 3d;
+    public const double ReducedOffsetPixels = 4d;
 
     private const int MaxDepth = 10;
 

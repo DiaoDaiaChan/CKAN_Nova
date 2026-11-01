@@ -27,7 +27,7 @@ public static class ViewLayerMotion
     public const string ActiveClass = "is-active";
 
     /// <summary>未激活时的上浮距离（样式里是 6 px，接管时放大到 9 px 才看得出来）。</summary>
-    public const double ClosedOffsetPixels = 9d;
+    public const double ClosedOffsetPixels = 12d;
 
     /// <summary>未激活时的缩放（样式里是 0.98，接管时放大到 0.97）。</summary>
     public const double ClosedScale = 0.97d;

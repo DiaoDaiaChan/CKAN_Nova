@@ -21,10 +21,10 @@ namespace CkanUI.App.Animations;
 public static class BannerMotion
 {
     /// <summary>完整档的上浮起点（像素）。</summary>
-    public const double OffsetPixels = 8d;
+    public const double OffsetPixels = 11d;
 
     /// <summary>精简档的上浮起点（像素）。</summary>
-    public const double ReducedOffsetPixels = 3d;
+    public const double ReducedOffsetPixels = 4d;
 
     private const int MaxDepth = 10;
     private const int MaxVisited = 2400;
