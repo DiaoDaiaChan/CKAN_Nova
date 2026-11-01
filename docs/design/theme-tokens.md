@@ -920,3 +920,19 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 
 不做：页签下划线的"跨页签滑行"（需要把指示器搬出模板做覆盖层，和顶栏胶囊同一套坐标映射，收益低于复杂度）；
 `FANavigationViewItem` 的选中指示器（库内 600 ms 写死，无公开 API）。
+
+#### 5.9.32 展开即淡入（`ExpandMotion`）
+
+| 项 | 口径 |
+| --- | --- |
+| 缺陷 | `Expander` 与 `TreeViewItem` 的 `IsExpanded` 一变，正文/子项由模板的 `IsVisible` 直接翻成 true，一帧硬切出现 |
+| 覆盖点 | `LogPageView.axaml:173`、`CrashDialogView.axaml:16`、`ErrorDialogView.axaml:33` 的 `Expander`；`ContentPageView.axaml:86`、`UnmanagedPageView.axaml:116`、`RelationTreeView.axaml:142` 的 `TreeViewItem` |
+| 幅度 | 正文从下方 8 px 浮上来并淡入（`SpringSpec.Glide`）；`reduced` 档 3 px，`none` 档 `Attach` 直接返回 0 |
+| 只演展开 | 收起时内容立刻从可视树摘掉，没有可演的中间态；要演就得自己接管高度与裁剪，等于重写模板布局 |
+| 不动高度 | 高度是布局结果，逐帧写会被 arrange 覆盖——和 `ProgressBar` 的 `PART_Indicator.Width` 同一个理由。这里补的是"出现方式" |
+| 宿主解析 | `Expander` 取最后一个 `ContentPresenter`（页眉也是一个，先出现）；`TreeViewItem` 取第一个 `ItemsPresenter`。模板晚一拍才实现时挂一次性 `LayoutUpdated` 再找一次，不常驻 |
+| 接管前摘过渡 | `host.Transitions = null`，否则逐帧写入被再平滑一次（与 §5.9.13 提示条同一个坑） |
+| 接入点 | `MainWindow.PlayPageReveal`（`PageHost` 内，紧跟 `TabStripMotion`）、`DialogEntrance.Play` |
+| 门禁 | `ExpandMotionTests` 5 项：展开后正文淡入并落位、宿主直接播放、`reduced` 档 3 px、`none` 档不写变换、重复挂载不叠加 |
+
+到这一条为止，`FluentStyles.axaml` 里能产生视觉状态变化的交互面都已有归口：显隐、展开、悬停、按下、选中、焦点、滚动、数据到达、页签、换页、弹窗。剩下明确不接的仍是那三项——弹层（`PopupRoot` 独立窗口）、`FANavigationViewItem` 选中指示器（库内 600 ms 写死）、`ProgressBar` 确定值进度（arrange 覆盖宽度）。
