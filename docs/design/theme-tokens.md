@@ -936,3 +936,15 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | 门禁 | `ExpandMotionTests` 5 项：展开后正文淡入并落位、宿主直接播放、`reduced` 档 3 px、`none` 档不写变换、重复挂载不叠加 |
 
 到这一条为止，`FluentStyles.axaml` 里能产生视觉状态变化的交互面都已有归口：显隐、展开、悬停、按下、选中、焦点、滚动、数据到达、页签、换页、弹窗。剩下明确不接的仍是那三项——弹层（`PopupRoot` 独立窗口）、`FANavigationViewItem` 选中指示器（库内 600 ms 写死）、`ProgressBar` 确定值进度（arrange 覆盖宽度）。
+
+#### 5.9.33 只摘会打架的那几条过渡（`MotionTransitions`）
+
+| 项 | 口径 |
+| --- | --- |
+| 旧做法 | 各模块接管前一律 `control.Transitions = null` |
+| 副作用 | 连背景色/前景色的 `BrushTransition` 一起废掉——悬停时按钮底色不再渐变，只剩弹簧在动，观感更"硬" |
+| 新做法 | `MotionTransitions.Strip(control, includeOpacity)`：只摘 `Visual.RenderTransformProperty`，逐帧也写不透明度的模块再摘 `Visual.OpacityProperty`，其余原样保留 |
+| 为什么必须摘 | Avalonia 的过渡跑在**动画优先级**，高于代码写的本地值。`RenderTransform` 过渡只要还在跑（90–360 ms，`FluentStyles.axaml` 里 91 处 `TransformOperationsTransition`），每帧都会把插值出来的 `TransformOperations` 盖在我们的 `TransformGroup` 上——spring 要么看不见、要么和过渡各写一半，这就是"有时弹得起来、有时只挪一点"的根因 |
+| 实现口径 | `ITransition.Property` 在 12.1.4 不对外公开，反射读 `TransitionBase.Property`；一次接管读一次，不进逐帧路径。没有要摘的就保留原列表实例，不做无谓替换 |
+| 调用点 | `HoverLiftMotion.Apply`（`includeOpacity: false`，只抬 y）、`SelectionMotion`（同）、`BannerMotion` / `ExpandMotion` / `SurfaceMotion` / `ViewLayerMotion` / `TabStripMotion`（`true`，它们也在逐帧写不透明度） |
+| 门禁 | `MotionTransitionsTests` 4 项：底色过渡保留且变换摘掉、`Opacity` 只在模块驱动时才摘、只剩变换时整表置空、没有要摘的不换实例 |
