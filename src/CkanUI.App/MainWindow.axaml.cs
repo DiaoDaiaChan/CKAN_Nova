@@ -594,6 +594,9 @@ public sealed partial class MainWindow : Window
         // 缩略图/截图解码完就是一张位图，渲染出来是"啪"地出现；源变了就淡一次。
         ImageLoadMotion.Attach(PageHost);
 
+        // 页内页签：下划线弹簧冲量 + 内容舞台按切换方向滑进来（原来样式给了过渡却没人改 RenderTransform）。
+        TabStripMotion.Attach(PageHost);
+
         // 选中行与键盘焦点原来只有静态描边/背景，补一次弹簧冲量；整窗挂一次，标题栏按钮的键盘焦点也在内。
         SelectionMotion.Attach(this);
         SelectionMotion.Attach(PageHost);

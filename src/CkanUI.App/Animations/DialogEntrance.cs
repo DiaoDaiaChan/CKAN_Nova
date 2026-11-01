@@ -35,5 +35,6 @@ public static class DialogEntrance
         HoverLiftMotion.Attach(dialog);
         SmoothScrollMotion.Attach(dialog);
         ImageLoadMotion.Attach(dialog);
+        TabStripMotion.Attach(dialog);
     }
 }
