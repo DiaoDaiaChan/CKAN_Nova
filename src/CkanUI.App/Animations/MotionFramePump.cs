@@ -85,8 +85,16 @@ internal sealed class MotionFramePump
 
         for (var i = _tracks.Count - 1; i >= 0; i--)
         {
-            if (!_tracks[i].Advance(delta))
+            try
             {
+                if (!_tracks[i].Advance(delta))
+                {
+                    _tracks.RemoveAt(i);
+                }
+            }
+            catch (Exception)
+            {
+                // 一根弹簧炸了不能连累同一窗口的其它动画：摘掉它，继续排帧。
                 _tracks.RemoveAt(i);
             }
         }

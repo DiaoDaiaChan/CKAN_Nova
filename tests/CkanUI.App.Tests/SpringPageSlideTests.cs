@@ -122,6 +122,31 @@ public sealed class SpringPageSlideTests
     }
 
     [Test]
+    public void ReducedMotionKeepsTheCurtainShort()
+    {
+        SetTokens(page: 0d, fast: 90d);
+
+        var (window, from, to) = BuildPair();
+        try
+        {
+            _ = new SpringPageSlide().Start(from, to, forward: true, CancellationToken.None);
+
+            Tick(1);
+            var start = TranslateX(to);
+            Assert.That(start, Is.LessThan(-0.5d), "精简档也要有位移，只是短");
+            Assert.That(Math.Abs(start), Is.LessThanOrEqualTo(SpringPageSlide.ReducedTravelPixels + 1d), "整屏横扫不算精简");
+
+            Tick(120);
+            Assert.That(TranslateX(to), Is.EqualTo(0).Within(0.01d));
+            Assert.That(TranslateX(from), Is.EqualTo(0).Within(0.01d));
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [Test]
     public void HostingControlDrivesTheCurtainOnContentChange()
     {
         var host = new TransitioningContentControl

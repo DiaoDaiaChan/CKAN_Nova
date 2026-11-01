@@ -143,6 +143,9 @@ public sealed class TransformSpring : IMotionTicker
 
     bool IMotionTicker.Advance(double seconds) => Advance(seconds);
 
+    /// <summary>四通道都停住时触发（每次从"在动"变成"静止"发一次）。</summary>
+    public event EventHandler? Settled;
+
     /// <summary>四通道是否都停住了；正在等 hold 排队的也算没停。</summary>
     public bool IsSettled =>
         !_x.IsMoving && !_y.IsMoving && !_scaleX.IsMoving && !_scaleY.IsMoving && _opacity?.IsMoving != true;
@@ -183,6 +186,7 @@ public sealed class TransformSpring : IMotionTicker
         if (!moving)
         {
             _topLevel = null;
+            Settled?.Invoke(this, EventArgs.Empty);
         }
 
         return moving;

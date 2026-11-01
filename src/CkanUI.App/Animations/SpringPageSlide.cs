@@ -33,6 +33,9 @@ public sealed class SpringPageSlide : IPageTransition
     /// <summary>兜底上限：两页还没停住也到此为止，避免掉帧时过渡一直挂着。</summary>
     private const double HardCapSeconds = 0.5d;
 
+    /// <summary>精简档的行程上限：选了"精简"的人要的是轻推一下，不是整屏横扫。</summary>
+    public const double ReducedTravelPixels = 48d;
+
     /// <inheritdoc />
     public async Task Start(Visual? from, Visual? to, bool forward, CancellationToken cancellationToken)
     {
@@ -44,6 +47,11 @@ public sealed class SpringPageSlide : IPageTransition
         var outgoing = from as Control;
         var width = incoming.Bounds.Width > 0d ? incoming.Bounds.Width : FallbackTravelPixels;
         var travel = MotionBudget.Amplitude(Math.Min(width, MaxTravelPixels));
+        if (MotionBudget.Mode == MotionMode.Reduced)
+        {
+            // 0.45 倍后仍有 400 px 左右，对"精简"来说还是整屏横扫；再压到 48 px 以内。
+            travel = Math.Min(travel, ReducedTravelPixels);
+        }
         var sign = forward ? 1d : -1d;
 
         var toSpring = TransformSpring.For(incoming, SpringSpec.Glide);
@@ -58,9 +66,10 @@ public sealed class SpringPageSlide : IPageTransition
             fromSpring.MoveTo(x: sign * travel);
         }
 
-        // 用帧时间而不是定时器：定时器在无头测试里不随 ForceRenderTimerTick 推进，
-        // 过渡会一直挂着不结束；帧通道与弹簧同源，测试与应用走同一条路径。
-        var settle = new SettleTicker(SettleSeconds, toSpring, fromSpring);
+        // 收尾靠弹簧自己的"静止"事件：两页弹簧停住的那一刻就是幕布到位之时。
+        // 不靠"帧还会继续来"——弹簧一停就没有新的失效，合成器不再排帧，
+        // 等帧的等待器会永远挂着（精简档实测把旧页留在行程终点）。
+        var settle = new SettleHandle(toSpring, fromSpring);
         if (TopLevel.GetTopLevel(incoming) is { } top)
         {
             MotionFramePump.Subscribe(top, settle);
@@ -93,44 +102,69 @@ public sealed class SpringPageSlide : IPageTransition
         fromSpring?.MoveTo(x: 0d, snap: true);
     }
 
-    /// <summary>按帧累计到点的等待器：走帧泵，不依赖 UI 定时器。</summary>
-    private sealed class SettleTicker : IMotionTicker
+    /// <summary>等两页弹簧都停住的收尾器：静止事件为主，帧累计只做硬上限兜底。</summary>
+    private sealed class SettleHandle : IMotionTicker
     {
         // 不加 RunContinuationsAsynchronously：续体要在完成它的那条 UI 线程上跑，
-        // 否则 finally 里的 MoveTo 会从线程池线程写控件。
+        // 否则 reset 会从线程池线程写控件。
         private readonly TaskCompletionSource _done = new();
-        private readonly double _seconds;
         private readonly double _hardCap;
         private readonly TransformSpring _to;
         private readonly TransformSpring? _from;
         private double _elapsed;
 
-        internal SettleTicker(double seconds, TransformSpring to, TransformSpring? from)
+        internal SettleHandle(TransformSpring to, TransformSpring? from)
         {
-            _seconds = seconds;
-            _hardCap = seconds + HardCapSeconds;
+            _hardCap = SettleSeconds + HardCapSeconds;
             _to = to;
             _from = from;
+            _to.Settled += OnSpringSettled;
+            if (_from is not null)
+            {
+                _from.Settled += OnSpringSettled;
+            }
+
+            // 起跑姿态是 snap 出来的，可能已经静止：先自己看一眼，别等事件。
+            CheckSettled();
         }
 
         internal Task Task => _done.Task;
 
-        internal void Complete() => _done.TrySetResult();
-
         public bool Advance(double seconds)
         {
             _elapsed += seconds;
-
-            // 到点还不够：掉帧时弹簧可能还没停住，这时候收货会把最后几像素"啪"地抹掉。
-            // 等到两页都静止再收，另有上限兜底。
-            var settled = _to.IsSettled && (_from?.IsSettled ?? true);
-            if (_elapsed < _hardCap && (_elapsed < _seconds || !settled))
+            if (_elapsed >= _hardCap)
             {
-                return true;
+                Complete();
+            }
+
+            return !_done.Task.IsCompleted;
+        }
+
+        internal void Complete()
+        {
+            if (_done.Task.IsCompleted)
+            {
+                return;
+            }
+
+            _to.Settled -= OnSpringSettled;
+            if (_from is not null)
+            {
+                _from.Settled -= OnSpringSettled;
             }
 
             _done.TrySetResult();
-            return false;
+        }
+
+        private void OnSpringSettled(object? sender, EventArgs e) => CheckSettled();
+
+        private void CheckSettled()
+        {
+            if (_to.IsSettled && (_from?.IsSettled ?? true))
+            {
+                Complete();
+            }
         }
     }
 }
