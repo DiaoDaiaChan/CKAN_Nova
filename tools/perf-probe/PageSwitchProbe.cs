@@ -103,6 +103,127 @@ public static class PageSwitchProbe
         HeadlessAppHost.PumpJobs();
     }
 
+    /// <summary>量缩略图解码成本：同一批图片按不同目标宽度解码，看宽度对耗时的影响。</summary>
+    /// <param name="dir">图片目录。</param>
+    /// <param name="rounds">每个宽度重复次数。</param>
+    public static void ThumbCost(string dir, int rounds = 3)
+    {
+        var files = Directory.GetFiles(dir, "*.png").OrderBy(f => f, StringComparer.Ordinal).Take(6).ToArray();
+        if (files.Length == 0)
+        {
+            Console.WriteLine($"[ThumbCost] no png in {dir}");
+            return;
+        }
+
+        HeadlessAppHost.EnsureInitialized();
+        foreach (var width in new[] { 640, 256, 128, 96 })
+        {
+            var total = 0d;
+            for (var round = 1; round <= rounds; round++)
+            {
+                var sw = Stopwatch.StartNew();
+                foreach (var file in files)
+                {
+                    using var stream = File.OpenRead(file);
+                    using var bmp = Avalonia.Media.Imaging.Bitmap.DecodeToWidth(
+                        stream, width, Avalonia.Media.Imaging.BitmapInterpolationMode.HighQuality);
+                    // DecodeToWidth 是惰性的，必须真光栅一次才算过费用。
+                    using var rtb = new Avalonia.Media.Imaging.RenderTargetBitmap(bmp.PixelSize);
+                    using (var ctx = rtb.CreateDrawingContext())
+                    {
+                        ctx.DrawImage(bmp, new Rect(0, 0, bmp.PixelSize.Width, bmp.PixelSize.Height));
+                    }
+
+                    _ = rtb.PixelSize;
+                }
+
+                var ms = sw.Elapsed.TotalMilliseconds;
+                total += ms;
+                Console.WriteLine($"[ThumbCost] width={width} round{round} files={files.Length} total={ms:F1}ms per={ms / files.Length:F2}ms");
+            }
+
+            Console.WriteLine($"[ThumbCost] width={width} avg={total / rounds:F1}ms");
+        }
+    }
+
+    /// <summary>逐个 TabControl 切子标签，量「切一次」的布局 + 渲染成本。</summary>
+    /// <param name="rounds">每个标签页切几轮（第 1 轮含首次模板实例化）。</param>
+    /// <param name="onlyKey">只测某个导航键。</param>
+    public static void TabSweep(int rounds = 2, string? onlyKey = null)
+    {
+        HeadlessAppHost.EnsureInitialized();
+
+        using var services = ServiceRegistration.Build(() => null);
+        _ = services.GetService(typeof(IInstanceService));
+        HeadlessAppHost.PumpJobs();
+
+        var host = new Window { Width = 1280, Height = 800 };
+        host.Show();
+        HeadlessAppHost.PumpJobs();
+
+        var locator = new ViewLocator();
+        foreach (var key in ServiceRegistration.PageTypes.Keys
+                     .Where(k => onlyKey is null || string.Equals(k, onlyKey, StringComparison.OrdinalIgnoreCase)))
+        {
+            if (!ServiceRegistration.PageTypes.TryGetValue(key, out var type))
+            {
+                continue;
+            }
+
+            var vm = services.GetService(type) as PageViewModel;
+            vm?.Activate();
+            Settle(150);
+
+            var view = locator.Build(vm) ?? new Border();
+            host.Content = view;
+            HeadlessAppHost.PumpJobs();
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            HeadlessAppHost.PumpJobs();
+
+            var tabs = view.GetVisualDescendants().OfType<TabControl>().ToList();
+            Console.WriteLine($"[Tabs] key={key} tabControls={tabs.Count}");
+
+            for (var t = 0; t < tabs.Count; t++)
+            {
+                var tab = tabs[t];
+                var count = tab.ItemCount;
+                Console.WriteLine($"[Tabs]   control{t} items={count} selected={tab.SelectedIndex}");
+
+                for (var round = 1; round <= rounds; round++)
+                {
+                    for (var i = 0; i < count; i++)
+                    {
+                        var sw = Stopwatch.StartNew();
+                        tab.SelectedIndex = i;
+                        HeadlessAppHost.PumpJobs();
+                        host.Measure(new Size(1280, 800));
+                        host.Arrange(new Rect(0, 0, 1280, 800));
+                        var layoutMs = sw.Elapsed.TotalMilliseconds;
+
+                        sw.Restart();
+                        AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+                        HeadlessAppHost.PumpJobs();
+                        var renderMs = sw.Elapsed.TotalMilliseconds;
+
+                        Console.WriteLine(
+                            $"[Tabs]     round={round} item{i}: layout={layoutMs:F1}ms render={renderMs:F1}ms nodes={view.GetVisualDescendants().Count()}");
+                    }
+                }
+
+                tab.SelectedIndex = 0;
+            }
+
+            vm?.Deactivate();
+            host.Content = null;
+            HeadlessAppHost.PumpJobs();
+            _ = tabs;
+        }
+
+        host.Close();
+        HeadlessAppHost.PumpJobs();
+    }
+
     /// <summary>量一次真实存档的「读盘 + 解析 + 校验」成本：切回存档页以前每次都要付这一笔。</summary>
     /// <param name="rounds">重复次数。</param>
     public static void SaveValidateCost(int rounds = 3)

@@ -754,3 +754,24 @@ settings 的节点直方图（total 2338）：ContentPresenter 406、TextBlock 2
 settings 的 2338 节点 / 686–778 ms 布局仍然是全场唯一 O(700ms) 项。要真正拿下来只有两条路，都需要动视觉：虚拟化整页（`ItemsControl` → 虚拟化面板，滚动条行为会变），或把 36 行折叠成分组手风琴（默认不展开，用户得多点一次）。两条都违反「不影响视觉效果」，暂时只记录不动手。
 
 子标签（modpacks 两个 TabItem、ModDetailsView 四个 TabItem）尚未单独计时 —— 现有探针按导航键走，覆盖不到 TabControl 内部的切换。
+
+### 18.6 子标签（TabControl）实测
+
+`perf-probe --tabs [key]` 对每个导航键把视图挂进窗口、布局完成，再逐个 `TabControl` 切 `SelectedIndex`，计 layout + render（`PageSwitchProbe.TabSweep`）。
+
+23 个导航键里只有 **modpacks** 含 `TabControl`（2 个 TabItem）；ModDetailsView 的 4 个 TabItem 在详情侧栏里，探针没有选中模组所以取不到。
+
+| 轮次 | item0 layout / render | item1 layout / render | nodes |
+| --- | --- | --- | --- |
+| 1（首次，含模板实例化） | 0.0 / 1.2 ms | 34.0 / 0.5 ms | 202 → 205 |
+| 2 | 12.7 / 0.8 ms | 14.8 / 0.5 ms | 202 → 205 |
+
+即子标签切换是 13–34 ms 量级，与「掉帧」不在一个数量级；用户感知的实例页卡顿来自 `saves` / `ships` 这两个**平级导航键**（§18.2：saves layout 55.6 ms，且旧实现每次都要重读并解析整份 sfs），不是 TabControl。
+
+### 18.7 待办候选（未做，理由写在下面）
+
+| 候选 | 值不值 | 现在的障碍 |
+| --- | --- | --- |
+| `PathToThumbnailConverter` 固定按 640 宽解码 | 可能值：`FlagsPageView` 的旗帜源图只有 64×40，解码到 640 是 100 倍像素浪费；`ShipsPageView` 列表槽位 40×24 却解码到 640（16 倍） | 想按显示尺寸传 `ConverterParameter` 前先量出真实省下的毫秒，但 headless 里 `Bitmap.DecodeToWidth` 是惰性解码，`RenderTargetBitmap` 在无头环境又不真光栅，`--thumb-cost` 量出 0.0–0.8 ms 无法采信；view 文件也在并行改版范围内 |
+| flags / loadingimages 用 `WrapPanel`（非虚拟化） | 未知 | 换 `ItemsRepeater` 会改滚动/换行行为，违反「不影响视觉效果」 |
+| settings 虚拟化 | 值：单项 O(700ms) | 见 §18.5，要动视觉 |

@@ -71,6 +71,22 @@ public static class Program
             return 0;
         }
 
+        // --thumb-cost <dir>：缩略图解码成本随目标宽度的变化
+        if (Array.IndexOf(args, "--thumb-cost") is var ti && ti >= 0 && ti + 1 < args.Length)
+        {
+            PageSwitchProbe.ThumbCost(args[ti + 1]);
+            return 0;
+        }
+
+        // --tabs [key]：逐 TabControl 切子标签的布局成本
+        if (Array.Exists(args, a => string.Equals(a, "--tabs", StringComparison.OrdinalIgnoreCase)))
+        {
+            var tabOnly = args.SkipWhile(a => !string.Equals(a, "--tabs", StringComparison.OrdinalIgnoreCase)).Skip(1)
+                .FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
+            PageSwitchProbe.TabSweep(2, tabOnly);
+            return 0;
+        }
+
         // --save-validate：一次真实存档校验的成本
         if (Array.Exists(args, a => string.Equals(a, "--save-validate", StringComparison.OrdinalIgnoreCase)))
         {
