@@ -559,3 +559,11 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | 与按压的关系 | 与 `InteractionMotion` 共用同一个 `TransformSpring` 实例，按下收、松开弹各改各的目标，不会互相覆盖成跳变 |
 | 不做 | 不给未带 `CkanPill` 的普通复选框加弹跳（原生复选框有自己的视觉反馈）；不改模板、不动 `IsChecked` 语义 |
 | 门禁 | `TogglePopMotionTests`（勾上真的放大再落回 1、挂载时已选中的不凭空动、精简档幅度更小、关闭档零改动、重复接管为 0） |
+
+#### 5.9.22 表格行与列表行的悬停（`HoverLiftMotion` 的行分支）
+
+`DataGridRow` 原来只有 `translate(2px,0)` 的样式过渡，模组表格里横向扫过一行行时每行都从零起步。
+现在 `DataGridRow` 与 `ListBoxItem`/`TreeViewItem` 同走 row 分支：向上抬 `RowLiftPixels = 1`，与其他行共享速度；
+样式里的横向 2 px 保留（本类只改 `translateY`），两者叠加即"抬起 + 右移"。
+
+- **门禁**：`HoverLiftMotionTests.GridRowsLiftByTheRowDistance`（`DataGridRow` 被接管且落到 -1 px）。
