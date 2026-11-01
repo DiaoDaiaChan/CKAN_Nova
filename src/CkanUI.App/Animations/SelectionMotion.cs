@@ -111,7 +111,7 @@ public static class SelectionMotion
             return;
         }
 
-        TransformSpring.For(control, SpringSpec.Snappy).KickScale(MotionBudget.Amplitude(FocusPop));
+        Kick(control, FocusPop);
     }
 
     private static void OnSelectingChanged(object? sender, SelectionChangedEventArgs e)
@@ -138,17 +138,19 @@ public static class SelectionMotion
         }
     }
 
-    /// <summary>推到下一帧再数：虚拟化列表在选中之后的那次布局里才把行容器实现出来。</summary>
-    private static void PopAfterLayout(Visual owner, Action pop)
+    /// <summary>选中之后的那次布局里，虚拟化列表才把行容器实现出来：立刻数一次，再等一次布局补数。</summary>
+    private static void PopAfterLayout(Control owner, Action pop)
     {
-        if (TopLevel.GetTopLevel(owner) is { } top)
+        pop();
+
+        EventHandler? once = null;
+        once = (_, _) =>
         {
-            top.RequestAnimationFrame(_ => pop());
-        }
-        else
-        {
+            owner.LayoutUpdated -= once;
             pop();
-        }
+        };
+
+        owner.LayoutUpdated += once;
     }
 
     private static void PopSelected(SelectingItemsControl list) => PopSelected(list.GetRealizedContainers());
@@ -183,8 +185,21 @@ public static class SelectionMotion
         }
     }
 
-    private static void Pop(Control control) =>
-        TransformSpring.For(control, SpringSpec.Snappy).KickScale(MotionBudget.Amplitude(SelectionPop));
+    /// <summary>给一个刚变成选中态的行容器补一次弹一下；容器实现时机不对时可从外部补。</summary>
+    public static void NotifySelected(Control control) => Pop(control);
+
+    private static void Pop(Control control) => Kick(control, SelectionPop);
+
+    /// <summary>
+    /// 冲量之前先摘掉控件自己的过渡：样式里的 TransformOperationsTransition 会把
+    /// 我们写下的 TransformGroup 遮成"正在过渡中的 TransformOperations"，
+    /// 弹簧的逐帧位移被它再平滑一次，看起来就是卡住不动。缩放冲量本身已经交代了变化，摘掉无副作用。
+    /// </summary>
+    private static void Kick(Control control, double pop)
+    {
+        control.Transitions = null;
+        TransformSpring.For(control, SpringSpec.Snappy).KickScale(MotionBudget.Amplitude(pop));
+    }
 
     private static bool IsSelected(Control control) => control switch
     {
