@@ -12,7 +12,7 @@ namespace CkanUI.App.Animations;
 /// 页面内的"同格叠放层"（空态 ↔ 数据态、未选中 ↔ 已选中）改由弹簧帧驱动。
 /// </summary>
 /// <remarks>
-/// <para>样式里 <c>Control.view-layer</c> 用 <c>TransformOperationsTransition</c> 播 6 px 上浮 + 0.98 缩放。
+/// <para>样式里 <c>Control.view-layer</c> 用 <c>TransformOperationsTransition</c> 播 6 px 上浮 + 0.98 缩放（接管后 9 px / 0.97，见 §5.9.15）。
 /// 两层互斥切换常发生在请求还没回来时（先显示空态、数据到了再切数据态），过渡从 t=0 重算、速度归零，
 /// 观感是"停住再重新起步"。这里只监听 <c>is-active</c>，让切换带速度反向。</para>
 /// <para>跳过自带悬停/按压位移的控件（<c>CkanCardInteractive</c> 等）：它们的 <c>RenderTransform</c> 归样式管，
@@ -26,11 +26,11 @@ public static class ViewLayerMotion
     /// <summary>激活状态类。</summary>
     public const string ActiveClass = "is-active";
 
-    /// <summary>未激活时的上浮距离（与样式里的 6 px 一致）。</summary>
-    public const double ClosedOffsetPixels = 6d;
+    /// <summary>未激活时的上浮距离（样式里是 6 px，接管时放大到 9 px 才看得出来）。</summary>
+    public const double ClosedOffsetPixels = 9d;
 
-    /// <summary>未激活时的缩放（与样式里的 0.98 一致）。</summary>
-    public const double ClosedScale = 0.98d;
+    /// <summary>未激活时的缩放（样式里是 0.98，接管时放大到 0.97）。</summary>
+    public const double ClosedScale = 0.97d;
 
     private const int MaxDepth = 10;
 
@@ -54,6 +54,9 @@ public static class ViewLayerMotion
         {
             return 0;
         }
+
+        // 迟到的控件（模板、晚到的数据、互斥切换）靠根节点的节流补扫接管，只赌换页那一拍会漏。
+        MotionScan.Subscribe(root, nameof(ViewLayerMotion), () => Attach(root));
 
         var count = 0;
         foreach (var control in Enumerate(root))

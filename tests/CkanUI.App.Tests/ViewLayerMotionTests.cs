@@ -113,6 +113,37 @@ public sealed class ViewLayerMotionTests
     }
 
     [Test]
+    public void LayerMountedAfterThePageRevealIsStillPickedUp()
+    {
+        var host = new StackPanel();
+        var window = HeadlessAppHost.CreateTestWindow(host);
+
+        try
+        {
+            Assert.That(ViewLayerMotion.Attach(window), Is.EqualTo(0), "挂载那一刻还没有视图层");
+
+            var layer = CreateLayer();
+            host.Children.Add(layer);
+
+            // 布局回调触发补扫，迟到的层也要被接管到"未激活"起点。
+            Tick(4);
+
+            Assert.That(TranslateY(layer), Is.EqualTo(ViewLayerMotion.ClosedOffsetPixels).Within(0.01), "迟到的层没被补扫接管");
+            Assert.That(ScaleX(layer), Is.EqualTo(ViewLayerMotion.ClosedScale).Within(1e-3));
+
+            layer.Classes.Add(ViewLayerMotion.ActiveClass);
+            Tick(45);
+            Assert.That(ScaleX(layer), Is.EqualTo(1).Within(0.005));
+            Assert.That(layer.Opacity, Is.EqualTo(1).Within(0.01));
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    [Test]
     public void CollapsedMotionSnapsToTheEndState()
     {
         SetTokens(page: 0, fast: 0);

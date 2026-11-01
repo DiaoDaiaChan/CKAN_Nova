@@ -39,6 +39,9 @@ public static class BannerMotion
             return 0;
         }
 
+        // 迟到的提示条（模板晚一拍、数据晚到）靠根节点节流补扫接管。
+        MotionScan.Subscribe(root, nameof(BannerMotion), () => Attach(root));
+
         var banners = Collect(root);
         foreach (var banner in banners)
         {

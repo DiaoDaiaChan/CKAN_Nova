@@ -53,6 +53,9 @@ public static class SurfaceMotion
             return 0;
         }
 
+        // 迟到的控件（模板、晚到的数据、互斥切换）靠根节点的节流补扫接管，只赌换页那一拍会漏。
+        MotionScan.Subscribe(root, nameof(SurfaceMotion), () => Attach(root));
+
         var count = 0;
         foreach (var control in Enumerate(root))
         {

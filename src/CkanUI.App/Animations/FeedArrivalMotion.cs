@@ -49,6 +49,9 @@ public static class FeedArrivalMotion
             return 0;
         }
 
+        // 迟到的列表（数据先到、模板后实现）靠根节点的节流补扫接管。
+        MotionScan.Subscribe(root, nameof(FeedArrivalMotion), () => Attach(root));
+
         var count = 0;
         foreach (var itemsControl in Enumerate<ItemsControl>(root))
         {
