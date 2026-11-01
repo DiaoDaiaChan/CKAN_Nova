@@ -111,6 +111,13 @@ public static class Program
             }
         }
 
+        // --mods-toggle：勾选一行时整体换表 vs 就地替换的成本对照
+        if (Array.Exists(args, a => string.Equals(a, "--mods-toggle", StringComparison.OrdinalIgnoreCase)))
+        {
+            PageSwitchProbe.ToggleRowsCost();
+            return 0;
+        }
+
         // --scroll-floor：滚动分配的框架地板（对照 --mem 的模组列表滚动分配）
         if (Array.Exists(args, a => string.Equals(a, "--scroll-floor", StringComparison.OrdinalIgnoreCase)))
         {

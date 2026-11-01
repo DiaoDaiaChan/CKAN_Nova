@@ -242,9 +242,9 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     [ObservableProperty]
     private string _searchText = string.Empty;
 
-    /// <summary>当前可见行（整体替换，不做增量更新）。</summary>
+    /// <summary>当前可见行。过滤/重建时整体替换；勾选变化按索引就地替换，避免 3,000 行整表单换导致容器重建与滚动跳位。</summary>
     [ObservableProperty]
-    private IReadOnlyList<ModsRowView> _rows = Array.Empty<ModsRowView>();
+    private ObservableCollection<ModsRowView> _rows = new();
 
     /// <summary>当前选中行（单击选中，详情跟随；不影响勾选）。</summary>
     [ObservableProperty]
@@ -1076,7 +1076,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         RebuildSelectionPreview();
         if (Rows.Count > 0)
         {
-            Rows = Rows.Select(view => view.WithSelected(false)).ToList();
+            Rows = new ObservableCollection<ModsRowView>(Rows.Select(view => view.WithSelected(false)));
         }
         UpdateStatusText();
         RefreshDerived();
@@ -1157,7 +1157,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             return 0;
         }
 
-        Rows = Array.Empty<ModsRowView>();
+        Rows = new ObservableCollection<ModsRowView>();
         _all = Array.Empty<ModRowData>();
         SelectedRow = null;
         ChangePreview = ModsChangePreviewBuilder.Empty;
@@ -1254,7 +1254,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             views = updates;
         }
 
-        Rows = views;
+        Rows = new ObservableCollection<ModsRowView>(views);
 
         // 选中行按标识符重新解析，避免整体替换后详情面板丢失。
         var selectedIdentifier = SelectedRow?.Identifier;
@@ -1281,10 +1281,17 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
 
         RebuildSelectionPreview();
 
-        // 只刷勾选状态，不重建整表：保留滚动位置（3,000 行滚动的流畅性）。
-        Rows = Rows.Select(view => string.Equals(view.Identifier, identifier, StringComparison.OrdinalIgnoreCase)
-            ? view.WithSelected(_selected.Contains(identifier))
-            : view).ToList();
+        // 只改这一行：ObservableCollection 的 Replace 通知让 DataGrid 只刷新该行容器，
+        // 既保住滚动位置，也不用为一次点击重造 3,000 个不可变行记录。
+        var selected = _selected.Contains(identifier);
+        for (var i = 0; i < Rows.Count; i++)
+        {
+            if (string.Equals(Rows[i].Identifier, identifier, StringComparison.OrdinalIgnoreCase))
+            {
+                Rows[i] = Rows[i].WithSelected(selected);
+                break;
+            }
+        }
 
         UpdateStatusText();
         RefreshDerived();
@@ -1300,7 +1307,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
 
         _selected.Clear();
         RebuildSelectionPreview();
-        Rows = Rows.Select(view => view.WithSelected(false)).ToList();
+        Rows = new ObservableCollection<ModsRowView>(Rows.Select(view => view.WithSelected(false)));
         UpdateStatusText();
         RefreshDerived();
     }
@@ -2156,7 +2163,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         }
 
         RebuildSelectionPreview();
-        Rows = Rows.Select(view => view.WithSelected(_selected.Contains(view.Identifier))).ToList();
+        Rows = new ObservableCollection<ModsRowView>(Rows.Select(view => view.WithSelected(_selected.Contains(view.Identifier))));
         UpdateStatusText();
         RefreshDerived();
         StatusText = Text("已将 {0} 个有更新的模组加入待变更列表。", LocalizationKeys.ManageModsStatusAddedUpgrades, addedCount);

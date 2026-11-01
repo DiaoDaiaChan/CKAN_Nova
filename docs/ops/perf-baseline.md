@@ -1066,3 +1066,37 @@ TEMP=$PWD/artifacts/tmp/temp TMP=$PWD/artifacts/tmp/temp \
 | `CkanUI.App.Tests.StarfieldModelTests.RefreshPointer_HighlightsOnlyTheNeighbourhood` | `Expected: 1` | `0.48758360911756443` |
 
 其余 3512 例通过（App 437/439、Architecture 27、Core 3、Localization 76、ModText 19、Services 1243 + 1 Skip、Sfs 93、ViewModels 1613）。判定口径：用 `git log --oneline -4 -- <失败用例文件与实现文件>` 看最后一次提交是不是自己——不是就不要去改别人的语义，报给对应 owner。
+
+## 22 勾选一个模组：172 ms → 4.8 ms（按钮级）
+
+用户报的「掉了帧」里有很大一块不在切页，而在**点复选框**。3,000 行的模组列表里点一下勾选，旧实现要把整表换掉。
+
+### 22.1 根因
+`src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs` 的 `_rows` 是 `[ObservableProperty] IReadOnlyList<ModsRowView>`，`ToggleSelection` 里写的是：
+
+```csharp
+Rows = Rows.Select(view => string.Equals(view.Identifier, identifier, StringComparison.OrdinalIgnoreCase)
+    ? view.WithSelected(_selected.Contains(identifier))
+    : view).ToList();
+```
+
+赋值即触发 `ItemsSource` 变更 → DataGrid 把 3,000 行全部作废重建（同时丢滚动位置），外加 3,000 个不可变记录的 `with` 复制。注释写的是「只刷勾选状态，不重建整表」，实际做的正好相反。
+
+### 22.2 改法
+- `_rows` 改为 `ObservableCollection<ModsRowView>`（`Rows` 仍是 `IReadOnlyList` 语义，绑定不变）。
+- `ToggleSelection` 改为按下标就地替换：`Rows[i] = Rows[i].WithSelected(selected);` —— `Replace` 通知只让 DataGrid 刷新那一个行容器。
+- 过滤、清空选择、应用变更这类「全表变化」的路径仍然整体替换（语义正确，不必优化）。
+
+### 22.3 实测（`perf-probe --mods-toggle`，真实 DataGrid + 3,000 行，5 轮）
+| 路径 | p50 | max | 每次分配 |
+| --- | ---: | ---: | ---: |
+| 旧：`grid.ItemsSource = 新列表` | **172.45 ms** | 185.49 ms | **16,837,233 B** |
+| 新：`Rows[i] = ...`（ObservableCollection） | **4.76 ms** | 24.39 ms | **400,742 B** |
+
+36× 时间、42× 分配。172 ms 的一次点击正好是一帧掉三下的量级——这就是用户能看见的「点一下卡一下」。
+
+### 22.4 防回归
+`tests/CkanUI.ViewModels.Tests/ModsPageViewModelTests.ToggleSelection_UpdatesRowInPlaceWithoutReplacingCollection`：断言勾选后 `vm.Rows` 仍是同一个集合实例、未勾选行的对象引用不变、被勾选行 `IsSelected` 为真。只要有人改回「整体换表」这条用例立刻红。
+
+### 22.5 一个重复踩到的坑
+给探针加 `--mods-toggle` 时首次构建失败（`CS0102: 类型 PageSwitchProbe 已经包含 ProbeRow 的定义`），但旧的 exe 还在，`--gate-mem` 照样打印 ALL PASS。**改探针后必须先看 `BUILD=` 再看数据**，否则读的是上一次的二进制。

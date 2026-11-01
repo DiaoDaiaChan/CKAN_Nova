@@ -111,6 +111,99 @@ public static class PageSwitchProbe
     /// 滚动分配的框架地板：3000 项纯文本 ListBox 逐帧滚 24 px，量每帧分配与单帧耗时。
     /// 用来判断 `--mem` 里模组列表的 67 KB/帧 是「我们的行模板贵」还是「Avalonia 滚动本身就这样」。
     /// </summary>
+    /// <summary>探针用的最小行模型（只用来量 DataGrid 换表 vs 就地替换的成本差）。</summary>
+    private sealed record ToggleRow(string Identifier, bool IsSelected);
+
+    /// <summary>
+    /// 勾选一行的两条路径对照：整体换 ItemsSource（旧实现）vs ObservableCollection 就地替换（新实现）。
+    /// 用真实 DataGrid + 3,000 行，量耗时与分配，并统计可视树里的行容器数量变化。
+    /// </summary>
+    public static void ToggleRowsCost(int rows = 3000, int rounds = 5)
+    {
+        HeadlessAppHost.EnsureInitialized();
+        var host = new Window { Width = 1280, Height = 800 };
+        host.Show();
+        HeadlessAppHost.PumpJobs();
+
+        var items = new List<ToggleRow>(rows);
+        for (var i = 0; i < rows; i++)
+        {
+            items.Add(new ToggleRow("mod-" + i, false));
+        }
+
+        var observed = new System.Collections.ObjectModel.ObservableCollection<ToggleRow>(items);
+        var grid = new DataGrid { ItemsSource = observed, Height = 800 };
+        grid.Columns.Add(new DataGridTextColumn { Header = "name", Binding = new Avalonia.Data.Binding(nameof(ToggleRow.Identifier)) });
+        host.Content = grid;
+        HeadlessAppHost.PumpJobs();
+        host.Measure(new Size(1280, 800));
+        host.Arrange(new Rect(0, 0, 1280, 800));
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+        HeadlessAppHost.PumpJobs();
+
+        static (double Ms, long Bytes, int Nodes) MeasureOnce(Window host, DataGrid grid, Action mutate)
+        {
+            var before = GC.GetTotalAllocatedBytes(precise: true);
+            var sw = Stopwatch.StartNew();
+            mutate();
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+            HeadlessAppHost.PumpJobs();
+            sw.Stop();
+            return (sw.Elapsed.TotalMilliseconds, GC.GetTotalAllocatedBytes(precise: true) - before, grid.GetVisualDescendants().Count());
+        }
+
+        var oldMs = new List<double>(rounds);
+        var oldBytes = new List<long>(rounds);
+        for (var r = 0; r < rounds; r++)
+        {
+            var index = r % items.Count;
+            var (ms, bytes, _) = MeasureOnce(host, grid, () =>
+            {
+                var next = new List<ToggleRow>(observed.Count);
+                for (var i = 0; i < observed.Count; i++)
+                {
+                    next.Add(i == index ? observed[i] with { IsSelected = !observed[i].IsSelected } : observed[i]);
+                }
+
+                grid.ItemsSource = next;
+            });
+            oldMs.Add(ms);
+            oldBytes.Add(bytes);
+        }
+
+        grid.ItemsSource = observed;
+        host.Measure(new Size(1280, 800));
+        host.Arrange(new Rect(0, 0, 1280, 800));
+        HeadlessAppHost.PumpJobs();
+
+        var newMs = new List<double>(rounds);
+        var newBytes = new List<long>(rounds);
+        var nodes = 0;
+        for (var r = 0; r < rounds; r++)
+        {
+            var index = r % observed.Count;
+            var (ms, bytes, count) = MeasureOnce(host, grid, () =>
+            {
+                observed[index] = observed[index] with { IsSelected = !observed[index].IsSelected };
+            });
+            newMs.Add(ms);
+            newBytes.Add(bytes);
+            nodes = count;
+        }
+
+        var oldSorted = oldMs.OrderBy(v => v).ToList();
+        var newSorted = newMs.OrderBy(v => v).ToList();
+        Console.WriteLine(
+            $"[ToggleRows] rows={rows} old p50={Percentile(oldSorted, 0.5):F2}ms max={oldSorted[^1]:F2}ms bytes={(long)oldBytes.Average()}"
+            + $" | inplace p50={Percentile(newSorted, 0.5):F2}ms max={newSorted[^1]:F2}ms bytes={(long)newBytes.Average()} nodes={nodes}");
+
+        host.Content = null;
+        host.Close();
+        HeadlessAppHost.PumpJobs();
+    }
+
     public static void ScrollAllocFloor(int items = 3000, int frames = 300, double stepPixels = 24d)
     {
         HeadlessAppHost.EnsureInitialized();

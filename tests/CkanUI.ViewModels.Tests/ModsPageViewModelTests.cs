@@ -230,6 +230,23 @@ public sealed class ModsPageViewModelTests
         Assert.That(vm.HasPendingChanges, Is.False);
         Assert.That(vm.ApplyChangesCommand.CanExecute(null), Is.False);
     }
+    [Test]
+    public void ToggleSelection_UpdatesRowInPlaceWithoutReplacingCollection()
+    {
+        SeedThreeRows();
+        var vm = CreateViewModel();
+        vm.Activate();
+
+        var rows = vm.Rows;
+        var bravo = rows.First(r => r.Identifier == "Bravo");
+
+        vm.ToggleSelection("Alpha");
+
+        // 换掉整个集合会让 DataGrid 重建全部行容器并丢滚动位置；勾选必须就地替换。
+        Assert.That(vm.Rows, Is.SameAs(rows));
+        Assert.That(vm.Rows.First(r => r.Identifier == "Bravo"), Is.SameAs(bravo));
+        Assert.That(vm.Rows.First(r => r.Identifier == "Alpha").IsSelected, Is.True);
+    }
 
     [Test]
     public void ToggleSelection_PreservesSelectedRowAndDetail()
