@@ -22,6 +22,25 @@ var filters = args
 // 规格 22 篇 §测试纪律也写明「性能用例默认 CI 不跑」。需要跑时显式加 --perf。
 var includePerf = args.Any(a => a.Equals("--perf", StringComparison.OrdinalIgnoreCase));
 
+// Avalonia 的 XAML 加载器用 Assembly.Load（落到默认 ALC）找控件包，不经测试程序集自己的 ALC。
+// 这里让默认 ALC 也按「当前正在跑的测试程序集目录」兜底，否则 ViewLocator 造视图时会
+// FileNotFoundException: Could not load file or assembly 'Avalonia.Controls.ColorPicker'。
+var currentTestDirectory = (string?)null;
+var testLocalAssemblies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+AssemblyLoadContext.Default.Resolving += (ctx, name) =>
+{
+    var directory = currentTestDirectory;
+    // 测试程序集自己的 ALC 已经加载过的程序集（含测试程序集本身）不再在默认 ALC 里再加载一份，
+    // 否则同一个类型会有两份身份，断言 expected/actual 打印出来一模一样却不相等。
+    if (directory is null || testLocalAssemblies.Contains(name.Name!))
+    {
+        return null;
+    }
+
+    var candidate = Path.Combine(directory, name.Name + ".dll");
+    return File.Exists(candidate) ? ctx.LoadFromAssemblyPath(candidate) : null;
+};
+
 var candidates = Discover(repoRoot, config);
 var selected = filters.Length == 0
     ? candidates
@@ -40,11 +59,21 @@ foreach (var (project, path) in selected)
 {
     Console.WriteLine($"== {project} ==");
     var directory = Path.GetDirectoryName(path)!;
+    PrependNativeSearchPath(directory);
+    currentTestDirectory = directory;
     var context = new AssemblyLoadContext(project, isCollectible: false);
+    testLocalAssemblies.Clear();
+    testLocalAssemblies.Add(Path.GetFileNameWithoutExtension(path));
     context.Resolving += (ctx, name) =>
     {
         var candidate = Path.Combine(directory, name.Name + ".dll");
-        return File.Exists(candidate) ? ctx.LoadFromAssemblyPath(candidate) : null;
+        if (!File.Exists(candidate))
+        {
+            return null;
+        }
+
+        testLocalAssemblies.Add(name.Name!);
+        return ctx.LoadFromAssemblyPath(candidate);
     };
     context.ResolvingUnmanagedDll += (assembly, dllName) =>
     {
@@ -55,14 +84,7 @@ foreach (var (project, path) in selected)
             return NativeLibrary.Load(candidate);
         }
 
-        var arch = RuntimeInformation.ProcessArchitecture switch
-        {
-            Architecture.X64 => "win-x64",
-            Architecture.Arm64 => "win-arm64",
-            Architecture.X86 => "win-x86",
-            _ => "win-x64"
-        };
-        var nativePath = Path.Combine(directory, "runtimes", arch, "native", name);
+        var nativePath = Path.Combine(directory, "runtimes", NativeRid(), "native", name);
         if (File.Exists(nativePath))
         {
             return NativeLibrary.Load(nativePath);
@@ -121,6 +143,37 @@ static string? ArgValue(string[] argv, string name)
     }
 
     return null;
+}
+
+static string NativeRid()
+{
+    return RuntimeInformation.ProcessArchitecture switch
+    {
+        Architecture.X64 => "win-x64",
+        Architecture.Arm64 => "win-arm64",
+        Architecture.X86 => "win-x86",
+        _ => "win-x64"
+    };
+}
+
+// 测试程序集里的原生库（如 SkiaSharp 的 libSkiaSharp.dll）位于 runtimes/<rid>/native/ 下，
+// 而 SkiaSharp 3.x 自己用 NativeLibrary.Load 直接加载、不走 AssemblyLoadContext.ResolvingUnmanagedDll，
+// 默认搜索路径里只有宿主目录。把该目录前置到 PATH，避免「native libSkiaSharp 版本 88.1 不兼容」这类假红。
+static void PrependNativeSearchPath(string testAssemblyDirectory)
+{
+    var nativeDirectory = Path.Combine(testAssemblyDirectory, "runtimes", NativeRid(), "native");
+    if (!Directory.Exists(nativeDirectory))
+    {
+        return;
+    }
+
+    var current = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+    if (current.Split(Path.PathSeparator).Contains(nativeDirectory, StringComparer.OrdinalIgnoreCase))
+    {
+        return;
+    }
+
+    Environment.SetEnvironmentVariable("PATH", nativeDirectory + Path.PathSeparator + current);
 }
 
 static string FindRepoRoot()
