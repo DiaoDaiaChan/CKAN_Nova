@@ -18,9 +18,12 @@ param(
     [int]$WarmupSeconds = 45,
     [int]$IdleSeconds = 20,
     [int]$SampleIntervalMs = 250,
+    # 把采样窗口再切成若干段输出 CPU 曲线：启动瞬态能持续 20 秒以上，只给一个平均值
+    # 会把"还在衰减"和"真的空转"混成一个数，看不出是不是已经稳了。
+    [int]$WindowSeconds = 5,
     [string]$Out = "artifacts/perf/live-profile.json",
-    # 传 -NoForeground 可测"窗口不在前台"的另一种空转口径；默认前台，保证与基线可比。
-    [switch]$NoForeground,
+
+    [switch]$ForceForeground,
     # 采样窗口内持续重申前台（别的进程/agent 弹窗会偷走焦点，焦点漂移会让空转 CPU 直接换量级）。
     [bool]$KeepForeground = $true
 )
@@ -75,7 +78,7 @@ $proc.Refresh()
 $hwnd = $proc.MainWindowHandle
 $centerX = 0
 $centerY = 0
-if (-not $NoForeground -and $hwnd -ne [IntPtr]::Zero) {
+if ($ForceForeground -and $hwnd -ne [IntPtr]::Zero) {
     # 采样口径必须固定：默认把窗口提到前台、光标停到窗口中心，
     # 让「是否前台」「光标是否悬停」这两个变量不再随机漂移 —— 否则同一份代码能测出 12% 和 58% 两种空转。
     [Win32Focus]::ForceForeground($hwnd) | Out-Null
@@ -97,6 +100,8 @@ $cores = [Environment]::ProcessorCount
 $cpuStart = $proc.TotalProcessorTime
 $sw = [Diagnostics.Stopwatch]::StartNew()
 
+$cpuSamples = New-Object System.Collections.Generic.List[double]
+$wallSamples = New-Object System.Collections.Generic.List[double]
 $wsSamples = New-Object System.Collections.Generic.List[long]
 $privSamples = New-Object System.Collections.Generic.List[long]
 $threadSamples = New-Object System.Collections.Generic.List[int]
@@ -104,7 +109,7 @@ $handleSamples = New-Object System.Collections.Generic.List[int]
 
 $focusLostCount = 0
 while ($sw.Elapsed.TotalSeconds -lt $IdleSeconds) {
-    if ($KeepForeground -and -not $NoForeground -and $hwnd -ne [IntPtr]::Zero) {
+    if ($KeepForeground -and $ForceForeground -and $hwnd -ne [IntPtr]::Zero) {
         if ([Win32Focus]::GetForegroundWindow() -ne $hwnd) {
             $focusLostCount++
             [Win32Focus]::ForceForeground($hwnd) | Out-Null
@@ -113,6 +118,8 @@ while ($sw.Elapsed.TotalSeconds -lt $IdleSeconds) {
     }
     $proc.Refresh()
     $wsSamples.Add($proc.WorkingSet64)
+    $cpuSamples.Add($proc.TotalProcessorTime.TotalMilliseconds)
+    $wallSamples.Add($sw.Elapsed.TotalMilliseconds)
     $privSamples.Add($proc.PrivateMemorySize64)
     $threadSamples.Add($proc.Threads.Count)
     $handleSamples.Add($proc.HandleCount)
@@ -126,6 +133,38 @@ $wallMs = $sw.Elapsed.TotalMilliseconds
 $oneCorePercent = [math]::Round($cpuDelta / $wallMs * 100.0, 2)
 $totalMachinePercent = [math]::Round($oneCorePercent / $cores, 2)
 
+$windowCpu = New-Object System.Collections.Generic.List[double]
+for ($w = 0; $w -lt $cpuSamples.Count; $w++) {
+    $bucket = [int][math]::Floor($wallSamples[$w] / ($WindowSeconds * 1000.0))
+    while ($windowCpu.Count -le $bucket) { $windowCpu.Add(0) }
+}
+$windowStartCpu = New-Object System.Collections.Generic.List[double]
+$windowStartWall = New-Object System.Collections.Generic.List[double]
+for ($w = 0; $w -lt $windowCpu.Count; $w++) {
+    $windowCpu[$w] = 0
+    $windowStartCpu.Add(-1)
+    $windowStartWall.Add(0)
+}
+for ($w = 0; $w -lt $cpuSamples.Count; $w++) {
+    $bucket = [int][math]::Floor($wallSamples[$w] / ($WindowSeconds * 1000.0))
+    if ($windowStartCpu[$bucket] -lt 0) {
+        $windowStartCpu[$bucket] = $cpuSamples[$w]
+        $windowStartWall[$bucket] = $wallSamples[$w]
+    }
+}
+for ($w = 0; $w -lt $windowCpu.Count; $w++) {
+    if ($windowStartCpu[$w] -lt 0) { continue }
+    $endIndex = [math]::Min($cpuSamples.Count - 1, [int]($cpuSamples.Count - 1))
+    $endCpu = $cpuSamples[$endIndex]
+    $endWall = $wallSamples[$endIndex]
+    $nextBucketStart = ($w + 1) * $WindowSeconds * 1000.0
+    for ($v = 0; $v -lt $cpuSamples.Count; $v++) {
+        if ($wallSamples[$v] -ge $nextBucketStart) { $endCpu = $cpuSamples[$v]; $endWall = $wallSamples[$v]; break }
+    }
+    $dw = $endWall - $windowStartWall[$w]
+    if ($dw -gt 0) { $windowCpu[$w] = [math]::Round((($endCpu - $windowStartCpu[$w]) / $dw * 100.0), 2) }
+}
+
 $result = [ordered]@{
     measuredAt            = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
     exe                   = $Exe
@@ -135,9 +174,12 @@ $result = [ordered]@{
     idleCpuOneCorePercent = $oneCorePercent
     idleCpuMachinePercent = $totalMachinePercent
     foregroundDuringSample = $foregroundAtStart
-    cursorParked          = (-not $NoForeground)
-    keepForeground        = ($KeepForeground -and -not $NoForeground)
+    cursorParked          = $ForceForeground
+    keepForeground        = ($KeepForeground -and $ForceForeground)
     focusLostSamples      = $focusLostCount
+    cpuWindowSeconds      = $WindowSeconds
+    cpuWindowOneCorePercent = $windowCpu.ToArray()
+    cpuLastWindowPercent  = $(if ($windowCpu.Count -gt 0) { $windowCpu[$windowCpu.Count - 1] } else { 0 })
     workingSetMbAvg       = [math]::Round(($wsSamples | Measure-Object -Average).Average / 1MB, 1)
     workingSetMbMax       = [math]::Round(($wsSamples | Measure-Object -Maximum).Maximum / 1MB, 1)
     privateMbAvg          = [math]::Round(($privSamples | Measure-Object -Average).Average / 1MB, 1)
@@ -152,6 +194,7 @@ $result | ConvertTo-Json | Set-Content -Path $outPath -Encoding UTF8
 
 Write-Host ("[live] idle cpu one-core%=" + $oneCorePercent + "  machine%=" + $totalMachinePercent + "  cores=" + $cores + "  foreground=" + $foregroundAtStart + "  focusLost=" + $focusLostCount)
 Write-Host ("[live] workingSet avgMb=" + $result.workingSetMbAvg + " maxMb=" + $result.workingSetMbMax + "  private avgMb=" + $result.privateMbAvg + " maxMb=" + $result.privateMbMax)
+Write-Host ("[live] cpu windows(one-core%): " + (($windowCpu | ForEach-Object { $_.ToString() }) -join " "))
 Write-Host ("[live] threadsMax=" + $result.threadsMax + "  handlesMax=" + $result.handlesMax)
 Write-Host ("[live] json: " + $outPath)
 

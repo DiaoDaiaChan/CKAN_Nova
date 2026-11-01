@@ -130,6 +130,31 @@ A/B 口径：另建 `git worktree` 停在基线提交，先测基线，再把本
    每次都把空闲状态重置，空闲降频与空闲回收永远进不去。现在 `OnWindowActivated` 什么都不做——
    真正代表用户输入的指针/键盘事件自己会通知。
 
+### 6.4 窗口化采样后的口径修正（2026-11-01，权威数字）
+
+§6.2 那种"静置 45 秒 + 一个平均数"仍然不可靠：把 60 秒窗口按 5 秒切段后，前 1-2 段经常出现
+14%-50% 的单窗口峰值，后面掉到 1%-9%。那一段是 `IdleMemoryReclaimer` 的首次回收
+（两次 compacting Gen2 + finalizer），基线进程也有同样的簇发（自身 GC），不是谁的回归。
+只给平均值，等于把"一次性 GC 突发"和"稳态空转"混成一个数——同代码能测出 5% 和 45%。
+
+`Measure-LiveProcess.ps1` 已加 `-WindowSeconds`（默认 5），输出 `cpuWindowOneCorePercent` 数组与
+`cpuLastWindowPercent`；判断"空转到底多少"看尾部几段，不要看 `idleCpuOneCorePercent`。
+
+| 组（同一 worktree、同机、同一 exe 启动方式，看尾部窗口） | 稳态空转 | 工作集 |
+| --- | --- | --- |
+| 基线 `c32428f`（3 次） | 16.3-22.8% 单核（3 次尾部高度一致） | 983-1009 MB |
+| 当前（含 514aab2，5 次） | 0.9-9.4% 单核 | 440-514 MB |
+
+即空转 CPU 约 **-70%**（16-22% → 1-9%），工作集约 **-50%**。首次回收的突发保留下来：那是用一次性
+几秒 CPU 换回约 500 MB 常驻内存，且 `MinInterval` 45 秒 + 128 MB 增长门限决定它一个会话基本只发生一次。
+
+采样器自身也改了两处，避免再产出不可比的数：
+
+- **默认不碰用户桌面**：新增 `-ForceForeground` 才抢前台/停光标；默认只读 `TotalProcessorTime`，
+  不调用 `SetForegroundWindow`/`SetCursorPos`（抢焦点会打断正在用机器的人，而且焦点漂移本身会改量级）。
+  结果里的 `cursorParked`/`keepForeground` 也随之变成"是否真的动过桌面"。
+- 启动时轮询 `MainWindowHandle` 最多 12 秒，不再 2 秒取一次、取不到就把整套前台处理跳过（旧版因此常输出 `foreground=False`）。
+
 ## 7. 空闲内存回收（`IdleMemoryReclaimer`）
 
 诊断依据：满载 3,000 模组会话的托管活对象只有约 200 MB（`dotnet-gcdump` 量级），但托管堆占 645 MB、
