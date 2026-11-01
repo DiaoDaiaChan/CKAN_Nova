@@ -76,7 +76,13 @@ public sealed class PerformanceTelemetryBuffer
     }
 
     /// <summary>推入一帧采样结果。</summary>
-    public void RecordFrame(double durationMs, double dispatcherLagMs, long timestampMs = 0)
+    /// <param name="durationMs">本帧耗时（毫秒）。</param>
+    /// <param name="dispatcherLagMs">主线程调度滞后（毫秒）。</param>
+    /// <param name="timestampMs">采样时间戳（毫秒）。</param>
+    /// <param name="countHitches">
+    /// 是否把这一帧计入卡顿统计。空闲降频期帧间隔是我们主动拉长的，计进卡顿只会制造假阳性。
+    /// </param>
+    public void RecordFrame(double durationMs, double dispatcherLagMs, long timestampMs = 0, bool countHitches = true)
     {
         if (durationMs < 0.001) durationMs = 0.001;
         if (dispatcherLagMs < 0) dispatcherLagMs = 0;
@@ -84,8 +90,8 @@ public sealed class PerformanceTelemetryBuffer
         lock (_sync)
         {
             _totalFrames++;
-            if (durationMs > 16.7) _hitches16++;
-            if (durationMs > 33.3) _hitches33++;
+            if (countHitches && durationMs > 16.7) _hitches16++;
+            if (countHitches && durationMs > 33.3) _hitches33++;
             if (durationMs > _maxFrameMs) _maxFrameMs = durationMs;
             if (dispatcherLagMs > _maxLagMs) _maxLagMs = dispatcherLagMs;
 

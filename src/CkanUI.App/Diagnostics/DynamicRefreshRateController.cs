@@ -21,6 +21,8 @@ public sealed class DynamicRefreshRateController : INotifyPropertyChanged
     private readonly DispatcherTimer _inactivityTimer;
     private readonly Stopwatch _activityStopwatch = new();
     private TopLevel? _attachedTopLevel;
+    private Avalonia.Point _lastPointerPosition;
+    private bool _hasLastPointerPosition;
     private bool _isIdle;
     private TimeSpan _idleTimeout = TimeSpan.FromSeconds(2.5);
     private int _activeTargetFps = 60;
@@ -118,6 +120,7 @@ public sealed class DynamicRefreshRateController : INotifyPropertyChanged
             window.Deactivated += OnWindowDeactivated;
         }
 
+        _hasLastPointerPosition = false;
         _inactivityTimer.Start();
         NotifyUserActivity();
     }
@@ -165,6 +168,22 @@ public sealed class DynamicRefreshRateController : INotifyPropertyChanged
 
     private void OnUserInteraction(object? sender, RoutedEventArgs e)
     {
+        // 悬停重算（指针位置没变但元素变了）也会发 PointerMoved：
+        // 只要光标停着就一路算「用户还在操作」，空闲降频永远进不去，降频等于没做。
+        if (e is PointerEventArgs pointer && _attachedTopLevel is { } topLevel)
+        {
+            var position = pointer.GetPosition(topLevel);
+            if (_hasLastPointerPosition
+                && Math.Abs(position.X - _lastPointerPosition.X) < 0.5
+                && Math.Abs(position.Y - _lastPointerPosition.Y) < 0.5)
+            {
+                return;
+            }
+
+            _lastPointerPosition = position;
+            _hasLastPointerPosition = true;
+        }
+
         NotifyUserActivity();
     }
 

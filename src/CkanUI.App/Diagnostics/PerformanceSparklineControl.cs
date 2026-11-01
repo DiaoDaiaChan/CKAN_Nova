@@ -25,6 +25,7 @@ public sealed class PerformanceSparklineControl : Control
     private static readonly IBrush BrushWarning = new SolidColorBrush(Color.FromRgb(245, 158, 11));   // F59E0B
     private static readonly IBrush BrushCritical = new SolidColorBrush(Color.FromRgb(239, 68, 68));   // EF4444
     private static readonly IBrush BrushGrid = new SolidColorBrush(Color.FromArgb(60, 140, 140, 140));
+    private static readonly IBrush BrushBackground = new SolidColorBrush(Color.FromArgb(25, 0, 0, 0));
 
     private static readonly IPen Pen8Ms = new Pen(new SolidColorBrush(Color.FromArgb(160, 16, 185, 129)), 1, DashStyle.Dash);
     private static readonly IPen Pen16Ms = new Pen(new SolidColorBrush(Color.FromArgb(180, 14, 165, 233)), 1, DashStyle.Dash);
@@ -45,7 +46,7 @@ public sealed class PerformanceSparklineControl : Control
         if (width <= 0 || height <= 0) return;
 
         // 背景微弱网格底衬
-        context.FillRectangle(new SolidColorBrush(Color.FromArgb(25, 0, 0, 0)), new Rect(0, 0, width, height));
+        context.FillRectangle(BrushBackground, new Rect(0, 0, width, height));
 
         const double maxScaleMs = 40.0; // 图表纵轴上限标为 40ms
 

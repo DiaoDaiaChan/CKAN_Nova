@@ -23,6 +23,7 @@ public sealed class PerformanceMonitor : INotifyPropertyChanged
     private readonly Stopwatch _heartbeatStopwatch = new();
     private DispatcherTimer? _heartbeatTimer;
     private DispatcherTimer? _uiRefreshTimer;
+    private DispatcherTimer? _frameDelayTimer;
     private TopLevel? _attachedTopLevel;
 
     private bool _isOpen;
@@ -164,6 +165,8 @@ public sealed class PerformanceMonitor : INotifyPropertyChanged
         _uiRefreshTimer?.Stop();
         _uiRefreshTimer = null;
 
+        _frameDelayTimer?.Stop();
+
         DynamicRefreshRateController.Instance.IdleStateChanged -= OnIdleStateChanged;
 
         _frameStopwatch.Stop();
@@ -188,9 +191,9 @@ public sealed class PerformanceMonitor : INotifyPropertyChanged
     /// <summary>强制触发一次完整垃圾回收并立即更新度量。</summary>
     public void ForceGc()
     {
-        GC.Collect(2, GCCollectionMode.Forced, true, true);
-        GC.WaitForPendingFinalizers();
-        GC.Collect(2, GCCollectionMode.Forced, true, true);
+        // 只做一次非压缩回收：连做两次 compacting Gen2 会把 UI 线程冻住 100–300ms，
+        // 还会把工作集顶出一个假峰值 —— 那是诊断自己制造的卡顿，不是被测对象。
+        GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: false);
         RefreshSnapshot();
     }
 
@@ -212,18 +215,36 @@ public sealed class PerformanceMonitor : INotifyPropertyChanged
             var elapsedMs = (_frameStopwatch.ElapsedTicks - _lastFrameTicks) * 1000.0 / Stopwatch.Frequency;
             if (elapsedMs < minIntervalMs)
             {
-                var delay = TimeSpan.FromMilliseconds(Math.Max(1, minIntervalMs - elapsedMs));
-                DispatcherTimer.RunOnce(() =>
-                {
-                    if (_isSampling && _attachedTopLevel is not null)
-                    {
-                        _attachedTopLevel.RequestAnimationFrame(OnAnimationFrame);
-                    }
-                }, delay, DispatcherPriority.Background);
+                ScheduleNextFrameAfter(TimeSpan.FromMilliseconds(Math.Max(1, minIntervalMs - elapsedMs)));
                 return;
             }
         }
 
+        _attachedTopLevel.RequestAnimationFrame(OnAnimationFrame);
+    }
+
+    /// <summary>
+    /// 空闲降频时用一个复用的定时器延后下一帧采样。
+    /// 以前每帧 new 一个 <c>DispatcherTimer.RunOnce</c> 闭包，10Hz 空转让 GC 一直有活干。
+    /// </summary>
+    /// <param name="delay">到下一帧采样前要等的间隔。</param>
+    private void ScheduleNextFrameAfter(TimeSpan delay)
+    {
+        if (_frameDelayTimer is null)
+        {
+            _frameDelayTimer = new DispatcherTimer(DispatcherPriority.Background);
+            _frameDelayTimer.Tick += OnFrameDelayTick;
+        }
+
+        _frameDelayTimer.Stop();
+        _frameDelayTimer.Interval = delay;
+        _frameDelayTimer.Start();
+    }
+
+    private void OnFrameDelayTick(object? sender, EventArgs e)
+    {
+        _frameDelayTimer?.Stop();
+        if (!_isSampling || _attachedTopLevel is null) return;
         _attachedTopLevel.RequestAnimationFrame(OnAnimationFrame);
     }
 
@@ -236,7 +257,8 @@ public sealed class PerformanceMonitor : INotifyPropertyChanged
         _lastFrameTicks = currentTicks;
 
         var durationMs = (elapsedTicks * 1000.0) / Stopwatch.Frequency;
-        _telemetry.RecordFrame(durationMs, _currentLagMs);
+        // 空闲期帧间隔是被我们主动拉长的，记成 hitch 只会让 HUD 显示几百次假卡顿。
+        _telemetry.RecordFrame(durationMs, _currentLagMs, countHitches: !DynamicRefreshRateController.Instance.IsIdle);
 
         RequestNextFrame();
     }

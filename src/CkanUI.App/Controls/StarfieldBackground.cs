@@ -2,8 +2,10 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using CkanUI.App.Diagnostics;
 using CkanUI.App.Theming;
 
 namespace CkanUI.App.Controls;
@@ -63,6 +65,12 @@ public sealed class StarfieldBackground : Control
     /// <summary>动画帧间隔（毫秒）：30fps 足够，星空不需要 60fps 的入场券。</summary>
     private const double TickIntervalMs = 33;
 
+    /// <summary>空闲降频后的帧间隔（毫秒）：对齐 <c>DynamicRefreshRateController.IdleTargetFps</c> 的 10fps。</summary>
+    private const double IdleTickIntervalMs = 100;
+
+    /// <summary>星轨层位图的重建步长（毫秒）：星轨 33ms 只挪 0.23px，百毫秒重建一次肉眼看不出差别。</summary>
+    private const double TrailCacheQuantumMs = 100;
+
     /// <summary>亮色主题下整体压暗的比例：深色背景才撑得住「星空」，亮色下要更像纸面的暗纹。</summary>
     private const double LightThemeIntensity = 0.55;
 
@@ -89,6 +97,17 @@ public sealed class StarfieldBackground : Control
 
     /// <summary>按线宽档位 × alpha 档位缓存的 accent 画笔：星轨与流星线宽不同，才需要第二维。</summary>
     private readonly Pen?[,] _strokePens = new Pen?[StrokeWidths.Length, AlphaSteps + 1];
+
+    /// <summary>两族星轨的离屏位图：重建一次贴一帧，替掉每帧 604 条 DrawLine。</summary>
+    private RenderTargetBitmap? _trailLayer;
+
+    /// <summary>当前后端给不出离屏位图（部分无头后端没有 render target）时置位，之后一直走逐帧线绘。</summary>
+    private bool _trailLayerUnavailable;
+
+    private long _trailStamp = long.MinValue;
+    private double _trailIntensity = double.NaN;
+    private Color _trailStarColor;
+    private Color _trailLineColor;
 
     private Color _starColor;
     private Color _lineColor;
@@ -160,8 +179,7 @@ public sealed class StarfieldBackground : Control
             ResolveColor("CkanTextPrimaryBrush", DefaultStarColor),
             ResolveColor("CkanAccentBrush", DefaultLineColor));
 
-        DrawTrails(context, size, intensity);
-        DrawCornerTrails(context, size, intensity);
+        DrawStarTrails(context, size, intensity);
         DrawFigures(context, intensity);
         DrawPointerLinks(context, intensity);
         DrawMeteors(context, size, intensity);
@@ -172,12 +190,17 @@ public sealed class StarfieldBackground : Control
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        // 空闲降频由全局输入控制器广播：挂上就订阅，离树就退订，别在看不见的地方继续烧 CPU。
+        DynamicRefreshRateController.Instance.IdleStateChanged -= OnIdleStateChanged;
+        DynamicRefreshRateController.Instance.IdleStateChanged += OnIdleStateChanged;
         UpdateTimerState();
     }
 
     /// <inheritdoc />
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        DynamicRefreshRateController.Instance.IdleStateChanged -= OnIdleStateChanged;
+        ReleaseTrailLayer();
         base.OnDetachedFromVisualTree(e);
         UpdateTimerState();
     }
@@ -203,7 +226,28 @@ public sealed class StarfieldBackground : Control
 
         // 隐藏时停表：高对比度或用户自选背景期间不该继续占 30fps 的 CPU。
         _timer.IsEnabled = VisualRoot is not null && IsVisible;
+        ApplyTickInterval();
     }
+
+    /// <summary>
+    /// 按空闲状态调整帧间隔：活跃期 30fps，无输入 2.5 秒后降到 10fps。
+    /// 星轨每秒只走十几像素，降频后肉眼分不出，但空转 CPU 差三倍。
+    /// </summary>
+    private void ApplyTickInterval()
+    {
+        if (_timer is null)
+        {
+            return;
+        }
+
+        var interval = DynamicRefreshRateController.Instance.IsIdle ? IdleTickIntervalMs : TickIntervalMs;
+        if (Math.Abs(_timer.Interval.TotalMilliseconds - interval) > 0.5)
+        {
+            _timer.Interval = TimeSpan.FromMilliseconds(interval);
+        }
+    }
+
+    private void OnIdleStateChanged(bool isIdle) => ApplyTickInterval();
 
     private void OnTick(object? sender, EventArgs e)
     {
@@ -212,8 +256,115 @@ public sealed class StarfieldBackground : Control
             return;
         }
 
-        _model.Advance(TickIntervalMs / 1000d);
+        // 推进真实经过的时长而不是固定 33ms：降频只该减少帧数，不该让星空整体变慢。
+        _model.Advance((_timer?.Interval.TotalMilliseconds ?? TickIntervalMs) / 1000d);
         InvalidateVisual();
+    }
+
+    /// <summary>
+    /// 两族星轨先烘进一张离屏位图，这一帧只贴图。
+    /// 星轨角速度约 0.014 rad/s，一帧只挪 0.23px，却占了每帧 604 条 DrawLine ——
+    /// 拿全窗重绘换看不见的位移，是纯粹的 CPU 白烧。缓存键 = 尺寸 × 缩放 × 主题强度 × 调色板 × 量化到
+    /// <see cref="TrailCacheQuantumMs"/> 的模型时间；任何一项变了才重建。
+    /// </summary>
+    /// <param name="context">当前帧的绘制上下文。</param>
+    /// <param name="size">控件尺寸（DIP）。</param>
+    /// <param name="intensity">主题强度系数。</param>
+    private void DrawStarTrails(DrawingContext context, Size size, double intensity)
+    {
+        if (_trailLayerUnavailable)
+        {
+            DrawTrails(context, size, intensity);
+            DrawCornerTrails(context, size, intensity);
+            return;
+        }
+
+        var stamp = (long)(_model.Time * 1000d / TrailCacheQuantumMs);
+        if (_trailLayer is null
+            || stamp != _trailStamp
+            || _trailIntensity != intensity
+            || _trailStarColor != _starColor
+            || _trailLineColor != _lineColor)
+        {
+            if (!TryRenderTrailLayer(size, intensity))
+            {
+                DrawTrails(context, size, intensity);
+                DrawCornerTrails(context, size, intensity);
+                return;
+            }
+
+            _trailStamp = stamp;
+            _trailIntensity = intensity;
+            _trailStarColor = _starColor;
+            _trailLineColor = _lineColor;
+        }
+
+        if (_trailLayer is { } layer)
+        {
+            context.DrawImage(layer, new Rect(size));
+        }
+    }
+
+    /// <summary>
+    /// 把星轨画进离屏层。
+    /// </summary>
+    /// <param name="size">控件尺寸（DIP）。</param>
+    /// <param name="intensity">主题强度系数。</param>
+    /// <returns>离屏层可用并已画好时为 <c>true</c>；后端给不出位图时返回 <c>false</c>，由调用方退回逐帧线绘。</returns>
+    private bool TryRenderTrailLayer(Size size, double intensity)
+    {
+        var scaling = Math.Max(1d, TopLevel.GetTopLevel(this)?.RenderScaling ?? 1d);
+        var pixels = new PixelSize(
+            Math.Max(1, (int)Math.Ceiling(size.Width * scaling)),
+            Math.Max(1, (int)Math.Ceiling(size.Height * scaling)));
+
+        try
+        {
+            if (_trailLayer is null || _trailLayer.PixelSize != pixels)
+            {
+                ReleaseTrailLayer();
+                _trailLayer = new RenderTargetBitmap(pixels);
+            }
+
+            // CreateDrawingContext 会先把整层清成透明，重建即全量，不用手动擦。
+            using var layerContext = _trailLayer.CreateDrawingContext();
+            if (scaling > 1d)
+            {
+                // 位图按物理像素开、绘制坐标仍是 DIP：这一层缩放把两者对齐，高 DPI 下细线才不会糊。
+                using var scale = layerContext.PushTransform(Matrix.CreateScale(scaling, scaling));
+                DrawTrails(layerContext, size, intensity);
+                DrawCornerTrails(layerContext, size, intensity);
+            }
+            else
+            {
+                DrawTrails(layerContext, size, intensity);
+                DrawCornerTrails(layerContext, size, intensity);
+            }
+
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            _trailLayerUnavailable = true;
+        }
+        catch (NotSupportedException)
+        {
+            _trailLayerUnavailable = true;
+        }
+        catch (ArgumentException)
+        {
+            _trailLayerUnavailable = true;
+        }
+
+        ReleaseTrailLayer();
+        return false;
+    }
+
+    private void ReleaseTrailLayer()
+    {
+        _trailLayer?.Dispose();
+        _trailLayer = null;
+        _trailStamp = long.MinValue;
     }
 
     private void DrawTrails(DrawingContext context, Size size, double intensity)
