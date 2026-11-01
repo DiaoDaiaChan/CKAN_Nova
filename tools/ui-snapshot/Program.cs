@@ -36,7 +36,8 @@ public static class Program
         // 本机有真实 CKAN 配置就照搬它的实例清单（不写死任何路径），否则种一个仓库内实例兜底。
         var realConfig = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CKAN", "config.json");
-        if (File.Exists(realConfig))
+        // 真实实例被别的进程锁住（registry.locked）时导航会中断；CKANUI_SNAP_SEED=1 强制走仓库种子实例。
+        if (Environment.GetEnvironmentVariable("CKANUI_SNAP_SEED") != "1" && File.Exists(realConfig))
         {
             File.Copy(realConfig, testConfig, overwrite: true);
         }

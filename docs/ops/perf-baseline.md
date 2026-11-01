@@ -922,3 +922,47 @@ public static bool ShouldRunRail(bool attached, bool isVisible, bool? windowIsAc
 改后仍剩 10–14% 单核，且以下开关都压不动它：星空、诊断采样、弹簧帧泵、骨架脉动、换页缩放、4 个指针特效层（见 19.1 表）。按线程采样（`Get-Process ... .Threads` 逐个取 `TotalProcessorTime` 差分）显示：**只有一个线程在跑（10.42% 单核），其余线程合计 <2.5%**，说明剩下的不是「一堆定时器各烧一点」，而是某条线程上的周期性工作。未定位到具体来源，**不作为结论**。
 
 顺带确证（关闭此前的开放问题）：运行中的进程加载 `av_libGLESv2.dll`、`Avalonia.OpenGL.dll`、`Avalonia.Skia.dll`、`d3d11.dll`、`libSkiaSharp.dll` → 走 ANGLE→D3D11 **硬件加速**，不是软件光栅；空闲 CPU 与光栅方式无关。
+
+
+## 20. 设置页的 2338 个节点：三条虚拟化路子为什么都不能走
+
+用户点名「切到设置会卡顿」。这一节记录对 `src/CkanUI.App/Views/SettingsPageView.axaml` 的四组实验——**全部回退，一处未改**，并留下可复现的判据与取证工具，避免后来者重复踩。
+
+### 20.1 基线：成本由行数 × 每行 chrome 决定
+
+`perf-probe --pages-real settings`（真实 DI，空数据也成立）：
+
+| 指标 | 值 |
+| --- | --- |
+| nodes | **2338**（稳定，是唯一可信指标） |
+| layout | 1560.6 / 1179.6 ms（round1/round2；同机同 exe 在 700–1560 ms 漂移，机器负载支配） |
+| view / activate / reveal / render | 37.0 / 2.8 / 14.5 / 1.3 ms |
+
+节点直方图：ContentPresenter 406、TextBlock 296、Border 281、Grid 197、StackPanel 176、TextBox 94、Viewbox 80、FASettingsExpander 36、Expander 36、ToggleButton 36、FANumberBox 36、ToggleSwitch 36 —— **36 行 × 65 节点/行**。每行并排实例化 5 种编辑器（多行 TextBox / 单行 TextBox / FANumberBox / ToggleSwitch / ComboBox），只有 1 个可见，其余靠 `IsVisible=false`。
+
+布局成本 ≈ 0.33 ms/节点，与 `--micro` 测得的 0.31 ms/控件基线一致 → **换页成本 ∝ 节点数，减节点是唯一量级抓手**。
+
+### 20.2 四条路线的结论
+
+| 路线 | nodes | layout | 否决理由 |
+| --- | --- | --- | --- |
+| 按 kind 只建一个编辑器（`SettingEditorHost` + `DataTemplate`） | 2302（-1.5%） | 789–1541（漂移带内） | 减得太少；ContentPresenter/宿主控件把省下的 TextBox 又补回去了 |
+| 删掉 3 个不可见编辑器 | 1706（-27%） | 1164 / 1354（-12~15%） | 收益不足且改结构（不再是「5 种编辑器同一套模板」），有后续维护风险 |
+| `ListBox` 替换外层（自带 VirtualizingStackPanel） | **513（-78%）** | 419–453 / 157–201 | **破视觉**：像素比对 13.9%（footer 编辑器全部不渲染、行距漂移）；补 `HorizontalContentAlignment=Stretch` 后编辑器回来但间距累积漂移 17.9%（下载缓存标题 y 429→496） |
+| 保留原视觉树，只换 `ItemsPanel` 为裸 `VirtualizingStackPanel` | **502（-78.5%）** | 496.2 / 235.0（-60~80%） | **破滚动**：整页像素差仅 0.82% 且逐行核对都在 y≤60 的背景星座上、内容区逐像素一致，但滚轮步进模拟显示 extent 在 1508↔5442 间抖动、offset 卡在 2935 **滚不到底**（最后一组永远实体化不出来） |
+
+框架侧的硬事实：**Avalonia 12.1.4 核心已移除 `ItemsRepeater`**（`Avalonia.Controls.xml` 里只剩两句 "Not implemented in Avalonia, preserved here for ItemsRepeater's usage"），独立包 `Avalonia.Controls.ItemsRepeater` 在 nuget 上最高 **12.0.0**（`dotnet add package ... --version 12.1.4` → `NU1102: 找不到版本为 (>= 12.1.4) 的包`），与本仓核心版本错配，不引入。
+
+### 20.3 结论与后续
+
+- 设置页的卡顿是**框架内滚动容器的既定成本**：36 行 × 65 节点全部实体化，0.33 ms/节点。要动它就必须么换容器（破视觉）、么换布局模型（破滚动），两条都不满足「不影响视觉效果」。
+- 本轮**不落地**任何设置页结构改动。真正能省的是「别每次都重建」——这一条已在 §18 落地（`SettingsPageViewModel` 首次全量、后续只 `RefreshInstanceStateAsync`）与 `UiSettingsStore` 的 mtime 缓存里。
+- 若将来 Avalonia 13 把 `ItemsRepeater` 并回核心且版本对齐，`VirtualizingStackPanel` 路线可以重试——前提是先修好「滚不到底」，判据用 `--scroll-check`。
+
+### 20.4 本轮新增的取证工具
+
+- `tools/perf-probe --scroll-check`（`PageSwitchProbe.ScrollCheck`）：逐 120 px 步进滚动、每步 3 次 Measure/Arrange，打印 `step / offset / nodes / expanders / extent`。虚拟化容器是否漏实体化，看末尾几组的 `offset` 能否走到 `extent - viewport`。
+- `tools/ui-snapshot` 的 `CKANUI_SNAP_SEED=1`：跳过真实 `config.json` 复制、直接用仓库种子实例。真实实例被别的进程锁住时（`registry.locked` → `RegistryInUseKraken`）导航会中断，快照会停在同一页，此时必须用这个开关。
+- `tools/perf-probe/diff-png.ps1 -A a.png -B b.png [-Tol 12]`：LockBits 逐像素比对，输出 `diffPixels/total/pct`、包围盒与按行分带（最多 20 段）。「视觉是否改变」用它做判据，不靠肉眼。
+
+> 踩坑留证：第一次快照时 `page_17/18/19` 三张 PNG 字节数完全相同（114571），误以为是布局问题；加 `AppDomain.CurrentDomain.FirstChanceException` 打点后才看到 `IOException ... 'registry.locked'` —— **快照工具必须在实例被锁时仍能跑**，否则会拿到三张一模一样的「证据」。

@@ -111,6 +111,13 @@ public static class Program
             }
         }
 
+        // --scroll-check：滚动步进模拟，验证虚拟化面板会不会漏实体化（见 docs §20）
+        if (Array.Exists(args, a => string.Equals(a, "--scroll-check", StringComparison.OrdinalIgnoreCase)))
+        {
+            PageSwitchProbe.ScrollCheck("settings");
+            return 0;
+        }
+
         // --pages-real：真实 DI 下的换页成本（首次进入 vs 再次进入，不跑门禁）
         var realIndex = Array.FindIndex(args, a => string.Equals(a, "--pages-real", StringComparison.OrdinalIgnoreCase));
         if (realIndex >= 0)

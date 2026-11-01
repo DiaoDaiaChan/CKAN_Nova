@@ -107,6 +107,63 @@ public static class PageSwitchProbe
         HeadlessAppHost.PumpJobs();
     }
 
+    /// <summary>滚动到底后确认虚拟化面板真的把后续项实体化（否则滚动会出现空白）。见 docs/ops/perf-baseline.md §20。</summary>
+    public static void ScrollCheck(string key = "settings")
+    {
+        HeadlessAppHost.EnsureInitialized();
+        using var services = ServiceRegistration.Build(() => null);
+        _ = services.GetService(typeof(IInstanceService));
+        HeadlessAppHost.PumpJobs();
+
+        var host = new Window { Width = 1280, Height = 800 };
+        host.Show();
+        HeadlessAppHost.PumpJobs();
+
+        var type = ServiceRegistration.PageTypes[key];
+        var vm = services.GetService(type) as PageViewModel;
+        vm?.Activate();
+        Settle(300);
+        var view = new ViewLocator().Build(vm) ?? new Border();
+        host.Content = view;
+        HeadlessAppHost.PumpJobs();
+        host.Measure(new Size(1280, 800));
+        host.Arrange(new Rect(0, 0, 1280, 800));
+        HeadlessAppHost.PumpJobs();
+
+        var scroll = view.GetVisualDescendants().OfType<ScrollViewer>()
+            .OrderByDescending(sv => sv.Bounds.Height).FirstOrDefault();
+        if (scroll is null) { Console.WriteLine("[ScrollCheck] no scrollviewer"); return; }
+
+        Console.WriteLine($"[ScrollCheck] extent={scroll.Extent.Height:F0} viewport={scroll.Viewport.Height:F0} nodes0={view.GetVisualDescendants().Count()}");
+        // 模拟滚轮：每次 120px 前进，每次给稳定循环（排版→再排版），观察 extent 是否单调收敛
+        for (var step = 0; step < 40; step++)
+        {
+            scroll.Offset = new Vector(0, scroll.Offset.Y + 120);
+            for (var pass = 0; pass < 3; pass++)
+            {
+                HeadlessAppHost.PumpJobs();
+                host.Measure(new Size(1280, 800));
+                host.Arrange(new Rect(0, 0, 1280, 800));
+            }
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+            HeadlessAppHost.PumpJobs();
+            if (step % 4 == 0)
+            {
+                var nodes = view.GetVisualDescendants().Count();
+                var expanders = view.GetVisualDescendants().OfType<Avalonia.Controls.Expander>().Count();
+                Console.WriteLine($"[ScrollCheck] step={step} offset={scroll.Offset.Y:F0} nodes={nodes} expanders={expanders} extent={scroll.Extent.Height:F0}");
+            }
+        }
+
+        vm?.Deactivate();
+        host.Close();
+        HeadlessAppHost.PumpJobs();
+    }
+
+    /// <summary>量缩略图解码成本：同一批图片按不同目标宽度解码，看宽度对耗时的影响。</summary>
+    /// <param name="dir">图片目录。</param>
+    /// <param name="rounds">每个宽度重复次数。</param>
+
     /// <summary>量缩略图解码成本：同一批图片按不同目标宽度解码，看宽度对耗时的影响。</summary>
     /// <param name="dir">图片目录。</param>
     /// <param name="rounds">每个宽度重复次数。</param>
