@@ -881,3 +881,20 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 
 不做：任何不透明度混合（双影的根源）、3D 翻转（文字在 headless/Skia 下会发虚）、按导航层级换方向（`PageHost` 拿不到导航深度，
 硬塞方向会出现"同级页签也横着甩"的假语义）。
+
+
+#### 5.9.30 缩略图淡入：图片"有"的那一刻不再硬切
+
+`src/CkanUI.App/Animations/ImageLoadMotion.cs`。缩略图走 `PathToThumbnailConverter` 同步解码，绑定一到位
+`Image.Source` 就变成完整位图，渲染出来是"啪"地出现。这里只做一件事：**源变了就淡一次**（`0 → 1`，同时 0.985 → 1 缩放）。
+
+| 项 | 口径 |
+| --- | --- |
+| 触发 | `Image.SourceProperty` 变化；挂载时源已存在则立刻演一次 |
+| 通道 | `TransformSpring`（`SpringSpec.Glide`）的 opacity + scale，不动布局 |
+| 起点 | `opacity 0`、`StartScale=0.985`（经 `MotionBudget.Scaled` 收幅度） |
+| 去重 | 按控件 `ConditionalWeakTable` 记上一张源：同一张重复赋值（虚拟化回收容器）不重播，否则滚动时缩略图会闪 |
+| 三档 | `none` 直接返回；`reduced` 缩放同步收 45%，淡入保留（淡入不是装饰，是"图出现了"这件事本身） |
+| 接入点 | `MainWindow.PlayPageReveal`（`PageHost` 内）、`MainWindow` 自身（背景图在 `PageHost` 外面）、`DialogEntrance.Play` |
+| 补扫 | `MotionScan.Subscribe`：模板晚实现的 `Image` 4 Hz 补扫接管 |
+| 门禁 | `ImageLoadMotionTests` 4 项：源后到淡入、挂载时已有源也演、同源不重播、关闭档不接管 `RenderTransform` |
