@@ -21,7 +21,7 @@ internal sealed class MotionFramePump
     private static readonly ConditionalWeakTable<TopLevel, MotionFramePump> Pumps = new();
 
     private readonly TopLevel _topLevel;
-    private readonly List<TransformSpring> _tracks = [];
+    private readonly List<IMotionTicker> _tracks = [];
     private bool _frameRequested;
     private TimeSpan _lastTimestamp;
 
@@ -30,7 +30,7 @@ internal sealed class MotionFramePump
     /// <summary>把一根弹簧挂到帧泵上（重复挂同一根是幂等的）。</summary>
     /// <param name="topLevel">所属窗口。</param>
     /// <param name="track">要推进的弹簧。</param>
-    internal static void Subscribe(TopLevel topLevel, TransformSpring track)
+    internal static void Subscribe(TopLevel topLevel, IMotionTicker track)
     {
         var pump = Pumps.GetValue(topLevel, static top => new MotionFramePump(top));
         if (!pump._tracks.Contains(track))
@@ -44,7 +44,7 @@ internal sealed class MotionFramePump
     /// <summary>把一根弹簧从帧泵上摘掉（弹簧收敛后由它自己调用）。</summary>
     /// <param name="topLevel">所属窗口。</param>
     /// <param name="track">要摘掉的弹簧。</param>
-    internal static void Unsubscribe(TopLevel topLevel, TransformSpring track)
+    internal static void Unsubscribe(TopLevel topLevel, IMotionTicker track)
     {
         if (Pumps.TryGetValue(topLevel, out var pump))
         {

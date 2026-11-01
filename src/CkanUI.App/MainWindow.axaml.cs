@@ -598,6 +598,9 @@ public sealed partial class MainWindow : Window
         // 列表数据晚于换页到达：行按 10 行一批错峰浮上来，而不是整块"啪"地出现。
         FeedArrivalMotion.Attach(PageHost);
 
+        // 键盘方向键换行时，滚动条不再瞬跳：目标位置照旧计算，弹簧只负责滑过去，下一次按键可打断。
+        SmoothScrollMotion.Attach(PageHost);
+
         if (!MotionBudget.AllowsPageChoreography)
         {
             // 精简档不做整页与块级编排，只保留文字的轻量淡入（幅度由 TextRevealChoreographer 自己按档位收）。

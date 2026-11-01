@@ -14,7 +14,7 @@ namespace CkanUI.App.Animations;
 /// <para>RenderTransform 本身只赋值一次，之后逐帧只改 TranslateTransform 与 ScaleTransform 的子属性：
 /// 子属性变更不触发样式里的 TransformOperationsTransition，否则每帧都会被当成新目标重启。</para>
 /// </remarks>
-public sealed class TransformSpring
+public sealed class TransformSpring : IMotionTicker
 {
     private static readonly ConditionalWeakTable<Control, TransformSpring> Shared = new();
 
@@ -140,6 +140,8 @@ public sealed class TransformSpring
         _scaleY.Kick(amount);
         Start();
     }
+
+    bool IMotionTicker.Advance(double seconds) => Advance(seconds);
 
     internal bool Advance(double seconds)
     {
