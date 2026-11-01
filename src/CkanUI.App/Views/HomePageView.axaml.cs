@@ -32,6 +32,9 @@ public partial class HomePageView : UserControl
 
     private HomePageViewModel? _viewModel;
 
+    // 失焦后停表：没人看的胶片带不必每秒推 60 次，回到前台立刻续上（画面在被观看时完全不变）。
+    private Window? _railWindow;
+
     /// <summary>构造视图并接线（ViewLocator 无参构造，因此这里不能有参数）。</summary>
     public HomePageView()
     {
@@ -48,7 +51,8 @@ public partial class HomePageView : UserControl
         _railTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(RailFrameMilliseconds) };
         _railTimer.Tick -= OnRailTick;
         _railTimer.Tick += OnRailTick;
-        _railTimer.Start();
+        AttachRailWindow();
+        UpdateRailTimer();
     }
 
     /// <inheritdoc />
@@ -60,6 +64,12 @@ public partial class HomePageView : UserControl
         {
             _railTimer.Stop();
             _railTimer.Tick -= OnRailTick;
+        }
+
+        if (_railWindow is not null)
+        {
+            _railWindow.PropertyChanged -= OnRailWindowPropertyChanged;
+            _railWindow = null;
         }
 
         base.OnDetachedFromVisualTree(e);
@@ -81,11 +91,65 @@ public partial class HomePageView : UserControl
 
     private void OnRailPointerExited(object? sender, Avalonia.Input.PointerEventArgs e) => _railPaused = false;
 
+    private void AttachRailWindow()
+    {
+        _railWindow = TopLevel.GetTopLevel(this) as Window;
+        if (_railWindow is null)
+        {
+            return;
+        }
+
+        _railWindow.PropertyChanged -= OnRailWindowPropertyChanged;
+        _railWindow.PropertyChanged += OnRailWindowPropertyChanged;
+    }
+
+    private void OnRailWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == Window.IsActiveProperty)
+        {
+            UpdateRailTimer();
+        }
+    }
+
+    /// <summary>只有「挂在可视树上 + 可见 + 窗口是前台」时才该推进胶片带。</summary>
+    /// <remarks>抽成纯函数是为了能在无头测试里断言这条不变量，不必起真窗口（与 PerformanceMonitor.ShouldRequestFrame 同一手法）。</remarks>
+    public static bool ShouldRunRail(bool attached, bool isVisible, bool? windowIsActive)
+        => attached && isVisible && windowIsActive != false;
+
+    /// <summary>按 <see cref="ShouldRunRail"/> 起停定时器。</summary>
+    private void UpdateRailTimer()
+    {
+        if (_railTimer is null)
+        {
+            return;
+        }
+
+        var canRun = ShouldRunRail(VisualRoot is not null, IsEffectivelyVisible, _railWindow?.IsActive);
+        if (canRun)
+        {
+            if (!_railTimer.IsEnabled)
+            {
+                _railTimer.Start();
+            }
+
+            return;
+        }
+
+        _railTimer.Stop();
+    }
+
     /// <summary>推进胶片带：到末尾先停 <see cref="RailHoldFrames"/> 帧再回卷，卡片不足一屏时不动。</summary>
     private void OnRailTick(object? sender, EventArgs e)
     {
         if (_railPaused)
         {
+            return;
+        }
+
+        // 兜底：窗口刚失焦、属性通知还没到时不必再推。
+        if (_railWindow is { IsActive: false })
+        {
+            UpdateRailTimer();
             return;
         }
 

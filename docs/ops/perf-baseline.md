@@ -867,3 +867,58 @@ settings 的 2338 节点 / 686–778 ms 布局仍然是全场唯一 O(700ms) 项
 同一条流入的 UI 开销降约 98%，且末条日志仍会落到界面上（尾部刷新实测 `rows=500`）。画面上的差异只是「新行最多晚 150 ms 出现」，日志列表本来就是流式刷新的，肉眼无从分辨。
 
 `--logs` 那份拆解（activate 45.9–50.3 ms / refresh p50 20.5–22.5 ms / query 0.32 ms / aggregate 13.16 ms）留在同章节前文，它说明了为什么限流比「优化行构造」更值：聚合一项就占了六成。
+
+## 19. 空闲 CPU 的真正大头：首页截图胶片带（32–54% → 10–14% 单核）
+
+§12 之后空闲 CPU 一直在 30–50% 单核徘徊（早期 1.1–1.6% 的样本是胶片带还不存在的旧构建，不可复用）。这一节把它拆到可归因，并把**被观看时画面完全不变**的那部分拿回来。
+
+### 19.1 归因：逐层关掉再看
+
+仪器：worktree `/c/Users/43701/ckan-ui-head`（base `bd187a1`）+ `artifacts/perf/idle-ab.mjs`（spawn Release exe → 静置 42 s → 连续 3 个 5 s 窗口按 `TotalProcessorTime` 差分算单核%，窗口不抢前台、不动光标）。各组开关只加在 worktree 里，未进主仓。
+
+| 组 | 3 个 5 s 窗口（单核%） | 工作集 | 结论 |
+| --- | --- | --- | --- |
+| 默认 | 54.4 / 45.0 / 47.2、47.8 / 32.2 / 46.9 | 446 / 321 MB | 基线 |
+| 关 4 个指针特效层（`CKANUI_NO_LAYERS`） | 43.1 / 39.7 / 35.9、42.5 / 38.1 / 47.8 | 453 / 310 MB | 与基线同量级 → 不是它们 |
+| 关星空（`CKANUI_NO_STARFIELD`） | 14.7 / 11.9 / 15.0、15.0 / 13.4 / 19.1 | 433 / 302 MB | — |
+| 关诊断采样（`CKANUI_NO_PERF`） | 12.2 / 12.5 / 12.5、11.9 / 14.4 / 14.7 | 298 / 439 MB | — |
+| 关弹簧帧泵 / 骨架脉动 / 换页缩放（`CKANUI_NO_ANIM`） | 20.6 / 13.1 / 12.5、13.8 / 15.6 / 12.5 | 435 / 298 MB | — |
+| **只关首页胶片带（`CKANUI_NO_RAIL`）** | **10.3 / 13.1 / 11.3、18.4 / 12.8 / 11.9** | 438 / 298 MB | **等于全关** |
+| 全关（`CKANUI_NO_FX`） | 10.3 / 18.1 / 12.8、12.2 / 17.2 / 14.4 | 437 / 300 MB | 地板 |
+
+只关胶片带就等于把 4 个特效层和胶片带一起关掉 —— 空闲 CPU 的绝大部分（约 25–35 个百分点）来自 `src/CkanUI.App/Views/HomePageView.axaml.cs` 的自动滚动：
+
+```csharp
+private const double RailFrameMilliseconds = 16;  // 60 fps
+private const double RailStepPixels = 0.8;        // 约 48 px/s
+```
+
+`OnAttachedToVisualTree` 里无条件 `_railTimer.Start()`，每帧改一次 `ScreenshotRail.Offset` —— 一次偏移变更就要重排、重合成整条胶片带（里面是若干张截图卡片），60 次/秒。
+
+### 19.2 改法：没人看的时候停表
+
+画面要保：**窗口在前台且页面可见时，60 fps 与 0.8 px/帧一点都不动**。只加一条运行前提（`src/CkanUI.App/Views/HomePageView.axaml.cs`）：
+
+```csharp
+public static bool ShouldRunRail(bool attached, bool isVisible, bool? windowIsActive)
+    => attached && isVisible && windowIsActive != false;
+```
+
+`OnAttachedToVisualTree` 起订阅 `Window.IsActiveProperty`，`UpdateRailTimer()` 按上式起停 `_railTimer`；`OnDetachedFromVisualTree` 退订；`OnRailTick` 里再兜一层（属性通知还没到的那一帧）。抽成纯函数是为了能无头断言这条不变量（`tests/CkanUI.App.Tests/HomeRailFramePumpTests.cs`，5 例），不必起真窗口。
+
+### 19.3 实测
+
+同一 exe、同一采样口径，改前 / 改后：
+
+| 组 | 3 个 5 s 窗口（单核%） | 中位 |
+| --- | --- | --- |
+| 改前（`bd187a1`） | 54.4 / 45.0 / 47.2、47.8 / 32.2 / 46.9 | 47.2 |
+| 改后 | 11.3 / 10.3 / 12.8、13.8 / 10.3 / 13.8 | 12.5 |
+
+约 **-73%**；工作集不变（窗口失焦时胶片带本来就停在原地，画面无从分辨）。
+
+### 19.4 残留的 ~12% 与已排除项
+
+改后仍剩 10–14% 单核，且以下开关都压不动它：星空、诊断采样、弹簧帧泵、骨架脉动、换页缩放、4 个指针特效层（见 19.1 表）。按线程采样（`Get-Process ... .Threads` 逐个取 `TotalProcessorTime` 差分）显示：**只有一个线程在跑（10.42% 单核），其余线程合计 <2.5%**，说明剩下的不是「一堆定时器各烧一点」，而是某条线程上的周期性工作。未定位到具体来源，**不作为结论**。
+
+顺带确证（关闭此前的开放问题）：运行中的进程加载 `av_libGLESv2.dll`、`Avalonia.OpenGL.dll`、`Avalonia.Skia.dll`、`d3d11.dll`、`libSkiaSharp.dll` → 走 ANGLE→D3D11 **硬件加速**，不是软件光栅；空闲 CPU 与光栅方式无关。
