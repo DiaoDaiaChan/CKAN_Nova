@@ -753,3 +753,4 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | 与按压的关系 | 与 `InteractionMotion` 共用同一个 `TransformSpring` 实例：悬停改 `translateY`、按下改 `scale`，松手只回 `scale`，`translateY` 保持悬停值 |
 | 不接管谁 | 导航项（`FANavigationViewItem`）、菜单项、`DataGridRow` 之外的表格内控件都不在页面根下，不受影响；模板里的滚动条按钮也不在扫描范围 |
 | 门禁 | `HoverLiftMotionTests.PlainButtonsLiftByTheButtonDistance`（1.5 px 落位）、`ButtonsInsideALiftingCardAreLeftToTheCard`（卡内按钮零接管） |
+| 引导箭头 | 引导卡/引导按钮里的 `GuideArrow` 与宿主一起动：宿主抬 2 px，箭头同时右滑 `ArrowTravelPixels = 3`；箭头用 `Snappy`，跟宿主抬升同一条曲线。找不到就不缓存（模板/数据晚到后仍能接管） |
