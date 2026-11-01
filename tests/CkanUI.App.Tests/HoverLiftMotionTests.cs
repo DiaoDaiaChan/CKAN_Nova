@@ -189,6 +189,42 @@ public sealed class HoverLiftMotionTests
         }
     }
 
+    [Test]
+    public void PlainButtonsLiftByTheButtonDistance()
+    {
+        var button = new Button { Content = "刷新", Height = 32 };
+        HeadlessAppHost.CreateTestWindow(button);
+
+        HoverLiftMotion.Apply(button, hovered: true);
+        Tick(45);
+
+        Assert.That(TranslateY(button), Is.EqualTo(-HoverLiftMotion.ButtonLiftPixels).Within(0.05));
+    }
+
+    [Test]
+    public void ButtonsInsideALiftingCardAreLeftToTheCard()
+    {
+        var button = new Button { Content = "打开", Height = 28 };
+        var card = new Border
+        {
+            Classes = { HoverLiftMotion.CardClass },
+            Height = 90,
+            Child = button,
+        };
+        var window = HeadlessAppHost.CreateTestWindow(card);
+
+        try
+        {
+            Assert.That(HoverLiftMotion.Attach(window), Is.EqualTo(1), "只接管外层卡片，卡内按钮不重复抬");
+            Assert.That(TranslateY(button), Is.EqualTo(0).Within(0.05));
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
     private static Border CreateCard() => new()
     {
         Classes = { HoverLiftMotion.CardClass },

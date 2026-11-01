@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 using Avalonia.Controls;
@@ -17,6 +18,9 @@ namespace CkanUI.App.Animations;
 /// 后两者原来什么反馈都没有，鼠标扫过列表只剩指针变化。</para>
 /// <para>样式里的 `:pressed` 会把 RenderTransform 换成 `scale(0.995)`；本类的本地值优先，
 /// 按压手感仍由 <see cref="InteractionMotion"/> 的缩放通道负责（两者改的是不同通道，互不覆盖）。</para>
+/// <para>普通 `Button` 也接管：基础样式靠 `TransformOperationsTransition`(`CkanMotionDurationSpringCrisp`)
+/// 播 1 px 抬升，鼠标横扫一排按钮/工具条时每一个都从零速重新起步；换成弹簧后 1.5 px 且速度接力。
+/// 卡片内部的按钮不接管——整张卡已经在抬，再叠一层会让卡内的按钮"比卡还高"，看起来像错位。</para>
 /// </remarks>
 public static class HoverLiftMotion
 {
@@ -34,6 +38,9 @@ public static class HoverLiftMotion
 
     /// <summary>列表/树的整行抬升距离：整行比卡片宽，2 px 会像抖动，减半。</summary>
     public const double RowLiftPixels = 1d;
+
+    /// <summary>普通按钮的悬停抬升距离：样式里是 1 px，这里略加重到 1.5 px 才看得出来。</summary>
+    public const double ButtonLiftPixels = 1.5d;
 
     private const int MaxDepth = 12;
 
@@ -78,18 +85,38 @@ public static class HoverLiftMotion
         }
 
         var lift = MotionBudget.Amplitude(LiftOf(control) ?? LiftPixels);
-        TransformSpring.For(control, SpringSpec.Glide).MoveTo(y: hovered ? -lift : 0d);
+        var spec = control is Button ? SpringSpec.Snappy : SpringSpec.Glide;
+        TransformSpring.For(control, spec).MoveTo(y: hovered ? -lift : 0d);
     }
 
     /// <summary>该类表面要不要抬、抬多少；不认识的类返回 <see langword="null"/>。</summary>
-    private static double? LiftOf(Control control) =>
-        control.Classes.Contains(CardClass)
-        || control.Classes.Contains(GuideCardClass)
-        || control.Classes.Contains(GuideButtonClass)
-            ? LiftPixels
-            : control is ListBoxItem or TreeViewItem or DataGridRow
-                ? RowLiftPixels
-                : null;
+    private static double? LiftOf(Control control)
+    {
+        if (control.Classes.Contains(CardClass)
+            || control.Classes.Contains(GuideCardClass)
+            || control.Classes.Contains(GuideButtonClass))
+        {
+            return LiftPixels;
+        }
+
+        if (control is ListBoxItem or TreeViewItem or DataGridRow)
+        {
+            return RowLiftPixels;
+        }
+
+        if (control is not Button)
+        {
+            return null;
+        }
+
+        // 卡片内部的按钮不抬：整张卡已经在抬，两层叠加会让按钮"浮"到卡面之上。
+        var insideLiftingCard = control
+            .GetVisualAncestors()
+            .OfType<Control>()
+            .Any(ancestor => ancestor.Classes.Contains(CardClass) || ancestor.Classes.Contains(GuideCardClass));
+
+        return insideLiftingCard ? null : ButtonLiftPixels;
+    }
 
     private static IEnumerable<Control> Enumerate(Avalonia.Visual root)
     {
