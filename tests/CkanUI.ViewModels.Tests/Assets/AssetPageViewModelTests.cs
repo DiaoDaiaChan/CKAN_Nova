@@ -244,6 +244,39 @@ public sealed class AssetPageViewModelTests
         Assert.That(page.ErrorText, Is.EqualTo("先选一个目录再导入。"));
     }
 
+    [Test]
+    public async Task Ships_RefreshTwice_KeepsRowInstancesWhenDiskUnchanged()
+    {
+        var page = NewShipsPage(out var crafts);
+        crafts.Assets.Add(Craft("Apollo", CraftKind.Vab));
+        crafts.Assets.Add(Craft("Sparrow", CraftKind.Sph));
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        var firstRow = page.Crafts[0];
+        page.SelectedCraft = page.Crafts[1];
+        var changes = 0;
+        page.Crafts.CollectionChanged += (_, _) => changes++;
+
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(changes, Is.Zero, "磁盘没变就不该重加行，否则列表容器整片重排、切回本页掉帧。");
+        Assert.That(page.Crafts[0], Is.SameAs(firstRow), "行实例要复用，选中与滚动位置才不会被重置。");
+        Assert.That(page.SelectedCraft?.FilePath, Is.EqualTo(page.Crafts[1].FilePath), "刷新不该改变用户选中的载具。");
+    }
+
+    [Test]
+    public async Task Ships_RefreshTwice_RebuildsWhenAssetChanged()
+    {
+        var page = NewShipsPage(out var crafts);
+        crafts.Assets.Add(Craft("Apollo", CraftKind.Vab));
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        crafts.Assets.Add(Craft("Sparrow", CraftKind.Sph));
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(page.Crafts.Count, Is.EqualTo(2), "磁盘变了必须重建，新载具要出现在列表里。");
+    }
+
     private static ShipsPageViewModel NewShipsPage(out FakeCraftLibrary crafts)
     {
         crafts = new FakeCraftLibrary();

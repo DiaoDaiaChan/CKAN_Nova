@@ -62,6 +62,9 @@ public sealed partial class SavesPageViewModel : PageViewModel
     /// <summary>扫描到的全部行（含自带存档）；<see cref="Rows"/> 是它按「显示自带存档」开关投影出的可见集合。</summary>
     private IReadOnlyList<SaveRowViewModel> _allRows = Array.Empty<SaveRowViewModel>();
 
+    // 上一次成功读取的磁盘快照：值相等说明无需重建行（SaveGameInfo 是 record）。
+    private IReadOnlyList<SaveGameInfo>? _lastList;
+
     /// <summary>当前选中存档（诊断列表与命令的作用对象）。</summary>
     [ObservableProperty]
     private SaveRowViewModel? _selectedRow;
@@ -464,14 +467,22 @@ public sealed partial class SavesPageViewModel : PageViewModel
             }
 
             var rows = result.Value.Select(SaveRowViewModel.From).ToArray();
-            _allRows = rows;
-            ApplyRowFilter(preferPath);
-            ResetValidation();
-            // 注意：这条状态句随后会被「选中即校验」的状态句覆盖，所以收起数量不放在这里，
-            // 而是体现在工具条勾选项的计数（自带存档（N））与页头徽标（共 M 个存档）上。
-            StatusText = rows.Length == 0
-                ? Text("「{0}」的 saves/ 目录里没有存档。", LocalizationKeys.SavesStatusEmpty, instance.DisplayName)
-                : Text("已读取 {0} 个存档。", LocalizationKeys.SavesStatusLoaded, rows.Length);
+            var unchanged = _lastList is not null
+                && _lastList.Count == rows.Length
+                && _lastList.SequenceEqual(result.Value)
+                && _allRows.Count == rows.Length;
+            _lastList = result.Value.ToArray();
+            if (!unchanged)
+            {
+                _allRows = rows;
+                ApplyRowFilter(preferPath);
+                ResetValidation();
+                // 注意：这条状态句随后会被「选中即校验」的状态句覆盖，所以收起数量不放在这里，
+                // 而是体现在工具条勾选项的计数（自带存档（N））与页头徽标（共 M 个存档）上。
+                StatusText = rows.Length == 0
+                    ? Text("「{0}」的 saves/ 目录里没有存档。", LocalizationKeys.SavesStatusEmpty, instance.DisplayName)
+                    : Text("已读取 {0} 个存档。", LocalizationKeys.SavesStatusLoaded, rows.Length);
+            }
         }
         catch (Exception ex)
         {

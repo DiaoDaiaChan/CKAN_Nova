@@ -16,6 +16,9 @@ public sealed partial class ShipsPageViewModel : AssetPageViewModel
 
     private readonly ICraftLibraryService _crafts;
 
+    // 上一次扫描的结果：资产记录是 record，值相等就说明磁盘没变，不必重建列表（重建会让容器整片重排）。
+    private IReadOnlyList<CraftAsset>? _lastAssets;
+
     private bool _subscribed;
 
     /// <summary>构造页面。</summary>
@@ -280,6 +283,15 @@ public sealed partial class ShipsPageViewModel : AssetPageViewModel
             return;
         }
 
+        if (_lastAssets is not null && _lastAssets.Count == items.Count && _lastAssets.SequenceEqual(items)
+            && Crafts.Count == items.Count)
+        {
+            // 磁盘没变化：保留已实例化的行容器与选中项，切回本页不再重排列表。
+            NotifyEmptyState();
+            return;
+        }
+
+        _lastAssets = items.ToArray();
         var selectedPath = SelectedCraft?.FilePath;
         Crafts.Clear();
         foreach (var asset in items)

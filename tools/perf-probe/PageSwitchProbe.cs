@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Headless;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -321,6 +322,68 @@ public static class PageSwitchProbe
         host.Close();
         HeadlessAppHost.PumpJobs();
     }
+
+    /// <summary>量化「换掉整表 ItemsSource」相对「原地不动」多花的布局时间（行容器重建成本）。</summary>
+    /// <param name="rows">列表行数。</param>
+    /// <param name="rounds">每组采样次数。</param>
+    public static void ListRebindCost(int rows = 200, int rounds = 5)
+    {
+        HeadlessAppHost.EnsureInitialized();
+
+        var template = new FuncDataTemplate<ProbeRow>((item, _) => new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            Children =
+            {
+                new TextBlock { Text = item.Name, Margin = new Thickness(4, 2) },
+                new TextBlock { Text = item.Size, Margin = new Thickness(4, 2) },
+            },
+        }, supportsRecycling: true);
+
+        var list = new ListBox { ItemTemplate = template, Height = 600, Width = 460 };
+        var host = new Window { Width = 1280, Height = 800, Content = list };
+        host.Show();
+        HeadlessAppHost.PumpJobs();
+
+        static ProbeRow[] Build(int count) =>
+            Enumerable.Range(0, count).Select(i => new ProbeRow($"slot {i}", $"{i * 8} KB")).ToArray();
+
+        static double Layout(Window window)
+        {
+            var sw = Stopwatch.StartNew();
+            window.InvalidateMeasure();
+            window.Measure(new Size(window.Width, window.Height));
+            window.Arrange(new Rect(0, 0, window.Width, window.Height));
+            // 光调 Measure/Arrange 在已落地的窗口上会短路：显式把布局队列跑空，量到的才是真实成本。
+            Dispatcher.UIThread.RunJobs(DispatcherPriority.Loaded);
+            return sw.Elapsed.TotalMilliseconds;
+        }
+
+        list.ItemsSource = Build(rows);
+        Layout(host);
+        Settle(200);
+
+        var rebind = new double[rounds];
+        var steady = new double[rounds];
+        for (var i = 0; i < rounds; i++)
+        {
+            list.ItemsSource = Build(rows);
+            rebind[i] = Layout(host);
+            steady[i] = Layout(host);
+        }
+
+        Array.Sort(rebind);
+        Array.Sort(steady);
+        var rebindP50 = rebind[rounds / 2];
+        var steadyP50 = steady[rounds / 2];
+        Console.WriteLine($"[ListRebind] rows={rows} replaceP50={rebindP50:F2}ms replaceMin={rebind[0]:F2}ms steadyP50={steadyP50:F2}ms delta={rebindP50 - steadyP50:F2}ms");
+
+        host.Close();
+        HeadlessAppHost.PumpJobs();
+    }
+
+    /// <summary>列表行探针：两个字段，够触发文本测量。</summary>
+    private sealed record ProbeRow(string Name, string Size);
 
     /// <summary>复刻 MainWindow.PlayPageReveal 的六套动效挂载 + 入场编排，量它们各自要遍历多少节点、花多少时间。</summary>
     /// <param name="root">页面根。</param>

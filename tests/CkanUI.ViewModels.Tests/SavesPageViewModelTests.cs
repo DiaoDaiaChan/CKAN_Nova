@@ -438,6 +438,22 @@ public sealed class SavesPageViewModelTests
         Assert.That(saves.ValidateRequests, Has.Count.EqualTo(2), "文件变了就要重新校验");
     }
 
+    [Test]
+    public async Task RefreshingTwice_WithSameListKeepsRowInstances()
+    {
+        var (vm, _, _, saves, _) = Create();
+        saves.ListResult = OperationResult<IReadOnlyList<SaveGameInfo>>.Ok(new[] { SavesFixtures.Save() });
+
+        await vm.RefreshCommand.ExecuteAsync(null);
+        var firstRows = vm.Rows;
+        vm.SelectedRow = firstRows[0];
+
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(vm.Rows, Is.SameAs(firstRows), "同样的磁盘快照不该换掉整表，否则表格容器整片重排、切回本页掉帧。");
+        Assert.That(vm.SelectedRow, Is.SameAs(firstRows[0]), "刷新不该丢掉用户选中的存档。");
+    }
+
     private static (
         SavesPageViewModel ViewModel,
         InstancesFakeDialogs Dialogs,

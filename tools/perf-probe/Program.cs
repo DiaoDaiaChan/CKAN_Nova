@@ -123,6 +123,16 @@ public static class Program
         }
 
         // --micro：首屏样式成本拆解（不跑门禁）
+        var rebindIndex = Array.FindIndex(args, a => string.Equals(a, "--list-rebind", StringComparison.OrdinalIgnoreCase));
+        if (rebindIndex >= 0)
+        {
+            var rows = rebindIndex + 1 < args.Length && int.TryParse(args[rebindIndex + 1], out var parsedRebindRows)
+                ? parsedRebindRows
+                : 200;
+            PageSwitchProbe.ListRebindCost(rows);
+            return 0;
+        }
+
         if (Array.Exists(args, a => string.Equals(a, "--micro", StringComparison.OrdinalIgnoreCase)))
         {
             BenchmarkRunner.RunLeafCostMicroBenchmark();

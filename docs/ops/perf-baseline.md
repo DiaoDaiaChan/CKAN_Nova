@@ -801,3 +801,33 @@ settings 的 2338 节点 / 686–778 ms 布局仍然是全场唯一 O(700ms) 项
 即列表槽位 40×24 的解码从 **13.2 ms / 1.6 MB** 降到 **3.0 ms / 0.037 MB**，每张省约 10 ms UI 线程与 1.56 MB。转换器缓存上限 64 条，最坏情况下这 64 张缩略图的位图占用从约 **100 MB 降到约 2.4 MB** —— 这一条同时命中内存目标。
 
 > `perf-probe --thumb-conv` 走真实转换器：Avalonia 的 `DecodeToWidth` 是惰性的，转换器本身只花 0.03–0.8 ms，返回的 `PixelSize` 已经是 96×96 而不是 640×640；真正的解码/缩放成本发生在首帧光栅时，所以上表用 SkiaSharp 复刻来取数，不拿转换器返回耗时当结论。
+
+## 18.9 存档 / 飞船页：磁盘快照没变就不重建列表
+
+用户在「实例 → 存档 / 飞船」两个子页之间来回切时会掉帧。原因是两个页的 `RefreshCoreAsync` 每次激活都无条件换掉整表：
+
+- `src/CkanUI.ViewModels/Pages/SavesPageViewModel.cs`：`_allRows = rows; ApplyRowFilter(preferPath); ResetValidation();` —— 每次激活都把 `Rows` 换成新数组，表格行容器被整体回收重建。
+- `src/CkanUI.ViewModels/Pages/Assets/ShipsPageViewModel.cs`：`Crafts.Clear()` 后逐项重加 —— ListBox 的容器缓存（`supportsRecycling`）也跟着失效。
+
+改法（保持视觉效果不变，只是不再做无意义的重建）：
+
+| 页 | 判据 | 命中后的行为 |
+| --- | --- | --- |
+| 飞船 | `_lastAssets`（`CraftAsset` 是 record，值相等即磁盘没变）与本次 `items` 序列相等，且 `Crafts.Count` 一致 | 只 `NotifyEmptyState()`，不碰 `Crafts`、不改 `SelectedCraft` |
+| 存档 | `_lastList` 与本次 `SaveGameInfo` 序列相等，且 `_allRows.Count` 一致 | 跳过 `_allRows`/`ApplyRowFilter`/`ResetValidation`，状态栏与选中项原样保留 |
+
+两条判据都只在「同一实例 + 同一份磁盘快照」时命中：切实例、新建/删除/改名、文件体积或写入时间变化都会让序列不等，走原路径重建。
+
+### 换表 vs 不动：值多少钱
+
+新增 `perf-probe --list-rebind <rows>`（`PageSwitchProbe.ListRebindCost`：ListBox + `supportsRecycling` 的 DataTemplate，量「换掉 `ItemsSource` 后跑完一次布局」与「什么都不做再跑一次布局」）：
+
+| 行数 | 换表 p50 | 不动 p50 | 差值 |
+| --- | --- | --- | --- |
+| 20 | 45.0 ms | 0.15 ms | 44.9 ms |
+| 200 | 23.9 ms | 0.08 ms | 23.8 ms |
+| 1000 | 19.1 ms | 0.05 ms | 19.0 ms |
+
+差值近似常数（19–24 ms，20 行那次被机器负载抬高），因为虚拟化下真正落地的容器数量只跟视口有关，跟总行数无关。即每次无意义重建 ≈ 一帧多的整表布局，正是切子页时那种「顿一下」。门命中后就为 0。
+
+> 量法注意事项：在已经落地的窗口上只调 `Measure/Arrange` 会短路，实测恒为 0.00 ms；必须在 `InvalidateMeasure` 之后 `Dispatcher.UIThread.RunJobs(DispatcherPriority.Loaded)` 把布局队列跑空，数字才有意义。
