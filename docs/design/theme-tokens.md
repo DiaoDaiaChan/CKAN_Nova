@@ -754,3 +754,28 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | 不接管谁 | 导航项（`FANavigationViewItem`）、菜单项、`DataGridRow` 之外的表格内控件都不在页面根下，不受影响；模板里的滚动条按钮也不在扫描范围 |
 | 门禁 | `HoverLiftMotionTests.PlainButtonsLiftByTheButtonDistance`（1.5 px 落位）、`ButtonsInsideALiftingCardAreLeftToTheCard`（卡内按钮零接管） |
 | 引导箭头 | 引导卡/引导按钮里的 `GuideArrow` 与宿主一起动：宿主抬 2 px，箭头同时右滑 `ArrowTravelPixels = 3`；箭头用 `Snappy`，跟宿主抬升同一条曲线。找不到就不缓存（模板/数据晚到后仍能接管） |
+#### 5.9.24 交互面覆盖矩阵（谁在演、谁明确不演）
+
+`FluentStyles.axaml` 里带交互态（`:pointerover` / `:pressed` / `:selected` / `:focus-visible`）的选择器共 66 条。
+按"这个面上的位移/缩放由谁驱动"归口如下——凡是列在左边的面，都已经不再依赖 `TransformOperationsTransition`。
+
+| 交互面 | 动效归属 | 幅度与曲线 |
+| --- | --- | --- |
+| `Button` 全家族（Primary/Secondary/Ghost/Danger/Chip/Icon/Helper/Tab/DropDownButton） | `HoverLiftMotion` + `InteractionMotion` | 悬停 `ButtonLiftPixels=1.5`（Snappy）；按下按边收 12 px（下限 0.95，锚点落在按下点） |
+| `Button.CkanGuide` | 同上，外加箭头 | 卡片级 2 px；卡内 `GuideArrow` 同拍右滑 3 px |
+| `Border.CkanCardInteractive` | `HoverLiftMotion` + `InteractionMotion` | 悬停 2 px；按下按边收 6 px（`CardInsetPixels`，卡片比按钮大，12 px 会像整块塌） |
+| `Border.CkanGuideCard` | 同上 | 悬停 2 px + 箭头 3 px；按下按边收 6 px |
+| `Border.CkanCard` / `CkanEmptyStateCard` 容器 | 只悬停（若带 Interactive 类） | 普通容器按下不缩：边框/分隔线会跟着位移，故 `InteractionMotion` 对非 Interactive 的 `Border` 直接返回 |
+| `ListBoxItem` / `TreeViewItem` / `DataGridRow` / `TabItem` | `HoverLiftMotion` 行分支 | 悬停 1 px（整行比卡宽，2 px 像抖动） |
+| `Border.overlay-drawer` / `Border.floating-pill-bar` | `SurfaceMotion` | 抽屉 260 px、浮条 40 px + `scale(0.96)`，Glide/Snappy |
+| `Control.view-layer` | `ViewLayerMotion` | 9 px + `scale(0.97)` + 淡入 |
+| `Border.CkanInfoBanner` | `BannerMotion` | 8 px + 淡入（先摘掉样式上的 `DoubleTransition`，否则逐帧写入会被再平滑一次） |
+| `ToggleButton`（CkanPill、视图切换、日志等级） | `TogglePopMotion` | 勾选瞬间 `KickScale(+3.5%)`，用冲量而不是两次 `MoveTo`（同拍设回原值会被判静止） |
+| 页内 `TabControl` 换页签 | `TextRevealChoreographer.Watch` | 对 `PART_SelectedContentHost` 补整套入场（滚动/数据到达接管 + 块级 + 文字） |
+| `ScrollViewer` 里的信息流 | `ScrollRevealMotion` | 跨过底边 18 px（精简 3 px），只演一次、回滚不重演、虚拟化换数据重新演 |
+| `ItemsControl` 新增数据 | `FeedArrivalMotion` | 14 px（精简 4 px），24 ms 错峰，最多 10 项 |
+| `TextBlock` 正文 | `TextRevealChoreographer` | 7 px（精简 2 px），12 ms 行间节拍，最多 48 行，跳过空白/隐藏/`DataGridRow` 内文字 |
+| 外壳页签胶囊 + 激光条 | 帧驱动弹簧（`MainWindow` 直连 `TransformSpring`） | 位置/宽度/不透明度三通道 |
+| `TextBox` / `ComboBox` 的 `:focus`、`:focus-visible` | **明确不接** | 输入框缩放会让光标与命中区错位；焦点环是纯画笔变化，交给 `BrushTransition` |
+| `MenuItem` / `CheckBox` / `ScrollBar` / `GridSplitter` | **明确不接** | 前两者在 `PopupRoot` 里（见 §5.9.23 的覆盖限制），后两者是结构件，位移会被误读成布局在动 |
+| `ui|FANavigationViewItem` | **不接（并行改动范围）** | FluentAvalonia 的选中指示器 600 ms 写死在库内，XML 文档无公开可调项 |
