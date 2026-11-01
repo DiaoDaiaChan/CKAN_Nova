@@ -418,4 +418,34 @@ A/B（隔离 worktree `/c/Users/43701/ckan-ui-dg`，HEAD=10075c5，交替各重�
 
 即 `Mark("main-window-new")` 的 +300~380 ms 是**窗口自身 XAML + 样式落地**，页面视图创建实际落在 `window-opened` 之后的首轮布局里（`perf-probe --cold` 的 `view-new` 182–216 ms 对应这一段）。要动这两块都得改 `src/CkanUI.App/MainWindow.axaml` / `Views/ModsPageView.axaml`（并行 agent 占用中），本轮不动。
 
+## 12. 启动采样改由 node 承担（脚本化、可重复）
+
+真机启动测量原来靠手写 PowerShell + `Start-Process`：`Get-Counter` 在本机偶尔挂住不返回（一次留下 5 个 pwsh 残留进程），`Start-Process` 起 exe 偶发「操作已被用户取消」，`MainWindowHandle` 轮询还要自己处理。这一段换成仓库内的 node 脚本，只做两件不会挂住的事：拉起 exe、读文件。
+
+```
+node tools/perf-probe/Measure-Startup.mjs --runs 3
+```
+
+（`tools/perf-probe/Measure-Startup.mjs`，结果落 `artifacts/perf/startup-trace.json`。）
+
+要点：
+
+- 每轮先 `taskkill /F /IM CkanUI.exe` 再等 2 s —— **残留实例会让新进程走单实例转发通道直接退出**，表现是「进程活着但一个 `[启动计时]` 都没有」，这一坑本轮踩过一次；
+- 用 `CKANUI_STARTUP_TRACE` 指向 exe 同目录的临时文件，轮询到 `first-paint` 就 `taskkill`，不需要窗口句柄、不抢前台、不动光标（符合「无头调试不抢占窗口」）；
+- 结果按阶段写 JSON（`at` 累计 + `delta` 增量），三次中位数直接看。
+
+### 12.1 当前真机启动分段（三次，Release，2026-11-01）
+
+| 阶段 | 中位增量 | 累计 |
+| --- | --- | --- |
+| 语言包 + 主题 + 密度 + 字号（`localization` 等） | 69 ms | — |
+| `instance-service-resolved`（已后台预取，消费者等的是余下部分） | 65 ms | — |
+| `main-window-new`（窗口 XAML + 样式落地） | **364 ms** | 737–760 ms |
+| `plugin-tools` / `tray` / `assembly-done` | 21 / 16 / 1 ms | 777 ms |
+| `window-opened` → `first-layout`（创建首页视图 + 首轮布局） | 74 ms | 1214–1236 ms |
+| `first-layout` → `first-paint`（首帧光栅） | 285 ms（另一次采样只有 8 ms，见下） | **1501–1521 ms** |
+
+`first-layout`→`first-paint` 的 8 ms / 285 ms 两种读数说明它是**受机器当前负载影响的排队时间**，不是固定光栅成本（当时机器上有并行编译）；拿它当优化目标会白忙。稳定的、可动的仍是 `main-window-new` 那 364 ms，落在 `src/CkanUI.App/MainWindow.axaml` + `Resources/FluentStyles.axaml`（并行 agent 占用中）。
+
+
 
