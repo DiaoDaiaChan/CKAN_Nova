@@ -1483,13 +1483,99 @@
   </Style>
 
   <!-- ========================================== -->
-  <!-- 外壳页签条（Button.CkanTab）：侧栏某个入口下的多个面 -->
-  <!-- 保持「文字 + 底部弹簧指示线」，字重恒定 Medium 防止切换时字宽变化推挤相邻页签。 -->
+  <!-- 外壳页签条（Button.CkanTab）：共享滑动胶囊 + 共享底部激光条 + 顶部极光天际线扫掠 -->
+  <!-- 页面内容零平移，彻底消除布局抖动，靠指示器跨页签飞行与顶部氛围光波传递切换动感。 -->
   <!-- ========================================== -->
   <Style Selector="Border.CkanTabUnderline">
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="VerticalAlignment" Value="Stretch" />
+  </Style>
+
+  <Style Selector="Border.CkanTabSlidingPill">
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="RenderTransform" Value="translate(0px, 0px) scaleX(0.5)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationFast}" Easing="CubicEaseOut" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Border.CkanTabSlidingBar">
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="Background" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="RenderTransform" Value="translate(0px, 0px) scaleX(0.4)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationFast}" Easing="CubicEaseOut" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
+          <TransformOperationsTransition.Easing>
+            <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
+          </TransformOperationsTransition.Easing>
+        </TransformOperationsTransition>
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Border.CkanTabAuroraWash">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0" Color="#2858A6FF" />
+        <GradientStop Offset="1" Color="#0058A6FF" />
+      </LinearGradientBrush>
+    </Setter>
+  </Style>
+
+  <Style Selector="Border.CkanTabAuroraWash.is-sweeping">
+    <Style.Animations>
+      <Animation Duration="0:0:0.28" Easing="CubicEaseOut" FillMode="Forward">
+        <KeyFrame Cue="0%">
+          <Setter Property="Opacity" Value="0.7" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="Opacity" Value="0" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+
+  <Style Selector="Border.CkanTabHorizonBeam">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
+
+  <Style Selector="Border.CkanTabHorizonBeam.is-sweeping">
+    <Style.Animations>
+      <Animation Duration="0:0:0.26" Easing="CubicEaseOut" FillMode="Forward">
+        <KeyFrame Cue="0%">
+          <Setter Property="Opacity" Value="0.85" />
+          <Setter Property="ScaleTransform.ScaleX" Value="0.12" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="Opacity" Value="0" />
+          <Setter Property="ScaleTransform.ScaleX" Value="1" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+
+  <Style Selector="TransitioningContentControl.is-revealing, ContentPresenter.is-revealing">
+    <Style.Animations>
+      <Animation Duration="0:0:0.15" Easing="CubicEaseOut" FillMode="Forward">
+        <KeyFrame Cue="0%">
+          <Setter Property="Opacity" Value="0.82" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="Opacity" Value="1" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
   </Style>
 
   <Style Selector="Border.CkanTabIndicator">
@@ -1518,9 +1604,8 @@
     <Setter Property="RenderTransform" Value="scaleX(0.6)" />
   </Style>
 
-  <Style Selector="Border.CkanTabUnderline.Active Border.CkanTabIndicator">
-    <Setter Property="Opacity" Value="1" />
-    <Setter Property="RenderTransform" Value="scaleX(1)" />
+  <Style Selector="Border.CkanTabUnderline.Active:pointerover Border.CkanTabIndicator">
+    <Setter Property="Opacity" Value="0" />
   </Style>
 
   <Style Selector="Button.CkanTab">

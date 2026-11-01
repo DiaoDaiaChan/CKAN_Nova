@@ -260,35 +260,76 @@
                     BorderBrush="{DynamicResource CkanHairlineBrush}"
                     BorderThickness="0,0,0,1"
                     IsVisible="{Binding HasSectionTabs}">
-              <ItemsControl x:Name="SectionTabsControl" ItemsSource="{Binding SectionTabs}">
-                <ItemsControl.ItemsPanel>
-                  <ItemsPanelTemplate>
-                    <StackPanel Orientation="Horizontal" Spacing="2" />
-                  </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate>
-                    <Border Classes="CkanTabUnderline" Classes.Active="{Binding IsActive}">
-                      <Panel>
-                        <Button Classes="CkanTab"
-                                Content="{Binding Title}"
-                                Command="{Binding $parent[Window].DataContext.NavigateCommand}"
-                                CommandParameter="{Binding Key}"
-                                AutomationProperties.Name="{Binding Title}" />
-                        <Border Classes="CkanTabIndicator" IsHitTestVisible="False" />
-                      </Panel>
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
+              <Panel>
+                <!-- 共享滑动胶囊背景：随选中页签平滑横移与伸缩，替代单页死板的开关切换 -->
+                <Border x:Name="SectionTabActivePill"
+                        Classes="CkanTabSlidingPill"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Width="100"
+                        Height="26"
+                        RenderTransformOrigin="0%,50%"
+                        Opacity="0"
+                        IsHitTestVisible="False" />
+
+                <ItemsControl x:Name="SectionTabsControl" ItemsSource="{Binding SectionTabs}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" Spacing="2" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Classes="CkanTabUnderline" Classes.Active="{Binding IsActive}">
+                        <Panel>
+                          <Button Classes="CkanTab"
+                                  Content="{Binding Title}"
+                                  Command="{Binding $parent[Window].DataContext.NavigateCommand}"
+                                  CommandParameter="{Binding Key}"
+                                  AutomationProperties.Name="{Binding Title}" />
+                          <Border Classes="CkanTabIndicator" IsHitTestVisible="False" />
+                        </Panel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- 共享滑动底部激光指示条：在页签之间物理滑行与自适应宽窄 -->
+                <Border x:Name="SectionTabActiveBar"
+                        Classes="CkanTabSlidingBar"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Bottom"
+                        Width="100"
+                        Height="2"
+                        RenderTransformOrigin="0%,50%"
+                        Opacity="0"
+                        IsHitTestVisible="False" />
+              </Panel>
             </Border>
 
-            <!-- 页面切换：整页舞台 VSync 临界阻尼平滑滑入，ClipToBounds 防止越过侧栏分隔线。 -->
-            <TransitioningContentControl x:Name="PageHost"
-                                         Grid.Row="2"
-                                         ClipToBounds="True"
-                                         Classes="tab-stage"
-                                         Content="{Binding CurrentPage}" />
+            <!-- 页面承载区：内容本体零位移（彻底根绝边框与文字亚像素抖动），顶部配极光氛围洗光与天际线光束扫掠。 -->
+            <Panel Grid.Row="2" ClipToBounds="True">
+              <TransitioningContentControl x:Name="PageHost"
+                                           Content="{Binding CurrentPage}" />
+              <Border x:Name="TabSwitchAuroraWash"
+                      Classes="CkanTabAuroraWash"
+                      VerticalAlignment="Top"
+                      HorizontalAlignment="Stretch"
+                      Height="56"
+                      Opacity="0"
+                      IsHitTestVisible="False" />
+              <Border x:Name="TabSwitchHorizonBeam"
+                      Classes="CkanTabHorizonBeam"
+                      VerticalAlignment="Top"
+                      HorizontalAlignment="Stretch"
+                      Height="2"
+                      Opacity="0"
+                      IsHitTestVisible="False">
+                <Border.RenderTransform>
+                  <ScaleTransform ScaleX="1" ScaleY="1" />
+                </Border.RenderTransform>
+              </Border>
+            </Panel>
           </Grid>
 
           <!--

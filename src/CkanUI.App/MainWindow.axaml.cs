@@ -13,6 +13,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Transformation;
 using Avalonia.Threading;
 using Avalonia.Automation;
 using Avalonia.VisualTree;
@@ -287,6 +288,7 @@ public sealed partial class MainWindow : Window
         SyncSelectedNavItem();
         UpdateShellStatusDot(_shell.StatusText);
         _lastPageKey = _shell.SelectedNavItem?.Key;
+        Dispatcher.UIThread.Post(SyncSectionTabIndicator, DispatcherPriority.Loaded);
     }
 
     private void OnPageHostPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -298,8 +300,9 @@ public sealed partial class MainWindow : Window
 
         var oldKey = _lastPageKey;
 
-        // 紧跟在 ShellViewModel.OnNavigated 同步更新完 SelectedNavItem 之后执行，
-        // 只用 VSync 双帧回调让 PageHost 整块舞台做 8px 临界阻尼滑入，不拆散卡片、不强制重排。
+        // 紧跟在 ShellViewModel.OnNavigated 同步更新完 SelectedNavItem 与 SectionTabs 之后执行：
+        // 页面内容本体保持 (0, 0) 零位移（杜绝一切布局与边框抖动），
+        // 依靠顶栏共享胶囊/激光条跨页签滑行 + 顶部极光天际线光束扫掠完成丝滑切换。
         Dispatcher.UIThread.Post(
             () =>
             {
@@ -312,9 +315,110 @@ public sealed partial class MainWindow : Window
                 var direction = ComputeTabSwitchDirection(oldKey, newKey);
                 _lastPageKey = newKey;
 
-                StaggerAnimator.PlayStageGlide(PageHost, direction);
+                SyncSectionTabIndicator();
+                TriggerTabSwitchAtmosphere(PageHost, direction);
             },
             DispatcherPriority.Send);
+    }
+
+    private void SyncSectionTabIndicator()
+    {
+        if (SectionTabsControl is null || SectionTabActivePill is null || SectionTabActiveBar is null)
+        {
+            return;
+        }
+
+        if (_shell?.HasSectionTabs != true)
+        {
+            SectionTabActivePill.Opacity = 0;
+            SectionTabActiveBar.Opacity = 0;
+            return;
+        }
+
+        var activeTabBorder = SectionTabsControl
+            .GetVisualDescendants()
+            .OfType<Border>()
+            .FirstOrDefault(b => b.Classes.Contains("CkanTabUnderline") && b.Classes.Contains("Active"));
+
+        if (activeTabBorder is null || activeTabBorder.Bounds.Width <= 0)
+        {
+            // 刚切到新分组、页签条尚未完成首次排版时，等 Loaded 排版完成后补齐位置。
+            Dispatcher.UIThread.Post(
+                () =>
+                {
+                    var deferred = SectionTabsControl?
+                        .GetVisualDescendants()
+                        .OfType<Border>()
+                        .FirstOrDefault(b => b.Classes.Contains("CkanTabUnderline") && b.Classes.Contains("Active"));
+                    if (deferred is not null && deferred.Bounds.Width > 0)
+                    {
+                        ApplySectionTabIndicatorGeometry(deferred);
+                    }
+                },
+                DispatcherPriority.Loaded);
+            return;
+        }
+
+        ApplySectionTabIndicatorGeometry(activeTabBorder);
+    }
+
+    private void ApplySectionTabIndicatorGeometry(Border activeTabBorder)
+    {
+        if (SectionTabsControl is null || SectionTabActivePill is null || SectionTabActiveBar is null)
+        {
+            return;
+        }
+
+        var origin = activeTabBorder.TranslatePoint(new Point(0, 0), SectionTabsControl);
+        var x = origin?.X ?? 0;
+        var w = activeTabBorder.Bounds.Width;
+        if (w <= 0)
+        {
+            return;
+        }
+
+        var pillScale = Math.Max(0.1, w / 100.0);
+        var barWidth = Math.Max(14.0, w - 16.0);
+        var barScale = barWidth / 100.0;
+        var barX = x + (w - barWidth) * 0.5;
+
+        SectionTabActivePill.Opacity = 1;
+        SectionTabActivePill.RenderTransform = TransformOperations.Parse(
+            FormattableString.Invariant($"translate({x:0.##}px, 0px) scaleX({pillScale:0.####})"));
+
+        SectionTabActiveBar.Opacity = 1;
+        SectionTabActiveBar.RenderTransform = TransformOperations.Parse(
+            FormattableString.Invariant($"translate({barX:0.##}px, 0px) scaleX({barScale:0.####})"));
+    }
+
+    private void TriggerTabSwitchAtmosphere(Control? contentTarget, int direction)
+    {
+        if (Application.Current?.Resources.TryGetResource(Theming.MotionHost.SpringSoftKey, null, out var durationObj) == true &&
+            durationObj is TimeSpan ts && ts <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        if (contentTarget is not null)
+        {
+            contentTarget.Classes.Remove("is-revealing");
+            contentTarget.Classes.Add("is-revealing");
+        }
+
+        if (TabSwitchHorizonBeam is not null)
+        {
+            TabSwitchHorizonBeam.RenderTransformOrigin = direction < 0
+                ? new RelativePoint(1, 0.5, RelativeUnit.Relative)
+                : new RelativePoint(0, 0.5, RelativeUnit.Relative);
+            TabSwitchHorizonBeam.Classes.Remove("is-sweeping");
+            TabSwitchHorizonBeam.Classes.Add("is-sweeping");
+        }
+
+        if (TabSwitchAuroraWash is not null)
+        {
+            TabSwitchAuroraWash.Classes.Remove("is-sweeping");
+            TabSwitchAuroraWash.Classes.Add("is-sweeping");
+        }
     }
 
     private int ComputeTabSwitchDirection(string? oldKey, string? newKey)
@@ -365,14 +469,16 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var direction = newIndex > oldIndex ? 1 : -1;
         var contentHost = tabControl
             .GetVisualDescendants()
             .OfType<ContentPresenter>()
-            .FirstOrDefault(p => p.Name == "PART_SelectedContentHost")
-            ?? tabControl.SelectedContent as Control;
+            .FirstOrDefault(p => p.Name == "PART_SelectedContentHost");
 
-        StaggerAnimator.PlayStageGlide(contentHost, direction);
+        if (contentHost is not null)
+        {
+            contentHost.Classes.Remove("is-revealing");
+            contentHost.Classes.Add("is-revealing");
+        }
     }
 
     private void UpdateShellStatusDot(string? status)

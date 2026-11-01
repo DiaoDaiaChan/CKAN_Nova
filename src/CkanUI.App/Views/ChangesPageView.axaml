@@ -11,7 +11,7 @@
   <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}">
 
     <!-- 页头：与其它页保持同一范式（H1 + 一句副标题） -->
-    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,10">
+    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
       <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
         <TextBlock Text="变更集" Classes="CkanPageTitle" VerticalAlignment="Center" />
         <Button Classes="CkanHelper" VerticalAlignment="Center"

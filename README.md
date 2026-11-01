@@ -12,6 +12,13 @@ dotnet run --project tests/CkanUI.TestRunner    # 全部测试（走进程内 ru
 dotnet run --project src/CkanUI.App             # 启动界面
 ```
 
+一键编译并呼出界面（会先关掉正在运行的 CkanUI.exe，否则构建被输出文件锁挡住）：
+
+```powershell
+tools/run-gui/run-gui.cmd              # 双击或命令行；等价于同目录 build-and-run.ps1
+tools/run-gui/run-gui.cmd -NoBuild     # 只启动，不编译
+```
+
 ### 先决条件：两个 `external/` 依赖
 
 本仓库不把上游源码入库（`external/` 在 `.gitignore` 里），构建前必须自己接上：

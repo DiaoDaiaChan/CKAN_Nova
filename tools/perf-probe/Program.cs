@@ -17,6 +17,12 @@ public static class Program
         Console.WriteLine($"运行环境: .NET {Environment.Version} / Avalonia 12 Headless");
         Console.WriteLine();
 
+        // --mem：只跑内存/空转画像，独立进程取数才干净（不与其他基准的窗口驻留互相污染）
+        if (Array.Exists(args, a => string.Equals(a, "--mem", StringComparison.OrdinalIgnoreCase)))
+        {
+            return RunMemoryProfile();
+        }
+
         var allPassed = true;
 
         // 1. 基准测试 1: 冷启动到首帧
@@ -88,6 +94,22 @@ public static class Program
             Console.WriteLine("===============================================================");
             return 1;
         }
+    }
+
+    /// <summary>只跑内存与空转画像并导出 JSON（<c>--mem</c> 模式）。</summary>
+    private static int RunMemoryProfile()
+    {
+        Console.WriteLine("模式: 内存与空转占用画像 (--mem)");
+        Console.WriteLine();
+
+        var result = MemoryProbe.Run();
+        Console.WriteLine(MemoryProbe.ToMarkdown(result));
+
+        var jsonPath = MemoryProbe.WriteJson(
+            result,
+            Path.Combine(Directory.GetCurrentDirectory(), "artifacts", "perf", "memory-profile.json"));
+        Console.WriteLine($"[INFO] 内存画像 JSON 已导出至: {jsonPath}");
+        return 0;
     }
 
     private static void PrintSnapshotSummary(string scenario, PerformanceSnapshot s, double p50Target, double p99Target, bool p50Ok, bool p99Ok)
