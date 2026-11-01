@@ -803,10 +803,11 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 `src/CkanUI.App/Animations/SelectionMotion.cs`。列表/树/表格的选中态原来只有背景色瞬间切换，键盘 Tab 也只有一圈静态描边。
 
 - 接管范围：`ListBoxItem` / `TreeViewItem` / `DataGridRow`（行容器级，虚拟化回收复用后照样生效）+ 窗口级 `GotFocus` 冒泡。
-- 选中：`KickScale(SelectionPop 1.5%)`，`SpringSpec.Snappy`；行容器在选中之后才被虚拟化实现时，由列表 `SelectionChanged` 在下一帧（`RequestAnimationFrame`）补扫一次已实现容器。
+- 选中：`KickScale(SelectionPop 1.5%)`，`SpringSpec.Snappy`；行容器在选中之后才被虚拟化实现时，由列表 `SelectionChanged` 先在当拍数一次、再在下一拍 `LayoutUpdated` 补数一次（不用 `RequestAnimationFrame`：无头并发跑时帧泵不推，弹不起来）。`NotifySelected(Control)` 是同一入口的公开接缝。
 - 键盘焦点：`FocusPop 1.2%`；指针已在控件上（`IsPointerOver`，即鼠标点出来的焦点）跳过，`TextBox`/`ComboBox`/`AutoCompleteBox` 跳过——文本输入自带插入符与滚动，别再叠缩放。
 - 为什么用 `KickScale` 而不是位移：悬停已经占住位移通道（y），选中要能叠在悬停态上。
 - 接入点：`MainWindow.PlayPageReveal` 内 `SelectionMotion.Attach(this)` + `SelectionMotion.Attach(PageHost)`。
 - 三档：`MotionBudget.Amplitude` 统一缩放，`none` 在 `Attach` 入口直接返回。
 - 门禁：`SelectionMotionTests` 4 项（选中弹起、键盘焦点弹起、文本输入不动、重复挂载/关闭档不接管）。
+- 冲量前先 `control.Transitions = null`：样式里的 `TransformOperationsTransition` 会把写下的 `TransformGroup` 遮成"过渡中的 TransformOperations"，逐帧位移被再平滑一次，看起来卡住不动（与 §5.9.13 提示条同一类问题）。
 - 不做：`ComboBox` 弹层（`PopupRoot` 不在可视树里）、`TabItem`（顶栏与页内页签已有自己的指示器动画）。
