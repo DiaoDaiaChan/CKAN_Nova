@@ -34,6 +34,27 @@ public static class Program
             }
         }
 
+        // --select：行选中成本（不跑门禁）
+        if (Array.Exists(args, a => string.Equals(a, "--select", StringComparison.OrdinalIgnoreCase)))
+        {
+            BenchmarkRunner.RunRowSelectionBenchmark(modRows);
+            return 0;
+        }
+
+        // --search：搜索框逐键成本（不跑门禁）
+        if (Array.Exists(args, a => string.Equals(a, "--search", StringComparison.OrdinalIgnoreCase)))
+        {
+            BenchmarkRunner.RunSearchKeystrokeBenchmark(modRows);
+            return 0;
+        }
+
+        // --micro：首屏样式成本拆解（不跑门禁）
+        if (Array.Exists(args, a => string.Equals(a, "--micro", StringComparison.OrdinalIgnoreCase)))
+        {
+            BenchmarkRunner.RunLeafCostMicroBenchmark();
+            return 0;
+        }
+
         var allPassed = true;
 
         // 1. 基准测试 1: 冷启动到首帧

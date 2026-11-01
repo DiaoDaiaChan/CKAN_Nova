@@ -322,6 +322,8 @@ Release / 1280×800 / 三次一致，单位 ms：
 | 星轨改成按「线宽档 × alpha 档」攒批（一档一条 `StreamGeometry`，替掉 604 次 `DrawLine`） | 实测重建帧 1.5–1.6 ms → 1.2–1.8 ms，同一噪声带内；光栅成本由像素覆盖决定，与绘制调用次数无关 | 已回退，不留复杂度 |
 | 空闲时停掉星轨重建（星轨冻结） | 会让「长曝光」主角在静置时定格 | 属画面变化，不做 |
 | 按 `IsOpen` 门控 `PerformanceMonitor` 的 `PropertyChanged` | 每秒约 31 KB 垃圾，且 `PerformanceMonitor_RefreshSnapshot_NotifiesPropertyChanges` 断言了全部属性通知 | 收益不值，不做 |
+| mods 页搜索每次按键全量重算投影（`RefreshDerived` 27 项 + `RefreshDetail` 17 项 + `SyncDetails`） | `perf-probe --search` 实测（3000 模组、逐键输入 rendering）：每键同步部分 p50 **0.51–0.56 ms** / max 1.13 ms；防抖后的 `ApplyFilter` p50 **2.78–3.95 ms** / max 33.59 ms | 不在人可感知量级，不改 |
+| mods 页行选中整体重算 | `perf-probe --select` 实测（3000 行、20 次跳选）：p50 **0.10–0.11 ms** / p90 0.11–0.12 ms / max 1.4–2.9 ms | 不是热点，不改 |
 
 ### 9.4 还剩下的空间（都被并行改动挡着）
 
@@ -329,4 +331,4 @@ Release / 1280×800 / 三次一致，单位 ms：
 | --- | --- | --- |
 | 真机启动 1.4–1.6 s | 首屏 0.9 s 中约 0.6 s 在 DataGrid 单元格/表头模板与 `window-show` | `src/CkanUI.App/Views/ModsPageView.axaml`、`src/CkanUI.App/MainWindow.axaml` 正被并行改动 |
 | main-window-new 320 ms / app-xaml 188 ms | 见 §8 表格 | 同上 + `Resources/Tokens.axaml`、`Resources/FluentStyles.axaml` |
-| mods 页搜索每次按键全量重算投影 | `ModsPageViewModel.RefreshDerived` 连发 24+17 个 `OnPropertyChanged` 并遍历 3000 行 | `src/CkanUI.App/ViewModels/ModsPageViewModel.cs` 正被并行改动 |
+| mods 页搜索/选中路径 | 已用 `perf-probe --search` / `--select` 量化排除（见 §9.3），不再列为空间 | — |

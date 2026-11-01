@@ -163,6 +163,42 @@ public static class BenchmarkRunner
     }
 
     /// <summary>
+    /// 首屏样式成本的拆解实验：同样 1,000 个叶子控件，只换控件类型/文本语种，
+    /// 用来判断 0.35ms/控件 的成本到底落在「样式解析」还是「字体排版」上。
+    /// </summary>
+    public static void RunLeafCostMicroBenchmark()
+    {
+        HeadlessAppHost.EnsureInitialized();
+
+        var cases = new (string Name, Func<Control> Make)[]
+        {
+            ("1000-border", () => new Border { Width = 10, Height = 10 }),
+            ("1000-textblock-ascii", () => new TextBlock { Text = "mod-name-1.2.3" }),
+            ("1000-textblock-cjk", () => new TextBlock { Text = "模组名称 1.2.3" }),
+        };
+
+        foreach (var (name, make) in cases)
+        {
+            var panel = new StackPanel();
+            for (var i = 0; i < 1000; i++)
+            {
+                panel.Children.Add(make());
+            }
+
+            var sw = Stopwatch.StartNew();
+            var window = new Window { Width = 1280, Height = 800, Content = panel };
+            window.Show();
+            HeadlessAppHost.PumpJobs();
+            window.Measure(new Size(1280, 800));
+            window.Arrange(new Rect(0, 0, 1280, 800));
+            sw.Stop();
+            Console.WriteLine($"[LeafCost] {name}={sw.Elapsed.TotalMilliseconds:F1}ms");
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    /// <summary>
     /// 3,000 模组连续滚动帧采样基准：在已呈现的 DataGrid 上持续驱动滚动与渲染并记录帧时间。
     /// PERF-01 目标：
     /// - 3,000 mod scroll p50 frame time <= 8ms
@@ -247,4 +283,133 @@ public static class BenchmarkRunner
 
         return (snapshot, passedP50, passedP99);
     }
+
+    /// <summary>
+    /// 搜索框逐键成本：模拟真实打字（每键间隔 = 防抖窗口 + 20ms），
+    /// 分别量「键按下那一瞬的同步开销」和「防抖到点后整表重投影的开销」。
+    /// </summary>
+    /// <param name="modCount">模组条数，默认与 PERF-01 门禁一致。</param>
+    /// <param name="keystrokes">打多少个键。</param>
+    public static void RunSearchKeystrokeBenchmark(int modCount = 3000, int keystrokes = 12)
+    {
+        HeadlessAppHost.EnsureInitialized();
+        var (mods, installed) = MockModDataGenerator.Generate(modCount);
+        var instance = new InstanceInfo("KSP-PerfInstance", "D:/Games/KSP_Perf", "1.12.5", true, false, mods.Count);
+        var vm = new ModsPageViewModel(
+            new MockRepositoryService(mods),
+            new MockRegistryService(instance.Name, installed),
+            new MockInstanceService(instance),
+            new MockErrorReporter());
+        vm.ReloadFromSnapshots();
+
+        var view = new ModsPageView { DataContext = vm, Width = 1280, Height = 800 };
+        var window = new Window { Width = 1280, Height = 800, Content = view };
+        window.Show();
+        HeadlessAppHost.PumpJobs();
+        window.Measure(new Size(1280, 800));
+        window.Arrange(new Rect(0, 0, 1280, 800));
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+        HeadlessAppHost.PumpJobs();
+
+        // 选中第一行：逐键路径里最贵的那条（详情快照 + 已装标识扫描）参与进来。
+        vm.SelectedRow = vm.Rows.Count > 0 ? vm.Rows[0] : null;
+        HeadlessAppHost.PumpJobs();
+
+        // 冷路径先热身一次，避免把 JIT 算进第一个键。
+        vm.SearchText = "r";
+        Thread.Sleep(ModsPageViewModel.SearchDebounceMilliseconds + 20);
+        HeadlessAppHost.PumpJobs();
+
+        const string Keyword = "rendering";
+        var keystrokeMs = new List<double>();
+        for (var i = 1; i <= Math.Min(keystrokes, Keyword.Length); i++)
+        {
+            var text = Keyword[..i];
+            var keySw = Stopwatch.StartNew();
+            vm.SearchText = text;
+            keySw.Stop();
+            keystrokeMs.Add(keySw.Elapsed.TotalMilliseconds);
+
+            Thread.Sleep(ModsPageViewModel.SearchDebounceMilliseconds + 20);
+            HeadlessAppHost.PumpJobs();
+        }
+
+        var applyMs = new List<double>();
+        for (var i = 0; i < 5; i++)
+        {
+            var applySw = Stopwatch.StartNew();
+            vm.ApplyFilter();
+            applySw.Stop();
+            applyMs.Add(applySw.Elapsed.TotalMilliseconds);
+        }
+
+        var keySorted = keystrokeMs.OrderBy(v => v).ToList();
+        var applySorted = applyMs.OrderBy(v => v).ToList();
+        Console.WriteLine(
+            $"[SearchKeystroke] keys={keystrokeMs.Count} sync-p50={Percentile(keySorted, 0.50):F2}ms"
+            + $" sync-max={keySorted[^1]:F2}ms"
+            + $" | filter-p50={Percentile(applySorted, 0.50):F2}ms"
+            + $" filter-max={applySorted[^1]:F2}ms"
+            + $" | visible={vm.VisibleCount} total={vm.TotalCount}");
+    }
+
+
+    /// <summary>
+    /// 行选中成本：点击列表行要刷新右栏详情（含「已装标识」扫描与快照重建），
+    /// 这里逐行切换选中，量这次点击同步付出的时间。
+    /// </summary>
+    /// <param name="modCount">模组条数。</param>
+    /// <param name="clicks">切换多少次选中。</param>
+    public static void RunRowSelectionBenchmark(int modCount = 3000, int clicks = 20)
+    {
+        HeadlessAppHost.EnsureInitialized();
+        var (mods, installed) = MockModDataGenerator.Generate(modCount);
+        var instance = new InstanceInfo("KSP-PerfInstance", "D:/Games/KSP_Perf", "1.12.5", true, false, mods.Count);
+        var vm = new ModsPageViewModel(
+            new MockRepositoryService(mods),
+            new MockRegistryService(instance.Name, installed),
+            new MockInstanceService(instance),
+            new MockErrorReporter());
+        vm.ReloadFromSnapshots();
+
+        var view = new ModsPageView { DataContext = vm, Width = 1280, Height = 800 };
+        var window = new Window { Width = 1280, Height = 800, Content = view };
+        window.Show();
+        HeadlessAppHost.PumpJobs();
+        window.Measure(new Size(1280, 800));
+        window.Arrange(new Rect(0, 0, 1280, 800));
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+        HeadlessAppHost.PumpJobs();
+
+        // 热身一次，别把 JIT 算进第一次点击。
+        vm.SelectedRow = vm.Rows.Count > 0 ? vm.Rows[0] : null;
+        HeadlessAppHost.PumpJobs();
+
+        var clickMs = new List<double>();
+        for (var i = 0; i < clicks && vm.Rows.Count > 0; i++)
+        {
+            var target = vm.Rows[(i * 37) % vm.Rows.Count];
+            var clickSw = Stopwatch.StartNew();
+            vm.SelectedRow = target;
+            clickSw.Stop();
+            clickMs.Add(clickSw.Elapsed.TotalMilliseconds);
+            HeadlessAppHost.PumpJobs();
+        }
+
+        var sorted = clickMs.OrderBy(v => v).ToList();
+        Console.WriteLine(
+            $"[RowSelection] clicks={sorted.Count} p50={Percentile(sorted, 0.50):F2}ms"
+            + $" p90={Percentile(sorted, 0.90):F2}ms max={sorted[^1]:F2}ms");
+    }
+    private static double Percentile(List<double> sorted, double fraction)
+    {
+        if (sorted.Count == 0)
+        {
+            return 0;
+        }
+
+        var index = (int)Math.Clamp(Math.Round(fraction * (sorted.Count - 1)), 0, sorted.Count - 1);
+        return sorted[index];
+    }
 }
+
