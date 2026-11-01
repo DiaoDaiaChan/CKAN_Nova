@@ -39,6 +39,11 @@ internal static class MotionScan
 
         var submission = Submissions.GetValue(layoutable, static node => new Submission((Layoutable)node));
         submission.Add(key, scan);
+
+        // 开关反馈不给每个调用方都加一行接线：从这里统一接管，任何被补扫的根都顺手带上，
+        // 也顺便让迟到的 ToggleButton 在下一拍补扫里被捡到。
+        TogglePopMotion.Attach(root);
+        submission.Add(nameof(TogglePopMotion), () => TogglePopMotion.Attach(root));
     }
 
     private sealed class Submission

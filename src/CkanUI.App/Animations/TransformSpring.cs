@@ -125,6 +125,22 @@ public sealed class TransformSpring
         Start();
     }
 
+    /// <summary>在当前缩放上叠加一次冲量（开关选中、徽标跳动）。</summary>
+    public void KickScale(double amount)
+    {
+        if (MotionBudget.IsCollapsed)
+        {
+            return;
+        }
+
+        ReclaimRenderTransform();
+        _scaleX.Retarget(1d);
+        _scaleX.Kick(amount);
+        _scaleY.Retarget(1d);
+        _scaleY.Kick(amount);
+        Start();
+    }
+
     internal bool Advance(double seconds)
     {
         var top = _topLevel;
