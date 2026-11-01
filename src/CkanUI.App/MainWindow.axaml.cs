@@ -588,6 +588,10 @@ public sealed partial class MainWindow : Window
         // 卡片悬停抬升改由弹簧帧驱动：鼠标扫过一排卡片时位移之间带速度，而不是每张都从零起步。
         HoverLiftMotion.Attach(PageHost);
 
+        // 选中行与键盘焦点原来只有静态描边/背景，补一次弹簧冲量；整窗挂一次，标题栏按钮的键盘焦点也在内。
+        SelectionMotion.Attach(this);
+        SelectionMotion.Attach(PageHost);
+
         // 一页放不下的信息流：滚动时刚跨进底边的元素各自补一次入场，所有页面自动生效。
         ScrollRevealMotion.Attach(PageHost);
 
