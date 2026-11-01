@@ -111,6 +111,13 @@ public static class Program
             }
         }
 
+        // --scroll-floor：滚动分配的框架地板（对照 --mem 的模组列表滚动分配）
+        if (Array.Exists(args, a => string.Equals(a, "--scroll-floor", StringComparison.OrdinalIgnoreCase)))
+        {
+            PageSwitchProbe.ScrollAllocFloor();
+            return 0;
+        }
+
         // --gate-pages：页面结构膨胀门禁（节点数是确定性指标，见 docs §21）
         if (Array.Exists(args, a => string.Equals(a, "--gate-pages", StringComparison.OrdinalIgnoreCase)))
         {

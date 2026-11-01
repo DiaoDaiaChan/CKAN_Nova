@@ -107,6 +107,73 @@ public static class PageSwitchProbe
         HeadlessAppHost.PumpJobs();
     }
 
+    /// <summary>
+    /// 滚动分配的框架地板：3000 项纯文本 ListBox 逐帧滚 24 px，量每帧分配与单帧耗时。
+    /// 用来判断 `--mem` 里模组列表的 67 KB/帧 是「我们的行模板贵」还是「Avalonia 滚动本身就这样」。
+    /// </summary>
+    public static void ScrollAllocFloor(int items = 3000, int frames = 300, double stepPixels = 24d)
+    {
+        HeadlessAppHost.EnsureInitialized();
+        var host = new Window { Width = 1280, Height = 800 };
+        host.Show();
+        HeadlessAppHost.PumpJobs();
+
+        var rows = new List<string>(items);
+        for (var i = 0; i < items; i++)
+        {
+            rows.Add("row " + i + " — plain text item for scroll floor");
+        }
+
+        var list = new ListBox { ItemsSource = rows };
+        host.Content = list;
+        HeadlessAppHost.PumpJobs();
+        host.Measure(new Size(1280, 800));
+        host.Arrange(new Rect(0, 0, 1280, 800));
+        HeadlessAppHost.PumpJobs();
+
+        var scroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        if (scroll is null)
+        {
+            Console.WriteLine("[ScrollFloor] no scrollviewer");
+            return;
+        }
+
+        scroll.Offset = new Vector(0, 1);
+        host.Measure(new Size(1280, 800));
+        host.Arrange(new Rect(0, 0, 1280, 800));
+        HeadlessAppHost.PumpJobs();
+        var startOffset = scroll.Offset.Y;
+        var before = GC.GetTotalAllocatedBytes(precise: true);
+        var framesMs = new List<double>(frames);
+        for (var i = 0; i < frames; i++)
+        {
+            var sw = Stopwatch.StartNew();
+            scroll.Offset = new Vector(0, scroll.Offset.Y + stepPixels);
+            // 视口变化不会自动触发重排：手动标脏，让虚拟化面板真的实体化新行
+            list.InvalidateMeasure();
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+            HeadlessAppHost.PumpJobs();
+            sw.Stop();
+            framesMs.Add(sw.Elapsed.TotalMilliseconds);
+        }
+
+        var allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+        var sorted = framesMs.OrderBy(v => v).ToList();
+        Console.WriteLine(
+            $"[ScrollFloor] items={items} frames={frames} perFrameBytes={allocated / frames}"
+            + $" extent={scroll.Extent.Height:F0} viewport={scroll.Viewport.Height:F0} startOffset={startOffset:F0} endOffset={scroll.Offset.Y:F0}"
+            + $" p50={Percentile(sorted, 0.50):F2}ms p99={Percentile(sorted, 0.99):F2}ms nodes={list.GetVisualDescendants().Count()}");
+
+        host.Content = null;
+        host.Close();
+        HeadlessAppHost.PumpJobs();
+    }
+
+    private static double Percentile(List<double> sorted, double q)
+        => sorted.Count == 0 ? 0 : sorted[Math.Min(sorted.Count - 1, (int)(sorted.Count * q))];
+
     /// <summary>每个导航页的可视树节点数（确定性指标，用于结构膨胀门禁）。</summary>
     public static IReadOnlyList<(string Key, int Nodes)> NodeCounts()
     {
