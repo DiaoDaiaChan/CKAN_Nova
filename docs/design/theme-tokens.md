@@ -761,20 +761,20 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 
 | 交互面 | 动效归属 | 幅度与曲线 |
 | --- | --- | --- |
-| `Button` 全家族（Primary/Secondary/Ghost/Danger/Chip/Icon/Helper/Tab/DropDownButton） | `HoverLiftMotion` + `InteractionMotion` | 悬停 `ButtonLiftPixels=1.5`（Snappy）；按下按边收 12 px（下限 0.95，锚点落在按下点） |
-| `Button.CkanGuide` | 同上，外加箭头 | 卡片级 2 px；卡内 `GuideArrow` 同拍右滑 3 px |
-| `Border.CkanCardInteractive` | `HoverLiftMotion` + `InteractionMotion` | 悬停 2 px；按下按边收 6 px（`CardInsetPixels`，卡片比按钮大，12 px 会像整块塌） |
-| `Border.CkanGuideCard` | 同上 | 悬停 2 px + 箭头 3 px；按下按边收 6 px |
+| `Button` 全家族（Primary/Secondary/Ghost/Danger/Chip/Icon/Helper/Tab/DropDownButton） | `HoverLiftMotion` + `InteractionMotion` | 悬停 `ButtonLiftPixels=2`（Snappy）；按下按边收 12 px（下限 0.95，锚点落在按下点） |
+| `Button.CkanGuide` | 同上，外加箭头 | 卡片级 2.75 px；卡内 `GuideArrow` 同拍右滑 4 px |
+| `Border.CkanCardInteractive` | `HoverLiftMotion` + `InteractionMotion` | 悬停 2.75 px；按下按边收 6 px（`CardInsetPixels`，卡片比按钮大，12 px 会像整块塌） |
+| `Border.CkanGuideCard` | 同上 | 悬停 2.75 px + 箭头 4 px；按下按边收 6 px |
 | `Border.CkanCard` / `CkanEmptyStateCard` 容器 | 只悬停（若带 Interactive 类） | 普通容器按下不缩：边框/分隔线会跟着位移，故 `InteractionMotion` 对非 Interactive 的 `Border` 直接返回 |
-| `ListBoxItem` / `TreeViewItem` / `DataGridRow` / `TabItem` | `HoverLiftMotion` 行分支 | 悬停 1 px（整行比卡宽，2 px 像抖动） |
+| `ListBoxItem` / `TreeViewItem` / `DataGridRow` / `TabItem` | `HoverLiftMotion` 行分支 | 悬停 1.35 px（整行比卡宽，2 px 像抖动） |
 | `Border.overlay-drawer` / `Border.floating-pill-bar` | `SurfaceMotion` | 抽屉 260 px、浮条 40 px + `scale(0.96)`，Glide/Snappy |
-| `Control.view-layer` | `ViewLayerMotion` | 9 px + `scale(0.97)` + 淡入 |
-| `Border.CkanInfoBanner` | `BannerMotion` | 8 px + 淡入（先摘掉样式上的 `DoubleTransition`，否则逐帧写入会被再平滑一次） |
+| `Control.view-layer` | `ViewLayerMotion` | 12 px + `scale(0.97)` + 淡入 |
+| `Border.CkanInfoBanner` | `BannerMotion` | 11 px + 淡入（先摘掉样式上的 `DoubleTransition`，否则逐帧写入会被再平滑一次） |
 | `ToggleButton`（CkanPill、视图切换、日志等级） | `TogglePopMotion` | 勾选瞬间 `KickScale(+3.5%)`，用冲量而不是两次 `MoveTo`（同拍设回原值会被判静止） |
 | 页内 `TabControl` 换页签 | `TextRevealChoreographer.Watch` | 对 `PART_SelectedContentHost` 补整套入场（滚动/数据到达接管 + 块级 + 文字） |
-| `ScrollViewer` 里的信息流 | `ScrollRevealMotion` | 跨过底边 18 px（精简 3 px），只演一次、回滚不重演、虚拟化换数据重新演 |
-| `ItemsControl` 新增数据 | `FeedArrivalMotion` | 14 px（精简 4 px），24 ms 错峰，最多 10 项 |
-| `TextBlock` 正文 | `TextRevealChoreographer` | 7 px（精简 2 px），12 ms 行间节拍，最多 48 行，跳过空白/隐藏/`DataGridRow` 内文字 |
+| `ScrollViewer` 里的信息流 | `ScrollRevealMotion` | 跨过底边 24 px（精简 4 px），只演一次、回滚不重演、虚拟化换数据重新演 |
+| `ItemsControl` 新增数据 | `FeedArrivalMotion` | 18 px（精简 5 px），24 ms 错峰，最多 10 项 |
+| `TextBlock` 正文 | `TextRevealChoreographer` | 9.5 px（精简 2.5 px），12 ms 行间节拍，最多 48 行，跳过空白/隐藏/`DataGridRow` 内文字 |
 | 外壳页签胶囊 + 激光条 | 帧驱动弹簧（`MainWindow` 直连 `TransformSpring`） | 位置/宽度/不透明度三通道 |
 | `TextBox` / `ComboBox` 的 `:focus`、`:focus-visible` | **明确不接** | 输入框缩放会让光标与命中区错位；焦点环是纯画笔变化，交给 `BrushTransition` |
 | `MenuItem` / `CheckBox` / `ScrollBar` / `GridSplitter` | **明确不接** | 前两者在 `PopupRoot` 里（见 §5.9.23 的覆盖限制），后两者是结构件，位移会被误读成布局在动 |
@@ -811,3 +811,30 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 - 门禁：`SelectionMotionTests` 4 项（选中弹起、键盘焦点弹起、文本输入不动、重复挂载/关闭档不接管）。
 - 冲量前先 `control.Transitions = null`：样式里的 `TransformOperationsTransition` 会把写下的 `TransformGroup` 遮成"过渡中的 TransformOperations"，逐帧位移被再平滑一次，看起来卡住不动（与 §5.9.13 提示条同一类问题）。
 - 不做：`ComboBox` 弹层（`PopupRoot` 不在可视树里）、`TabItem`（顶栏与页内页签已有自己的指示器动画）。
+
+#### 5.9.27 幅度基准：把"看得见"放进设计值
+
+用户反馈"动画效果不是很明显"。根因不在曲线也不在时长——弹簧早已是帧驱动、可打断的——而是设计幅度按"不抢戏"的保守值定，
+实机 150% DPI 下 2 px 的悬停抬升与 7 px 的文字上浮几乎看不出来。这一轮把各模块的位移基准统一提了约 30%，
+时长、曲线、错峰节拍、透明度起点全部不动：观感变明显，但节奏没有变快。
+
+| 模块 | 常量 | 旧 → 新 |
+| --- | --- | --- |
+| 整页入场（有方向 / 同组上浮） | `PageRevealSpec.DirectionalHorizontalPixels` / `DirectionalVerticalPixels` / `LiftOnlyPixels` | 28·10·22 → 36·13·28 |
+| 块级错峰 | `EntranceChoreographer.OffsetPixels` / `ReducedOffsetPixels` | 18 / 4 → 24 / 5 |
+| 文字逐行 | `TextRevealChoreographer.OffsetPixels` / `ReducedOffsetPixels` | 7 / 2 → 9.5 / 2.5 |
+| 滚动入场 | `ScrollRevealMotion.OffsetPixels` / `ReducedOffsetPixels` | 18 / 3 → 24 / 4 |
+| 数据到达 | `FeedArrivalMotion.OffsetPixels` / `ReducedOffsetPixels` | 14 / 4 → 18 / 5 |
+| 提示条 | `BannerMotion.OffsetPixels` / `ReducedOffsetPixels` | 8 / 3 → 11 / 4 |
+| 视图层 | `ViewLayerMotion.ClosedOffsetPixels` | 9 → 12 |
+| 卡片悬停 / 行悬停 / 按钮悬停 / 引导箭头 | `HoverLiftMotion.LiftPixels` / `RowLiftPixels` / `ButtonLiftPixels` / `ArrowTravelPixels` | 2·1·1.5·3 → 2.75·1.35·2·4 |
+
+为什么要逐模块改而不是在 `MotionBudget.Amplitude` 里乘一个全局系数：试过，系数会连带动到并行模块（`IconHoverTrack` 的
+`NudgePixels` 也走 `MotionBudget.Amplitude`），把它们的门禁（推出距离上限 4.5 px）顶爆。基准属于各模块自己的设计值，
+缩放属于档位，两者分开之后"哪一档多大幅度"仍然只有 `MotionBudget` 一个出口。
+
+门禁用例同步改为按常量与 `MotionBudget.Amplitude(...)` 计算期望值，不再钉字面量：把幅度写死进断言，
+下一次调基准就得改一堆测试，那种门禁挡不住回归，只会挡住改动。
+
+验证：`CkanUI.App.Tests` 457 项全绿；`dotnet build ckan-ui.sln` 0 警告 0 错误；真实窗口探针 24 页重新采样，
+`hoverLift` 与 `popped` 覆盖不变（各页 4/4 项中的图标按钮仍按 §5.9.25 排除），说明提幅度没有破坏接管范围。
