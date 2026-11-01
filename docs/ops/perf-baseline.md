@@ -1174,3 +1174,28 @@ if (Rows.Count != views.Count || !Rows.SequenceEqual(views))
 
 - 勾选路径已在 §22 改成就地替换，不经过这里。
 - 「结果相同但某行的派生显示值变了」不会漏更新：`ModsRowView` 是值记录，显示值变了就不相等，必然换表。
+
+## 25 首帧之后预建主页面视图：把第一次点「模组」的 100ms 挪到空闲里
+
+`--pages-real` 里模组页是唯一「首次进入 view 就要 195ms」的页面（§21.2：mods r1 view=194.8 / r2 view=0），因为它是全应用最重的视图：DataGrid 列模板 + 单元格模板 + 徽章。用户从主页第一次点「模组」时，这 195ms 全落在点击上；之后靠 `ViewLocator` 的静态缓存复用，再点就不花了（`src/CkanUI.App/ViewLocator.cs:18-21` 的 `ConditionalWeakTable` 缓存，:29-33 的复用条件 `Parent is null && GetVisualParent() is null`）。
+
+### 25.1 改法
+
+- `src/CkanUI.App/App.axaml.cs`：`window.Opened` 里用 `DispatcherTimer.RunOnce(PrefetchFirstNavigationView, 1200ms, DispatcherPriority.ApplicationIdle)` 起一次预建。1200ms 是给首帧渲染留的余地——太早会和首帧抢队列。
+- `PrefetchFirstNavigationView()`：从容器取 `ModsPageViewModel`（启动时已构造，见 §12），调 `new ViewLocator().Build(mods)`，只构建控件树交给静态缓存，**不挂窗口、不触发入场动效**；失败只记 Warn（纯优化路径，不允许影响导航）。
+- `src/CkanUI.App/ViewLocator.cs`：新增 `public static bool HasCachedView(object viewModel)`。预建前先判定：用户若已经自己点过模组页，缓存里的控件已挂到可视树上、不再满足 `Build` 的复用条件，这时再 `Build` 会白造第二个视图并把缓存覆盖成孤儿控件，必须跳过。
+
+### 25.2 实测（Release，`tools/perf-probe/Measure-Startup.mjs --hold-ms 3000`，各 3 轮）
+| 组 | first-paint | prefetch-mods-view | 该段耗时 |
+| --- | ---: | ---: | ---: |
+| 未加预建 | 1331 / 1447 / 1471 ms | — | — |
+| 加预建（ApplicationIdle 立即） | 1359 / 1402 / 1349 ms | 1471 / 1519 / 1469 ms | 109 ms |
+| 加预建（延后 1200ms） | 1379 / 1397 / 1382 ms | 2497 / 2513 / 2518 ms | **83 / 90 / 91 ms** |
+
+首帧时间在噪声内不变；预建本身的代价 83–91ms 发生在首帧后约 1.1s、`ApplicationIdle` 优先级（队列空了才跑）。
+
+### 25.3 为什么是「省一次点击」而不是「省总时间」
+总 CPU 一分没少，省的是**关键路径上的等待**：这 83–91ms 从「用户点模组 → 视图出现」挪到了「窗口已静止、用户在读主页」。`--pages-real` 量到的 r1/r2 差（194.8 → 0）就是预建后第一次点击能省下的量级上限。
+
+### 25.4 工具
+`Measure-Startup.mjs` 新增 `--hold-ms <ms>`：等到 `first-paint` 之后再保持进程一段时间，用来观察首帧之后的后台工作（不等待的话脚本在首帧就杀进程，看不到这类分段）。

@@ -57,6 +57,9 @@ public sealed partial class App : Application
     /// 只写 log4net 不好事后核对 —— 落盘目录跟着实例走、被并行测试进程混写，抓一次要翻半天。
     /// 环境变量是给测量脚本用的显式开关，不设就只多一次字符串拼接。
     /// </remarks>
+    /// <summary>启动预建延后多久：太早会和首帧渲染抢队列，1.2s 时窗口已经稳定可交互。</summary>
+    private const int PrefetchDelayMilliseconds = 1200;
+
     private static void TraceStartup(string line)
     {
         Log.Info(line);
@@ -272,6 +275,15 @@ public sealed partial class App : Application
                 Avalonia.Threading.Dispatcher.UIThread.Post(
                     () => TraceStartup($"[启动计时] first-paint={_startupWatch.ElapsedMilliseconds}ms"),
                     Avalonia.Threading.DispatcherPriority.Background);
+
+                // 首帧之后把主页面视图预建掉：模组页是整个应用最重的视图（DataGrid 列模板 +
+                // 单元格模板，实测首次构建 195ms，见 docs/ops/perf-baseline.md §21.2）。
+                // 用户从主页点「模组」时才建，这 195ms 就落在第一次点击上；放到首帧后的
+                // 后台优先级里做，点击时 ViewLocator 直接命中缓存。视觉、交互顺序都不变。
+                Avalonia.Threading.DispatcherTimer.RunOnce(
+                    PrefetchFirstNavigationView,
+                    TimeSpan.FromMilliseconds(PrefetchDelayMilliseconds),
+                    Avalonia.Threading.DispatcherPriority.ApplicationIdle);
             };
 
             Mark("assembly-done");
@@ -279,6 +291,28 @@ public sealed partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// 首帧之后预建主页面视图（见 docs/ops/perf-baseline.md §25）：只构建控件树并交给
+    /// <see cref="ViewLocator"/> 的静态缓存，不挂到窗口、不触发入场动效，页面呈现方式不变。
+    /// 任何失败都只记日志——这是纯优化路径，绝不能影响导航。
+    /// </summary>
+    private void PrefetchFirstNavigationView()
+    {
+        try
+        {
+            if (_services?.GetService(typeof(ModsPageViewModel)) is not ModsPageViewModel mods) return;
+            if (ViewLocator.HasCachedView(mods)) return;
+
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            _ = new ViewLocator().Build(mods);
+            TraceStartup($"[启动计时] prefetch-mods-view={_startupWatch.ElapsedMilliseconds}ms (+{watch.ElapsedMilliseconds}ms)");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or ArgumentException)
+        {
+            Log.Warn($"主页面视图预建失败（已忽略）：{ex.Message}");
+        }
     }
 
     /// <summary>挂日志缓冲与未捕获异常路由（14 篇 §3.2）：失败只降级，不阻断启动。</summary>

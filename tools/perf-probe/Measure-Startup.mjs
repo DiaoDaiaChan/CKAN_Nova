@@ -11,6 +11,9 @@ const arg = (name, dflt) => {
 };
 const exe = path.resolve(arg("exe", "src/CkanUI.App/bin/Release/net10.0/CkanUI.exe"));
 const runs = Number(arg("runs", "3"));
+// 首帧之后再多等一会儿：ApplicationIdle 优先级的后台预热工作发生在首帧之后，
+// 不等待的话进程已经被杀掉，看不到这些分段。
+const holdMs = Number(arg("hold-ms", "0"));
 const out = path.resolve(arg("out", "artifacts/perf/startup-trace.json"));
 const dir = path.dirname(exe);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -28,6 +31,17 @@ for (let i = 0; i < runs; i++) {
   while (Date.now() < deadline) {
     await sleep(200);
     try { text = fs.readFileSync(trace, "utf8"); } catch { continue; }
+      if (holdMs > 0) {
+        await new Promise((r) => setTimeout(r, 150));
+        try { text = fs.readFileSync(trace, "utf8"); } catch { continue; }
+        if (text.includes("first-paint")) {
+          const waited = Date.now();
+          while (Date.now() - waited < holdMs) {
+            await new Promise((r) => setTimeout(r, 100));
+            try { text = fs.readFileSync(trace, "utf8"); } catch { break; }
+          }
+        }
+      }
     if (text.includes("first-paint")) break;
   }
   await sleep(300);

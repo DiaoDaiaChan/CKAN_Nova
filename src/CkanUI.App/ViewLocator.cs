@@ -22,6 +22,13 @@ public sealed class ViewLocator : IDataTemplate
 
     public bool Match(object? data) => data is PageViewModel or IPluginPage;
 
+    /// <summary>
+    /// 该视图模型是否已有缓存的视图实例。给启动预建用：用户已经导航过就别再造一份——
+    /// 已挂到可视树上的控件不满足 <see cref="Build"/> 的复用条件，重复构建只会白花一次
+    /// XAML 加载并且把缓存覆盖成孤儿控件。
+    /// </summary>
+    public static bool HasCachedView(object viewModel) => ViewCache.TryGetValue(viewModel, out _);
+
     public Control? Build(object? param)
     {
         if (param is null) return null;
