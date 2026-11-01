@@ -447,5 +447,21 @@ node tools/perf-probe/Measure-Startup.mjs --runs 3
 
 `first-layout`→`first-paint` 的 8 ms / 285 ms 两种读数说明它是**受机器当前负载影响的排队时间**，不是固定光栅成本（当时机器上有并行编译）；拿它当优化目标会白忙。稳定的、可动的仍是 `main-window-new` 那 364 ms，落在 `src/CkanUI.App/MainWindow.axaml` + `Resources/FluentStyles.axaml`（并行 agent 占用中）。
 
+### 12.2 试过但没收益：把托盘与插件工具项挪到首帧之后
+
+`plugin-tools`（21 ms）与 `tray`（11 ms）都不参与窗口画面（插件按钮插的是此时还没实例化的页面工具条，托盘图标在系统托盘里），直觉上应该能挪到首帧后面。实测否了：
+
+| 组 | `first-paint` 三次/四次 | 中位 |
+| --- | --- | --- |
+| 现状（装配时就装） | 1521 / 1511 / 1501 | 1511 ms |
+| 挪到 `DispatcherPriority.Background` | 1518 / 1578 / 1494 / 1671 | 1548 ms |
+
+原因：`Background` 优先级仍在首帧渲染之前执行（首帧本身也要排到 `Background` 之后），这一步没有把工作量让开，只是换了队列位置。既然没有可验证的收益，改动已回退 —— 不留没有证据的复杂度。
+
+### 12.3 给「空闲不排帧」上一条测试兜底
+
+空闲期停 RAF 是拿到 −50% 空转的那一刀（见 §11），但它藏在私有方法里，改坏了不会有人察觉。现在把决策抽成纯函数 `PerformanceMonitor.ShouldRequestFrame(bool isSampling, bool hasTopLevel, bool isIdle)`（public，供测试直接调用），并补 `tests/CkanUI.App.Tests/IdleFramePumpTests.cs` 四例：空闲 / 采样中且非空闲 / 未采样 / 无 TopLevel。构建 0 警告 0 错误，App 用例 294（293 通过 + 1 例第三方在途的抽屉用例红）。
+
+
 
 

@@ -200,17 +200,25 @@ public sealed class PerformanceMonitor : INotifyPropertyChanged
         _telemetry.RecordFrame(durationMs, dispatcherLagMs);
     }
 
+    /// <summary>是否该继续用 <c>RequestAnimationFrame</c> 驱动帧回填。</summary>
+    /// <remarks>
+    /// 空闲期不驱动帧回填：<c>RequestAnimationFrame</c> 会真的排一次渲染，而空闲时星空自己的
+    /// 10fps 定时器已经在刷 —— 诊断不该再当第二个渲染源。实测（Release 真机、5s 尾窗）：
+    /// 空闲期关掉 RAF 后 CPU 9.47/11.12% 单核 → 6.82/4.83%，画面完全不变。
+    /// 恢复由 <see cref="OnIdleStateChanged"/> 负责，那里同时复位帧计时，避免把整段空闲算成一帧。
+    /// 抽成纯函数是为了让「空闲不排帧」这条不变量有测试兜着，不必靠人记着。
+    /// </remarks>
+    public static bool ShouldRequestFrame(bool isSampling, bool hasTopLevel, bool isIdle) =>
+        isSampling && hasTopLevel && !isIdle;
+
     private void RequestNextFrame()
     {
-        if (!_isSampling || _attachedTopLevel is null) return;
+        if (!ShouldRequestFrame(_isSampling, _attachedTopLevel is not null, DynamicRefreshRateController.Instance.IsIdle))
+        {
+            return;
+        }
 
-        // 空闲期不驱动帧回填。RequestAnimationFrame 会真的排一次渲染，而空闲时星空自己的
-        // 10fps 定时器已经在刷 —— 诊断不该再当第二个渲染源。实测（Release 真机、5s 尾窗）：
-        // 空闲期关掉 RAF 后 CPU 9.47/11.12% 单核 → 6.82/4.83%，画面完全不变。
-        // 恢复由 OnIdleStateChanged 负责，那里同时复位帧计时，避免把整段空闲算成一帧。
-        if (DynamicRefreshRateController.Instance.IsIdle) return;
-
-        _attachedTopLevel.RequestAnimationFrame(OnAnimationFrame);
+        _attachedTopLevel!.RequestAnimationFrame(OnAnimationFrame);
     }
 
     private void OnAnimationFrame(TimeSpan timestamp)
