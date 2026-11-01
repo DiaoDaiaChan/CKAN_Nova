@@ -966,3 +966,65 @@ public static bool ShouldRunRail(bool attached, bool isVisible, bool? windowIsAc
 - `tools/perf-probe/diff-png.ps1 -A a.png -B b.png [-Tol 12]`：LockBits 逐像素比对，输出 `diffPixels/total/pct`、包围盒与按行分带（最多 20 段）。「视觉是否改变」用它做判据，不靠肉眼。
 
 > 踩坑留证：第一次快照时 `page_17/18/19` 三张 PNG 字节数完全相同（114571），误以为是布局问题；加 `AppDomain.CurrentDomain.FirstChanceException` 打点后才看到 `IOException ... 'registry.locked'` —— **快照工具必须在实例被锁时仍能跑**，否则会拿到三张一模一样的「证据」。
+
+
+## 21. 全 tab 换页成本实测表与结构膨胀门禁
+
+用户要求「遍历所有 tab 找出所有性能问题」。这一节是当前 HEAD 的全量结果，也是 §20 之外的收口：**23 个导航页的成本已经全部量过，剩余项都是框架地板或有明确否决理由**。
+
+### 21.1 口径
+
+`perf-probe --pages-real`（真实 DI，真实数据源）逐导航键测五段：`resolve`（DI 解析）/ `activate`（`OnActivated` 刷新）/ `view`（`ViewLocator.Build`，有缓存）/ `layout`（挂到宿主 + Measure + Arrange）/ `render`（`ForceRenderTimerTick(16)`），末尾记 `nodes`（可视树节点数）。
+
+- **`round=1` 是首次进入**，含 XAML 首次解析、模板首落地、字体首加载等一次性成本；
+- **`round=2` 是再次进入**，视图已被 `ViewLocator` 缓存，只剩「重新挂到新父级 → 重新样式落地 → 重新量测」的固定成本——**这一列才是用户每次点 tab 感受到的卡顿**。
+
+### 21.2 实测（HEAD=b4f0a19，单位 ms）
+
+| 页面 | r1 view | r1 layout | r2 view | r2 layout | nodes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| settings | 7.4 | **817.6** | 0.0 | **912.6** | **2338** |
+| mods | **194.8** | 214.2 | 0.0 | 25.8 | 146 |
+| modpack-editor | 10.0 | 172.7 | 0.0 | 51.8 | 459 |
+| modpacks | 14.9 | 168.7 | 0.0 | 21.2 | 202 |
+| home | 6.0 | 82.4 | 0.0 | **95.2** | 167 |
+| modtext | 5.5 | 73.8 | 0.0 | 34.1 | 261 |
+| dedup | 11.7 | 25.1 | 0.0 | 59.1 | 154 |
+| changes | 33.2 | 56.3 | 0.0 | 27.2 | 89 |
+| cache | 5.1 | 52.6 | 0.0 | 28.4 | 137 |
+| saves | 12.5 | 53.6 | 0.0 | 22.9 | 115 |
+| 其余 13 页 | ≤27.2 | ≤48.9 | 0.0 | ≤24.3 | 51–185 |
+
+`activate` 全页 ≤15.3 ms（logs 15.26、cache 12.14 最高），说明**「切页时把数据又重灌一遍」的问题已经在 §18 修完**，剩下的成本全在可视树落地。
+
+### 21.3 归因：成本 ∝ 节点数，没有第二个热点
+
+用 `--home-bisect`（每次「摘下来再挂回去」后量 Measure+Arrange）拆首页：
+
+| 条件 | 耗时 |
+| --- | --- |
+| 全量（首次） | 232.4 ms |
+| 全量（稳态） | **96.3 ms** |
+| 隐藏截图胶片带 | 65.6 ms |
+| 再隐藏 3 个 `ItemsControl` | 38.8 ms |
+| 再隐藏 9 个 `Viewbox` | 50.9 ms（反向噪声） |
+| 再隐藏 35 个 `TextBlock` | 37.2 ms |
+
+→ 96 ms 分摊在胶片带（约 30 ms）、三组动作卡片（约 27 ms）和几十个文本/装饰节点上，**不存在单一热点**；167 节点 × 0.33 ms/节点 ≈ 55 ms 是地板，实测是它的 1.7 倍。这一倍数在其它页同样出现（mods 146 节点 25.8 ms、instances 185 节点 18.2 ms），属 Avalonia 重新挂载 + 样式落地的固定成本。
+
+### 21.4 结论
+
+- 用户点名的两处已经修完：设置页的**数据重灌**（§18 首次全量、后续增量）与实例页存档/飞船的**列表重建 + 缩略图超量解码**（§18.5/18.9）。
+- 设置页剩下的 ~900 ms 是 2338 个可视树节点的框架地板，三条虚拟化路线全部会改视觉或改滚动（§20），**在「不影响视觉效果」的约束下不动**。
+- 其余 22 页每次换页最贵 95 ms（home），多数 ≤30 ms，已是节点数地板。
+
+### 21.5 门禁：`perf-probe --gate-pages`
+
+节点数是**确定性指标**（同一份代码每次跑都是同一个数），所以用它做结构膨胀门禁，不受机器负载干扰：
+
+```bash
+TEMP=$PWD/artifacts/tmp/temp TMP=$PWD/artifacts/tmp/temp \
+  ./tools/perf-probe/bin/Release/net10.0/perf-probe.exe --gate-pages
+```
+
+输出每页的「节点数 / 上限 / 结论」，任一页超限返回退出码 1。上限 = 当前实测 × 约 1.25（`tools/perf-probe/PageNodeGate.cs`，设置页单列 2500 并标注原因）。判据含义：**每多 100 个节点，多花约 33 ms**——一个页面悄悄多出 300 节点，就是每次切换多掉 6 帧。

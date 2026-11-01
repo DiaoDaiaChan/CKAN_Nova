@@ -111,6 +111,12 @@ public static class Program
             }
         }
 
+        // --gate-pages：页面结构膨胀门禁（节点数是确定性指标，见 docs §21）
+        if (Array.Exists(args, a => string.Equals(a, "--gate-pages", StringComparison.OrdinalIgnoreCase)))
+        {
+            return RunPageNodeGate();
+        }
+
         // --scroll-check：滚动步进模拟，验证虚拟化面板会不会漏实体化（见 docs §20）
         if (Array.Exists(args, a => string.Equals(a, "--scroll-check", StringComparison.OrdinalIgnoreCase)))
         {
@@ -242,6 +248,29 @@ public static class Program
     }
 
     /// <summary>跑内存与空转画像并按 <see cref="MemoryGate"/> 判定，退化时返回非零退出码。</summary>
+    /// <summary>页面节点数门禁：换页成本 ∝ 节点数（0.33 ms/节点），结构膨胀必须被挡住。</summary>
+    private static int RunPageNodeGate()
+    {
+        var rows = PageSwitchProbe.NodeCounts();
+        var failed = 0;
+        Console.WriteLine("页面 | 节点数 | 上限 | 结论");
+        Console.WriteLine("--- | ---: | ---: | ---");
+        foreach (var (key, nodes) in rows)
+        {
+            var cap = PageNodeGate.CapFor(key);
+            var ok = nodes <= cap;
+            if (!ok)
+            {
+                failed++;
+            }
+
+            Console.WriteLine($"{key} | {nodes} | {cap} | {(ok ? "PASS" : "FAIL")}");
+        }
+
+        Console.WriteLine(failed == 0 ? "ALL PASS" : $"{failed} 个页面超限");
+        return failed == 0 ? 0 : 1;
+    }
+
     private static int RunMemoryGate()
     {
         Console.WriteLine("模式: 内存与空转回归门禁 (--gate-mem)");

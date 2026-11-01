@@ -107,6 +107,42 @@ public static class PageSwitchProbe
         HeadlessAppHost.PumpJobs();
     }
 
+    /// <summary>每个导航页的可视树节点数（确定性指标，用于结构膨胀门禁）。</summary>
+    public static IReadOnlyList<(string Key, int Nodes)> NodeCounts()
+    {
+        HeadlessAppHost.EnsureInitialized();
+        using var services = ServiceRegistration.Build(() => null);
+        _ = services.GetService(typeof(IInstanceService));
+        HeadlessAppHost.PumpJobs();
+
+        var host = new Window { Width = 1280, Height = 800 };
+        host.Show();
+        HeadlessAppHost.PumpJobs();
+
+        var locator = new ViewLocator();
+        var rows = new List<(string Key, int Nodes)>();
+        foreach (var key in ServiceRegistration.PageTypes.Keys)
+        {
+            var vm = services.GetService(ServiceRegistration.PageTypes[key]) as PageViewModel;
+            vm?.Activate();
+            Settle(200);
+            var view = locator.Build(vm) ?? new Border();
+            host.Content = view;
+            HeadlessAppHost.PumpJobs();
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            HeadlessAppHost.PumpJobs();
+            rows.Add((key, view.GetVisualDescendants().Count()));
+            host.Content = null;
+            HeadlessAppHost.PumpJobs();
+            vm?.Deactivate();
+        }
+
+        host.Close();
+        HeadlessAppHost.PumpJobs();
+        return rows;
+    }
+
     /// <summary>滚动到底后确认虚拟化面板真的把后续项实体化（否则滚动会出现空白）。见 docs/ops/perf-baseline.md §20。</summary>
     public static void ScrollCheck(string key = "settings")
     {
