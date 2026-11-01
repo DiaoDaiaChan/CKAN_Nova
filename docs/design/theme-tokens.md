@@ -856,3 +856,24 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | 门禁 | `SmoothScrollMotionTests` 4 项：跨屏滑入不瞬跳、已可见不动、换目标保持当前位置（一帧走完新距离一半以内）、关闭档直落 |
 
 不接：鼠标滚轮与触摸拖动（用户已经在直接控制偏移，再加弹簧会"抢方向"）、横向内容流（`Viewport.Width > Extent.Height` 的那些由 `ScrollRevealMotion` 的横向分支负责入场）。
+
+
+#### 5.9.29 整页幕布过渡：两页都不透明，只让接缝扫过去
+
+`src/CkanUI.App/Animations/SpringPageSlide.cs`。`TransitioningContentControl` 的`PageTransition` 从"恒为 null"
+（换页硬切、只有新页浮入）改成幕布式过渡：**两页始终不透明、互不重叠**，旧页让到一侧、新页从另一侧补位。
+
+| 项 | 口径 |
+| --- | --- |
+| 为什么以前恒为 null | 三种旧做法（CrossFade+PageSlide、接力淡出、叠化）都要求两页同时在屏幕上且被改不透明度：文字双影、亮度 38.3→28.6→34.7 的凹陷、叠印重影 |
+| 现在的形状 | 只动 `TranslateX`：新页 `-sign·travel → 0`，旧页 `0 → +sign·travel`；`sign = forward ? +1 : -1` |
+| 行程 | `travel = min(新页宽度或 640, 900) × MotionBudget.Amplitude`（`MaxTravelPixels=900`、`FallbackTravelPixels=640`） |
+| 收敛 | 帧泵上的 `SettleTicker` 累计 `SettleSeconds=0.42`（`SpringSpec.Glide` 0.32 s + 余量），到点把两页 `snap` 回 0 |
+| 打断 | `CancellationToken` 注册 `Complete`：下一次换页立刻结束等待并把两页归位，新的过渡从干净状态起步 |
+| 线程 | 续体可能落在帧泵之外（取消路径），写控件前 `Dispatcher.UIThread.CheckAccess()`，必要时 `InvokeAsync`；真实应用里不额外调度 |
+| 三档 | `none` → `PageTransition = null`（瞬时替换）；`reduced` 行程 ×0.45；`full` 全行程 |
+| 接入点 | `MainWindow.ApplyPageTransition()`：`PageHost.PageTransition = MotionBudget.IsCollapsed ? null : SlideTransition` |
+| 门禁 | `SpringPageSlideTests` 4 项：正向扫过（新页先在外、旧页随后让位、120 帧两页归零、两页不透明度始终为 1）、反向镜像、取消即归位、关闭档不接管 `RenderTransform` |
+
+不做：任何不透明度混合（双影的根源）、3D 翻转（文字在 headless/Skia 下会发虚）、按导航层级换方向（`PageHost` 拿不到导航深度，
+硬塞方向会出现"同级页签也横着甩"的假语义）。
