@@ -574,6 +574,9 @@ public sealed partial class MainWindow : Window
         // 标题栏/状态条/工具条不在 PageHost 里，页面级挂载扫不到；整窗挂一次，导航树由 IconHoverRole 负责，这里跳过。
         HoverLiftMotion.AttachShell(this);
 
+        // 窗口背景图也在 PageHost 外面：只接管一次，源不变就不会重播。
+        ImageLoadMotion.Attach(this);
+
         if (PageHost is null || MotionBudget.IsCollapsed)
         {
             return;
@@ -587,6 +590,9 @@ public sealed partial class MainWindow : Window
 
         // 卡片悬停抬升改由弹簧帧驱动：鼠标扫过一排卡片时位移之间带速度，而不是每张都从零起步。
         HoverLiftMotion.Attach(PageHost);
+
+        // 缩略图/截图解码完就是一张位图，渲染出来是"啪"地出现；源变了就淡一次。
+        ImageLoadMotion.Attach(PageHost);
 
         // 选中行与键盘焦点原来只有静态描边/背景，补一次弹簧冲量；整窗挂一次，标题栏按钮的键盘焦点也在内。
         SelectionMotion.Attach(this);
