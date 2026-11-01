@@ -213,6 +213,45 @@ public sealed class ScrollRevealMotionTests
         }
     }
 
+    [Test]
+    public void HorizontalFeedsSlideInFromTheRight()
+    {
+        var strip = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal };
+        var cards = new Border[20];
+        for (var i = 0; i < cards.Length; i++)
+        {
+            cards[i] = new Border { Width = 100, Height = 60, Background = Brushes.Transparent };
+            strip.Children.Add(cards[i]);
+        }
+
+        var scroll = new ScrollViewer
+        {
+            Width = 260,
+            Height = 120,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            Content = strip,
+        };
+        var window = HeadlessAppHost.CreateTestWindow(scroll, 320, 240);
+
+        try
+        {
+            Assert.That(ScrollRevealMotion.Attach(window), Is.EqualTo(1));
+
+            scroll.Offset = new Vector(200, 0);
+            Tick(4);
+
+            var entering = cards[3];
+            Assert.That(TranslateX(entering), Is.GreaterThan(0.5), "横向信息流从右侧滑进来");
+            Assert.That(TranslateY(entering), Is.EqualTo(0).Within(0.001), "横向流不动 Y");
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
     private static (Window Window, ScrollViewer Scroll, Border[] Rows) CreateFeed(int rowCount)
     {
         var stack = new StackPanel { Width = 260 };
@@ -249,6 +288,12 @@ public sealed class ScrollRevealMotionTests
         control.RenderTransform is TransformGroup { Children.Count: 2 } group
         && group.Children[0] is ScaleTransform
         && group.Children[1] is TranslateTransform;
+
+    private static double TranslateX(Control control) =>
+        control.RenderTransform is TransformGroup group
+        && group.Children.OfType<TranslateTransform>().FirstOrDefault() is { } translate
+            ? translate.X
+            : 0d;
 
     private static double TranslateY(Control control) =>
         control.RenderTransform is TransformGroup group

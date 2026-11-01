@@ -20,7 +20,8 @@ namespace CkanUI.App.Animations;
 /// 第一次见到时就已经在视口里的（数据晚到、首屏、虚拟化跳转）直接登记为看过，不补演——
 /// 否则滚动一下整屏会同时闪一下。</para>
 /// <para>演过写进 <see cref="Seen"/>，回滚再下来不重演；滚出顶边的元素登记为看过。</para>
-/// <para>只动 <c>translateY</c> 与不透明度，不参与布局；关闭档整层不挂。</para>
+/// <para>横向信息流（标签带、横向卡片条）同样覆盖：内容比视口宽且宽度是主轴时改判左右边，动的是 <c>translateX</c>。</para>
+/// <para>只动一个方向的平移与不透明度，不参与布局；关闭档整层不挂。</para>
 /// </remarks>
 public static class ScrollRevealMotion
 {
@@ -144,7 +145,15 @@ public static class ScrollRevealMotion
     /// <summary>评估一次；只有找到了可演的行层才返回 <see langword="true"/>。</summary>
     private static bool RevealNow(ScrollViewer scrollViewer, ScrollState state, bool initial)
     {
-        if (MotionBudget.IsCollapsed || scrollViewer.Viewport.Height <= 0d)
+        if (MotionBudget.IsCollapsed)
+        {
+            return false;
+        }
+
+        // 横向信息流（标签带、横向卡片条）走同一条判定，只是把"上/下边"换成"左/右边"。
+        var horizontal = IsHorizontal(scrollViewer);
+        var viewport = horizontal ? scrollViewer.Viewport.Width : scrollViewer.Viewport.Height;
+        if (viewport <= 0d)
         {
             return false;
         }
@@ -162,21 +171,21 @@ public static class ScrollRevealMotion
             return false;
         }
 
-        var viewport = scrollViewer.Viewport.Height;
         var offset = MotionBudget.Amplitude(OffsetPixels);
-        var baseY = panelOrigin.Value.Y;
+        var baseY = horizontal ? panelOrigin.Value.X : panelOrigin.Value.Y;
         var pending = new List<Control>(candidates.Count);
 
         foreach (var item in candidates)
         {
-            if (item.Bounds.Height <= 0d)
+            var extent = horizontal ? item.Bounds.Width : item.Bounds.Height;
+            if (extent <= 0d)
             {
                 pending.Add(item);
                 continue;
             }
 
-            var top = baseY + item.Bounds.Y;
-            var bottom = top + item.Bounds.Height;
+            var top = baseY + (horizontal ? item.Bounds.X : item.Bounds.Y);
+            var bottom = top + extent;
             var data = KeyOf(item);
             var known = state.LastTop.TryGetValue(item, out var last) && ReferenceEquals(last.Data, data);
             var previousTop = last.Top;
@@ -221,8 +230,16 @@ public static class ScrollRevealMotion
             MarkSeen(state, item);
             var rest = item.Opacity > 0d ? item.Opacity : 1d;
             var spring = TransformSpring.For(item, SpringSpec.Glide);
-            spring.MoveTo(y: offset, opacity: 0d, snap: true);
-            spring.MoveTo(y: 0d, opacity: rest);
+            if (horizontal)
+            {
+                spring.MoveTo(x: offset, opacity: 0d, snap: true);
+                spring.MoveTo(x: 0d, opacity: rest);
+            }
+            else
+            {
+                spring.MoveTo(y: offset, opacity: 0d, snap: true);
+                spring.MoveTo(y: 0d, opacity: rest);
+            }
         }
 
         state.Candidates = pending;
@@ -283,6 +300,12 @@ public static class ScrollRevealMotion
         state.Candidates = best;
         return (bestNode, best);
     }
+
+    /// <summary>内容比视口宽、且宽度是主轴时按横向信息流处理。</summary>
+    private static bool IsHorizontal(ScrollViewer scrollViewer) =>
+        scrollViewer.Viewport.Width > 0d
+        && scrollViewer.Extent.Width > scrollViewer.Viewport.Width + 1d
+        && scrollViewer.Extent.Width > scrollViewer.Extent.Height;
 
     private static List<Control> VisibleChildren(Visual node)
     {
