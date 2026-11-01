@@ -872,7 +872,7 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | 打断 | `CancellationToken` 注册 `Complete`：下一次换页立刻结束等待并把两页归位，新的过渡从干净状态起步 |
 | 线程 | 续体可能落在帧泵之外（取消路径），写控件前 `Dispatcher.UIThread.CheckAccess()`，必要时 `InvokeAsync`；真实应用里不额外调度 |
 | 三档 | `none` → `PageTransition = null`（瞬时替换）；`reduced` 行程 ×0.45；`full` 全行程 |
-| 接入点 | `MainWindow.ApplyPageTransition()`：`PageHost.PageTransition = MotionBudget.IsCollapsed ? null : SlideTransition` |
+| 接入点 | **已不接线（第 31 轮回退）**：`ApplyPageTransition()` 恒为 `null`，见 §5.9.36 |
 | 门禁 | `SpringPageSlideTests` 5 项：正向扫过（新页先在外、旧页随后让位、120 帧两页归零、两页不透明度始终为 1）、反向镜像、取消即归位、关闭档不接管 `RenderTransform`、**宿主集成**（真 `TransitioningContentControl` 换 `Content` 时两个呈现器确实横移并回位） |
 
 与页面入场编排的分工：幕布在场时 `PlayPageReveal` 不再给 `PageHost` 本身加减整页姿态——宿主机一淡，旧页跟着一起暗，
@@ -971,3 +971,26 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 | 帧泵韧性 | `MotionFramePump.OnFrame` 逐根 `Advance` 包 `try/catch`：一根弹簧炸了只摘它自己，同一窗口其它动画继续排帧 |
 | 精简档行程 | `SpringPageSlide.ReducedTravelPixels = 48d`：精简档按 `MotionBudget.Amplitude` 缩到 0.45 倍后仍有 400 px 左右，对"精简"就是一次整屏横扫，故再夹一次上限 |
 | 门禁 | `SpringSettleTests` 3 项（snap 出来的算静止、刚 `MoveTo` 的算在动、`hold` 排队算在动；未挂树的控件 `MoveTo` 会 `SnapAll` 立刻静止，必须放进真窗口）+ `SpringPageSlideTests.ReducedMotionKeepsTheCurtainShort`（起点 ≤ 48+1 px，两个方向都归 0） |
+
+#### 5.9.36 换页回到"瞬时替换 + 单页方向化入场"（幕布下线）
+
+第 24 轮把 `PageTransition` 换成了幕布（§5.9.29），单次换页确实干净；但连续快速切页时**打断手感丢了**：
+旧过渡被取消的那一帧要先把两页归位、新过渡再从零起步，屏幕上看到的是"停一下再走"。
+用户反馈"快速切换的打断效果也没有了"（m03742），于是回到更早的形态并补上打断连续性。
+
+| 项 | 口径 |
+| --- | --- |
+| 现在怎么换 | `MainWindow.ApplyPageTransition()` 恒定 `PageHost.PageTransition = null`：换页瞬时替换，屏幕永远只有一页（顺带消除了两页同时在场导致的工具条叠影） |
+| 入场由谁做 | `PlayPageReveal(direction)` → `PageRevealSpec.For(direction)` 摆起点姿态，再用**同一个** `TransformSpring` 回位；位移带页签方向，一级导航无横向参照时只上浮 |
+| 打断怎么处理 | 只有 `_pageReveal.IsSettled`（上一段已落位）才重新 `snap` 起点；还在飞的时候**不再重摆姿态**，让当前这段带着速度收尾。重摆 = 把页面拉回起始位移，连点页签就是"跳一下再走" |
+| 三档 | `none`：`PageRevealSpec.For` 返回恒等姿态，一步落位；`reduced`：行程 ×0.45；`full`：横切水平 36 px / 纵向 13 px，一级导航上浮 28 px |
+| 与页内编排的分工 | 整页姿态只碰 `PageHost` 一个节点的位移/缩放/不透明度；块级错峰、文字逐行、滚动/数据到达、缩略图、页签、展开、悬停/按压全在各模块，互不干扰 |
+| 幕布实现还留着吗 | 留着（`SpringPageSlide` + 5 项用例），但**不在链路上**。将来若要再做整页过渡，得先解决"取消即归位要占一帧、新过渡从零起步"这个固有停顿，否则连点页签仍然会断 |
+| 门禁 | `PageRevealSpecTests` 7 项 + `SpringPageSlideTests` 5 项（保留实现的自检）；真实窗口探针见下 |
+
+探针实测（headless + Skia 起真 `MainWindow`，连切 8 次、每次隔 3 帧）：
+前 5 次属于同一导航组（`direction = 0`，只上浮），`Y` 从 20.7 单调衰减到 0.0；
+第 6 次 `PlayPageReveal` 拿到横向方向、且上一段已落位，于是完整姿态重新起跳（`X = 22.3 → 15.0 → 9.5`），同样单调收尾。
+回退前的采集里出现过 `15.0 → 30.8` 这种"被打断就跳回起点"的上升沿，是这次要消灭的。
+
+不做：透明度交叉淡化（双影）、按导航层级推算横向方向（`PageHost` 拿不到深度，会造出"同级页签也横着甩"的假语义）。
