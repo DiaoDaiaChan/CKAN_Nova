@@ -21,6 +21,12 @@ namespace CkanUI.App.Diagnostics;
 /// </summary>
 internal static class NavigationProbe
 {
+    /// <summary>当前活动页面视图的可视节点数：用来判断慢是因为节点膨胀还是别的原因。</summary>
+    private static int ActiveNodeCount(TopLevel window)
+        => window is MainWindow { ActivePageView: { } active }
+            ? System.Linq.Enumerable.Count(Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(active))
+            : 0;
+
     /// <summary>相邻两页之间的静置时间，让动画与队列收尾。</summary>
     private const int GapMilliseconds = 900;
 
@@ -170,7 +176,7 @@ internal static class NavigationProbe
                 path,
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"[nav] r{round} {key} assign={assign:F1}ms layout={layout:F1}ms paint={paint:F1}ms frames={frames.Count} maxGap={maxGap:F1}ms p50={p50:F1}ms p95={p95:F1}ms dropped={dropped}"));
+                    $"[nav] r{round} {key} assign={assign:F1}ms layout={layout:F1}ms paint={paint:F1}ms frames={frames.Count} maxGap={maxGap:F1}ms p50={p50:F1}ms p95={p95:F1}ms dropped={dropped} nodes={ActiveNodeCount(window)}"));
 
             if (Environment.GetEnvironmentVariable("CKANUI_NAV_SCROLL") == "1")
             {
