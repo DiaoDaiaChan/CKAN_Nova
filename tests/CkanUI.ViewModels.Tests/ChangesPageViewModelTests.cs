@@ -697,5 +697,22 @@ public sealed class ChangesPageViewModelTests
         Assert.That(vm.StatusText, Does.Contain("已取消选择虚拟模组提供者，未执行任何操作"));
         Assert.That(vm.State, Is.EqualTo(ChangeExecutionState.Ready));
     }
+    [Test]
+    public async Task Reactivation_WithSameRequests_SkipsRecompute()
+    {
+        var vm = Create();
+        vm.SetRequests(ChangesFakes.Requests("a"));
+        await vm.PendingWork;
+        var buildsAfterFirst = _changeSets.BuildCount;
+        var firstWork = vm.PendingWork;
+
+        vm.Deactivate();
+        vm.Activate();
+        vm.Deactivate();
+        vm.Activate();
+
+        Assert.That(_changeSets.BuildCount, Is.EqualTo(buildsAfterFirst));
+        Assert.That(vm.PendingWork, Is.SameAs(firstWork));
+    }
 }
 

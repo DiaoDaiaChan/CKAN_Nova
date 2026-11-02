@@ -1432,3 +1432,42 @@ Avalonia 的 `Measure`/`Arrange` 缓存挂在可视树上，**一旦 detach 就�
 - `perf-probe --visibility-cost <key>`：`show`/`hide` 必须是**个位数 ms**；若又出现几百 ms，说明该页仍在 detach（常见原因：容器换成 `ContentPresenter`、或列表用了回收型面板）。
 - `perf-probe --phase-toggle <key>`（探针来自并行 agent 的 `PhaseProbe.cs`）：`coldAttach` 与 `reattachAfterDetach` 的差值即常驻收益上限。
 - 真机：`CKANUI_NAV_TRACE=<文件>` 启动应用，看每页 `[nav] rN <key> layout= maxGap=`；R2 应稳定落在几十 ms 内。
+
+## §30 模组页：换页回来不再重建行投影
+
+### 30.1 现象与归属
+`PageStage` 常驻（§29）之后，模组页第二次点进去仍是全场最贵的一档。真机 `CKANUI_NAV_TRACE` R2（镜像实例，336 模组）：`layout=422.1ms maxGap=377.8ms`，而节点数与第一次相同——布局没有变贵，是**行投影被重算、DataGrid 重新落地容器**。
+
+调用链：`ModsPageViewModel.OnActivated`（`src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:983`）→ `ReloadFromSnapshots()`（:1171）→ `ModsRowProjection.Merge(_repositories.Current, _registry.Current)` + `ApplyFilter()`。换页回来时两份快照一个字节都没变，这次重建纯属空转。
+
+### 30.2 改法
+`ReloadFromSnapshots(bool force = false)`：先比较 `(RepositorySnapshot, RegistrySnapshot, 实例名)` 三个引用/值，与上次成功重建时一致就直接返回；不一致才往下走，走完把签名记下。
+
+`force: true` 用在 4 个「事实已变但不是快照事件」的入口：标签写入后（:777，标签不体现在快照引用上）、切实例（:1133）、手动刷新仓库索引后（:1963）、`TrimProjection()`（:1152 会清空 `Rows`/`_all`，必须把签名置无效，否则下次换页回来会跳过重建、显示空表）。
+
+### 30.3 实测（真机 R2，同脚本同实例）
+| 指标 | 改前 | 改后 |
+| --- | ---: | ---: |
+| `layout` | 422.1 ms | **252.7 ms** |
+| `maxGap`（最长单帧） | 377.8 ms | **228.2 ms** |
+| `assign`（激活） | 45.0 ms | 26.8 ms |
+
+剩余 253 ms 属 `IsVisible` 翻转触发的整棵重排（Avalonia 在可见性变化时清 measure 缓存），与行投影无关。
+
+### 30.4 为什么没继续压
+把 `IsVisible` 换成「移出视口 / Opacity=0」会改变渲染路径（仍在画），违反「尽可能小影响视觉效果」；行投影本身在 336 模组下只有个位数 ms。
+
+## §31 变更集页：请求集没变就不重算
+
+### 31.1 现象与归属
+`ChangesPageViewModel.OnActivated`（`src/CkanUI.ViewModels/Pages/ChangesPageViewModel.cs:315`）无条件 `RebuildFromRequests()` → `RebuildCoreAsync()` → `_changeSets.BuildAsync(Requests)`。依赖解析是**同步、秒级**的活：计时路 agent 的无头交叉校验里，带请求的 `changes` 页 `activate=917.19ms`（节点只有 89），空请求时是毫秒级——数据驱动的重活，不是布局。
+
+### 31.2 改法
+`RebuildFromRequests(bool force = false)`：`ReferenceEquals(Requests, _builtRequests)` 时直接返回。`SetRequests` 与内部装载都会先换 `Requests` 引用，正常路径不受影响；`ClearRequests()` 把签名置 null。
+
+### 31.3 证据
+- 单测 `ChangesPageViewModelTests.Reactivation_WithSameRequests_SkipsRecompute`：两次 `Deactivate/Activate` 后 `BuildCount` 不变、`PendingWork` 仍是同一个 Task。
+- 全量 ViewModels 1641 例全绿（唯一红是 Architecture 的 `KspConfigPageViewModel` 插值文案，他人未跟踪新增文件，非本轮）。
+
+### 31.4 口径提醒
+`changes` 的耗时取决于**有没有待应用的请求**：不带请求的探针跑只会得到个位数 ms，不能拿它证明「这页不慢」。复测前必须先 `SetRequests`（真机上就是先在模组页勾几个模组）。

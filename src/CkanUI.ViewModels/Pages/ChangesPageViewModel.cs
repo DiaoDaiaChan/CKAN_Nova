@@ -82,6 +82,9 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     /// <summary>当前待计算的请求集合（由模组页或调用方通过 <see cref="SetRequests"/> 灌入）。</summary>
     public IReadOnlyCollection<ChangeRequest> Requests { get; private set; } = Array.Empty<ChangeRequest>();
 
+    /// <summary>上一次触发重算时用的请求集合（引用比较，用于跳过重复计算）。</summary>
+    private IReadOnlyCollection<ChangeRequest>? _builtRequests;
+
     /// <inheritdoc />
     public event Action? RequestsApplied;
 
@@ -399,8 +402,18 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     }
 
     /// <summary>按当前请求集合重算变更集（结果落在 <see cref="PendingWork"/> 上，便于测试等待）。</summary>
-    public void RebuildFromRequests()
+    /// <remarks>
+    /// 请求集合未变（引用相同）时直接返回：换页回来会走到这里，而依赖解析是秒级同步活，
+    /// 数据没变就不该重算（302 篇 §31）。
+    /// </remarks>
+    public void RebuildFromRequests(bool force = false)
     {
+        if (!force && ReferenceEquals(Requests, _builtRequests))
+        {
+            return;
+        }
+
+        _builtRequests = Requests;
         PendingWork = RebuildCoreAsync();
     }
 
@@ -409,6 +422,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     {
         _recommendationsHandled = false;
         Requests = Array.Empty<ChangeRequest>();
+        _builtRequests = null;
         Preview = ChangesFormatter.EmptyPreview;
         ExecutionPercent = 0;
         ResultText = string.Empty;

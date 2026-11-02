@@ -774,7 +774,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             }
 
             // 先重建列表（会顺带刷新状态栏摘要），再写提示语，否则提示会被摘要立刻覆盖。
-            ReloadFromSnapshots();
+            ReloadFromSnapshots(force: true);
             StatusText = next ? Text("已把 {0} 加入{1}。", LocalizationKeys.ManageModsLabelAdded, name, label) : Text("已把 {0} 移出{1}。", LocalizationKeys.ManageModsLabelRemoved, name, label);
         }
         catch (Exception ex)
@@ -1130,7 +1130,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             // 切实例：清空选择集，避免把旧实例的勾选带到新实例（06 篇 M1 门禁"切实例不串台"）。
             _selected.Clear();
             SelectedRow = null;
-            ReloadFromSnapshots();
+            ReloadFromSnapshots(force: true);
         }
         catch (Exception ex)
         {
@@ -1152,6 +1152,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     public int TrimProjection()
     {
         var released = Rows.Count + _all.Count;
+        _hasLoadedSnapshots = false;
         if (released == 0)
         {
             return 0;
@@ -1167,9 +1168,29 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
 
     // ---- 核心动作 ---------------------------------------------------------
 
+    private object? _loadedRepositorySnapshot;
+    private object? _loadedRegistrySnapshot;
+    private string? _loadedInstanceName;
+    private bool _hasLoadedSnapshots;
+
     /// <summary>从当前两份快照重建全量行并重新过滤（幂等，不做 IO）。</summary>
-    public void ReloadFromSnapshots()
+    /// <param name="force">
+    /// true 时无条件重建；false（默认）在两份快照与当前实例都未变时直接返回。
+    /// 换页回来属于后者：数据没变、行也还在，重建只会让 DataGrid 重新落地容器（302 篇 §30）。
+    /// </param>
+    public void ReloadFromSnapshots(bool force = false)
     {
+        var repositorySnapshot = _repositories.Current;
+        var registrySnapshot = _registry.Current;
+        var instanceName = _instances.Current?.Name;
+        if (!force && _hasLoadedSnapshots
+            && ReferenceEquals(repositorySnapshot, _loadedRepositorySnapshot)
+            && ReferenceEquals(registrySnapshot, _loadedRegistrySnapshot)
+            && string.Equals(instanceName, _loadedInstanceName, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         try
         {
             _all = ModsRowProjection.Merge(_repositories.Current, _registry.Current);
@@ -1186,6 +1207,10 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         RebuildCategoryChips();
         RebuildSelectionPreview();
         ApplyFilter();
+        _loadedRepositorySnapshot = repositorySnapshot;
+        _loadedRegistrySnapshot = registrySnapshot;
+        _loadedInstanceName = instanceName;
+        _hasLoadedSnapshots = true;
     }
 
     /// <summary>按当前搜索/过滤/排序重建可见行（纯计算，可 headless 调用）。</summary>
@@ -1960,7 +1985,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             var refreshed = await _repositories.RefreshAsync().ConfigureAwait(true);
             var registry = await _registry.RefreshAsync().ConfigureAwait(true);
 
-            ReloadFromSnapshots();
+            ReloadFromSnapshots(force: true);
 
             if (!refreshed.IsSuccess)
             {
