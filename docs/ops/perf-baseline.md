@@ -1604,3 +1604,57 @@ Windows 快路径 `ScanWindows`：`EnumProcesses`(psapi) → 每个 pid `OpenPro
 | 已安装文件 | **101.2** | **36.8** | 52 |
 
 四个页签是内联 `TabItem`（不是 `ItemsSource`），切换不重建控件实例，所以成本只有该页内容的首次测量（101 ms 那次是「已安装文件」列表的首次落地）。节点只有 43–105，没有可压缩的结构；继续改只能动视觉，按铁律不做。
+
+### 35.7 预热扩到全部 24 个导航键
+
+§35.3 只预热了首次成本最高的 10 个页面。把剩下的页面按同一探针逐轮扫过，未预热的页面首次进入仍要付一次性排版成本（真机、镜像实例 336 模组，ms，layout / maxGap）：
+
+| 页面 | 预热前首次 | 备注 |
+| --- | ---: | --- |
+| plugins | 1056.4 / 547.4 | 插件页，与 logs 同量级 |
+| installhistory | 517.3 / 310.2 | |
+| downloadstats | 324.4 / 293.4 | |
+| modtext | 268.2 / 251.4 | |
+| ships | 196.1 / 160.2 | 用户点名的子页签之一 |
+| dedup / cache / repos / flags / loadingimages / playtime / kspconfig | 60–180 | |
+
+因此 `WarmupOrder` 从 10 项扩到 24 项，顺序按上表与 §35.3 的实测成本从贵到便宜排（最贵的先热）：
+
+```text
+logs, plugins, installhistory, modpack-editor, mods, modtext, dedup, downloadstats,
+cache, instances, modconfig, flags, ships, settings, loadingimages, repos,
+kspconfig, home, changes, modpacks, playtime, content, unmanaged, saves
+```
+
+节拍仍是每 420 ms 一张，且沿用 §35.5 的规则：最近 1.2 s 内用户换过页就让位，`settings` 这类重页面还要求窗口失焦或已空闲 45 s。全部 24 页预热完约需 10–12 s（预热工作本身合计约 1.3–1.5 s，其余时间在等节拍）。
+
+完成后真机复测（`CKANUI_NAV_WARMUP_MS=18000`，等预热跑完再遍历）：
+
+- 首次进入（R1）除 logs 外全部 ≤ 500 ms；剩余大头 mods 492 / downloadstats 324 / modtext 268 / plugins 210 / ships 196 / installhistory 153。
+- 二次进入（R2）除 unmanaged 437、downloadstats 102、cache 92、modconfig 58、saves 38 外全部 ≤ 120 ms。
+
+内存代价（`tools/perf-probe/Measure-Soak.mjs --minutes 3`，同一实例，全页预热）：
+
+| 口径 | 10 页预热（§35.4） | 24 页预热 |
+| --- | ---: | ---: |
+| 工作集 min/max | 444.8 / 457.9 MB | 460.1 / 468.9 MB |
+| private min/max | 397.7 / 410.6 MB | 398.1 / 407.7 MB |
+| 线程 | 105–111 | 105–113 |
+| 空转 CPU | 0.1–0.2% 单核 | 0.0% 单核 |
+
+即常驻 14 个额外页面视图的代价是工作集 **+8–13 MB**、private 不变。视图实例都是同一个 DI 单例 VM 上的视图，行数据来自各自 VM 已有的集合，没有额外投影副本。
+
+### 35.8 logs 页 2.4 s 的复核：是 sweep 叠加，不是页面成本
+
+§35.7 那次整轮 sweep 里 `logs` 首次 `layout=2442 ms / maxGap=1663 ms`，与 §35.3「预热后 97.9 ms」矛盾。用 `CKANUI_NAV_ONLY=logs` 只跑这一页复核（`CKANUI_NAV_WARMUP_MS=3000`）：
+
+```text
+[nav] r1 logs assign=54.5ms layout=375.3ms paint=378.7ms frames=2 maxGap=259.5ms
+[logsdiag] refresh=49.8ms rows=27 events=27
+```
+
+`[logsdiag]` 是临时插在 `LogPageViewModel.Refresh()` 上的分段计时（`CKANUI_LOGS_DIAG=1` 才写，取证后已移除）：一次刷新 49.8 ms，要画 27 行。日志页本身不贵 —— 2442 ms 那一轮是「预热队列还在跑 + 机器上有并行编译」的叠加值，不是单页成本。
+
+同一轮里的 `r2 layout=3009ms frames=148` 也是探针口径问题：第二轮探针在页面持续重绘（日志页订阅了 store 的变更）时等 `Loaded` 派发，等到的其实是连续 148 帧之后的那个回调，`maxGap` 才 315 ms。判据改成看 `maxGap`（真实最长单帧）而不是等派发的 wall time。
+
+教训（写进工具说明）：**整轮 sweep 的绝对值会被机器负载与自身的预热队列污染，单页结论必须用 `CKANUI_NAV_ONLY` 单独复核，并看 `maxGap`。**

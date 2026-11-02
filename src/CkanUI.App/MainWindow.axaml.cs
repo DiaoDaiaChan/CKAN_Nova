@@ -705,8 +705,10 @@ public sealed partial class MainWindow : Window
     /// <summary>预热顺序：按实测首次进入成本从高到低（§21.2 / §27.2）。</summary>
     private static readonly string[] WarmupOrder =
     [
-        "logs", "settings", "unmanaged", "modpack-editor", "mods",
-        "content", "downloadstats", "modpacks", "ships", "saves"
+        "logs", "plugins", "installhistory", "modpack-editor", "mods", "modtext", "dedup",
+        "downloadstats", "cache", "instances", "modconfig", "flags", "ships", "settings",
+        "loadingimages", "repos", "kspconfig", "home", "changes", "modpacks", "playtime",
+        "content", "unmanaged", "saves"
     ];
 
     private void ShowPage(object? page)

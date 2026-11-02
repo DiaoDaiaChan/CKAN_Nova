@@ -102,7 +102,12 @@ internal static class NavigationProbe
             return;
         }
 
-        var keys = shell.NavItems.Select(item => item.Key).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var only = Environment.GetEnvironmentVariable("CKANUI_NAV_ONLY");
+        var keys = shell.NavItems
+            .Select(item => item.Key)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(key => string.IsNullOrWhiteSpace(only) || string.Equals(key, only, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
         TryWrite(path, $"[nav] start keys={keys.Length}");
 
         for (var round = 1; round <= 2; round++)
