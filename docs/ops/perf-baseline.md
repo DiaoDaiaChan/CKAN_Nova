@@ -2116,3 +2116,63 @@ src/CkanUI.App/MainWindow.axaml.cs 的 private const long WarmPageReclaimBytes �
 ### 46.4 附带：节点门禁的四个阈值按实测重标
 
 `tools/perf-probe/PageNodeGate.cs`：`instances` 235→320、`cache` 175→420、`modtext` 330→420（并行改版把这三页撑大，按实测重标），新增 `kspconfig` 800（虚拟化后的新水位，20 行左右的实体化容器）。门禁恢复 ALL PASS。
+
+## §47 当前状态汇总（换页/内存/CPU 总账）
+
+### 47.1 换页：首次进入（R1）与再次进入（R2）
+
+真机 Release、镜像实例 Probe (Steam mirror) 336 模组、`CKANUI_NAV_WARMUP_MS=30000`，单位 ms，格式 layout / maxGap：
+
+| 页面 | R1 | R2 |
+| --- | ---: | ---: |
+| settings | 494.6 / 443 | 36.7 / 33 |
+| ships | 197.4 / 76 | 23.8 / 33 |
+| unmanaged | 162.0 / 144 | 50.6 / 39 |
+| modconfig | 90.2 / 46 | 93.7 / 83 |
+| instances | 80.1 / 44 | 36.1 / 32 |
+| loadingimages | 80.0 / 45 | 36.9 / 33 |
+| plugins | 77.1 / 91 | 20.2 / 35 |
+| installhistory | 72.9 / 68 | 36.2 / 33 |
+| cache | 71.9 / 1240（尖峰） | 41.5 / 34 |
+| playtime | 71.2 / 53 | 15.5 / 33 |
+| kspconfig | 66.8 / 48 | 21.9 / 33 |
+| home | 63.3 / 59 | 18.6 / 35 |
+| 其余 12 页 | ≤49.2 | ≤34.1 |
+
+cache R1 的 1240 ms 单帧是负载下的离群值：同一页单页复核三次为 107.7 / 332.6 / 374.7 ms（maxGap 217 / 301 / 401）。
+
+### 47.2 内存
+
+| 口径 | 数值 |
+| --- | ---: |
+| 启动峰值（12 页预热 + 430 MB 回收门限） | 640.8 MB |
+| 稳态工作集（soak 1.5 分钟） | 637.8 MB |
+| 峰值 private | 569.3 MB |
+| 托管堆（ClrMD，2.09M 对象） | 170.6 MB |
+
+托管堆 top：`Free` 18.56 MB、`DynamicResourceExpression` 18.02 MB / 138,912 个、`StyleInstance` 17.82 MB / 166,797 个、`AvaloniaPropertyDictionary<IValueEntry>.Entry[]` 15.40 MB / 167,440 个、`IValueEntry[]` 8.37 MB、`StyleClassActivator` 7.96 MB / 173,941 个、`string` 5.18 MB。
+
+结论：托管侧的大头是**常驻页面树的 Avalonia 样式实例**（24 页挂进 PageStage 的代价），不是业务数据——早期 229 MB 样本里的 CKAN 领域对象这次连 top-20 都没进。
+
+### 47.3 CPU / GPU
+
+- 空转（soak 尾部）：0.0–2.4% 单核；`--gate-mem` 光栅档 11.59% 单核（含 60 帧/秒的全窗离屏渲染，是压力值不是空闲值）。
+- 渲染路径：ANGLE → D3D11 硬件加速（进程加载 `av_libGLESv2.dll` / `d3d11.dll` / `Avalonia.Skia.dll`），不是软件光栅。
+- 单帧成本（`--render-cost` p50）：mods 2.03 ms / settings 0.47 / downloadstats 0.35，其余 ≤0.56 ms。
+
+### 47.4 门禁
+
+| 门禁 | 结果 |
+| --- | --- |
+| `--gate-mem` | ALL PASS（滚动 97,675 B/帧、首屏后 202.5 MB、峰值 229.5 MB、空转 11.59%、线程 9） |
+| `--gate-pages` | ALL PASS（24 页节点数全部在上限内，含新虚拟化的 kspconfig 598/800） |
+| 全量测试 | 3718 例，唯一红是未跟踪 `KspConfigPageViewModel.cs` 触发的架构用例（非本轮引入） |
+
+### 47.5 已知未解（都有实测理由）
+
+| 项 | 现状 | 为什么不继续 |
+| --- | --- | --- |
+| settings 首次进入 | 494.6 / 443 ms | 36 行 × 65 节点，成本 ∝ 节点数；四条虚拟化路线全否（§20），行模板改动会改视觉 |
+| ships / unmanaged 首次进入 | 197 / 162 ms | TreeView 与列表的一次性实体化，改展开策略＝改视觉 |
+| downloadstats / modconfig 再进入 | 122 / 94 ms | DataGrid 200 行与双层 ItemsControl 的行容器成本 |
+| 托管堆 170 MB | 稳态 | 常驻页面树的样式实例；召回换页速度就要留住它们，二者是同一个开关 |
