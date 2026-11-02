@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Headless;
 using Avalonia.Layout;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CkanUI.App;
@@ -1015,6 +1016,79 @@ public static class PageSwitchProbe
 
         host.Close();
         HeadlessAppHost.PumpJobs();
+    }
+
+    /// <summary>量单个页面「一整帧」的光栅成本：把页面视图按窗口尺寸渲染进离屏位图，逐帧计时。</summary>
+    /// <remarks>
+    /// 为什么需要这个数：换页成本（--pages-real）只覆盖「切过去」那一下，用户感知的掉帧是页面**留在屏幕上**时每帧的重绘成本。
+    /// 60fps 一帧只有 16.7ms 预算，一个页面如果渲染本身就要 10ms 以上，任何动画（星空、悬停、弹簧）都会掉帧。
+    /// 这里用 RenderTargetBitmap 走与真机相同的 Skia 管线，量的是相对成本，不是 GPU 合成后的绝对帧时。
+    /// </remarks>
+    public static void RenderCost(string? onlyKey = null, int frames = 60)
+    {
+        HeadlessAppHost.EnsureInitialized();
+        using var services = ServiceRegistration.Build(() => null);
+        var instanceService = (IInstanceService)services.GetService(typeof(IInstanceService))!;
+        if (Environment.GetEnvironmentVariable("CKANUI_PROBE_INSTANCE") == "1")
+        {
+            instanceService.RefreshAsync().GetAwaiter().GetResult();
+            if (instanceService.Current is null && instanceService.Instances.Count > 0)
+            {
+                instanceService.SwitchAsync(instanceService.Instances[0].Name).GetAwaiter().GetResult();
+            }
+        }
+
+        HeadlessAppHost.PumpJobs();
+
+        var keys = onlyKey is null
+            ? ServiceRegistration.PageTypes.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray()
+            : new[] { onlyKey };
+
+        using var bitmap = new RenderTargetBitmap(new PixelSize(1280, 800), new Vector(96, 96));
+        foreach (var key in keys)
+        {
+            if (!ServiceRegistration.PageTypes.TryGetValue(key, out var type))
+            {
+                Console.WriteLine($"[RenderCost] unknown key {key}");
+                continue;
+            }
+
+            var vm = services.GetService(type) as PageViewModel;
+            vm?.Activate();
+            Settle(300);
+
+            var view = new ViewLocator().Build(vm) ?? new Border();
+            var host = new Window { Width = 1280, Height = 800, Content = view };
+            host.Show();
+            HeadlessAppHost.PumpJobs();
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            HeadlessAppHost.PumpJobs();
+
+            for (var warm = 0; warm < 5; warm++)
+            {
+                bitmap.Render(view);
+            }
+
+            var samples = new List<double>(frames);
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < frames; i++)
+            {
+                var start = Stopwatch.GetTimestamp();
+                bitmap.Render(view);
+                samples.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+            }
+
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            samples.Sort();
+            var nodes = view.GetVisualDescendants().Count();
+            Console.WriteLine(
+                $"[RenderCost] {key} frames={frames} p50={samples[samples.Count / 2]:F2}ms p95={Percentile(samples, 0.95):F2}ms max={samples[^1]:F2}ms alloc={allocated / frames}B nodes={nodes}");
+
+            host.Close();
+            HeadlessAppHost.PumpJobs();
+            vm?.Deactivate();
+        }
     }
 
     /// <summary>量化日志页的刷新成本：首次激活、稳态刷新、以及页面可见时每来一行日志的开销。</summary>

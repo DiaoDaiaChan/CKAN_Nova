@@ -1714,3 +1714,76 @@ private static readonly HashSet<string> ActivationWarmups = new(StringComparer.O
 | 把 `plugins` / `flags` 也放进激活预热 | plugins 首次进入 102→**1287**（assign 507） | 插件页的 `OnActivated` 有同步重活，提前做只是把它挪到预热 tick 里堵住 UI 线程，反而更差 |
 
 结论：激活预热只适用于「`OnActivated` 是轻量投影 + 异步加载」的页面；带同步重活的页面（plugins）不能预热，得单独治。
+
+## §37 页面掉帧：把「留在屏幕上每帧要花多少」做成可测指标
+
+换页成本（§21、§36）只覆盖「切过去」那一下。用户感知的掉帧是页面**已经在屏幕上**时每帧的重绘成本 —— 60fps 一帧只有 16.7ms 预算，页面本身渲染贵一点，任何动画（星空、悬停、弹簧、滚动）都会掉帧。
+
+### 37.1 新探针 `--render-cost [key]`
+
+`tools/perf-probe/PageSwitchProbe.RenderCost(string? onlyKey, int frames = 60)`：真实 DI 起服务 → 激活页面 VM → 建视图挂进窗口 → Measure/Arrange → 把视图按 1280×800 渲染进 `RenderTargetBitmap`，60 帧逐帧计时并统计分配。
+
+```bash
+CKAN_CONFIG_FILE=<probe-config.json> CKANUI_PROBE_REAL_CONFIG=1 CKANUI_PROBE_INSTANCE=1 \
+  perf-probe.exe --render-cost            # 全部页面
+  perf-probe.exe --render-cost mods       # 单页
+```
+
+### 37.2 实测（镜像实例 336 模组，60 帧，ms / 每帧分配）
+
+| 页面 | p50 | p95 | max | 分配/帧 | 节点 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| mods | 2.03 | 3.18 | 3.81 | 51.1 KB | 2540 |
+| modpack-editor | 0.56 | 0.86 | 1.30 | 14.3 KB | 459 |
+| settings | 0.47 | 0.96 | 1.25 | 58.7 KB | 2348 |
+| downloadstats | 0.35 | 1.37 | 38.97 | 16.5 KB | 174 |
+| home | 0.32 | 0.66 | 21.34 | 7.1 KB | 187 |
+| instances | 0.28 | 0.41 | 0.74 | 6.5 KB | 280 |
+| modtext | 0.28 | 0.39 | 0.66 | 8.8 KB | 261 |
+| modpacks | 0.23 | 0.36 | 0.48 | 6.1 KB | 202 |
+| kspconfig | 0.22 | 0.28 | 0.51 | 4.5 KB | 129 |
+| loadingimages | 0.21 | 0.35 | 0.41 | 4.3 KB | 129 |
+| content | 0.20 | 0.42 | 14.97 | 1.5 KB | 84 |
+| dedup | 0.19 | 0.56 | 16.86 | 3.9 KB | 162 |
+| modconfig | 0.19 | 0.31 | 0.38 | 4.8 KB | 146 |
+| cache | 0.16 | 0.32 | 0.46 | 2.9 KB | 91 |
+| logs | 0.16 | 0.20 | 0.40 | 4.4 KB | 126 |
+| flags | 0.09 | 0.12 | 15.82 | 2.2 KB | 86 |
+| installhistory | 0.09 | 0.09 | 0.10 | 2.1 KB | 93 |
+| plugins | 0.08 | 0.09 | 0.24 | 3.2 KB | 100 |
+| ships | 0.07 | 0.16 | 0.21 | 12.5 KB | 391 |
+| changes | 0.05 | 0.39 | 13.85 | 1.1 KB | 89 |
+| playtime | 0.04 | 0.04 | 0.07 | 1.5 KB | 51 |
+| unmanaged | 0.02 | 0.02 | 0.03 | 3.1 KB | 103 |
+| repos | 0.02 | 0.03 | 0.04 | 3.6 KB | 128 |
+| saves | 0.01 | 0.01 | 0.01 | 1.8 KB | 118 |
+
+### 37.3 怎么读这张表
+
+- **p50 是 UI 线程的显示列表构建成本**（headless 的 `UseHeadlessDrawing` 不做真实光栅，光栅在渲染线程）。它低不代表不掉帧，但高一定掉帧。
+- **max 列的长尾是 GC 停顿**：`downloadstats` max 38.97ms、`home` 21.34、`dedup` 16.86、`flags` 15.82 —— 这些是分配触发的收集中途，一帧超过 16.7ms 就是用户能看到的卡一下。
+- **分配/帧才是持续动画时的风险**：`mods` 51 KB/帧、`settings` 58.7 KB/帧、`downloadstats` 16.5 KB/帧。按 60fps 算，`settings` 每秒产生 3.4 MB 垃圾，会在拖拽/滚动/悬停这类连续重绘场景里持续喂 GC。
+- 结论：`mods`（DataGrid 2540 节点 + 51 KB/帧）与 `settings`（2348 节点 + 59 KB/帧）是「留在屏幕上最贵」的两页；其余页面 p50 都在 1ms 以内。
+
+### 37.4 已知局限
+
+- headless 走 `UseHeadlessDrawing`，`RenderTargetBitmap.Render` 不产生真实像素，因此这张表**只覆盖 UI 线程侧**（显示列表 + 分配），不覆盖 Skia 光栅与 GPU 合成。
+- 真机的前台帧间隔无法在不抢焦点的情况下采集（用户明确要求无头调试不抢窗口），所以「前台实际掉帧率」仍以用户体感为准；本表用于**页面间横向对比**与**回归防退化**。
+
+### 37.5 帧间隔指标的地板（别把 dropped 当结论）
+
+同一轮 sweep 里再量「页面留在屏幕上 3 秒的帧间隔」（`CKANUI_NAV_FRAME_MS=3000`，r2 = 第二次进入）：
+
+| 页面 | frames | p50 | p95 | maxGap | dropped |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| repos（几乎空页） | 174 | 16.5 | 31.2 | 35.1 | 76 |
+| playtime | 169 | 16.7 | 31.1 | 34.8 | 91 |
+| mods（2540 节点 DataGrid） | 159 | 16.8 | 30.7 | 34.0 | 82 |
+| downloadstats | 167 | 16.6 | 31.1 | 55.8 | 75 |
+| unmanaged | 104 | 16.1 | 31.4 | **1310.5** | 38 |
+
+**p50 恒等于 16.7ms、p95 恒等于 30–31ms、dropped ≈ 一半**，在几乎空的 `repos` 页与 2540 节点的 `mods` 页之间没有差别 → 这个指标量到的是**后台窗口下合成器的 60Hz 节拍（偶尔漏一次 vsync = 30ms）**，不是页面内容成本。`dropped` 不能当页面结论用。
+
+它仍有用：**maxGap 是真实的 UI 线程停顿**。本轮唯一异常是 `unmanaged` 的 1310ms —— 二次进入时 TreeView 从 103 节点膨胀到 1861 节点（默认展开策略），单帧被布局吃掉 1.3 秒。改它要动「默认展开」这个视觉行为，本轮不做，登记为已知停顿。
+
+结论：判断页面掉帧要看 §37.2 的「每帧 UI 成本 + 分配」，帧间隔只能用来抓尖峰。

@@ -173,6 +173,17 @@ public static class Program
             return 0;
         }
 
+        // --render-cost [key]：量页面留在屏幕上时每帧的光栅成本
+        var renderCostIndex = Array.FindIndex(args, a => string.Equals(a, "--render-cost", StringComparison.OrdinalIgnoreCase));
+        if (renderCostIndex >= 0)
+        {
+            var onlyRenderKey = renderCostIndex + 1 < args.Length && !args[renderCostIndex + 1].StartsWith("--", StringComparison.Ordinal)
+                ? args[renderCostIndex + 1]
+                : null;
+            PageSwitchProbe.RenderCost(onlyRenderKey);
+            return 0;
+        }
+
         // --pages-real：真实 DI 下的换页成本（首次进入 vs 再次进入，不跑门禁）
         var realIndex = Array.FindIndex(args, a => string.Equals(a, "--pages-real", StringComparison.OrdinalIgnoreCase));
         if (realIndex >= 0)
