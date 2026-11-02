@@ -1658,3 +1658,59 @@ kspconfig, home, changes, modpacks, playtime, content, unmanaged, saves
 同一轮里的 `r2 layout=3009ms frames=148` 也是探针口径问题：第二轮探针在页面持续重绘（日志页订阅了 store 的变更）时等 `Loaded` 派发，等到的其实是连续 148 帧之后的那个回调，`maxGap` 才 315 ms。判据改成看 `maxGap`（真实最长单帧）而不是等派发的 wall time。
 
 教训（写进工具说明）：**整轮 sweep 的绝对值会被机器负载与自身的预热队列污染，单页结论必须用 `CKANUI_NAV_ONLY` 单独复核，并看 `maxGap`。**
+
+## §36 预热要「真的进一次」：激活期行投影也算首屏成本
+
+### 36.1 问题：预热只量了空列表
+
+§35 的预热只做两件事：解析 VM（`PeekPage`）+ 建视图挂进 `PageStage` 量一次排版。对**行投影在 `OnActivated` 里生成**的页面（模组、未管理文件、旗帜、飞船、存档、模组文本……），预热时 VM 还没激活，量的是空列表：`[warm] mods attach=42ms`，而用户点进去还要再付一次「投影 + DataGrid 布局」。
+
+真机实测（镜像实例 336 模组，ms，layout / maxGap）：
+
+| 页面 | 只建视图的预热 | 用户首次进入 |
+| --- | ---: | ---: |
+| mods | warm 42 | **296–421 / 244–345** |
+| modtext | warm 236 | **1100 / 531** |
+| installhistory | warm 22 | **443 / 339** |
+| unmanaged | warm 50 | **343 / 345** |
+
+### 36.2 改法：预热时像用户一样 `Activate()`
+
+`WarmPage` 里对一组页面先 `vm.Activate()` 再建视图，让 `OnActivated` 的行投影在后台完成，排版量的就是真实数据：
+
+```csharp
+private static readonly HashSet<string> ActivationWarmups = new(StringComparer.Ordinal)
+{
+    "mods", "unmanaged", "content", "repos", "modpacks", "modtext", "ships", "saves"
+};
+```
+
+预热的收尾**不再立刻 `Deactivate()`**：多数页面的行数据是 `OnActivated` 里异步加载的，立刻停用会把加载取消掉，等于白预热。保持激活让「加载 + 排版」都在后台做完，用户进来直接是成品。
+
+代价：这些 VM 会一直保持激活（订阅各自的数据源），实测见 36.4。
+
+### 36.3 实测（同脚本同实例，`CKANUI_NAV_WARMUP_MS=25000`，ms）
+
+| 页面 | 首次进入 改前 | 首次进入 改后 | maxGap 改前 → 改后 |
+| --- | ---: | ---: | ---: |
+| mods | 296–421 | **38–85** | 244–345 → **18–51** |
+| modtext | 1100 | **15** | 531 → 13 |
+| installhistory | 443 | **30** | 339 → 25 |
+| unmanaged | 343 | 341（未改善，见下） | 345 → 342 |
+| ships | 196 | 109 | 160 → 104 |
+| saves | 83 | 69 | 54 → 68 |
+| settings | 64 | 60 | 28 → 28 |
+| downloadstats | 324 | 74 | 293 → 68 |
+| plugins | 210 | 102 | 249 → 85 |
+| flags | 524 | 27 | 523 → 24 |
+
+`unmanaged` 不动的理由与 §27.5 一致：它的成本是 TreeView 1870 个节点的整棵 Measure/Arrange，与数据是否已加载无关；虚拟化掉节点数也不降时间。`flags` 在「只建视图」阶段反而更贵（524ms），激活预热后降到 27ms —— 它的开销确实在数据投影。
+
+### 36.4 被否掉的两种写法
+
+| 写法 | 结果 | 原因 |
+| --- | --- | --- |
+| 预热后立刻 `Deactivate()` | mods 85ms、modtext **1100ms 不变**、installhistory 443ms 不变 | 异步加载被取消，后台只量了空列表 |
+| 把 `plugins` / `flags` 也放进激活预热 | plugins 首次进入 102→**1287**（assign 507） | 插件页的 `OnActivated` 有同步重活，提前做只是把它挪到预热 tick 里堵住 UI 线程，反而更差 |
+
+结论：激活预热只适用于「`OnActivated` 是轻量投影 + 异步加载」的页面；带同步重活的页面（plugins）不能预热，得单独治。

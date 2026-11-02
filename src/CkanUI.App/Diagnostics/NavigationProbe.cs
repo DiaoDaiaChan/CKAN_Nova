@@ -2,7 +2,9 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using Avalonia.Threading;
 using CkanUI.ViewModels;
 
@@ -27,6 +29,21 @@ internal static class NavigationProbe
 
     /// <summary>首帧后先静置这么久再开始扫，避开启动期的排队。</summary>
     private const int WarmupMilliseconds = 2500;
+
+    /// <summary>首帧后的掉帧采样窗口，可由 CKANUI_NAV_FRAME_MS 覆盖。</summary>
+    private static int FrameWindowMs() => int.TryParse(Environment.GetEnvironmentVariable("CKANUI_NAV_FRAME_MS"), out var ms) && ms >= 0 ? ms : 1500;
+
+    private static double Percentile(List<double> values, double p)
+    {
+        if (values.Count == 0)
+        {
+            return 0d;
+        }
+
+        var sorted = values.OrderBy(v => v).ToArray();
+        var index = (int)Math.Round((sorted.Length - 1) * p, MidpointRounding.AwayFromZero);
+        return sorted[Math.Clamp(index, 0, sorted.Length - 1)];
+    }
 
     /// <summary>采样前静置时长可由 CKANUI_NAV_WARMUP_MS 覆盖（给空闲预热留时间用）。</summary>
     private static int WarmupMs() => int.TryParse(Environment.GetEnvironmentVariable("CKANUI_NAV_WARMUP_MS"), out var ms) && ms > 0 ? ms : WarmupMilliseconds;
@@ -132,24 +149,91 @@ internal static class NavigationProbe
 
             var layout = await WaitForLayoutAsync(sw).ConfigureAwait(true);
             var paint = await WaitForFrameAsync(window, sw).ConfigureAwait(true);
+
+            // 首帧之后继续采一段窗口：用户感知的「掉帧」不只是切过去卡一下，
+            // 还有页面稳定后每隔几帧卡一下（滚动、图表重绘、定时器刷新）。
+            await Task.Delay(FrameWindowMs()).ConfigureAwait(true);
             stop = true;
 
-            var maxGap = 0d;
+            var gaps = new List<double>(frames.Count);
             for (var i = 1; i < frames.Count; i++)
             {
-                maxGap = Math.Max(maxGap, frames[i] - frames[i - 1]);
+                gaps.Add(frames[i] - frames[i - 1]);
             }
+
+            var maxGap = gaps.Count == 0 ? 0d : gaps.Max();
+            var p50 = Percentile(gaps, 0.50);
+            var p95 = Percentile(gaps, 0.95);
+            var dropped = gaps.Count(gap => gap > 16.7);
 
             TryWrite(
                 path,
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"[nav] r{round} {key} assign={assign:F1}ms layout={layout:F1}ms paint={paint:F1}ms frames={frames.Count} maxGap={maxGap:F1}ms"));
+                    $"[nav] r{round} {key} assign={assign:F1}ms layout={layout:F1}ms paint={paint:F1}ms frames={frames.Count} maxGap={maxGap:F1}ms p50={p50:F1}ms p95={p95:F1}ms dropped={dropped}"));
+
+            if (Environment.GetEnvironmentVariable("CKANUI_NAV_SCROLL") == "1")
+            {
+                await ScrollWindowAsync(window, path, round, key).ConfigureAwait(true);
+            }
 
             await Task.Delay(GapMilliseconds);
         }
 
         TryWrite(path, "[nav] done");
+    }
+
+    /// <summary>滚动主力列表 60 帧，量滚动期间的帧间隔（用户感知的「滚起来卡」）。</summary>
+    private static async Task ScrollWindowAsync(TopLevel window, string path, int round, string key)
+    {
+        if (window is not Visual root)
+        {
+            return;
+        }
+
+        var scope = window is MainWindow { ActivePageView: { } active } ? active : root;
+
+        var scroll = scope.GetVisualDescendants()
+            .OfType<ScrollViewer>()
+            .Where(viewer => viewer.IsVisible && viewer.Extent.Height - viewer.Viewport.Height > 40)
+            .OrderByDescending(viewer => viewer.Extent.Height - viewer.Viewport.Height)
+            .FirstOrDefault();
+        if (scroll is null)
+        {
+            return;
+        }
+
+        const int Frames = 60;
+        const double Step = 24d;
+        var gaps = new List<double>(Frames);
+        var watch = Stopwatch.StartNew();
+        var last = 0d;
+        for (var i = 0; i < Frames; i++)
+        {
+            var max = Math.Max(0d, scroll.Extent.Height - scroll.Viewport.Height);
+            scroll.Offset = new Vector(scroll.Offset.X, Math.Min(scroll.Offset.Y + Step, max));
+            await NextFrameAsync(window, watch).ConfigureAwait(true);
+            var now = watch.Elapsed.TotalMilliseconds;
+            if (i > 0)
+            {
+                gaps.Add(now - last);
+            }
+
+            last = now;
+        }
+
+        TryWrite(
+            path,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"[scroll] r{round} {key} n={gaps.Count} p50={Percentile(gaps, 0.50):F1}ms p95={Percentile(gaps, 0.95):F1}ms max={(gaps.Count == 0 ? 0d : gaps.Max()):F1}ms dropped={gaps.Count(gap => gap > 16.7)} extent={scroll.Extent.Height:F0} viewport={scroll.Viewport.Height:F0}"));
+    }
+
+    private static async Task NextFrameAsync(TopLevel window, Stopwatch watch)
+    {
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        window.RequestAnimationFrame(_ => tcs.TrySetResult());
+        await Task.WhenAny(tcs.Task, Task.Delay(500)).ConfigureAwait(true);
     }
 
     /// <summary>发出导航并等到 ShellViewModel.CurrentPage 换到新页面。</summary>

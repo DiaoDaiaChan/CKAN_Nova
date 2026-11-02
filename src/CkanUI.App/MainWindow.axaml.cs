@@ -92,6 +92,9 @@ public sealed partial class MainWindow : Window
     /// <summary>当前可见的页面视图，也是换页动效的落点（见 <see cref="PlayPageReveal"/>）。</summary>
     private Control? _activePageView;
 
+    /// <summary>当前显示的页面视图（诊断探针用来在正确的子树里找滚动容器）。</summary>
+    internal Control? ActivePageView => _activePageView;
+
     /// <summary>
     /// 空闲预热：首帧之后逐页把还没访问过的页面视图挂进 <see cref="PageStage"/> 量一次再藏起来。
     /// 首次进入某页的一次性 JIT / 模板落地成本（实测日志页 800 ms、设置页 425 ms）因此挪到用户没在看的时候；
@@ -664,8 +667,22 @@ public sealed partial class MainWindow : Window
             return false;
         }
 
+        // 数据驱动的页面（行投影在 OnActivated 里才生成）只建视图不够：预热时必须像用户
+        // 真正进入一样先激活一次，否则量的是空列表的排版，用户第一眼还是要等一份完整投影。
+        var warmVm = page as PageViewModel;
+        var warmActivate = warmVm is not null && ActivationWarmups.Contains(key);
+        if (warmActivate)
+        {
+            warmVm!.Activate();
+        }
+
         if (new ViewLocator().Build(page) is not { } view)
         {
+            if (warmActivate)
+            {
+                warmVm!.Deactivate();
+            }
+
             return false;
         }
 
@@ -677,7 +694,7 @@ public sealed partial class MainWindow : Window
         var clock = System.Diagnostics.Stopwatch.StartNew();
         Dispatcher.UIThread.Post(() =>
         {
-            FinishWarm(view);
+            FinishWarm(view, page, key);
             if (Environment.GetEnvironmentVariable("CKANUI_NAV_TRACE") is { Length: > 0 } trace)
             {
                 try { File.AppendAllText(trace, $"[warm] {key} attach={clock.ElapsedMilliseconds}ms\n"); } catch (IOException) { }
@@ -686,12 +703,20 @@ public sealed partial class MainWindow : Window
         return true;
     }
 
-    private static void FinishWarm(Control view)
+    private static void FinishWarm(Control view, object page, string key)
     {
+        // 预热后保持激活：多数页面的行数据是 OnActivated 里异步加载的，立刻 Deactivate 会把
+        // 加载取消掉，白量一次空列表。保持激活让后台把数据与排版一起做完，用户进来就是成品。
         view.IsVisible = false;
         view.Opacity = 1;
         view.IsHitTestVisible = true;
     }
+
+    /// <summary>预热时需要「真的激活一次」的页面：它们的首屏成本主要是 OnActivated 里的行投影。</summary>
+    private static readonly HashSet<string> ActivationWarmups = new(StringComparer.Ordinal)
+    {
+        "mods", "unmanaged", "content", "repos", "modpacks", "modtext", "ships", "saves"
+    };
 
     /// <summary>一次性吃满 UI 线程的重页面：只在窗口后台或长时间静置时预热。</summary>
     private static readonly HashSet<string> ExpensiveWarmups = new(StringComparer.Ordinal) { "settings" };
@@ -705,10 +730,10 @@ public sealed partial class MainWindow : Window
     /// <summary>预热顺序：按实测首次进入成本从高到低（§21.2 / §27.2）。</summary>
     private static readonly string[] WarmupOrder =
     [
-        "logs", "plugins", "installhistory", "modpack-editor", "mods", "modtext", "dedup",
+        "logs", "plugins", "installhistory", "modpack-editor", "modtext", "dedup",
         "downloadstats", "cache", "instances", "modconfig", "flags", "ships", "settings",
         "loadingimages", "repos", "kspconfig", "home", "changes", "modpacks", "playtime",
-        "content", "unmanaged", "saves"
+        "content", "saves", "unmanaged", "mods"
     ];
 
     private void ShowPage(object? page)
@@ -754,7 +779,43 @@ public sealed partial class MainWindow : Window
         }
 
         _activePageView = view;
+        TraceStageSwitch();
         SchedulePageReveal();
+    }
+
+    /// <summary>临时诊断：记录一次换页从切可见性到布局完成、首帧完成的时间。</summary>
+    private void TraceStageSwitch()
+    {
+        if (PageHost is null || Environment.GetEnvironmentVariable("CKANUI_NAV_TRACE") is not { Length: > 0 } trace)
+        {
+            return;
+        }
+
+        var key = _shell?.SelectedNavItem?.Key ?? "?";
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        EventHandler? onLayout = null;
+        onLayout = (_, _) =>
+        {
+            PageHost.LayoutUpdated -= onLayout;
+            AppendTrace(trace, $"[show] {key} layout={watch.Elapsed.TotalMilliseconds:F1}ms\n");
+        };
+        PageHost.LayoutUpdated += onLayout;
+        RequestAnimationFrame(_ =>
+            AppendTrace(trace, $"[show] {key} paint={watch.Elapsed.TotalMilliseconds:F1}ms\n"));
+    }
+
+    private static void AppendTrace(string path, string line)
+    {
+        try
+        {
+            File.AppendAllText(path, line);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     private void SchedulePageReveal()
