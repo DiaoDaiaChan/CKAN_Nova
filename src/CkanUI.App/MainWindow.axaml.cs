@@ -741,9 +741,9 @@ public sealed partial class MainWindow : Window
     {
         // 预热后保持激活：多数页面的行数据是 OnActivated 里异步加载的，立刻 Deactivate 会把
         // 加载取消掉，白量一次空列表。保持激活让后台把数据与排版一起做完，用户进来就是成品。
-        view.IsVisible = false;
-        view.Opacity = 1;
-        view.IsHitTestVisible = true;
+        view.IsVisible = true;
+        view.Opacity = 0;
+        view.IsHitTestVisible = false;
     }
 
     /// <summary>预热时需要「真的激活一次」的页面：它们的首屏成本主要是 OnActivated 里的行投影。</summary>
@@ -816,7 +816,12 @@ public sealed partial class MainWindow : Window
 
         foreach (var child in PageStage.Children)
         {
-            child.IsVisible = ReferenceEquals(child, view);
+            var active = ReferenceEquals(child, view);
+            child.IsVisible = true;
+            child.Opacity = active ? 1 : 0;
+            child.IsHitTestVisible = active;
+            // 不可见的页面仍然在可视树里参与排版，所以要把键盘焦点也挡在外面，否则 Tab 会跑到看不见的控件上。
+            child.IsEnabled = active;
         }
 
         _activePageView = view;

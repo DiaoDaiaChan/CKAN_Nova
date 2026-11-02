@@ -1879,3 +1879,60 @@ CKAN_CONFIG_FILE=<probe-config.json> CKANUI_PROBE_REAL_CONFIG=1 CKANUI_PROBE_INS
 - 未被预热的 4 个页面（loadingimages / instances / repos / unmanaged）保持原首次成本 114–134 ms；继续加页会把峰值推回 GB 级，不做。
 - 逐页回收在空闲期各付几百毫秒（压缩回收），页面此时不可交互，用户看不到。
 - `docs/ops/perf-baseline.md` §38.3 里「峰值 1.7 GB 属预热固有」的说法由本节修正为「预热页数决定峰值」。
+
+## §40 换页不再切可见性，改切透明度：第二轮换页从 316 ms 降到 24 ms
+
+### 40.1 问题
+
+§29 让页面常驻 PageStage 之后，换页只剩「切一下可见性」。但 IsVisible 一翻，Avalonia 会把那棵子树的排版结果整棵作废，切回来要重新 Measure/Arrange 一遍。实测（PageSwitchProbe.VisibilityCost，headless，settings 2338 节点）：
+
+| 动作 | settings | ships |
+| --- | ---: | ---: |
+| 已挂树 hide | 0.9 ms | 0.3 ms |
+| 已挂树 show | 1.4 ms | 0.1 ms |
+| 摘下来再挂回去（detach + attach） | **1793.5 ms** | 23.5 ms |
+
+真机 NavigationProbe 里对应的现象就是第二次点回同一页的 unmanaged = 316.5 ms / maxGap 388 ms（TreeView 1866 个容器重排）、cache = 56.2 / 52。
+
+### 40.2 改法（src/CkanUI.App/MainWindow.axaml.cs）
+
+ShowPage 不再动 IsVisible，改成同时切透明度与交互状态：
+
+    var active = ReferenceEquals(child, view);
+    child.IsVisible = true;
+    child.Opacity = active ? 1 : 0;
+    child.IsHitTestVisible = active;
+    // 不可见的页面仍然在可视树里参与排版，所以要把键盘焦点也挡在外面，否则 Tab 会跑到看不见的控件上。
+    child.IsEnabled = active;
+
+FinishWarm 同步改成 IsVisible = true; Opacity = 0; IsHitTestVisible = false; ——原来收尾时把预热页设成 IsVisible = false，等于把刚排好的结果扔掉，下一次进入还得重排。
+
+隐藏页留在排版里，因此：命中测试由 IsHitTestVisible 挡住、键盘焦点由 IsEnabled 挡住；绘制上 Opacity = 0 的子树不产生可见像素。
+
+### 40.3 实测（真机 Release、镜像实例 Probe (Steam mirror) 336 模组，第二轮 = 点回同一页，layout / maxGap ms）
+
+| 页面 | 切可见性（§29–§39） | 切透明度（本节） |
+| --- | ---: | ---: |
+| unmanaged | 316.5 / 388 | **23.6 / 19** |
+| cache | 56.2 / 52 | **17.2 / 14** |
+| logs | 91.5 / 80 | 94.9 / 86 |
+| repos | 12.7 / — | 62.1 / 61 |
+| modconfig | 18.3 / — | 61.1 / 63 |
+| 其余 18 页 | ≤ 64 | ≤ 43 |
+
+首轮（未预热页 + 首次进入）：downloadstats 997.1（一次尖峰）、unmanaged 51.6（原 113.7）、cache 89.0、settings 94.8、mods 41.7、dedup 10.0。
+
+空转与驻留（Measure-Soak.mjs，1.4 分钟、4 秒采样）：峰值 627 MB / 稳态 **620 MB**、尾部空转 CPU **0.00–0.01% 单核**——隐藏页留在排版里不额外烧 CPU，也不额外占内存。
+
+### 40.4 视觉取证
+
+CKANUI_SNAP_SEED=1 dotnet tools/ui-snapshot/bin/Release/net10.0/ui-snapshot.dll（注意 dll 名是 ui-snapshot.dll），24 页离屏截图，用 tools/perf-probe/diff-png.ps1 -Tol 12 比对：
+
+- 噪声基线（同一模式连跑两次）：首页 1.78%，其余 0.24–0.78%。
+- 切透明度 vs 切可见性：23 页 0.31–0.85%（落在噪声内）；只有 installhistory 45.57%——看图确认是**基线截图抓到换页淡入的中间帧**（半透明的日志页残留在下面），新模式下隐藏页 Opacity = 0，这种残影在物理上不可能出现。
+
+### 40.5 代价与边界
+
+- 隐藏页继续参与排版：窗口尺寸变化时 12 棵页面树一起重排（拖窗口缩放会比之前重）。实测空闲 CPU/内存无回归，视觉无差异。
+- IsEnabled = false 会让隐藏页内的控件进入禁用状态；它们不可见、不可交互，重新激活时立刻恢复。
+- NavigationProbe 的 [warm] / [nav] 口径不变，本节数字与 §35–§39 可直接对比。
