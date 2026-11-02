@@ -1459,15 +1459,58 @@ Avalonia 的 `Measure`/`Arrange` 缓存挂在可视树上，**一旦 detach 就�
 
 ## §31 变更集页：请求集没变就不重算
 
-### 31.1 现象与归属
-`ChangesPageViewModel.OnActivated`（`src/CkanUI.ViewModels/Pages/ChangesPageViewModel.cs:315`）无条件 `RebuildFromRequests()` → `RebuildCoreAsync()` → `_changeSets.BuildAsync(Requests)`。依赖解析是**同步、秒级**的活：计时路 agent 的无头交叉校验里，带请求的 `changes` 页 `activate=917.19ms`（节点只有 89），空请求时是毫秒级——数据驱动的重活，不是布局。
+### 31.1 归属（含一次自我推翻）
+第一版把 `changes` 页 `activate≈900ms` 记成「依赖解析重算」。插桩实测推翻了这个判断：
 
-### 31.2 改法
-`RebuildFromRequests(bool force = false)`：`ReferenceEquals(Requests, _builtRequests)` 时直接返回。`SetRequests` 与内部装载都会先换 `Requests` 引用，正常路径不受影响；`ClearRequests()` 把签名置 null。
+```
+[DbgActivate] subscribe=0.18 gameRunning=892.08 rebuild=7.13 total=899.39 requests=0
+```
+
+重算只占 7 ms，**892 ms 是 `RefreshGameRunning()` 的全进程扫描**——见 §32。请求集缓存在 `requests=0` 时本来就没重算，所以它不是那 900 ms 的原因。
+
+### 31.2 仍然保留的改动
+`RebuildFromRequests(bool force = false)`：`ReferenceEquals(Requests, _builtRequests)` 时直接返回。带请求时换页回来（模板页勾了模组 → 看变更 → 切走再回来）这一条能省掉整次 `BuildAsync`；`SetRequests` 与内部装载都会先换 `Requests` 引用，正常路径不受影响；`ClearRequests()` 把签名置 null。
 
 ### 31.3 证据
 - 单测 `ChangesPageViewModelTests.Reactivation_WithSameRequests_SkipsRecompute`：两次 `Deactivate/Activate` 后 `BuildCount` 不变、`PendingWork` 仍是同一个 Task。
-- 全量 ViewModels 1641 例全绿（唯一红是 Architecture 的 `KspConfigPageViewModel` 插值文案，他人未跟踪新增文件，非本轮）。
+- 全量 ViewModels 1641 例全绿（唯一红是 Architecture 的 `KspConfigPageViewModel` 插值文案，他人未跟踪新增文件）。
 
 ### 31.4 口径提醒
-`changes` 的耗时取决于**有没有待应用的请求**：不带请求的探针跑只会得到个位数 ms，不能拿它证明「这页不慢」。复测前必须先 `SetRequests`（真机上就是先在模组页勾几个模组）。
+`changes` 的耗时取决于**有没有待应用的请求**与**进程扫描**：不带请求的探针跑只会得到个位数 ms，不能拿它证明「这页不慢」；复测前先 `SetRequests`，并注意 `IsGameRunning` 那条路（§32）。
+
+## §32 进程探测：从 MainModule 全扫换成 psapi 快路径
+
+### 32.1 现象
+`changes` / `modconfig` / 实例页激活时都会问一次「游戏在跑吗」：`ChangesPageViewModel.OnActivated` → `RefreshGameRunning()` → `InstanceService.IsGameRunning()` → `GameProcessProbe.GetProcessImagePaths()`（`src/CkanUI.Services/Instances/IGameProcessProbe.cs:54`，1 秒 TTL）→ `ScanProcesses()`。
+
+原实现在 Windows 上遍历 `Process.GetProcesses()` 并读每个 `process.MainModule?.FileName`，本机 577 个进程、每个约 1.5 ms → **820–940 ms**，而且是同步的、直接压在激活后的那一帧上。
+
+### 32.2 改法
+Windows 快路径 `ScanWindows`：`EnumProcesses`(psapi) → 每个 pid `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)` → `QueryFullProcessImageNameW`(kernel32)；非 Windows 或 `EnumProcesses` 失败整体回退 `ScanManaged`（原实现保留）。单进程打不开只是跳过，语义与旧实现「读不到就不算」一致。
+
+### 32.3 实测（镜像实例 `Probe (Steam mirror)`，modules=336）
+| 指标 | 改前 | 改后 |
+| --- | ---: | ---: |
+| `--pages-real changes` activate（n=4） | min 846.0 / median 859.2 / max 912.1 ms | **min 4.2 / median 18.6 / max 31.0 ms** |
+| 全页探针 changes r1 / r2 | 937.3 / 892.9 ms | **26.9 / 18.5 ms** |
+| 全页探针 modconfig r1 | 1860.8 ms | **52.4 ms** |
+| 扫描实现基准（577 进程） | `MainModule` 842 / 821 / 829 ms | **2.8 / 1.7 / 1.6 ms** |
+| 覆盖对照 | 旧实现读到 408 个 | 新实现 408 个、失败 0 → 零丢失 |
+| `--gate-mem` 5 项 | — | 全 PASS（滚动 97,675 B/帧、WS 212.2 MB、峰值 228.1 MB、空转 11.6–14.6%、线程 9） |
+
+### 32.4 视觉取证
+23 页 `ui-snapshot` + `diff-png.ps1 -Tol 12`：before_vs_after 总差 125,561 px（均值 5,459/页、max 0.875%），而同一构建跑两次 after_vs_after2 的总差 137,737 px（均值 5,989/页、max 0.863%）——**改动差异小于运行间噪声**，band 结构同形且集中在顶部星空/hero 区。
+
+### 32.5 未验证 / 风险
+- 提权或其他用户身份启动的 KSP：`QueryFullProcessImageNameW` 依赖 `PROCESS_QUERY_LIMITED_INFORMATION`；本机 408/408 可读进程全成功，但未实测提权场景。读不到只是跳过，`EnumProcesses` 失败整体回退。
+- 非 Windows 平台走原路径，未在 Linux/macOS 实测（行为应与改前一致）。
+
+## §33 常驻页面不带来内存回归
+`PageStage`（§29）让访问过的页面视图一直挂在可视树上，所以必须回答「驻留会不会涨」。同口径 soak（3 分钟，5 秒采样，镜像实例，窗口不抢前台）：
+
+| 组 | WorkingSet | Private | 线程 | 空转 CPU |
+| --- | --- | --- | --- | --- |
+| 基线 `004150c`（单视图） | 445.9–459.3 MB | 399.1–411.8 MB | 103–110 | 0.0–0.2% 单核 |
+| 常驻 + §30/§31 + §32 | 444.8–457.9 MB | 397.7–410.6 MB | 107–111 | 0.1–0.2% 单核 |
+
+读取口径：两次都只停在首页、没有逐页访问，所以这只证明「常驻机制本身」不额外占地；逐页访问后的稳态见下轮补测。工作集比早期 §26 的 312 MB 高，是因为本轮跑的是真实 336 模组注册表（36 MB registry + 投影），不是空实例。
