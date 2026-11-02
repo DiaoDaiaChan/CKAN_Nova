@@ -2017,3 +2017,24 @@ var (modules, repoMap) = await Task.Run(CollectModules, ct).ConfigureAwait(false
 
 - Task.Run 只包住同步的集合复制，取消令牌仍生效（进入时 ThrowIfCancellationRequested）。
 - CurrentInput 仍会被赋值，测试与「诊断导出」读它的路径不变。
+
+## §44 日志页也进激活预热：首进从 130–215 ms 降到 14 ms
+
+### 44.1 问题
+
+预热只把页面视图建出来、不激活；日志页的行数据在 OnActivated 里才查。所以 §36 的激活预热名单里没有 logs 时，预热只热了空壳，用户第一次点日志页仍要付一次查询 + 聚合 + 建行（实测 106–215 ms）。
+
+### 44.2 改法（src/CkanUI.App/MainWindow.axaml.cs）
+
+ActivationWarmups 增加 logs：预热时调用 page.Activate()（触发一次真实查询与行构建），再用 Opacity = 0 留在 PageStage 里。§42 的版本记账会自动生效——预热已经建好列表并记下 _lastBuiltVersion，用户点进来时版本没变就直接复用，不再查第二遍。
+
+### 44.3 实测（真机 Release、镜像实例 336 模组）
+
+| 指标 | 修前 | 修后 |
+| --- | ---: | ---: |
+| logs 首进 layout | 106–215 ms | **14.2 ms** |
+| logs 首进 paint | 111–223 ms | 42.6 ms |
+| logs 第二轮 layout | 126–143 ms | 69.7 ms |
+| 预热自身成本 | 53 ms（空壳） | 235 ms / 16.9 MB 分配 |
+
+全页 sweep 未见回归：R1 除 settings 531（未预热，§41 的静置门挡着）、downloadstats 248、modconfig 173 外均 ≤147；R2 除 downloadstats 133、modconfig 120 外均 ≤70。
