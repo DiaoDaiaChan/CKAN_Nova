@@ -56,7 +56,9 @@ public sealed class DownloadStatsService : IDownloadStatsService
                 return OperationResult<DownloadStatsReport>.Ok(DownloadStatsReport.Empty);
             }
 
-            var (modules, repoMap) = CollectModules();
+            // CollectModules 会把整份仓库快照按行复制一遍（3000+ 行）并建索引，实测几十到上百毫秒；
+            // 它在 await 之前执行，等于整段跑在 UI 线程上，表现为切到下载统计时的一次卡顿（§43）。
+            var (modules, repoMap) = await Task.Run(CollectModules, ct).ConfigureAwait(false);
             var entries = await ListCacheEntriesAsync(ct).ConfigureAwait(false);
             var input = new DownloadStatsInput(modules, entries, repoMap);
             CurrentInput = input;

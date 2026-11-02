@@ -1993,3 +1993,27 @@ ILogStore.Version 本来就随每次写入自增，所以「版本没变」等�
 - 首次进入不受影响（_hasBuilt 为 false，照旧构建）。
 - 回到日志页且期间没有新事件时，省掉一次查询 + 聚合 + 列表重建；有新事件时照旧自动刷新（新增用例 Reactivating_WithoutNewEntries_ReusesTheRowsAlreadyBuilt 断言行对象复用、以及新事件仍能刷新）。
 - 代价：如果外部直接改了日志文件而没有经过 LogStore，页面不会感知——与现有「存储驱动刷新」的模型一致，不受影响。
+
+## §43 下载统计：仓库快照复制挪下 UI 线程
+
+### 43.1 问题
+
+DownloadStatsService.ComputeAsync 的第一段是 CollectModules()：把整份仓库快照按行复制一遍（row with { IsInstalled }）、再建 repoMap。它在第一个 await 之前执行，等于整段跑在 UI 线程上——切到「下载统计」时那一下卡顿就来自这里（该页 R1 实测 layout 328 ms、maxGap 274 ms）。
+
+### 43.2 改法（src/CkanUI.Services/Stats/DownloadStatsService.cs）
+
+var (modules, repoMap) = await Task.Run(CollectModules, ct).ConfigureAwait(false); ——只换执行线程，输入输出与聚合逻辑一字未改；后续 Aggregator.Compute 仍在调用方线程上同步跑（它只处理已收集好的集合）。
+
+### 43.3 实测（真机 Release、镜像实例 336 模组、单页复核）
+
+| 指标 | 修前 | 修后 |
+| --- | ---: | ---: |
+| downloadstats R1 layout | 328 ms | 255 ms |
+| downloadstats R1 maxGap | 274 ms | 253 ms |
+
+剩余大头是**表格实体化**：该页 RowLimit = 200 行、DataGrid 建出约 1499 个节点，200 行 × 行模板（含下载量列的 ProgressBar）一次排完。试过显式 EnableRowVirtualization="True"，Avalonia 12 的 DataGrid 没有这个属性（AVLN2000: Unable to resolve suitable regular or attached property EnableRowVirtualization），说明虚拟化本来就开着，只是 200 行在视口内被一次性量完；要再降只能减 RowLimit（产品行为变化），不做。
+
+### 43.4 边界
+
+- Task.Run 只包住同步的集合复制，取消令牌仍生效（进入时 ThrowIfCancellationRequested）。
+- CurrentInput 仍会被赋值，测试与「诊断导出」读它的路径不变。
