@@ -167,6 +167,12 @@ public static class Program
             return 0;
         }
 
+        if (args.Contains("--detail-tabs", StringComparer.OrdinalIgnoreCase))
+        {
+            PageSwitchProbe.DetailTabSweep();
+            return 0;
+        }
+
         // --pages-real：真实 DI 下的换页成本（首次进入 vs 再次进入，不跑门禁）
         var realIndex = Array.FindIndex(args, a => string.Equals(a, "--pages-real", StringComparison.OrdinalIgnoreCase));
         if (realIndex >= 0)

@@ -102,6 +102,7 @@ public sealed partial class MainWindow : Window
 
     /// <summary>等待预热的导航键，按首次进入成本从高到低。</summary>
     private readonly Queue<string> _warmQueue = new();
+    private int _warmIdleTicks;
 
     /// <summary>最近一次换页的时刻：预热会让位给正在操作的用户。</summary>
     private DateTime _lastNavigationUtc = DateTime.MinValue;
@@ -560,6 +561,12 @@ public sealed partial class MainWindow : Window
     /// 把 <paramref name="page"/> 对应的视图切成可见。视图只建一次、之后常驻 <see cref="PageStage"/>，
     /// 再次进入只切 IsVisible —— 这样切页不再触发整棵可视树重新测量。见 docs/ops/perf-baseline.md §29。
     /// </summary>
+    /// <summary>重页面是否该在这一刻预热：窗口在后台，或前台静置超过 <see cref="ExpensiveWarmIdle"/>。</summary>
+    /// <param name="windowActive">窗口当前是否处于激活状态。</param>
+    /// <param name="sinceNavigation">距上次换页的时间。</param>
+    public static bool ShouldWarmExpensive(bool windowActive, TimeSpan sinceNavigation) =>
+        !windowActive || sinceNavigation > ExpensiveWarmIdle;
+
     /// <summary>首帧后开始逐页预热，每 tick 只热一页，避免连排几帧。</summary>
     private void StartPageWarmup()
     {
@@ -581,9 +588,11 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        _warmIdleTicks = 0;
         if (!_warmTimerHooked)
         {
             _pageWarmTimer.Tick += OnPageWarmTick;
+            PropertyChanged += OnWarmWindowPropertyChanged;
             _warmTimerHooked = true;
         }
 
@@ -604,8 +613,22 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        // 重页面预热会一次性占住 UI 线程（设置页约 830 ms，实测见 §35.5）。窗口在前台时
+        // 那是一次肉眼可见的冻结，所以留到窗口失焦、或前台静置很久之后再热。
+        var sinceNavigation = DateTime.UtcNow - _lastNavigationUtc;
+        if (++_warmIdleTicks > WarmIdleTickLimit)
+        {
+            _pageWarmTimer.Stop();
+            return;
+        }
+
         while (_warmQueue.Count > 0)
         {
+            if (ExpensiveWarmups.Contains(_warmQueue.Peek()) && !ShouldWarmExpensive(IsActive, sinceNavigation))
+            {
+                return;
+            }
+
             if (WarmPage(_warmQueue.Dequeue()))
             {
                 return;
@@ -613,6 +636,18 @@ public sealed partial class MainWindow : Window
         }
 
         _pageWarmTimer.Stop();
+    }
+
+    /// <summary>窗口切到后台时把预热定时器叫醒：重页面就是等这一刻才热的。</summary>
+    private void OnWarmWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != IsActiveProperty || IsActive || _warmQueue.Count == 0)
+        {
+            return;
+        }
+
+        _warmIdleTicks = 0;
+        _pageWarmTimer.Start();
     }
 
     /// <summary>把一个页面视图挂进舞台、透明地跑一次完整排版，然后藏起来。</summary>
@@ -657,6 +692,15 @@ public sealed partial class MainWindow : Window
         view.Opacity = 1;
         view.IsHitTestVisible = true;
     }
+
+    /// <summary>一次性吃满 UI 线程的重页面：只在窗口后台或长时间静置时预热。</summary>
+    private static readonly HashSet<string> ExpensiveWarmups = new(StringComparer.Ordinal) { "settings" };
+
+    /// <summary>前台静置超过这么久，才认为用户不在看（此时预热重页面不会看见冻结）。</summary>
+    private static readonly TimeSpan ExpensiveWarmIdle = TimeSpan.FromSeconds(45);
+
+    /// <summary>预热定时器最多空转的 tick 数，超过就停表，避免为一个页面永远轮询。</summary>
+    private const int WarmIdleTickLimit = 150;
 
     /// <summary>预热顺序：按实测首次进入成本从高到低（§21.2 / §27.2）。</summary>
     private static readonly string[] WarmupOrder =

@@ -45,6 +45,12 @@ internal static class NavigationProbe
         {
             try
             {
+                var watchMs = WatchMs();
+                if (watchMs > 0)
+                {
+                    _ = WatchAsync(window, path, watchMs);
+                }
+
                 await Task.Delay(WarmupMs());
                 await RunAsync(window, path);
             }
@@ -53,6 +59,39 @@ internal static class NavigationProbe
                 TryWrite(path, $"[nav] failed {ex.GetType().Name}: {ex.Message}");
             }
         };
+    }
+
+    private static int WatchMs() => int.TryParse(Environment.GetEnvironmentVariable("CKANUI_NAV_WATCH_MS"), out var ms) && ms > 0 ? ms : 0;
+
+    /// <summary>首帧起持续采样帧间隔，用来确认空闲预热有没有在启动后造成肉眼可见的卡顿。</summary>
+    private static async Task WatchAsync(TopLevel window, string path, int durationMs)
+    {
+        var frames = new List<double>();
+        var sw = Stopwatch.StartNew();
+        var stop = false;
+
+        void OnFrame(TimeSpan _)
+        {
+            frames.Add(sw.Elapsed.TotalMilliseconds);
+            if (!stop)
+            {
+                window.RequestAnimationFrame(OnFrame);
+            }
+        }
+
+        window.RequestAnimationFrame(OnFrame);
+        await Task.Delay(durationMs).ConfigureAwait(true);
+        stop = true;
+
+        var gaps = new List<(double At, double Gap)>();
+        for (var i = 1; i < frames.Count; i++)
+        {
+            gaps.Add((frames[i], frames[i] - frames[i - 1]));
+        }
+
+        var over50 = gaps.Count(g => g.Gap > 50);
+        var worst = gaps.OrderByDescending(g => g.Gap).Take(5).Select(g => $"t={g.At:F0}ms gap={g.Gap:F0}ms");
+        TryWrite(path, $"[nav] watch frames={frames.Count} over50={over50} maxGap={gaps.Select(g => g.Gap).DefaultIfEmpty(0).Max():F1} top={string.Join(", ", worst)}");
     }
 
     private static async Task RunAsync(MainWindow window, string path)

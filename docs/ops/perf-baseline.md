@@ -1572,3 +1572,35 @@ Windows 快路径 `ScanWindows`：`EnumProcesses`(psapi) → 每个 pid `OpenPro
 ### 35.4 视觉与内存
 - 预热中的视图 `Opacity=0` 且不吃鼠标，跑完立刻 `IsVisible=false`；对正在运行的应用截屏（`artifacts/perf/warm-after.png`，1296×809）确认画面仍是当前页，没有浮出的预热页。
 - 3 分钟 soak（同口径、镜像实例）：WS 419.7–435.9 MB / private 364.0–380.1 MB / 线程 103–111 / 空转 **0.0–0.1% 单核**，比不带预热的 444.8–457.9 MB 还低（预热只持有 10 个页面的视图，用户访问过之后本来就常驻）。
+
+### 35.5 预热自身带来的启动后卡顿，以及按焦点收口
+
+预热把成本从「用户点击的那一刻」挪到了「首帧之后」。用 `CKANUI_NAV_WATCH_MS`（`NavigationProbe` 新增）从 `Opened` 起连续采帧，量出这个过程里 UI 线程的实际冻结：
+
+```
+[nav] watch frames=1008 over50=9 maxGap=828.4 top=t=1395ms gap=828ms, t=15824ms gap=452ms, t=294ms gap=171ms
+[warm] logs attach=52ms / settings attach=843ms / unmanaged attach=15ms / modpack-editor attach=154ms / ...
+```
+
+即**窗口打开后约 1.4 秒会冻结 0.8 秒**——那是设置页 2338 个节点的一次性排版。这比「点设置卡 0.4 秒」更难解释，所以给它加了一道焦点门：
+
+- `ExpensiveWarmups = { "settings" }`，只有这类页面会一次性吃满 UI 线程。
+- `MainWindow.ShouldWarmExpensive(bool windowActive, TimeSpan sinceNavigation)`：窗口在后台，或前台静置超过 `ExpensiveWarmIdle = 45s`，才允许预热重页面。
+- 窗口切后台时 `OnWarmWindowPropertyChanged` 立刻把定时器叫醒（不必等满 420 ms 节拍）；`WarmIdleTickLimit = 150` 防止为一个页面永远轮询。
+
+代价写清楚：**窗口一直前台活跃时，设置页不会预热**，首次点它仍要 425 ms（对比预热后的 76 ms）。这是有意选择——830 ms 的无预警冻结比一次点击等待更糟。轻页面（logs 52 ms / mods 74 ms / modpacks 47 ms 等，全部 ≤154 ms）不受影响，照常在首帧后预热。
+
+判定逻辑有单测覆盖：`tests/CkanUI.App.Tests/PageWarmGateTests.cs`（后台一律允许 / 前台 3 s 不允许 / 前台 60 s 允许）。注意本机探针启动的窗口不是前台窗口，所以上面那 828 ms 的采样记录的是「后台窗口」的情形，属于设计内行为；前台路径由单测而非实机采样证明。
+
+### 35.6 详情面板四个子页签的成本
+
+`tools/perf-probe --detail-tabs`（`PageSwitchProbe.DetailTabSweep`）在真实实例下选中一行模组，再把 `ModDetailsView` 的四个内联 `TabItem` 逐个切过去（headless，ms）：
+
+| 页签 | 第 1 轮 layout | 第 2 轮 layout | 节点数 |
+| --- | ---: | ---: | ---: |
+| 元数据与简介 | 0.0 | 55.8 | 105 |
+| 依赖与关系 | 34.0 | 18.2 | 43 |
+| 版本 | 17.4 | 17.1 | 46 |
+| 已安装文件 | **101.2** | **36.8** | 52 |
+
+四个页签是内联 `TabItem`（不是 `ItemsSource`），切换不重建控件实例，所以成本只有该页内容的首次测量（101 ms 那次是「已安装文件」列表的首次落地）。节点只有 43–105，没有可压缩的结构；继续改只能动视觉，按铁律不做。

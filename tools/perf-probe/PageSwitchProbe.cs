@@ -10,9 +10,11 @@ using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CkanUI.App;
+using CkanUI.App.Views.Dialogs;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Logs;
 using CkanUI.ViewModels;
+using CkanUI.ViewModels.Pages;
 using CkanUI.ViewModels.Pages.Logs;
 
 namespace CkanUI.Tools.PerfProbe;
@@ -805,6 +807,100 @@ public static class PageSwitchProbe
 
     /// <summary>打印指定页面的可视树类型直方图，用来判断节点数被谁吃掉。</summary>
     /// <param name="key">导航键。</param>
+    /// <summary>量详情面板四个页签的切换成本（内联 TabItem，实例不重建）。</summary>
+    /// <param name="rounds">重复轮数。</param>
+    public static void DetailTabSweep(int rounds = 2)
+    {
+        HeadlessAppHost.EnsureInitialized();
+
+        using var services = ServiceRegistration.Build(() => null);
+        var instanceService = (IInstanceService)services.GetService(typeof(IInstanceService))!;
+        if (Environment.GetEnvironmentVariable("CKANUI_PROBE_INSTANCE") == "1")
+        {
+            try
+            {
+                instanceService.RefreshAsync().GetAwaiter().GetResult();
+                if (instanceService.Current is null && instanceService.Instances.Count > 0)
+                {
+                    var switched = instanceService.SwitchAsync(instanceService.Instances[0].Name).GetAwaiter().GetResult();
+                    Console.WriteLine($"[DetailTabs] switch ok={switched.IsSuccess} msg={switched.Message ?? "-"}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DetailTabs] instance-load-failed {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        var page = (ModsPageViewModel)services.GetService(typeof(ModsPageViewModel))!;
+        HeadlessAppHost.PumpJobs();
+        Console.WriteLine($"[DetailTabs] instance={instanceService.Current?.Name ?? "<none>"} modules={instanceService.Current?.ModuleCount?.ToString() ?? "-"}");
+
+        page.Activate();
+        Settle(2500);
+
+        var row = page.Rows.FirstOrDefault(r => r.IsInstalled) ?? page.Rows.FirstOrDefault();
+        var details = page.Details;
+        if (row is null || details is null)
+        {
+            Console.WriteLine($"[DetailTabs] no rows rows={page.Rows.Count} details={(details is null ? "null" : "ok")}");
+            page.Deactivate();
+            return;
+        }
+
+        details.Select(row.Identifier);
+        Settle(400);
+        Console.WriteLine($"[DetailTabs] row={row.Identifier} hasSelection={details.HasSelection} rows={page.Rows.Count}");
+
+        var host = new Window { Width = 1280, Height = 800 };
+        host.Show();
+        HeadlessAppHost.PumpJobs();
+
+        var view = new ModDetailsView { DataContext = details };
+        host.Content = view;
+        HeadlessAppHost.PumpJobs();
+        host.Measure(new Size(1280, 800));
+        host.Arrange(new Rect(0, 0, 1280, 800));
+        HeadlessAppHost.PumpJobs();
+
+        var tab = view.GetVisualDescendants().OfType<TabControl>().FirstOrDefault();
+        if (tab is null)
+        {
+            Console.WriteLine($"[DetailTabs] no TabControl nodes={view.GetVisualDescendants().Count()}");
+            host.Content = null;
+            host.Close();
+            page.Deactivate();
+            return;
+        }
+
+        Console.WriteLine($"[DetailTabs] items={tab.ItemCount} nodes={view.GetVisualDescendants().Count()}");
+        for (var round = 1; round <= rounds; round++)
+        {
+            for (var i = 0; i < tab.ItemCount; i++)
+            {
+                var sw = Stopwatch.StartNew();
+                tab.SelectedIndex = i;
+                HeadlessAppHost.PumpJobs();
+                host.Measure(new Size(1280, 800));
+                host.Arrange(new Rect(0, 0, 1280, 800));
+                var layoutMs = sw.Elapsed.TotalMilliseconds;
+
+                sw.Restart();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+                HeadlessAppHost.PumpJobs();
+                Console.WriteLine(
+                    $"[DetailTabs]   round={round} item{i}: layout={layoutMs:F1}ms render={sw.Elapsed.TotalMilliseconds:F1}ms nodes={view.GetVisualDescendants().Count()}");
+            }
+        }
+
+        tab.SelectedIndex = 0;
+        host.Content = null;
+        host.Close();
+        HeadlessAppHost.PumpJobs();
+        details.Select(null);
+        page.Deactivate();
+    }
+
     /// <summary>比较「重新挂载」与「仅切换可见性」的排版成本，判断保活页面视图是否值得。见 docs/ops/perf-baseline.md §29。</summary>
     public static void VisibilityCost(string key = "settings", int rounds = 3)
     {
