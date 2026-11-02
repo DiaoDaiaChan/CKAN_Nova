@@ -74,6 +74,12 @@ internal static class NavigationProbe
                     _ = WatchAsync(window, path, watchMs);
                 }
 
+                // 只采启动帧率时可以跳过遍历（预热/启动封面本身才是被观测量）。
+                if (Environment.GetEnvironmentVariable("CKANUI_NAV_SKIP_SWEEP") == "1")
+                {
+                    return;
+                }
+
                 await Task.Delay(WarmupMs());
                 await RunAsync(window, path);
             }
@@ -168,6 +174,9 @@ internal static class NavigationProbe
             }
 
             var maxGap = gaps.Count == 0 ? 0d : gaps.Max();
+            var worstEnd = frames.Count < 2
+                ? 0d
+                : frames[Enumerable.Range(1, frames.Count - 1).MaxBy(i => frames[i] - frames[i - 1])];
             var p50 = Percentile(gaps, 0.50);
             var p95 = Percentile(gaps, 0.95);
             var dropped = gaps.Count(gap => gap > 16.7);
@@ -176,7 +185,7 @@ internal static class NavigationProbe
                 path,
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"[nav] r{round} {key} assign={assign:F1}ms layout={layout:F1}ms paint={paint:F1}ms frames={frames.Count} maxGap={maxGap:F1}ms p50={p50:F1}ms p95={p95:F1}ms dropped={dropped} nodes={ActiveNodeCount(window)}"));
+                    $"[nav] r{round} {key} assign={assign:F1}ms layout={layout:F1}ms paint={paint:F1}ms frames={frames.Count} maxGap={maxGap:F1}ms p50={p50:F1}ms p95={p95:F1}ms dropped={dropped} nodes={ActiveNodeCount(window)} worstAt={worstEnd:F0}ms"));
 
             if (Environment.GetEnvironmentVariable("CKANUI_NAV_SCROLL") == "1")
             {

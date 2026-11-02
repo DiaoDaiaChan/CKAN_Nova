@@ -101,10 +101,11 @@ public sealed partial class MainWindow : Window
     /// 之后真正的首次点击只剩「翻可见性」的 1–2 ms（§29 的同一个机制）。
     /// 见 docs/ops/perf-baseline.md §35。
     /// </summary>
-    private readonly DispatcherTimer _pageWarmTimer = new() { Interval = TimeSpan.FromMilliseconds(2500) };
+    private readonly DispatcherTimer _pageWarmTimer = new() { Interval = TimeSpan.FromMilliseconds(2000) };
 
     /// <summary>等待预热的导航键，按首次进入成本从高到低。</summary>
     private readonly Queue<string> _warmQueue = new();
+
     private int _warmIdleTicks;
 
     /// <summary>最近一次换页的时刻：预热会让位给正在操作的用户。</summary>
@@ -580,6 +581,7 @@ public sealed partial class MainWindow : Window
     /// <summary>首帧后开始逐页预热，每 tick 只热一页，避免连排几帧。</summary>
     private void StartPageWarmup()
     {
+
         if (_shell is null || _warmQueue.Count > 0)
         {
             return;
@@ -618,6 +620,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+
         // 预热把一批页面（含模组页的 DataGrid）实体化，工作集会被撑到 GB 级，收缩是回收器
         // 轮询的事（8 秒一次 + 128MB 门限），但用户不希望峰值停留太久，所以队列跑空后主动回收一次。
         if (_warmQueue.Count == 0)
@@ -648,27 +651,26 @@ public sealed partial class MainWindow : Window
         // 重页面预热会一次性占住 UI 线程（设置页约 830 ms，实测见 §35.5）。窗口在前台时
         // 那是一次肉眼可见的冻结，所以留到窗口失焦、或前台静置很久之后再热。
         var sinceNavigation = DateTime.UtcNow - _lastNavigationUtc;
+
+        // 用户在前台时一律不预热：任何一次整页排版都会在启动那几秒里留下肉眼可见的掉帧
+        // （§48 实测：不预热 63 fps / maxGap 300 ms，只热 4 个便宜页就掉到 50 fps / maxGap 700 ms）。
+        // 预热只发生在窗口失焦，或前台静置超过 ExpensiveWarmIdle 之后。
+        if (!ShouldWarmExpensive(IsActive, DynamicRefreshRateController.Instance.IsIdle, sinceNavigation))
+        {
+            return;
+        }
+
+        // 空闲轮次只在实际预热时计数：前台干等不该把预算耗光。
         if (++_warmIdleTicks > WarmIdleTickLimit)
         {
             _pageWarmTimer.Stop();
             return;
         }
 
-        while (_warmQueue.Count > 0)
+        if (WarmPage(_warmQueue.Dequeue()))
         {
-            if (ExpensiveWarmups.Contains(_warmQueue.Peek())
-                && !ShouldWarmExpensive(IsActive, DynamicRefreshRateController.Instance.IsIdle, sinceNavigation))
-            {
-                return;
-            }
-
-            if (WarmPage(_warmQueue.Dequeue()))
-            {
-                return;
-            }
+            return;
         }
-
-        _pageWarmTimer.Stop();
     }
 
     /// <summary>窗口切到后台时把预热定时器叫醒：重页面就是等这一刻才热的。</summary>
@@ -705,6 +707,9 @@ public sealed partial class MainWindow : Window
         {
             warmVm!.Activate();
         }
+
+        // 旗帜/载具的缩略图是绑定时同步解码的，等用户点进来才解就是几百毫秒的卡顿。
+        PrewarmThumbnails(page, key);
 
         if (new ViewLocator().Build(page) is not { } view)
         {
@@ -747,6 +752,47 @@ public sealed partial class MainWindow : Window
         return true;
     }
 
+    /// <summary>旗帜与载具列表的缩略图在绑定时同步解码；预热时先在后台上把它们烘进缓存。</summary>
+    private static void PrewarmThumbnails(object page, string key)
+    {
+        switch (key)
+        {
+            case "flags" when page is CkanUI.ViewModels.Pages.Assets.FlagsPageViewModel flags:
+                PrewarmWhenLoaded(flags.Flags, static rows => Converters.PathToThumbnailConverter.Prewarm(
+                    rows.Select(static row => row.FilePath), 160));
+                break;
+            case "ships" when page is CkanUI.ViewModels.Pages.Assets.ShipsPageViewModel ships:
+                PrewarmWhenLoaded(ships.Crafts, static rows => Converters.PathToThumbnailConverter.Prewarm(
+                    rows.Select(static row => row.ThumbnailPath), 96));
+                break;
+        }
+    }
+
+    /// <summary>行集合是异步填的：现在有就立刻预热，没有就等第一次填充后再预热一次。</summary>
+    private static void PrewarmWhenLoaded<T>(
+        System.Collections.ObjectModel.ObservableCollection<T> rows,
+        Action<IReadOnlyList<T>> prewarm)
+    {
+        if (rows.Count > 0)
+        {
+            prewarm(rows.ToList());
+            return;
+        }
+
+        void OnChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (rows.Count == 0)
+            {
+                return;
+            }
+
+            rows.CollectionChanged -= OnChanged;
+            prewarm(rows.ToList());
+        }
+
+        rows.CollectionChanged += OnChanged;
+    }
+
     private static void FinishWarm(Control view, object page, string key)
     {
         // 预热后保持激活：多数页面的行数据是 OnActivated 里异步加载的，立刻 Deactivate 会把
@@ -759,12 +805,10 @@ public sealed partial class MainWindow : Window
     /// <summary>预热时需要「真的激活一次」的页面：它们的首屏成本主要是 OnActivated 里的行投影。</summary>
     private static readonly HashSet<string> ActivationWarmups = new(StringComparer.Ordinal)
     {
-        "logs",
+        "logs", "flags",
         "mods", "unmanaged", "content", "repos", "modpacks", "modtext", "ships", "saves"
     };
 
-    /// <summary>一次性吃满 UI 线程的重页面：只在窗口后台或长时间静置时预热。</summary>
-    private static readonly HashSet<string> ExpensiveWarmups = new(StringComparer.Ordinal) { "settings" };
 
     /// <summary>前台静置超过这么久，才认为用户不在看（此时预热重页面不会看见冻结）。</summary>
     private static readonly TimeSpan ExpensiveWarmIdle = TimeSpan.FromSeconds(45);
@@ -776,7 +820,7 @@ public sealed partial class MainWindow : Window
     private const int WarmIdleTickLimit = 150;
 
     /// <summary>预热期间每热完一页，工作集超过这个值就压缩回收一次，避免峰值攒到 GB 级。</summary>
-    private const long WarmPageReclaimBytes = 430L * 1024 * 1024;
+    private const long WarmPageReclaimBytes = 700L * 1024 * 1024;
 
     /// <summary>预热结束后工作集超过这个值再回收一次。</summary>
     private const long WarmReclaimThresholdBytes = 700L * 1024 * 1024;
@@ -787,8 +831,9 @@ public sealed partial class MainWindow : Window
     /// <summary>预热顺序：按实测首次进入成本从高到低（§21.2 / §27.2）。</summary>
     private static readonly string[] WarmupOrder =
     [
-        "logs", "modtext", "installhistory", "modpack-editor", "dedup", "mods",
-        "cache", "downloadstats", "flags", "modpacks", "ships", "settings"
+        // 前四个是「实例相关」的高频目标页：旗帜、载具、存档都在这里，第一次点它们最容易被感知成卡顿。
+        "logs", "flags", "ships", "saves", "modtext", "installhistory", "modpack-editor", "dedup",
+        "mods", "cache", "downloadstats", "modpacks", "settings"
     ];
 
     private void ShowPage(object? page)

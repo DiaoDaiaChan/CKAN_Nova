@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media.Imaging;
@@ -69,30 +71,116 @@ public sealed class PathToThumbnailConverter : IValueConverter
             }
         }
 
+
         Bitmap? bitmap = null;
         try
         {
-            // 停用的加载图带 .disabled 后缀，解码要按真实扩展名判断，否则缩略图会整片空掉。
-            var effective = path.EndsWith(LoadingImageService.DisabledSuffix, StringComparison.OrdinalIgnoreCase)
-                ? path[..^LoadingImageService.DisabledSuffix.Length]
-                : path;
-
-            // DDS 是游戏格式（ROLoadingImages 的加载图全是 DXT1），Avalonia 没内置解码器，走我们自己的块解压。
-            bitmap = string.Equals(Path.GetExtension(effective), ".dds", StringComparison.OrdinalIgnoreCase)
-                ? DecodeDds(path, width)
-                : DecodeWithAvalonia(path, width);
+            bitmap = DecodeBitmap(path, width);
         }
         catch (Exception)
         {
             bitmap = null;
         }
 
+        Store(key, bitmap);
         lock (Cache)
         {
-            if (Cache.TryGetValue(key, out var existing))
+            // 并发解码同一张图：留先到的那份，后来者丢弃。
+            return Cache.TryGetValue(key, out var stored) ? stored : bitmap;
+        }
+    }
+
+    /// <summary>
+    /// 预热一批缩略图：在后台线程把图解码进缓存，等界面真正绑定时直接命中。
+    /// </summary>
+    /// <remarks>
+    /// 解码是同步的（<see cref="Bitmap.DecodeToWidth"/>），绑定时在 UI 线程上跑；旗帜页 50 多张、
+    /// 载具页几十张，一次性绑完就是几百毫秒的卡顿。预热把这些解码挪到后台，绑定只做字典命中。
+    /// </remarks>
+    public static void Prewarm(IEnumerable<string?> paths, int width = ThumbnailWidth)
+    {
+        var targets = paths
+            .Where(static path => !string.IsNullOrEmpty(path))
+            .Select(static path => path!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (targets.Length == 0)
+        {
+            return;
+        }
+
+        _ = Task.Run(() =>
+        {
+            foreach (var path in targets)
             {
-                // 并发解码同一张图：留先到的那份，后来者丢弃。
-                return existing;
+                try
+                {
+                    DecodeIntoCache(path, width);
+                }
+                catch (Exception)
+                {
+                    // 预热失败留给绑定时按原路径重试：损坏文件、瞬时占用都要保持原有降级行为。
+                }
+            }
+        });
+    }
+
+    /// <summary>解码并写入缓存；已命中则跳过。</summary>
+    private static void DecodeIntoCache(string path, int width)
+    {
+        if (TryBuildKey(path, width) is not { } key)
+        {
+            return;
+        }
+
+        lock (Cache)
+        {
+            if (Cache.ContainsKey(key))
+            {
+                return;
+            }
+        }
+
+        Store(key, DecodeBitmap(path, width));
+    }
+
+    /// <summary>缓存键：路径 + 修改时间 + 目标宽度（原图被覆盖后会自然失效）。</summary>
+    private static string? TryBuildKey(string path, int width)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            return info.Exists
+                ? path + "|" + info.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture) + "|" + width.ToString(CultureInfo.InvariantCulture)
+                : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>按扩展名选解码器：DDS 走自研块解压，其余交给 Avalonia。</summary>
+    private static Bitmap? DecodeBitmap(string path, int width)
+    {
+        // 停用的加载图带 .disabled 后缀，解码要按真实扩展名判断，否则缩略图会整片空掉。
+        var effective = path.EndsWith(LoadingImageService.DisabledSuffix, StringComparison.OrdinalIgnoreCase)
+            ? path[..^LoadingImageService.DisabledSuffix.Length]
+            : path;
+
+        return string.Equals(Path.GetExtension(effective), ".dds", StringComparison.OrdinalIgnoreCase)
+            ? DecodeDds(path, width)
+            : DecodeWithAvalonia(path, width);
+    }
+
+    /// <summary>写入缓存并按上限淘汰最老的键。</summary>
+    private static void Store(string key, Bitmap? bitmap)
+    {
+        lock (Cache)
+        {
+            if (Cache.ContainsKey(key))
+            {
+                return;
             }
 
             if (CacheOrder.Count >= MaxEntries && CacheOrder.Count > 0)
@@ -103,7 +191,6 @@ public sealed class PathToThumbnailConverter : IValueConverter
 
             Cache[key] = bitmap;
             CacheOrder.Enqueue(key);
-            return bitmap;
         }
     }
 
