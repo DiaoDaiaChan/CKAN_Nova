@@ -1936,3 +1936,39 @@ CKANUI_SNAP_SEED=1 dotnet tools/ui-snapshot/bin/Release/net10.0/ui-snapshot.dll�
 - 隐藏页继续参与排版：窗口尺寸变化时 12 棵页面树一起重排（拖窗口缩放会比之前重）。实测空闲 CPU/内存无回归，视觉无差异。
 - IsEnabled = false 会让隐藏页内的控件进入禁用状态；它们不可见、不可交互，重新激活时立刻恢复。
 - NavigationProbe 的 [warm] / [nav] 口径不变，本节数字与 §35–§39 可直接对比。
+
+## §41 预热不再和换页抢线程：静置门加宽到 3 秒，重页面还要求用户真的停手
+
+### 41.1 问题
+
+§35 起的「逐页预热」每 2.5 s 一个 tick，每个 tick 只在「距上次换页 >1.2 s」时才动手。但单页切换实测 0.1–0.4 s，用户连着点几下时，两次点击之间正好能落进 1.2 s 的缝里——tick 于是在用户刚点完的瞬间插进来，抢走 UI 线程。
+
+真机 NavigationProbe 里这个现象就是**帧间隔尖刺**（layout 只有几十毫秒，maxGap 却是几百毫秒）：
+
+| 页面 | 修前 maxGap（连续换页 sweep） |
+| --- | ---: |
+| flags R2 | 524 ms |
+| mods R1 | 915 ms |
+| flags R1 | 501 ms |
+
+### 41.2 改法（src/CkanUI.App/MainWindow.axaml.cs）
+
+- 静置门 1200 ms → WarmQuiet = 3 s：3 秒内换过页就说明用户在连续操作，这一轮让位。
+- 重页面（当前只有 settings）预热额外要求「用户真的停手」：ShouldWarmExpensive(bool windowActive, bool isIdle, TimeSpan sinceNavigation) => !windowActive || (isIdle && sinceNavigation > ExpensiveWarmIdle)，其中 isIdle 取 DynamicRefreshRateController.Instance.IsIdle。原来只看「距上次换页 45 s」，用户一直敲键盘也会被判为可以热——而这一次预热是 0.8–1.4 s 的整窗冻结。
+- 新增单测 FocusedWindow_LongIdleButUserStillTyping_DoesNotWarm；原三例同步补 isIdle 参数。
+
+### 41.3 实测（真机 Release、镜像实例 336 模组、连续换页 sweep）
+
+| 页面 | 修前 maxGap | 修后 maxGap |
+| --- | ---: | ---: |
+| flags R2 | 524 | **36** |
+| mods R1 | 915 | **85** |
+| flags R1 | 501 | 424 |
+| 全页 R2 maxGap | 多数 ≤40，logs 109、modconfig 122 | ≤122 |
+
+代价：连续快速换页时预热基本排不上（3 s 静置门挡着），因此 R1 里未预热的页面回到原始成本（settings R1 477 ms、downloadstats 328 ms）。真实用户停在某页超过 3 秒才开始热，所以正常使用不受影响；扫描式连点会看到首进变慢——这是有意的取舍：宁可慢一点，也不要无预警冻结。
+
+### 41.4 边界
+
+- IsIdle 由 DynamicRefreshRateController 维护（2.5 s 无输入进入空闲），窗口失焦时它也会进入空闲，所以后台预热不受影响。
+- 预热仍在 2.5 s tick 上串行推进，最坏情况下整条队列要走 30 s；WarmIdleTickLimit = 150 仍是上限。

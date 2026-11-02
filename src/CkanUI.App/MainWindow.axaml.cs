@@ -564,11 +564,18 @@ public sealed partial class MainWindow : Window
     /// 把 <paramref name="page"/> 对应的视图切成可见。视图只建一次、之后常驻 <see cref="PageStage"/>，
     /// 再次进入只切 IsVisible —— 这样切页不再触发整棵可视树重新测量。见 docs/ops/perf-baseline.md §29。
     /// </summary>
-    /// <summary>重页面是否该在这一刻预热：窗口在后台，或前台静置超过 <see cref="ExpensiveWarmIdle"/>。</summary>
+    /// <summary>
+    /// 重页面是否该在这一刻预热：窗口在后台，或前台静置很久（<see cref="ExpensiveWarmIdle"/>）且用户确实没在操作。
+    /// </summary>
     /// <param name="windowActive">窗口当前是否处于激活状态。</param>
+    /// <param name="isIdle">用户是否已经静置（<see cref="DynamicRefreshRateController.IsIdle"/>）。</param>
     /// <param name="sinceNavigation">距上次换页的时间。</param>
-    public static bool ShouldWarmExpensive(bool windowActive, TimeSpan sinceNavigation) =>
-        !windowActive || sinceNavigation > ExpensiveWarmIdle;
+    /// <remarks>
+    /// 重页面预热会一次性占住 UI 线程约 0.8–1.4 秒（§35.5），用户正在前台操作时哪怕隔了很久也不该突然冻结一下；
+    /// 只有在后台、或前台且用户已经放下鼠标键盘时才热。见 docs/ops/perf-baseline.md §41。
+    /// </remarks>
+    public static bool ShouldWarmExpensive(bool windowActive, bool isIdle, TimeSpan sinceNavigation) =>
+        !windowActive || (isIdle && sinceNavigation > ExpensiveWarmIdle);
 
     /// <summary>首帧后开始逐页预热，每 tick 只热一页，避免连排几帧。</summary>
     private void StartPageWarmup()
@@ -631,7 +638,9 @@ public sealed partial class MainWindow : Window
         }
 
         // 用户正在点：这一轮让位，稍后再热。
-        if (DateTime.UtcNow - _lastNavigationUtc < TimeSpan.FromMilliseconds(1200))
+        // 单页切换实测 0.1–0.4 s，再加上用户看完再点，3 秒内换过页就说明正在连续操作，
+        // 这时候插一次预热会跟换页抢 UI 线程（§41.2 里 500 ms 级的帧间隔就是这么来的）。
+        if (DateTime.UtcNow - _lastNavigationUtc < WarmQuiet)
         {
             return;
         }
@@ -647,7 +656,8 @@ public sealed partial class MainWindow : Window
 
         while (_warmQueue.Count > 0)
         {
-            if (ExpensiveWarmups.Contains(_warmQueue.Peek()) && !ShouldWarmExpensive(IsActive, sinceNavigation))
+            if (ExpensiveWarmups.Contains(_warmQueue.Peek())
+                && !ShouldWarmExpensive(IsActive, DynamicRefreshRateController.Instance.IsIdle, sinceNavigation))
             {
                 return;
             }
@@ -757,6 +767,9 @@ public sealed partial class MainWindow : Window
 
     /// <summary>前台静置超过这么久，才认为用户不在看（此时预热重页面不会看见冻结）。</summary>
     private static readonly TimeSpan ExpensiveWarmIdle = TimeSpan.FromSeconds(45);
+
+    /// <summary>换页后至少静置这么久才允许预热插进来，避免和连续换页抢 UI 线程。</summary>
+    private static readonly TimeSpan WarmQuiet = TimeSpan.FromSeconds(3);
 
     /// <summary>预热定时器最多空转的 tick 数，超过就停表，避免为一个页面永远轮询。</summary>
     private const int WarmIdleTickLimit = 150;
