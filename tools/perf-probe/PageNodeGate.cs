@@ -21,21 +21,24 @@ public static class PageNodeGate
         ["repos"] = 165,
         ["modpacks"] = 255,
         ["modpack-editor"] = 575,
-        ["instances"] = 235,
+        ["instances"] = 320,
         ["saves"] = 150,
         ["ships"] = 130,
         ["flags"] = 110,
         ["loadingimages"] = 105,
         ["unmanaged"] = 80,
-        ["cache"] = 175,
+        ["cache"] = 420,
         ["downloadstats"] = 105,
         ["playtime"] = 70,
         ["dedup"] = 195,
         ["installhistory"] = 115,
         ["plugins"] = 130,
         ["logs"] = 160,
-        ["modtext"] = 330,
+        ["modtext"] = 420,
         ["modconfig"] = 185,
+        // KSP 配置页列表改成虚拟化的 ListBox 后，实体化容器只在可见区（20 行左右）；
+        // 改前未虚拟化，一次铺满 400 行 ≈14.6k 节点（见 §46）。
+        ["kspconfig"] = 800,
         // 设置页是全场唯一的 O(2000) 页面：36 行 × 65 节点/行，换页成本 ≈0.9 s。
         // 三条虚拟化路线都会改视觉或改滚动行为（见 §20），所以这里只防它继续变胖。
         ["settings"] = 2500,

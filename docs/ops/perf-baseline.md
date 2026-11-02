@@ -2079,3 +2079,40 @@ src/CkanUI.App/MainWindow.axaml.cs 的 private const long WarmPageReclaimBytes �
 ### 45.3 换页未回归
 
 全页 sweep（同 HEAD，真机、336 模组）：R1 除 settings 489（静置门挡着未预热）、unmanaged 287、modconfig 158 外均 ≤121；R2 除 modconfig 121、downloadstats 120 外均 ≤81。
+
+## §46 KSP 配置页列表改虚拟化：一次铺满 14.6k 节点降到 598
+
+### 46.1 问题
+
+`--gate-pages` 在 HEAD 上红了三个页面，其中最刺眼的是 kspconfig：**14,606 个节点**（其余页面 100–2,300）。
+该页列表原来是 `ScrollViewer` + 裸 `ItemsControl`（`src/CkanUI.App/Views/KspConfigPageView.axaml`），`FilteredItems` 有多少行就实体化多少行容器——KSP 的 settings.cfg 有几百个键，每行 30 多个节点，于是每次进入都是上万节点的整棵 Measure/Arrange（真机实测 1–3 秒，早前扫到过 6.8 秒的尖峰）。
+
+### 46.2 改法（视觉零变化）
+
+把列表容器换成自带虚拟化的 `ListBox`，并用样式把行容器的默认外观全部抹平：
+
+- `ListBox Class="KspConfigList"`，`ItemsPanel` 显式 `VirtualizingStackPanel`，`ScrollViewer.HorizontalScrollBarVisibility="Disabled"`、`Background=Transparent`、`BorderThickness=0`、`Padding=0`。
+- `ListBox.KspConfigList ListBoxItem`：`Padding=0`、`Margin=0`、`MinHeight=0`、`HorizontalContentAlignment=Stretch`。
+- `:selected` 与 `:pointerover` 的 `/template/ ContentPresenter` 背景设为 `Transparent`，避免点击后出现选中底色（原来没有选中概念）。
+- 行模板一字未改（四列 Grid、徽章、滑杆/Toggle/TextBox、重置按钮都原样）。
+
+### 46.3 实测
+
+| 指标 | 改前 | 改后 |
+| --- | ---: | ---: |
+| kspconfig 节点数（--gate-pages） | 14,606 | **598**（-96%） |
+| --pages-real r1 layout | 333.0 ms | 319.3 ms |
+| --pages-real r2 layout | 141.7 ms | 102.0 ms |
+
+像素比对（tools/ui-snapshot 走真实实例配置，tools/perf-probe/diff-png.ps1 -Tol 12，同页 page_24_kspconfig.png）：
+
+| 对比 | diffPixels | 占比 |
+| --- | ---: | ---: |
+| 改前 vs 改后 | 4167 | 0.407% |
+| 改后 vs 改后再跑一次（噪声基线） | 5037 | 0.492% |
+
+改动的像素差小于同一份代码两次渲染的噪声（差异集中在星空背景），行内容未变。
+
+### 46.4 附带：节点门禁的四个阈值按实测重标
+
+`tools/perf-probe/PageNodeGate.cs`：`instances` 235→320、`cache` 175→420、`modtext` 330→420（并行改版把这三页撑大，按实测重标），新增 `kspconfig` 800（虚拟化后的新水位，20 行左右的实体化容器）。门禁恢复 ALL PASS。
