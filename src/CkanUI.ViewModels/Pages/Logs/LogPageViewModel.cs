@@ -243,10 +243,21 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
         ? Text("按「级别 + 族 + 消息骨架」折叠，取前 {0} 组", LocalizationKeys.LogsAggregatedHint, TopFingerprintCount)
         : Text("已按事件顺序展开", LocalizationKeys.LogsExpandedHint);
 
+    // 上次真正重建列表时存储的版本号；激活时版本没变就不必再查一遍。
+    private long _lastBuiltVersion = -1;
+    private bool _hasBuilt;
+
     /// <inheritdoc />
     protected override void OnActivated()
     {
         _store.Changed += OnStoreChanged;
+        // 存储没有新事件时列表内容不会变，重新查一遍库、重建几十个 row 只是白花 UI 线程
+        // （实测每次进入 100 ms 上下，见 docs/ops/perf-baseline.md §42）。
+        if (_lastBuiltVersion == _store.Version && _hasBuilt)
+        {
+            return;
+        }
+
         Refresh();
     }
 
@@ -280,6 +291,8 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
                 WarningCount = 0;
                 SelectedRow = null;
                 ResetMatchCursor();
+                _lastBuiltVersion = _store.Version;
+                _hasBuilt = true;
                 return;
             }
 
@@ -313,6 +326,8 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
             // 跟随末尾时选最新一行；否则尽量保持用户原来选中的那条（按 Seq 找回），
             // 这样点开详情面板去看异常栈时，后台每来一条新日志都不会把面板内容冲掉。
             SelectedRow = rows.Count == 0 ? null : PickSelection(rows);
+            _lastBuiltVersion = _store.Version;
+            _hasBuilt = true;
         }
         catch (Exception ex)
         {

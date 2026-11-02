@@ -1972,3 +1972,24 @@ CKANUI_SNAP_SEED=1 dotnet tools/ui-snapshot/bin/Release/net10.0/ui-snapshot.dll�
 
 - IsIdle 由 DynamicRefreshRateController 维护（2.5 s 无输入进入空闲），窗口失焦时它也会进入空闲，所以后台预热不受影响。
 - 预热仍在 2.5 s tick 上串行推进，最坏情况下整条队列要走 30 s；WarmIdleTickLimit = 150 仍是上限。
+
+## §42 日志页回来时不再重查一遍：存储版本没变就直接复用列表
+
+### 42.1 问题
+
+LogPageViewModel.OnActivated 每次都无条件 Refresh()：按当前过滤条件查库、聚合时间轴、重建几十个 LogRowViewModel。实测这一趟 20–100 ms（aggregate 单项 13 ms，见 §18.11 的拆分表），而用户只是从别的页点回日志页——缓冲区里一条新日志都没有，结果一模一样。
+
+### 42.2 改法（src/CkanUI.ViewModels/Pages/Logs/LogPageViewModel.cs）
+
+- 新增 private long _lastBuiltVersion = -1; 与 private bool _hasBuilt;；Refresh() 成功建完列表（含「过滤条件命中 0 条」那条早退分支）后记 _lastBuiltVersion = _store.Version; _hasBuilt = true;。
+- OnActivated：订阅完 Changed 后，若 _lastBuiltVersion == _store.Version 且 _hasBuilt 就直接返回，不查库。
+- 异常分支（读日志失败）故意不记版本，下次激活会重试。
+- 用户改过滤条件、点刷新、存储来新事件时仍走原路径（Changed 事件和命令都没变）。
+
+ILogStore.Version 本来就随每次写入自增，所以「版本没变」等价于「缓冲区内容没变」。
+
+### 42.3 效果与代价
+
+- 首次进入不受影响（_hasBuilt 为 false，照旧构建）。
+- 回到日志页且期间没有新事件时，省掉一次查询 + 聚合 + 列表重建；有新事件时照旧自动刷新（新增用例 Reactivating_WithoutNewEntries_ReusesTheRowsAlreadyBuilt 断言行对象复用、以及新事件仍能刷新）。
+- 代价：如果外部直接改了日志文件而没有经过 LogStore，页面不会感知——与现有「存储驱动刷新」的模型一致，不受影响。

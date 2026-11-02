@@ -409,6 +409,24 @@ public sealed class LogPageViewModelTests
     }
 
     [Test]
+    public void Reactivating_WithoutNewEntries_ReusesTheRowsAlreadyBuilt()
+    {
+        var (store, _, page) = LogTestData.CreatePage();
+        store.Append(LogTestData.Entry(LogLevel.Error, "boom"));
+        page.Activate();
+        var firstRow = page.Rows[0];
+
+        page.Deactivate();
+        page.Activate();
+
+        Assert.That(page.Rows.Count, Is.EqualTo(1));
+        Assert.That(page.Rows[0], Is.SameAs(firstRow), "存储版本没变时不该重建列表（§42）");
+
+        store.Append(LogTestData.Entry(LogLevel.Warn, "new one"));
+        Assert.That(page.Rows.Count, Is.EqualTo(2), "有新事件时照旧自动刷新");
+    }
+
+    [Test]
     public void BuildDefaultBundlePath_UsesLogDirectoryAndTimestamp()
     {
         var path = LogPageViewModel.BuildDefaultBundlePath(new DateTime(2026, 3, 7, 14, 5, 9, DateTimeKind.Local));
