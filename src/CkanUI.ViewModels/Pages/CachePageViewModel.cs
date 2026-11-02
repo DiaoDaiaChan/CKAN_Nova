@@ -183,9 +183,13 @@ public sealed partial class CachePageViewModel : PageViewModel
     public string SelectedText => SelectedCount == 0 ? Text("未选中条目", LocalizationKeys.CacheNoSelection) : Text("已选中 {0} 个条目", LocalizationKeys.CacheSelectionText, SelectedCount);
 
     /// <inheritdoc />
+    private bool _hasLoadedOnce;
+
     protected override void OnActivated()
     {
-        if (!IsBusy)
+        // 下载缓存是全局的、不会因为换页自己变；首次进入才自动读盘，
+        // 之后回来直接看上次的结果（页内有「刷新」按钮，302 篇 §34）。
+        if (!IsBusy && !_hasLoadedOnce)
         {
             _ = RefreshAsync();
         }
@@ -429,6 +433,7 @@ public sealed partial class CachePageViewModel : PageViewModel
         EntryCount = Entries.Count;
         SelectedCount = 0;
         SetStatus(Text("已读取 {0} 个缓存条目。", LocalizationKeys.CacheStatusLoaded, EntryCount));
+        _hasLoadedOnce = true;
     }
 
     private void ApplySnapshot(CacheSnapshot snapshot)

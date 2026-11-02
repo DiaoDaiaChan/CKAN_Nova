@@ -1514,3 +1514,24 @@ Windows 快路径 `ScanWindows`：`EnumProcesses`(psapi) → 每个 pid `OpenPro
 | 常驻 + §30/§31 + §32 | 444.8–457.9 MB | 397.7–410.6 MB | 107–111 | 0.1–0.2% 单核 |
 
 读取口径：两次都只停在首页、没有逐页访问，所以这只证明「常驻机制本身」不额外占地；逐页访问后的稳态见下轮补测。工作集比早期 §26 的 312 MB 高，是因为本轮跑的是真实 336 模组注册表（36 MB registry + 投影），不是空实例。
+
+## §34 下载缓存页：目录扫描下放线程池，回来不再重读
+
+### 34.1 现象
+真机导航探针 `cache` 首次进入：`assign=7683.5ms`（导航调用本身被钉住 7.7 秒，期间 `paint=-1` 没有一帧）。
+
+根因：`CacheService.GetSnapshotAsync` / `ListEntriesAsync`（`src/CkanUI.Services/Cache/CacheService.cs:31` / `:49`）体是同步目录枚举（`CkanCacheStore.ListEntries` → `Directory.EnumerateFiles` + 每个文件 `FileInfo`），返回 `Task.FromResult`，所以在 `await` 之前就把 UI 线程占满；而且两次调用各扫一遍。
+
+### 34.2 改法（两处，都不改视觉）
+1. 两个方法体包进 `Task.Run`：真正的异步，`IsBusy`/骨架遮罩先上屏，扫描在线程池。
+2. `CachePageViewModel.OnActivated` 加 `_hasLoadedOnce` 门：下载缓存是全局的、不会因为换页自己变，首次进入自动读盘，之后回来直接看上次结果（页内「刷新」按钮仍在）。
+
+### 34.3 实测（真机导航探针，镜像实例）
+| 指标 | 改前 | 改后 |
+| --- | ---: | ---: |
+| `cache` R1 `assign`（导航被钉住的时间） | 7683.5 ms | **63.7 ms** |
+| `cache` R1 `layout` | 7799.2 ms | 128.2 ms |
+| `cache` R2 `layout` | 109.5–305.0 ms | **68.5 ms** |
+
+### 34.4 代价
+回来时不重扫 → 如果用户在别处刚下载过模组，缓存页数字要等点「刷新」才更新。这是刻意取舍：缓存页不是实时监控面，而 7.7 秒的冻结是硬伤。

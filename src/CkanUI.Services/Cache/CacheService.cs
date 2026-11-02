@@ -29,40 +29,44 @@ public sealed class CacheService : ICacheService
 
     /// <inheritdoc />
     public Task<OperationResult<CacheSnapshot>> GetSnapshotAsync(CancellationToken ct = default)
-    {
-        try
+        // 目录枚举是同步文件 IO：本机真实缓存目录一次 2-8 秒。放到线程池执行，
+        // 否则激活页面的那一帧会把 UI 线程钉住（302 篇 §34）。
+        => Task.Run(() =>
         {
-            ct.ThrowIfCancellationRequested();
-            var entries = _store.ListEntries();
-            var total = entries.Sum(entry => entry.SizeBytes);
-            return Task.FromResult(OperationResult<CacheSnapshot>.Ok(
-                new CacheSnapshot(entries.Count, total, _store.SizeLimitBytes, _store.CacheDirectory)));
-        }
-        catch (Exception ex)
-        {
-            return Task.FromResult(OperationResult<CacheSnapshot>.Fail(
-                "读取下载缓存统计失败。", ex.ToString(), retryable: true));
-        }
-    }
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                var entries = _store.ListEntries();
+                var total = entries.Sum(entry => entry.SizeBytes);
+                return OperationResult<CacheSnapshot>.Ok(
+                    new CacheSnapshot(entries.Count, total, _store.SizeLimitBytes, _store.CacheDirectory));
+            }
+            catch (Exception ex)
+            {
+                return OperationResult<CacheSnapshot>.Fail(
+                    "读取下载缓存统计失败。", ex.ToString(), retryable: true);
+            }
+        });
 
     /// <inheritdoc />
     public Task<OperationResult<IReadOnlyList<CacheEntryInfo>>> ListEntriesAsync(CancellationToken ct = default)
-    {
-        try
+        => Task.Run<OperationResult<IReadOnlyList<CacheEntryInfo>>>(() =>
         {
-            ct.ThrowIfCancellationRequested();
-            var entries = _store.ListEntries()
-                                .OrderByDescending(fact => fact.ModifiedTimeUtc)
-                                .Select(ToEntryInfo)
-                                .ToList();
-            return Task.FromResult(OperationResult<IReadOnlyList<CacheEntryInfo>>.Ok(entries));
-        }
-        catch (Exception ex)
-        {
-            return Task.FromResult(OperationResult<IReadOnlyList<CacheEntryInfo>>.Fail(
-                "读取下载缓存列表失败。", ex.ToString(), retryable: true));
-        }
-    }
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                var entries = _store.ListEntries()
+                                    .OrderByDescending(fact => fact.ModifiedTimeUtc)
+                                    .Select(ToEntryInfo)
+                                    .ToList();
+                return OperationResult<IReadOnlyList<CacheEntryInfo>>.Ok(entries);
+            }
+            catch (Exception ex)
+            {
+                return OperationResult<IReadOnlyList<CacheEntryInfo>>.Fail(
+                    "读取下载缓存列表失败。", ex.ToString(), retryable: true);
+            }
+        });
 
     /// <inheritdoc />
     public Task<OperationResult<CachePurgeResult>> PurgeToLimitAsync(
