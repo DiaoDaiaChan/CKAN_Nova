@@ -1363,3 +1363,72 @@ round2 就是用户每次点同一个 tab 的成本（round1 含首次解析与�
 ### 28.5 门禁与回归
 `--gate-mem` 全部 PASS（滚动 97675 B/帧 ≤130000、首屏后 212.4MB ≤260、峰值 228.4MB ≤300、光栅档空转 7.70% ≤22、线程 9 ≤24）；
 `--gate-pages` ALL PASS；solution 构建 0 警告 0 错误；TestRunner 3525 例 0 失败（1 例显式 Skip）。
+
+
+## 29. 换页成本归零：页面视图常驻 + 只切可见性
+
+### 29.1 问题
+`PageHost` 是 `TransitioningContentControl`，`Content` 绑 `ShellViewModel.CurrentPage`。换页 = 换 `Content` = 旧视图从可视树摘下、新视图重新挂上。
+Avalonia 的 `Measure`/`Arrange` 缓存挂在可视树上，**一旦 detach 就全失效**，下次挂回去要整棵重新排版。
+
+### 29.2 证据（headless，真实实例 Probe (Steam mirror)，modules=336）
+`perf-probe --visibility-cost settings`：
+
+| 观测 | settings（2339 节点） | ships（101 节点） |
+| --- | ---: | ---: |
+| 首次 attach（含创建） | 523.6 ms | 251.9 ms |
+| 已挂树 → `IsVisible=false` | 0.9 ms | 0.3 ms |
+| 已挂树 → `IsVisible=true` | 1.4 ms | 0.1 ms |
+| detach → 再 attach | 1793.5 ms | 23.5 ms |
+
+- **只翻 `IsVisible` 是 1–7 ms，detach + attach 是同页 20–2691 ms**（差距 170–260 倍）。
+- `ViewLocator` 的静态缓存救不了这件事：它只在 `cached.Parent is null && GetVisualParent() is null` 时复用，而重新挂树那一刻整棵子树的 measure 已经失效 —— 复用的只是 ctor + DataContext（settings 约 45 ms），布局一分不少。
+- 另一条独立取证（`--phase`）：settings 的 `host.Measure()` 读到 0.0 ms，真正测量发生在 Dispatcher 排队的布局 pass（`flush=2621 ms`）。所以「在测量里加打点」的方案在本仓库量不到东西。
+
+### 29.3 改法
+- `src/CkanUI.App/MainWindow.axaml`：`<TransitioningContentControl x:Name="PageHost" Content="{Binding CurrentPage}" />` 换成固定宿主
+  `<TransitioningContentControl x:Name="PageHost"><Panel x:Name="PageStage" /></TransitioningContentControl>`。
+- `src/CkanUI.App/MainWindow.axaml.cs`：
+  - `private readonly Dictionary<object, Control> _pageViews = new(ReferenceEqualityComparer.Instance);`（VM → 视图）与 `private Control? _activePageView;`。
+  - `ShowPage(object? page)`：首次见到的 VM 用 `new ViewLocator().Build(page)` 建一次并 `PageStage.Children.Add(view)`；之后只把目标子项 `IsVisible = true`、其余 `false`。**任何视图都不再从树上摘下**。
+  - 构造函数不再订阅 `PageHost.PropertyChanged`（Content 恒定），改成 `OnShellPropertyChanged` 里监听 `CurrentPage` → `ShowPage`；`AttachShell()` 末尾补一次 `ShowPage(_shell.CurrentPage)`（构造期已有值时不会有变更通知）。
+  - `PlayPageReveal()` 的动效根从 `PageHost` 改成 `_activePageView ?? PageHost`：其它页面视图此时也常驻在 `PageStage` 里（只是不可见），用 `PageHost` 当根会把所有页面一起扫、一起编排。
+- 视觉零变化：切页仍是「旧页立刻消失、新页按原入场编排出现」，只是新页不再重建。
+
+### 29.4 真机 A/B（Release，真实实例 Probe (Steam mirror)，modules=336，ANGLE/D3D11）
+同一份 `NavigationProbe`（`CKANUI_NAV_TRACE`）遍历 24 个导航键两轮，R2 = 用户第二次点同一个 tab：
+
+| 页面 | 基线 R2 layout / maxGap | 常驻后 R2 layout / maxGap |
+| --- | --- | --- |
+| settings | 954.1 / 572.1 ms | **29.2 / 20.9 ms** |
+| ships | 148.6 / 53.2 ms | **23.2 / 19.2 ms** |
+| saves | 93.4 / 44.3 ms | **48.7 / 46.6 ms** |
+| home | 28.5 / 12.8 ms | 43.1 / 6.0 ms |
+| mods | 393.6 / 277.6 ms | 360.3 / 317.3 ms |
+
+- settings / ships / saves 是稳定量级下降；mods 与 home 落在噪声带（当时机器上还有 3 路并行 agent 在编译，同一 exe 的单页 layout 可在 2–3 倍间漂移）。
+- **首次进入（R1）不变**：第一次见到的页面仍要创建 + 排版（settings R1 中位 400–560 ms）。R1 的优化方向是把首次排版挪到空闲期预热（见 29.6）。
+
+### 29.5 视觉取证（同树 A/B）
+`tools/ui-snapshot`（`CKANUI_SNAP_SEED=1`，24 页）+ `tools/perf-probe/diff-png.ps1 -Tol 12`，跑「常驻两次」与「退回单视图挂载一次」三组快照：
+
+| 页面 | 常驻 vs 常驻（噪声基线） | 常驻 vs 单视图 |
+| --- | ---: | ---: |
+| settings | 0.861% | 0.821% |
+| home | 2.697% | 1.754% |
+| mods | 0.495% | 0.418% |
+| instances | 0.518% | 0.447% |
+| saves | 0.533% | 0.475% |
+
+两组差值同量级且方向一致（差异全部来自星空背景动画的相位），**内容区逐像素一致**。
+
+### 29.6 代价与已知限制
+- 内存：视图常驻意味着各页可视树不再随换页释放。稳态工作集变化在噪声内（各页本来也被 `ViewLocator` 缓存着，只是不挂树）。
+- 窗口尺寸/主题变化会让所有常驻视图的 measure 失效，**resize 之后第一次切回某页仍要付一次该页的重排**（与改造前等价，不是回退）。
+- 首次进入未改善（见 29.4）；`kspconfig` 首轮仍可到 2–3 s（首次读游戏设置文件，属数据加载）。
+- `PageStage` 里所有视图都参与「命中测试」？不会：`IsVisible=false` 的子项不参与命中测试与渲染。
+
+### 29.7 怎么验收
+- `perf-probe --visibility-cost <key>`：`show`/`hide` 必须是**个位数 ms**；若又出现几百 ms，说明该页仍在 detach（常见原因：容器换成 `ContentPresenter`、或列表用了回收型面板）。
+- `perf-probe --phase-toggle <key>`（探针来自并行 agent 的 `PhaseProbe.cs`）：`coldAttach` 与 `reattachAfterDetach` 的差值即常驻收益上限。
+- 真机：`CKANUI_NAV_TRACE=<文件>` 启动应用，看每页 `[nav] rN <key> layout= maxGap=`；R2 应稳定落在几十 ms 内。

@@ -81,6 +81,17 @@ public sealed partial class MainWindow : Window
     /// <summary>上一次激活的页面键，用来判断同组页签是向左切还是向右切。</summary>
     private string? _lastPageKey;
 
+    /// <summary>
+    /// 页面视图保活表：VM → 已实例化且常驻 <see cref="PageStage"/> 的视图。
+    /// 换页只切 IsVisible、不换 PageHost.Content —— 实测把视图从可视树摘下来再挂回去会整棵重新排版
+    /// （设置页 2,340 个节点要 500–900 ms），而「已挂树、只切可见性」的重新显示只要 1–2 ms。
+    /// 见 docs/ops/perf-baseline.md §29。
+    /// </summary>
+    private readonly Dictionary<object, Control> _pageViews = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>当前可见的页面视图，也是换页动效的落点（见 <see cref="PlayPageReveal"/>）。</summary>
+    private Control? _activePageView;
+
     /// <summary>页面缩放的变换（首次应用缩放时创建）：LayoutTransformControl 靠它把缩放折进测量。</summary>
     private ScaleTransform? _pageZoomTransform;
 
@@ -164,12 +175,8 @@ public sealed partial class MainWindow : Window
         PointerExited += OnWindowPointerExited;
         Deactivated += OnWindowDeactivated;
 
-        // 页面切换时给一级卡片排队入场。监听 PageHost.Content 而不是 ShellViewModel：
-        // 命令面板、深链、前进后退最终都落到同一个 Content 上，一处接完全都覆盖。
-        if (PageHost is not null)
-        {
-            PageHost.PropertyChanged += OnPageHostPropertyChanged;
-        }
+        // 页面切换时给一级卡片排队入场：见 ShowPage —— 页面视图常驻 PageStage，换页只切可见性，
+        // 所以 PageHost.Content 从此恒定是 PageStage，不再有 Content 变化可监听。
 
         // 页内 TabControl（模组详情、整合包导入导出等）切换 TabItem 时同步驱动方向性弹簧过渡。
         AddHandler(SelectingItemsControl.SelectionChangedEvent, OnAnyTabControlSelectionChanged, RoutingStrategies.Bubble);
@@ -524,12 +531,64 @@ public sealed partial class MainWindow : Window
         SyncSelectedNavItem();
         UpdateShellStatusDot(_shell.StatusText);
         _lastPageKey = _shell.SelectedNavItem?.Key;
+
+        // 窗口构建时 CurrentPage 可能已经有值（ShellViewModel 构造期就导航到首页），
+        // 此时不会再有 PropertyChanged，必须主动把第一页切到可见。
+        ShowPage(_shell.CurrentPage);
         Dispatcher.UIThread.Post(SyncSectionTabIndicator, DispatcherPriority.Loaded);
     }
 
-    private void OnPageHostPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    /// <summary>
+    /// 把 <paramref name="page"/> 对应的视图切成可见。视图只建一次、之后常驻 <see cref="PageStage"/>，
+    /// 再次进入只切 IsVisible —— 这样切页不再触发整棵可视树重新测量。见 docs/ops/perf-baseline.md §29。
+    /// </summary>
+    private void ShowPage(object? page)
     {
-        if (e.Property != ContentControl.ContentProperty || PageHost is null)
+        if (PageStage is null)
+        {
+            return;
+        }
+
+        if (page is null)
+        {
+            foreach (var child in PageStage.Children)
+            {
+                child.IsVisible = false;
+            }
+
+            _activePageView = null;
+            return;
+        }
+
+        if (!_pageViews.TryGetValue(page, out var view))
+        {
+            if (new ViewLocator().Build(page) is not { } built)
+            {
+                return;
+            }
+
+            view = built;
+            _pageViews[page] = view;
+            PageStage.Children.Add(view);
+        }
+
+        if (ReferenceEquals(_activePageView, view))
+        {
+            return;
+        }
+
+        foreach (var child in PageStage.Children)
+        {
+            child.IsVisible = ReferenceEquals(child, view);
+        }
+
+        _activePageView = view;
+        SchedulePageReveal();
+    }
+
+    private void SchedulePageReveal()
+    {
+        if (PageHost is null)
         {
             return;
         }
@@ -582,41 +641,45 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        // 动效落点是**当前可见的页面视图**，不是 PageHost：其它页面视图也常驻在 PageStage 里（只是不可见），
+        // 拿 PageHost 当根会把所有页面一起扫、一起编排。
+        var stage = _activePageView ?? (Control)PageHost;
+
         // 提示条按 IsVisible 显隐，样式的 Opacity 过渡没有中间帧；这里挂上"出现即上浮淡入"。
-        BannerMotion.Attach(PageHost);
+        BannerMotion.Attach(stage);
 
         // 空态 ↔ 数据态这类同格叠放层互斥切换，样式过渡会从 t=0 重来；接管成交互可打断的弹簧。
-        ViewLayerMotion.Attach(PageHost);
+        ViewLayerMotion.Attach(stage);
 
         // 卡片悬停抬升改由弹簧帧驱动：鼠标扫过一排卡片时位移之间带速度，而不是每张都从零起步。
-        HoverLiftMotion.Attach(PageHost);
+        HoverLiftMotion.Attach(stage);
 
         // 缩略图/截图解码完就是一张位图，渲染出来是"啪"地出现；源变了就淡一次。
-        ImageLoadMotion.Attach(PageHost);
+        ImageLoadMotion.Attach(stage);
 
         // 页内页签：下划线弹簧冲量 + 内容舞台按切换方向滑进来（原来样式给了过渡却没人改 RenderTransform）。
-        TabStripMotion.Attach(PageHost);
+        TabStripMotion.Attach(stage);
 
         // 展开即淡入：Expander 与 TreeViewItem 展开时正文一帧硬切出现，补一段上浮淡入。
-        ExpandMotion.Attach(PageHost);
+        ExpandMotion.Attach(stage);
 
         // 选中行与键盘焦点原来只有静态描边/背景，补一次弹簧冲量；整窗挂一次，标题栏按钮的键盘焦点也在内。
         SelectionMotion.Attach(this);
-        SelectionMotion.Attach(PageHost);
+        SelectionMotion.Attach(stage);
 
         // 一页放不下的信息流：滚动时刚跨进底边的元素各自补一次入场，所有页面自动生效。
-        ScrollRevealMotion.Attach(PageHost);
+        ScrollRevealMotion.Attach(stage);
 
         // 列表数据晚于换页到达：行按 10 行一批错峰浮上来，而不是整块"啪"地出现。
-        FeedArrivalMotion.Attach(PageHost);
+        FeedArrivalMotion.Attach(stage);
 
         // 键盘方向键换行时，滚动条不再瞬跳：目标位置照旧计算，弹簧只负责滑过去，下一次按键可打断。
-        SmoothScrollMotion.Attach(PageHost);
+        SmoothScrollMotion.Attach(stage);
 
         if (!MotionBudget.AllowsPageChoreography)
         {
             // 精简档不做整页与块级编排，只保留文字的轻量淡入（幅度由 TextRevealChoreographer 自己按档位收）。
-            TextRevealChoreographer.Play(PageHost);
+            TextRevealChoreographer.Play(stage);
             return;
         }
 
@@ -642,7 +705,7 @@ public sealed partial class MainWindow : Window
 
         // 一级元素只做错峰上浮，不再压一次透明度：整页已经淡入，两层一起淡会看着更闷。
         // 同步调用而不是排到 Loaded：可视树在 Content 赋值时就已建好，先落起点才能保证首帧不闪。
-        if (EntranceChoreographer.Play(PageHost, includeOpacity: false) == 0)
+        if (EntranceChoreographer.Play(stage, includeOpacity: false) == 0)
         {
             // 模板还没套上（例如首次显示）时退一步，等排版完成再补一次。
             Dispatcher.UIThread.Post(
@@ -650,7 +713,7 @@ public sealed partial class MainWindow : Window
                 {
                     if (PageHost is not null)
                     {
-                        EntranceChoreographer.Play(PageHost, includeOpacity: false);
+                        EntranceChoreographer.Play(stage, includeOpacity: false);
                     }
                 },
                 DispatcherPriority.Loaded);
@@ -658,14 +721,14 @@ public sealed partial class MainWindow : Window
 
         // 文字逐行上屏：块级编排之外再给"正在加载内容"一个可读的节奏。
         // 模板可能晚一拍才实例化出 TextBlock，返回 0 时在 Loaded 补一次，避免整页文字静默出现。
-        if (TextRevealChoreographer.Play(PageHost) == 0)
+        if (TextRevealChoreographer.Play(stage) == 0)
         {
             Dispatcher.UIThread.Post(
                 () =>
                 {
                     if (PageHost is not null)
                     {
-                        TextRevealChoreographer.Play(PageHost);
+                        TextRevealChoreographer.Play(stage);
                     }
                 },
                 DispatcherPriority.Loaded);
@@ -828,7 +891,11 @@ public sealed partial class MainWindow : Window
 
     private void OnShellPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(ShellViewModel.SelectedNavItem))
+        if (e.PropertyName == nameof(ShellViewModel.CurrentPage))
+        {
+            ShowPage(_shell?.CurrentPage);
+        }
+        else if (e.PropertyName == nameof(ShellViewModel.SelectedNavItem))
         {
             SyncSelectedNavItem();
         }
@@ -1709,9 +1776,18 @@ public sealed partial class MainWindow : Window
         OnboardingOverlay.DataContext = onboarding;
     }
 
+    /// <summary>界面导览是否正在播放（启动序列据此避让，避免和首次启动指引抢同一块屏幕）。</summary>
+    public bool IsOnboardingActive => _onboarding is { IsActive: true };
+
     public void ShowOnboardingGuide()
     {
-        _onboarding?.StartTour();
+        // 连按 F1 不重播：StartTour 会把步骤打回第一步，看起来像整层闪了一下。
+        if (_onboarding is null || _onboarding.IsActive)
+        {
+            return;
+        }
+
+        _onboarding.StartTour();
     }
 
     /// <summary>打开快捷键目录：每次新建一个（VM 继承 DialogViewModelBase，复用会带上一次关闭态）。</summary>

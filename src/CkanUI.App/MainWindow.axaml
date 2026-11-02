@@ -533,8 +533,11 @@
               <LayoutTransformControl x:Name="PageZoomHost"
                                       HorizontalAlignment="Stretch"
                                       VerticalAlignment="Stretch">
-                <TransitioningContentControl x:Name="PageHost"
-                                             Content="{Binding CurrentPage}" />
+                <!-- 页面视图常驻这个舞台，换页只切 IsVisible：重新挂载会整棵重排（设置页 500–900ms），
+                     切可见性只要 1–2ms。见 docs/ops/perf-baseline.md §29。 -->
+                <TransitioningContentControl x:Name="PageHost">
+                  <Panel x:Name="PageStage" />
+                </TransitioningContentControl>
               </LayoutTransformControl>
               <Border x:Name="TabSwitchHorizonBeam"
                       Classes="CkanTabHorizonBeam"
@@ -604,7 +607,8 @@
             3. 合并后的 28px 状态栏：原「日志栏 + 就绪/版本栏」两行压成一行。
             中段按钮是日志抽屉的唯一开关入口（抽屉自己的标题条也还在，两条路径共用同一条命令）。
           -->
-          <Border Grid.Row="1"
+          <Border x:Name="StatusBarSurface"
+                  Grid.Row="1"
                   Background="{DynamicResource CkanStatusBarBackgroundBrush}"
                   BorderBrush="{DynamicResource CkanBorderBrush}"
                   BorderThickness="0,1,0,0"
@@ -637,17 +641,33 @@
                             Width="8" Height="8"
                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
                 </Button>
+                <!--
+                  FluentAvalonia 的 Slider 模板给刻度预留了上下各 14px 的固定行（SliderPre/PostContentMargin），
+                  模板自身默认要求 32px 高（SliderHorizontalHeight）。塞进 28px 状态栏还硬压 Height=18，
+                  这两行会把轨道挤到下方、18px 的 thumb 也溢出被窗口底边裁掉。
+                  这里只对这一个滑块做局部覆盖：去掉预留行、轨道与 thumb 收到 12px，轨道回到水平中线。
+                -->
                 <Slider x:Name="PageZoomSlider"
                         Width="112"
-                        Height="18"
-                        MinHeight="18"
+                        Height="12"
+                        MinHeight="12"
                         VerticalAlignment="Center"
                         Minimum="75"
                         Maximum="150"
                         TickFrequency="5"
                         IsSnapToTickEnabled="True"
                         Value="{Binding PageZoomPercent, Mode=TwoWay}"
-                        AutomationProperties.Name="{DynamicResource Ui_MainWindow_Zoom}" />
+                        AutomationProperties.Name="{DynamicResource Ui_MainWindow_Zoom}">
+                  <Slider.Resources>
+                    <GridLength x:Key="SliderPreContentMargin">0</GridLength>
+                    <GridLength x:Key="SliderPostContentMargin">0</GridLength>
+                    <x:Double x:Key="SliderHorizontalHeight">12</x:Double>
+                    <x:Double x:Key="SliderHorizontalThumbWidth">12</x:Double>
+                    <x:Double x:Key="SliderHorizontalThumbHeight">12</x:Double>
+                    <x:Double x:Key="SliderInnerThumbWidth">8</x:Double>
+                    <x:Double x:Key="SliderInnerThumbHeight">8</x:Double>
+                  </Slider.Resources>
+                </Slider>
                 <Button x:Name="PageZoomInButton"
                         Classes="CkanGhost"
                         Command="{Binding ZoomInCommand}"
@@ -668,7 +688,7 @@
                            Foreground="{DynamicResource CkanTextSecondaryBrush}"
                            VerticalAlignment="Center" />
               </StackPanel>
-              <!-- 中间留空，移除日志按钮，保持底栏整洁呼吸感 -->
+              <!-- 右侧：后台任务胶囊 + 版本号 -->
               <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <!-- 嵌入底栏的后台任务微件胶囊（悬浮紧凑，点击展开详细卡片） -->
                 <Border x:Name="StatusBarTaskPillBorder"

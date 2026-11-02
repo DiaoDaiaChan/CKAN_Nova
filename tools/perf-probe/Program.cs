@@ -159,6 +159,14 @@ public static class Program
             return 0;
         }
 
+        if (args.Contains("--visibility-cost", StringComparer.OrdinalIgnoreCase))
+        {
+            var idx = Array.FindIndex(args, a => string.Equals(a, "--visibility-cost", StringComparison.OrdinalIgnoreCase));
+            var keyArg = idx >= 0 && idx + 1 < args.Length && !args[idx + 1].StartsWith("--", StringComparison.Ordinal) ? args[idx + 1] : "settings";
+            PageSwitchProbe.VisibilityCost(keyArg);
+            return 0;
+        }
+
         // --pages-real：真实 DI 下的换页成本（首次进入 vs 再次进入，不跑门禁）
         var realIndex = Array.FindIndex(args, a => string.Equals(a, "--pages-real", StringComparison.OrdinalIgnoreCase));
         if (realIndex >= 0)

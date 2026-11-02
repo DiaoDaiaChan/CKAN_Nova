@@ -805,6 +805,76 @@ public static class PageSwitchProbe
 
     /// <summary>打印指定页面的可视树类型直方图，用来判断节点数被谁吃掉。</summary>
     /// <param name="key">导航键。</param>
+    /// <summary>比较「重新挂载」与「仅切换可见性」的排版成本，判断保活页面视图是否值得。见 docs/ops/perf-baseline.md §29。</summary>
+    public static void VisibilityCost(string key = "settings", int rounds = 3)
+    {
+        HeadlessAppHost.EnsureInitialized();
+        using var services = ServiceRegistration.Build(() => null);
+        _ = services.GetService(typeof(IInstanceService));
+        HeadlessAppHost.PumpJobs();
+
+        var host = new Window { Width = 1280, Height = 800 };
+        host.Show();
+        HeadlessAppHost.PumpJobs();
+
+        var type = ServiceRegistration.PageTypes[key];
+        var vm = services.GetService(type) as PageViewModel;
+        vm?.Activate();
+        Settle(300);
+        var view = new ViewLocator().Build(vm) ?? new Border();
+
+        double attach = 0d, hide = 0d, show = 0d, invalidate = 0d, reattach = 0d;
+        for (var round = 0; round < rounds; round++)
+        {
+            var sw = Stopwatch.StartNew();
+            host.Content = view;
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            HeadlessAppHost.PumpJobs();
+            attach += sw.Elapsed.TotalMilliseconds;
+
+            sw.Restart();
+            view.IsVisible = false;
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            HeadlessAppHost.PumpJobs();
+            hide += sw.Elapsed.TotalMilliseconds;
+
+            sw.Restart();
+            view.IsVisible = true;
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            HeadlessAppHost.PumpJobs();
+            show += sw.Elapsed.TotalMilliseconds;
+
+            sw.Restart();
+            view.InvalidateMeasure();
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            HeadlessAppHost.PumpJobs();
+            invalidate += sw.Elapsed.TotalMilliseconds;
+
+            sw.Restart();
+            host.Content = null;
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            HeadlessAppHost.PumpJobs();
+            host.Content = view;
+            host.Measure(new Size(1280, 800));
+            host.Arrange(new Rect(0, 0, 1280, 800));
+            HeadlessAppHost.PumpJobs();
+            reattach += sw.Elapsed.TotalMilliseconds;
+        }
+
+        Console.WriteLine(
+            string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"[VisibilityCost] key={key} nodes={view.GetVisualDescendants().Count()} rounds={rounds} attach={attach / rounds:F1}ms hide={hide / rounds:F1}ms show={show / rounds:F1}ms invalidate={invalidate / rounds:F1}ms detach+attach={reattach / rounds:F1}ms"));
+
+        vm?.Deactivate();
+        host.Close();
+        HeadlessAppHost.PumpJobs();
+    }
+
     public static void NodeHistogram(string key)
     {
         HeadlessAppHost.EnsureInitialized();
