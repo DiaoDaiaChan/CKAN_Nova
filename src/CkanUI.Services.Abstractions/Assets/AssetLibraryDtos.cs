@@ -47,15 +47,24 @@ public sealed record FlagAsset(
     string PackName,
     long SizeBytes);
 
+/// <summary>加载图目录的来源信息。</summary>
+/// <param name="Provider">识别出的来源模组名；自定义目录为空。</param>
+/// <param name="Recursive">是否连子目录一起扫（LoadingScreenManager 的 <c>ignoreSubfolders = False</c>）。</param>
+public sealed record LoadingImageFolderInfo(string? Provider = null, bool Recursive = false);
+
 /// <summary>一张加载图。</summary>
 /// <param name="FileName">含扩展名的文件名。</param>
 /// <param name="FilePath">图片绝对路径。</param>
 /// <param name="Folder">所在目录。</param>
 /// <param name="SizeBytes">文件字节数。</param>
 /// <param name="ModifiedAt">最后修改时间。</param>
+/// <param name="Provider">来源模组名（<c>ROLoadingImages</c> / <c>LoadingScreenManager</c>），自定义目录为 <see langword="null"/>。</param>
+/// <param name="IsEnabled">游戏是否还会读这张图；停用的文件在磁盘上带 <c>.disabled</c> 后缀。</param>
 public sealed record LoadingImageAsset(
     string FileName,
     string FilePath,
     string Folder,
     long SizeBytes,
-    DateTimeOffset ModifiedAt);
+    DateTimeOffset ModifiedAt,
+    string? Provider = null,
+    bool IsEnabled = true);

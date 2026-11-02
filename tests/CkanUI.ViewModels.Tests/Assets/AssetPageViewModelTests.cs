@@ -185,7 +185,7 @@ public sealed class AssetPageViewModelTests
     }
 
     [Test]
-    public async Task Loading_Refresh_LoadsFoldersAndImages()
+    public async Task Loading_Refresh_ShowsOnlySelectedFolder()
     {
         var page = NewLoadingPage(out var images);
         images.Folders.Add("D:/KSP/Screenshots");
@@ -195,11 +195,28 @@ public sealed class AssetPageViewModelTests
 
         await page.RefreshCommand.ExecuteAsync(null);
 
-        Assert.That(page.Folders, Is.EqualTo(new[] { "D:/KSP/Screenshots", "D:/KSP/GameData/LSM" }));
-        Assert.That(page.SelectedFolder, Is.EqualTo("D:/KSP/Screenshots"), "刷新后选中第一个目录，画廊才不会空。");
-        Assert.That(page.Images.Count, Is.EqualTo(2));
+        Assert.That(page.Folders.Select(row => row.FolderPath), Is.EqualTo(new[] { "D:/KSP/Screenshots", "D:/KSP/GameData/LSM" }));
+        Assert.That(page.SelectedFolder?.FolderPath, Is.EqualTo("D:/KSP/Screenshots"), "刷新后选中第一个目录，画廊才不会空。");
+        Assert.That(page.Images.Select(row => row.FileName), Is.EqualTo(new[] { "a.png" }), "画廊只显示当前目录的图，否则点目录看不出任何变化。");
         Assert.That(page.SelectedImage, Is.SameAs(page.Images[0]));
-        Assert.That(page.StatusText, Is.EqualTo("共 2 张"));
+        Assert.That(page.StatusText, Is.EqualTo("共 1 张 · 已启用 1 张"));
+    }
+
+    [Test]
+    public async Task Loading_SwitchingFolder_FiltersGalleryInPlace()
+    {
+        var page = NewLoadingPage(out var images);
+        images.Folders.Add("D:/KSP/Screenshots");
+        images.Folders.Add("D:/KSP/GameData/LSM");
+        images.Images.Add(Image("a.png", "D:/KSP/Screenshots"));
+        images.Images.Add(Image("b.jpg", "D:/KSP/GameData/LSM"));
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        page.SelectedFolder = page.Folders[1];
+
+        Assert.That(page.Images.Select(row => row.FileName), Is.EqualTo(new[] { "b.jpg" }), "切目录必须换画廊，这是用户点路径时期待的反馈。");
+        Assert.That(page.SelectedImage, Is.SameAs(page.Images[0]), "换目录后自动选中第一张，详情区才不会空。");
+        Assert.That(page.StatusText, Is.EqualTo("共 1 张 · 已启用 1 张"), "计数跟着可见集合走。");
     }
 
     [Test]
@@ -227,10 +244,37 @@ public sealed class AssetPageViewModelTests
 
         await page.AddFolderCommand.ExecuteAsync(null);
 
-        Assert.That(page.Folders, Does.Contain("D:/Shots"));
-        Assert.That(page.SelectedFolder, Is.EqualTo("D:/Shots"));
+        Assert.That(page.Folders.Select(row => row.FolderPath), Does.Contain("D:/Shots"));
+        Assert.That(page.SelectedFolder?.FolderPath, Is.EqualTo("D:/Shots"));
         Assert.That(images.SavedFolders, Has.Count.EqualTo(1), "新增目录必须落盘，否则重启就丢。");
         Assert.That(images.SavedFolders[0], Does.Contain("D:/Shots"));
+    }
+
+    [Test]
+    public async Task Loading_Toggle_DisablesFileWithoutLosingTheCard()
+    {
+        var page = NewLoadingPage(out var images);
+        images.Folders.Add("D:/KSP/Screenshots");
+        images.Images.Add(Image("a.png", "D:/KSP/Screenshots"));
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(page.Images[0].ToggleText, Is.EqualTo("停用"), "启用中的图，按钮该说「停用」。");
+
+        await page.Images[0].ToggleCommand.ExecuteAsync(null);
+
+        Assert.That(images.ToggleCalls, Is.EqualTo(new[] { ("D:/KSP/Screenshots/a.png", false) }),
+            "停用要落到服务层，页面不能只改自己的显示状态。");
+        Assert.That(page.Images, Has.Count.EqualTo(1), "停用后卡片必须还在，否则用户再也点不回来。");
+        Assert.That(page.Images[0].IsDisabled, Is.True);
+        Assert.That(page.Images[0].FileName, Is.EqualTo("a.png"), "文件名不带 .disabled，用户看到的还是他那张图。");
+        Assert.That(page.Images[0].ToggleText, Is.EqualTo("启用"));
+        Assert.That(page.SelectedImage, Is.SameAs(page.Images[0]), "启停会改路径，选中要按文件名+目录落回同一张。");
+        Assert.That(page.StatusText, Is.EqualTo("已停用「a.png」，游戏不再读取它"), "动作完要给回执，而不是只留一个计数。");
+
+        await page.Images[0].ToggleCommand.ExecuteAsync(null);
+
+        Assert.That(page.Images[0].IsEnabled, Is.True);
+        Assert.That(images.ToggleCalls[1].Enabled, Is.True);
     }
 
     [Test]
@@ -332,6 +376,39 @@ public sealed class AssetPageViewModelTests
 
         Assert.That(changes, Is.Zero, "扫描结果没变就不该重建画廊，否则每切回来都要重排整片卡片。");
         Assert.That(page.Images[0], Is.SameAs(firstCard));
+    }
+
+    [Test]
+    public async Task Loading_RecognizedModFolder_ShowsProviderBadge_AndHidesDdsPreview()
+    {
+        var page = NewLoadingPage(out var images);
+        var screens = "D:/KSP/GameData/ROLoadingImages/PluginData/Screens";
+        images.Folders.Add(screens);
+        images.Images.Add(Image("rp1.dds", screens));
+        images.Providers[screens] = new LoadingImageFolderInfo("ROLoadingImages");
+
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(page.Images, Has.Count.EqualTo(1));
+        Assert.That(page.Images[0].HasProvider, Is.True, "认出来源才能告诉用户这 72 张是 RP-1 在吃。");
+        Assert.That(page.Images[0].ProviderText, Is.EqualTo("ROLoadingImages"));
+        Assert.That(page.Images[0].FormatText, Is.EqualTo("DDS"));
+        Assert.That(images.LastRecursiveFolders, Is.Empty, "ROLoadingImages 只读单层目录，别把子目录也扫进来。");
+    }
+
+    [Test]
+    public async Task Loading_RecursiveFolder_IsHandedToScanner()
+    {
+        var page = NewLoadingPage(out var images);
+        var screenshots = "D:/KSP/Screenshots";
+        images.Folders.Add(screenshots);
+        images.Images.Add(Image("shot.png", screenshots));
+        images.Providers[screenshots] = new LoadingImageFolderInfo("LoadingScreenManager", Recursive: true);
+
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(images.LastRecursiveFolders, Is.EqualTo(new[] { System.IO.Path.GetFullPath(screenshots) }),
+            "LSM 的 ignoreSubfolders = False 意味着要连子目录一起扫，页面得把目录传给扫描器。");
     }
 
     private static FlagsPageViewModel NewFlagsPage(out FakeFlagLibrary flags)
@@ -489,6 +566,13 @@ internal sealed class FakeLoadingImageLibrary : ILoadingImageService
 
     public IReadOnlyList<string> DefaultFolders(string gameDir) => Folders.ToList();
 
+    public Dictionary<string, LoadingImageFolderInfo> Providers { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public IReadOnlyList<string> LastRecursiveFolders { get; private set; } = Array.Empty<string>();
+
+    public IReadOnlyDictionary<string, LoadingImageFolderInfo> DescribeFolders(string gameDir) =>
+        Providers.ToDictionary(pair => System.IO.Path.GetFullPath(pair.Key), pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+
     public OperationResult<IReadOnlyList<string>> LoadFolders(string gameDir) => OperationResult<IReadOnlyList<string>>.Ok(Folders.ToList());
 
     public OperationResult SaveFolders(string gameDir, IReadOnlyList<string> folders)
@@ -499,9 +583,15 @@ internal sealed class FakeLoadingImageLibrary : ILoadingImageService
         return OperationResult.Ok();
     }
 
-    public Task<OperationResult<IReadOnlyList<LoadingImageAsset>>> ScanAsync(IReadOnlyList<string> folders, CancellationToken cancellationToken = default) =>
-        Task.FromResult(OperationResult<IReadOnlyList<LoadingImageAsset>>.Ok(
+    public Task<OperationResult<IReadOnlyList<LoadingImageAsset>>> ScanAsync(
+        IReadOnlyList<string> folders,
+        IReadOnlyCollection<string>? recursiveFolders = null,
+        CancellationToken cancellationToken = default)
+    {
+        LastRecursiveFolders = recursiveFolders?.ToArray() ?? Array.Empty<string>();
+        return Task.FromResult(OperationResult<IReadOnlyList<LoadingImageAsset>>.Ok(
             Images.Where(image => folders.Contains(image.Folder, StringComparer.OrdinalIgnoreCase)).ToList()));
+    }
 
     public Task<OperationResult<LoadingImageAsset>> ImportAsync(string targetFolder, string sourceFile, CancellationToken cancellationToken = default)
     {
@@ -511,6 +601,29 @@ internal sealed class FakeLoadingImageLibrary : ILoadingImageService
         return Task.FromResult(OperationResult<LoadingImageAsset>.Ok(asset));
     }
 
+    public List<(string FilePath, bool Enabled)> ToggleCalls { get; } = new();
+
+    public Task<OperationResult<LoadingImageAsset>> SetEnabledAsync(LoadingImageAsset image, bool enabled, CancellationToken cancellationToken = default)
+    {
+        ToggleCalls.Add((image.FilePath, enabled));
+        var path = image.FilePath.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase)
+            ? image.FilePath[..^".disabled".Length]
+            : image.FilePath;
+        if (!enabled)
+        {
+            path += ".disabled";
+        }
+
+        var updated = image with { FilePath = path, IsEnabled = enabled };
+        var index = Images.FindIndex(item => item.FilePath == image.FilePath);
+        if (index >= 0)
+        {
+            Images[index] = updated;
+        }
+
+        return Task.FromResult(OperationResult<LoadingImageAsset>.Ok(updated));
+    }
+
     public Task<OperationResult> DeleteAsync(LoadingImageAsset image, CancellationToken cancellationToken = default)
     {
         Images.RemoveAll(item => item.FilePath == image.FilePath);
@@ -518,7 +631,9 @@ internal sealed class FakeLoadingImageLibrary : ILoadingImageService
     }
 
     public bool IsSupportedImage(string path) =>
-        path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase);
+        path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+        || path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
+        || path.EndsWith(".dds", StringComparison.OrdinalIgnoreCase);
 }
 
 internal sealed class FakeAssetPicker : IAssetFilePicker

@@ -99,16 +99,32 @@ public interface ILoadingImageService
     /// <param name="folders">目录清单。</param>
     OperationResult SaveFolders(string gameDir, IReadOnlyList<string> folders);
 
-    /// <summary>扫描若干目录里的图片（只扫第一层）。</summary>
+    /// <summary>目录 → 来源信息（只列能认出主人的目录）。</summary>
+    /// <param name="gameDir">游戏根目录。</param>
+    IReadOnlyDictionary<string, LoadingImageFolderInfo> DescribeFolders(string gameDir);
+
+    /// <summary>扫描若干目录里的图片（默认只扫第一层）。</summary>
     /// <param name="folders">目录清单。</param>
+    /// <param name="recursiveFolders">需要连子目录一起扫的目录（模组要求递归时）。</param>
     /// <param name="cancellationToken">取消标记。</param>
-    Task<OperationResult<IReadOnlyList<LoadingImageAsset>>> ScanAsync(IReadOnlyList<string> folders, CancellationToken cancellationToken = default);
+    Task<OperationResult<IReadOnlyList<LoadingImageAsset>>> ScanAsync(
+        IReadOnlyList<string> folders,
+        IReadOnlyCollection<string>? recursiveFolders = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>把外部图片导入到目标目录。</summary>
     /// <param name="targetFolder">目标目录。</param>
     /// <param name="sourceFile">源图片绝对路径。</param>
     /// <param name="cancellationToken">取消标记。</param>
     Task<OperationResult<LoadingImageAsset>> ImportAsync(string targetFolder, string sourceFile, CancellationToken cancellationToken = default);
+
+    /// <summary>启用 / 停用一张加载图。</summary>
+    /// <param name="image">目标图片。</param>
+    /// <param name="enabled">true 启用，false 停用。</param>
+    /// <param name="cancellationToken">取消标记。</param>
+    /// <remarks>停用靠给文件加 <c>.disabled</c> 后缀：ROLoadingImages 与 LoadingScreenManager 都只认原本的扩展名，
+    /// 改后缀后游戏自然跳过，而且随时能原样改回来。</remarks>
+    Task<OperationResult<LoadingImageAsset>> SetEnabledAsync(LoadingImageAsset image, bool enabled, CancellationToken cancellationToken = default);
 
     /// <summary>删除一张加载图。</summary>
     /// <param name="image">目标图片。</param>

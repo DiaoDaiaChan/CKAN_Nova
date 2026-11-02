@@ -1,6 +1,7 @@
 using System.Globalization;
 using CkanUI.Services.Abstractions.Assets;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace CkanUI.ViewModels.Pages.Assets;
 
@@ -131,19 +132,87 @@ public sealed partial class FlagRowViewModel : ObservableObject
     private bool _isDefault;
 }
 
+/// <summary>加载图页目录清单里的一行。</summary>
+/// <remarks>清单以前直接显示绝对路径，240 宽的侧栏只露出「D:/SteamLibrary/...」，
+/// 用户看不出这是哪个目录，更看不出它是模组要塞还是自己放图的地方，所以这里拆出目录名 + 来源。</remarks>
+public sealed class LoadingImageFolderRowViewModel
+{
+    /// <summary>构造一行。</summary>
+    /// <param name="folderPath">目录绝对路径。</param>
+    /// <param name="info">目录来源信息；自定义目录传 null。</param>
+    public LoadingImageFolderRowViewModel(string folderPath, LoadingImageFolderInfo? info = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderPath);
+        FolderPath = folderPath;
+        Provider = info?.Provider;
+        IsRecursive = info?.Recursive ?? false;
+    }
+
+    /// <summary>目录绝对路径。</summary>
+    public string FolderPath { get; }
+
+    /// <summary>目录名（用于列表显示；根目录回落到完整路径）。</summary>
+    public string Label
+    {
+        get
+        {
+            var trimmed = FolderPath.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
+            var name = System.IO.Path.GetFileName(trimmed);
+            return string.IsNullOrEmpty(name) ? trimmed : name;
+        }
+    }
+
+    /// <summary>来源模组名；自定义目录为空。</summary>
+    public string? Provider { get; }
+
+    /// <summary>是否认出来源。</summary>
+    public bool HasProvider => !string.IsNullOrEmpty(Provider);
+
+    /// <summary>来源徽章文本。</summary>
+    public string ProviderText => Provider ?? string.Empty;
+
+    /// <summary>是否连子目录一起扫（LoadingScreenManager 的 ignoreSubfolders = False）。</summary>
+    public bool IsRecursive { get; }
+}
+
 /// <summary>加载图页的一行。</summary>
 public sealed class LoadingImageRowViewModel
 {
+    private readonly string _disableLabel;
+    private readonly string _enableLabel;
+
     /// <summary>构造一行。</summary>
     /// <param name="asset">服务层返回的图片。</param>
-    public LoadingImageRowViewModel(LoadingImageAsset asset)
+    /// <param name="toggle">启停回调，由页面接到服务层。</param>
+    /// <param name="disableLabel">「停用」按钮文案。</param>
+    /// <param name="enableLabel">「启用」按钮文案。</param>
+    public LoadingImageRowViewModel(
+        LoadingImageAsset asset,
+        Func<LoadingImageRowViewModel, Task>? toggle,
+        string disableLabel,
+        string enableLabel)
     {
         ArgumentNullException.ThrowIfNull(asset);
         Asset = asset;
+        _disableLabel = disableLabel;
+        _enableLabel = enableLabel;
+        ToggleCommand = new AsyncRelayCommand(() => toggle?.Invoke(this) ?? Task.CompletedTask);
     }
 
     /// <summary>原始数据。</summary>
     public LoadingImageAsset Asset { get; }
+
+    /// <summary>游戏是否还会读这张图。</summary>
+    public bool IsEnabled => Asset.IsEnabled;
+
+    /// <summary>是否已停用（卡片上盖一层遮罩）。</summary>
+    public bool IsDisabled => !Asset.IsEnabled;
+
+    /// <summary>启停按钮文案：启用中显示「停用」，已停用显示「启用」。</summary>
+    public string ToggleText => Asset.IsEnabled ? _disableLabel : _enableLabel;
+
+    /// <summary>启停命令。</summary>
+    public IAsyncRelayCommand ToggleCommand { get; }
 
     /// <summary>文件名。</summary>
     public string FileName => Asset.FileName;
@@ -159,4 +228,13 @@ public sealed class LoadingImageRowViewModel
 
     /// <summary>图片绝对路径。</summary>
     public string FilePath => Asset.FilePath;
+
+    /// <summary>来源模组名（自定义目录为空串）。</summary>
+    public string ProviderText => Asset.Provider ?? string.Empty;
+
+    /// <summary>是否有来源模组。</summary>
+    public bool HasProvider => !string.IsNullOrEmpty(Asset.Provider);
+
+    /// <summary>格式徽章文本，例如 PNG / DDS。</summary>
+    public string FormatText => Path.GetExtension(FileName).TrimStart('.').ToUpperInvariant();
 }

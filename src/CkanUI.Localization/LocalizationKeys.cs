@@ -382,7 +382,6 @@ public static class LocalizationKeys
     public const string HomeActionSettings = "Ui_Home_ActionSettings";
     public const string HomeActionSettingsDesc = "Ui_Home_ActionSettingsDesc";
     public const string HomeDefaultBadge = "Ui_Home_DefaultBadge";
-    public const string HomeEmptyScreenshotsSubtitle = "Ui_Home_EmptyScreenshotsSubtitle";
     public const string HomeEmptyScreenshotsTitle = "Ui_Home_EmptyScreenshotsTitle";
     public const string HomeErrorLaunchFailed = "Ui_Home_ErrorLaunchFailed";
     public const string HomeErrorLaunchMissing = "Ui_Home_ErrorLaunchMissing";
@@ -402,7 +401,6 @@ public static class LocalizationKeys
     public const string HomeOpenScreenshotsFolder = "Ui_Home_OpenScreenshotsFolder";
     public const string HomeScreenshotCapturedAt = "Ui_Home_ScreenshotCapturedAt";
     public const string HomeScreenshotCount = "Ui_Home_ScreenshotCount";
-    public const string HomeScreenshotFolderLabel = "Ui_Home_ScreenshotFolderLabel";
     public const string HomeScreenshotRefresh = "Ui_Home_ScreenshotRefresh";
     public const string HomeScreenshotSizeMb = "Ui_Home_ScreenshotSizeMb";
     public const string HomeStatusLaunched = "Ui_Home_StatusLaunched";
@@ -1157,6 +1155,7 @@ public static class LocalizationKeys
     public const string NavRailInstances = "Ui_NavRail_Instances";
     public const string NavRailLogs = "Ui_NavRail_Logs";
     public const string NavRailManageMods = "Ui_NavRail_ManageMods";
+    public const string NavRailKspConfig = "Ui_NavRail_KspConfig";
     public const string NavRailModConfig = "Ui_NavRail_ModConfig";
     public const string NavRailModPackEditor = "Ui_NavRail_ModPackEditor";
     public const string NavRailModPacks = "Ui_NavRail_ModPacks";
@@ -1718,6 +1717,7 @@ public static class LocalizationKeys
     public const string FirstRunDoneMods = "Ui_FirstRun_Done_Mods";
     public const string FirstRunDoneProxy = "Ui_FirstRun_Done_Proxy";
     public const string FirstRunDoneTip = "Ui_FirstRun_Done_Tip";
+    public const string FirstRunDoneTourHint = "Ui_FirstRun_Done_TourHint";
     public const string FirstRunDoneTitle = "Ui_FirstRun_Done_Title";
     public const string FirstRunExit = "Ui_FirstRun_Exit";
     public const string FirstRunFinish = "Ui_FirstRun_Finish";
@@ -1874,6 +1874,19 @@ public static class LocalizationKeys
     public const string LoadingImagesErrorScan = "Ui_LoadingImages_Error_Scan";
     public const string LoadingImagesFolders = "Ui_LoadingImages_Folders";
     public const string LoadingImagesFiles = "Ui_LoadingImages_Files";
+
+    public const string LoadingImagesGuideLine = "Ui_LoadingImages_Guide_Line";
+    public const string LoadingImagesActionDisable = "Ui_LoadingImages_Action_Disable";
+    public const string LoadingImagesActionEnable = "Ui_LoadingImages_Action_Enable";
+    public const string LoadingImagesStateDisabled = "Ui_LoadingImages_State_Disabled";
+    public const string LoadingImagesDisableDone = "Ui_LoadingImages_Disable_Done";
+    public const string LoadingImagesEnableDone = "Ui_LoadingImages_Enable_Done";
+    public const string LoadingImagesBusyDisable = "Ui_LoadingImages_Busy_Disable";
+    public const string LoadingImagesBusyEnable = "Ui_LoadingImages_Busy_Enable";
+    public const string LoadingImagesErrorToggle = "Ui_LoadingImages_Error_Toggle";
+    public const string LoadingImagesCountEnabled = "Ui_LoadingImages_Count_Enabled";
+    public const string LoadingImagesFolderRecursive = "Ui_LoadingImages_Folder_Recursive";
+    public const string LoadingImagesDisabledHint = "Ui_LoadingImages_Disabled_Hint";
     public const string NavRailAssets = "Ui_NavRail_Assets";
     public const string NavRailShips = "Ui_NavRail_Ships";
     public const string NavRailFlags = "Ui_NavRail_Flags";

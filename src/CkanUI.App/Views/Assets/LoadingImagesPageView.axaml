@@ -3,8 +3,9 @@
              xmlns:conv="using:CkanUI.App.Converters"
              x:Class="CkanUI.App.Views.Assets.LoadingImagesPageView"
              x:CompileBindings="False">
-  <!-- 加载图工作台（assets-workbench 篇 §5）：目录清单 + 画廊。
-       原版加载图内嵌在游戏资源里，这里管理的是 LSM/自定义目录中的图片，因此「目录」是第一等公民。 -->
+  <!-- 加载图工作台（asset-workbench 篇 §5）：目录清单 + 画廊。
+       原版加载图内嵌在游戏资源里，这里管理的是 LSM/自定义目录中的图片，因此「目录」是第一等公民。
+       页面第一次打开就得让人知道怎么换成自己的图，所以指引是一等块，不是藏起来的帮助链接。 -->
   <UserControl.Resources>
     <conv:PathToThumbnailConverter x:Key="Thumb" />
   </UserControl.Resources>
@@ -14,9 +15,13 @@
       <Setter Property="Padding" Value="8,4" />
       <Setter Property="MinHeight" Value="{DynamicResource CkanRowHeight}" />
     </Style>
+    <!-- 停用的图压暗，但仍然可点、可预览：用户要能一眼看出「这张被关了」。 -->
+    <Style Selector="Image.is-disabled">
+      <Setter Property="Opacity" Value="0.35" />
+    </Style>
   </UserControl.Styles>
 
-  <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}" Background="Transparent">
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}" Background="Transparent">
 
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
       <TextBlock Grid.Column="0" Text="{DynamicResource Ui_NavRail_LoadingScreens}" Classes="CkanPageTitle"
@@ -44,7 +49,20 @@
       </WrapPanel>
     </Border>
 
-    <Border Grid.Row="2" Margin="0,12,0,0" Classes="CkanInfoBanner"
+    <!-- 自定义指引：只留一行。用户反馈「信息过载」，所以标题和三列步骤都撤了，动作顺序靠一句话说清。 -->
+    <Border Grid.Row="2" Classes="CkanInfoBanner stagger-card" Margin="0,12,0,0" Padding="12,8">
+      <Grid ColumnDefinitions="Auto,*">
+        <PathIcon Grid.Column="0" Data="{StaticResource CkanIconInfo}" Width="16" Height="16"
+                  Margin="0,1,10,0" Foreground="{DynamicResource CkanInfoBrush}"
+                  VerticalAlignment="Top" />
+        <TextBlock Grid.Column="1" Text="{DynamicResource Ui_LoadingImages_Guide_Line}"
+                   TextWrapping="Wrap" FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                   VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="3" Margin="0,12,0,0" Classes="CkanInfoBanner"
             Background="{DynamicResource CkanDangerBackgroundBrush}"
             BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
             IsVisible="{Binding HasError}">
@@ -64,7 +82,7 @@
       </Grid>
     </Border>
 
-    <Grid Grid.Row="3" ColumnDefinitions="240,6,*" Margin="0,12,0,0">
+    <Grid Grid.Row="4" ColumnDefinitions="260,6,*" Margin="0,12,0,0">
 
       <!-- 目录清单 -->
       <Border Grid.Column="0" Classes="CkanCard" Padding="0">
@@ -79,8 +97,24 @@
                    BorderThickness="0" Background="Transparent">
             <ListBox.ItemTemplate>
               <DataTemplate>
-                <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding}"
-                           Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                <StackPanel Spacing="2">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
+                               FontWeight="Medium" VerticalAlignment="Center"
+                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="4,0,0,0">
+                      <Border Classes="CkanBadge" IsVisible="{Binding HasProvider}"
+                              ToolTip.Tip="{Binding ProviderText}">
+                        <TextBlock Text="{Binding ProviderText}" />
+                      </Border>
+                      <Border Classes="CkanBadge" IsVisible="{Binding IsRecursive}">
+                        <TextBlock Text="{DynamicResource Ui_LoadingImages_Folder_Recursive}" />
+                      </Border>
+                    </StackPanel>
+                  </Grid>
+                  <TextBlock Text="{Binding FolderPath}" TextTrimming="CharacterEllipsis"
+                             ToolTip.Tip="{Binding FolderPath}" Classes="CkanMuted" />
+                </StackPanel>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
@@ -102,7 +136,18 @@
           <Border Grid.Row="0" Padding="10,7"
                   Background="{DynamicResource CkanSubtleBackgroundBrush}"
                   BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
-            <TextBlock Text="{DynamicResource Ui_LoadingImages_Files}" Classes="CkanCaption" />
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+              <TextBlock Grid.Column="0" Text="{DynamicResource Ui_LoadingImages_Files}" Classes="CkanCaption"
+                         VerticalAlignment="Center" />
+              <!-- 标题里带上目录名：点左侧目录时，用户能立刻看出画廊换成了哪一份。 -->
+              <TextBlock Grid.Column="1" Text="{Binding SelectedFolder.Label}" Margin="8,0,0,0"
+                         FontSize="{DynamicResource CkanFontSizeCaption}" FontWeight="SemiBold"
+                         TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                         Foreground="{DynamicResource CkanAccentBrush}" />
+              <TextBlock Grid.Column="3" Text="{DynamicResource Ui_LoadingImages_Disabled_Hint}"
+                         Classes="CkanMuted" TextTrimming="CharacterEllipsis"
+                         VerticalAlignment="Center" Margin="12,0,0,0" />
+            </Grid>
           </Border>
           <ListBox Grid.Row="1" ItemsSource="{Binding Images}" Padding="8"
                    SelectedItem="{Binding SelectedImage, Mode=TwoWay}"
@@ -117,12 +162,37 @@
                 <StackPanel Spacing="4" Width="148" Margin="0,0,4,4">
                   <Border Height="76" CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                           Background="{DynamicResource CkanCanvasBackgroundBrush}" ClipToBounds="True">
-                    <Image Source="{Binding FilePath, Converter={StaticResource Thumb}, ConverterParameter=320}" Stretch="UniformToFill" />
+                    <Grid>
+                      <!-- png / jpg 走 Avalonia 解码，dds 走自己的块解压（ROLoadingImages 全是 DXT1），同一个转换器；
+                           停用的图带 .disabled 后缀，转换器按真实扩展名分派。 -->
+                      <Image Source="{Binding FilePath, Converter={StaticResource Thumb}, ConverterParameter=320}"
+                             Stretch="UniformToFill" Classes.is-disabled="{Binding IsDisabled}" />
+                      <Border IsVisible="{Binding IsDisabled}"
+                              Background="{DynamicResource CkanBlockingScrimBrush}">
+                        <Border Classes="CkanBadge" HorizontalAlignment="Center" VerticalAlignment="Center">
+                          <TextBlock Text="{DynamicResource Ui_LoadingImages_State_Disabled}" />
+                        </Border>
+                      </Border>
+                    </Grid>
                   </Border>
                   <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis"
                              FontSize="{DynamicResource CkanFontSizeCaption}"
                              ToolTip.Tip="{Binding FilePath}"
                              Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <!-- 长的来源名（ROLoadingImages）会撑破 148 宽卡片，所以徽章用 WrapPanel 换行。 -->
+                  <WrapPanel Orientation="Horizontal">
+                    <Border Classes="CkanBadge" IsVisible="{Binding HasProvider}" Margin="0,0,4,0"
+                            ToolTip.Tip="{Binding Folder}">
+                      <TextBlock Text="{Binding ProviderText}" />
+                    </Border>
+                    <Border Classes="CkanBadge">
+                      <TextBlock Text="{Binding FormatText}" />
+                    </Border>
+                  </WrapPanel>
+                  <!-- 停用/启用放在卡片里，整条可点：用户是看着图决定关哪张的，不该先去工具条找按钮。 -->
+                  <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}"
+                          Classes="CkanGhost CkanSmall" HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Center" />
                 </StackPanel>
               </DataTemplate>
             </ListBox.ItemTemplate>
@@ -132,13 +202,15 @@
 
       <Border Grid.Column="0" Grid.ColumnSpan="3" Classes="CkanEmptyStateCard Elevated" Margin="0"
               IsVisible="{Binding ShowEmptyState}">
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="440">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="460">
           <Border Classes="CkanIconTile Lg" HorizontalAlignment="Center">
             <PathIcon Data="M3 5h18v14H3z M5 7v10h14V7z" />
           </Border>
           <TextBlock Text="{DynamicResource Ui_Assets_Empty_LoadingImages}" HorizontalAlignment="Center"
                      FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
                      Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+          <TextBlock Text="{DynamicResource Ui_LoadingImages_Guide_Line}" HorizontalAlignment="Center"
+                     TextAlignment="Center" TextWrapping="Wrap" MaxWidth="400" Classes="CkanMuted" />
           <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
             <Button Content="{DynamicResource Ui_Assets_Action_Import}" Command="{Binding ImportCommand}"
                     Classes="CkanSecondary" />
@@ -149,7 +221,7 @@
       </Border>
     </Grid>
 
-    <Border Grid.RowSpan="4" IsVisible="{Binding IsBusy}"
+    <Border Grid.RowSpan="5" IsVisible="{Binding IsBusy}"
             Background="{DynamicResource CkanBlockingScrimBrush}">
       <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="360">
         <ProgressBar IsIndeterminate="True" Width="240" />

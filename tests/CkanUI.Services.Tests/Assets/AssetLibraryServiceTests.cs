@@ -298,8 +298,148 @@ public sealed class AssetLibraryServiceTests
             Assert.That(service.IsSupportedImage("a.png"), Is.True);
             Assert.That(service.IsSupportedImage("a.JPEG"), Is.True);
             Assert.That(service.IsSupportedImage("a.jpg"), Is.True);
+            Assert.That(service.IsSupportedImage("a.dds"), Is.True, "ROLoadingImages 只吃 dds，不认这个格式 RP-1 的 72 张一张都管不了。");
             Assert.That(service.IsSupportedImage("a.bmp"), Is.False);
             Assert.That(service.IsSupportedImage("a"), Is.False);
+            Assert.That(service.IsSupportedImage("a.dds.disabled"), Is.True,
+                "停用的图也要算可管理，否则停用后卡片从列表消失、用户再也点不回来。");
+            Assert.That(service.IsSupportedImage("a.txt.disabled"), Is.False);
         });
+    }
+
+    [Test]
+    public async Task SetEnabled_RenamesFileAndKeepsItVisible()
+    {
+        var folder = Path.Combine(_root, "Screenshots");
+        Directory.CreateDirectory(folder);
+        var original = Path.Combine(folder, "shot.png");
+        File.WriteAllText(original, "png");
+        var service = NewLoadingImages();
+        var scanned = await service.ScanAsync(new[] { folder });
+        var image = scanned.Value!.Single();
+
+        Assert.That(image.IsEnabled, Is.True);
+
+        var disabled = await service.SetEnabledAsync(image, enabled: false);
+
+        Assert.That(disabled.IsSuccess, Is.True, disabled.Message);
+        Assert.That(disabled.Value!.FileName, Is.EqualTo("shot.png"), "文件名不带 .disabled，用户看到的还是他那张图。");
+        Assert.That(disabled.Value!.FilePath, Is.EqualTo(original + LoadingImageService.DisabledSuffix));
+        Assert.That(disabled.Value!.IsEnabled, Is.False);
+        Assert.That(File.Exists(original), Is.False);
+        Assert.That(File.Exists(original + LoadingImageService.DisabledSuffix), Is.True, "停用只改扩展名，不删文件。");
+
+        var rescan = await service.ScanAsync(new[] { folder });
+
+        Assert.That(rescan.Value!.Select(item => item.FileName), Is.EqualTo(new[] { "shot.png" }), "停用后仍要出现在列表里。");
+        Assert.That(rescan.Value!.Single().IsEnabled, Is.False);
+
+        var enabled = await service.SetEnabledAsync(disabled.Value!, enabled: true);
+
+        Assert.That(enabled.IsSuccess, Is.True, enabled.Message);
+        Assert.That(enabled.Value!.FilePath, Is.EqualTo(original));
+        Assert.That(File.Exists(original), Is.True, "启用回来必须原样还原，这是「不删图」承诺的另一半。");
+    }
+
+    [Test]
+    public async Task SetEnabled_TargetAlreadyExists_FailsWithoutTouchingDisk()
+    {
+        var folder = Path.Combine(_root, "Screenshots");
+        Directory.CreateDirectory(folder);
+        var original = Path.Combine(folder, "shot.png");
+        File.WriteAllText(original, "png");
+        File.WriteAllText(original + LoadingImageService.DisabledSuffix, "png");
+        var service = NewLoadingImages();
+        var image = (await service.ScanAsync(new[] { folder })).Value!.Single();
+
+        Assert.That(image.IsEnabled, Is.True, "同名双份只留一张卡片，优先游戏真正在用的那份。");
+
+        var result = await service.SetEnabledAsync(image, enabled: false);
+
+        Assert.That(result.IsSuccess, Is.False);
+        Assert.That(result.Message, Is.EqualTo("同名文件已存在，先处理它再切换启停。"));
+        Assert.That(File.Exists(original), Is.True, "失败不能把原文件弄丢。");
+    }
+
+    [Test]
+    public async Task DefaultFolders_IncludesRoLoadingImagesScreens_AndScansDds()
+    {
+        var screens = Path.Combine(_root, "GameData", "ROLoadingImages", "PluginData", "Screens");
+        Directory.CreateDirectory(screens);
+        File.WriteAllText(Path.Combine(screens, "rp1.dds"), "dds");
+
+        var service = NewLoadingImages();
+        var folders = service.DefaultFolders(_root);
+        var result = await service.ScanAsync(folders);
+
+        Assert.That(folders, Does.Contain(screens), "ROLoadingImages 的目录名不带 Loading 前缀，靠模组目录匹配不到。");
+        Assert.That(result.Value!.Select(image => image.FileName), Does.Contain("rp1.dds"));
+    }
+
+    [Test]
+    public void DescribeFolders_RecognizesRoAndLoadingScreenManagerFolders()
+    {
+        var screens = Path.Combine(_root, "GameData", "ROLoadingImages", "PluginData", "Screens");
+        var shots = Path.Combine(_root, "Screenshots");
+        Directory.CreateDirectory(screens);
+        Directory.CreateDirectory(shots);
+        WriteLoadingScreenManagerConfig("LoadingScreenManager.cfg", "Screenshots", ignoreSubfolders: false);
+
+        var folders = NewLoadingImages().DescribeFolders(_root);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(folders[Path.GetFullPath(screens)].Provider, Is.EqualTo(LoadingImageService.RoLoadingImagesProvider));
+            Assert.That(folders[Path.GetFullPath(shots)].Provider, Is.EqualTo(LoadingImageService.LoadingScreenManagerProvider));
+            Assert.That(folders[Path.GetFullPath(shots)].Recursive, Is.True, "ignoreSubfolders = False 就是要连子目录一起扫。");
+            Assert.That(folders[Path.GetFullPath(screens)].Recursive, Is.False, "ROLoadingImages 只读 Screens 这一层。");
+        });
+    }
+
+    [Test]
+    public void DescribeFolders_ReadsAddonConfigs_NotOnlyMainConfig()
+    {
+        var payload = Path.Combine(_root, "Mods", "Screens");
+        Directory.CreateDirectory(payload);
+        WriteLoadingScreenManagerConfig("Extra.cfg", "Mods/Screens", ignoreSubfolders: true);
+
+        var folders = NewLoadingImages().DescribeFolders(_root);
+
+        Assert.That(folders.ContainsKey(Path.GetFullPath(payload)), Is.True,
+            "LSM 会读同目录下所有 cfg，只看主配置会漏掉别人的加载图目录。");
+        Assert.That(folders[Path.GetFullPath(payload)].Recursive, Is.False, "ignoreSubfolders = True 就不进子目录。");
+    }
+
+    [Test]
+    public async Task ScanAsync_RecursiveFolder_IncludesSubDirectories()
+    {
+        var root = Path.Combine(_root, "Screenshots");
+        var nested = Path.Combine(root, "2024");
+        Directory.CreateDirectory(nested);
+        File.WriteAllText(Path.Combine(root, "top.png"), "png");
+        File.WriteAllText(Path.Combine(nested, "deep.png"), "png");
+        var service = NewLoadingImages();
+
+        var flat = await service.ScanAsync(new[] { root });
+        var deep = await service.ScanAsync(new[] { root }, new[] { root });
+
+        Assert.That(flat.Value!.Select(image => image.FileName), Is.EqualTo(new[] { "top.png" }));
+        Assert.That(deep.Value!.Select(image => image.FileName), Is.EquivalentTo(new[] { "top.png", "deep.png" }));
+    }
+
+    private void WriteLoadingScreenManagerConfig(string fileName, string path, bool ignoreSubfolders)
+    {
+        var config = Path.Combine(_root, "GameData", "LoadingScreenManager", "PluginData", fileName);
+        Directory.CreateDirectory(Path.GetDirectoryName(config)!);
+        File.WriteAllText(config, string.Join(Environment.NewLine, new[]
+        {
+            "FOLDER",
+            "{",
+            "\tpath = " + path,
+            "\tfileMasks = *.png;*.jpg",
+            "\tignoreSubfolders = " + (ignoreSubfolders ? "True" : "False"),
+            "}",
+            string.Empty,
+        }));
     }
 }

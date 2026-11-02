@@ -355,6 +355,7 @@ public sealed partial class App : Application
         var services = _services!;
         var dispatcher = services.GetRequiredService<IDispatcher>();
         var errors = services.GetRequiredService<IErrorReporter>();
+        var startupReady = false;
         try
         {
             ApplySavedProxy(services);
@@ -363,6 +364,7 @@ public sealed partial class App : Application
                                        .StartupAsync(CancellationToken.None)
                                        .ConfigureAwait(false);
             TraceStartup($"[启动计时] bootstrap-done={_startupWatch.ElapsedMilliseconds}ms");
+            startupReady = result.IsSuccess;
             var localizer = services.GetRequiredService<ILocalizer>();
             var status = result.IsSuccess
                 ? localizer.Get("Ui_Common_Status_Ready")
@@ -370,8 +372,6 @@ public sealed partial class App : Application
             if (!result.IsSuccess) Log.Warn($"启动未完成：{result.Message} {result.Detail}");
             await dispatcher.InvokeAsync(() => shell.StatusText = status).ConfigureAwait(false);
 
-            // 首次启动指引与高亮导览：
-            await dispatcher.InvokeAsync(() => { _ = MaybeShowFirstRunWizardAndOnboardingAsync(); }).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -411,6 +411,19 @@ public sealed partial class App : Application
             {
                 Log.Warn("首屏兜底导航失败。", ex);
             }
+
+            // 引导放在首屏导航之后：先让页面入场动效起跑，再由引导按落位时间接手。
+            if (startupReady)
+            {
+                try
+                {
+                    await dispatcher.InvokeAsync(() => { _ = MaybeShowStartupGuidesAsync(); }).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("启动指引序列未能启动。", ex);
+                }
+            }
         }
     }
 
@@ -447,55 +460,132 @@ public sealed partial class App : Application
         }
     }
 
-    /// <summary>
-    /// 按需弹出首次启动指引：没有任何实例、且从未走完过向导时才出现。
-    /// </summary>
-    private async Task MaybeShowFirstRunWizardAndOnboardingAsync()
+    /// <summary>启动动效落位后，再决定这次启动要不要向导、要不要界面导览——两段全屏浮层不连播。</summary>
+    /// <remarks>
+    /// <para>
+    /// 冲突来自三件事挤在同一个窗口：整页入场（<c>CkanMotionDurationPage</c> + 卡片错峰）还没落位，首次启动指引就把它整块盖住；
+    /// 向导一关，界面导览又立刻接上，用户看到的是「两层遮罩连着闪」。这里按「等入场落位 → 向导 → 不再接导览」排序。
+    /// </para>
+    /// <para>
+    /// 向导被关掉（未完成）时同样不接着播导览：用户刚结束一套引导，再糊一层只会更像打扰。
+    /// 重看入口保留在 F1、命令面板与「设置 → 首次启动指引」，完成页也会写明 F1。
+    /// </para>
+    /// </remarks>
+    private async Task MaybeShowStartupGuidesAsync()
     {
-        if (_services is null)
+        if (_services is null || _mainWindow is not { } window)
         {
             return;
         }
 
         try
         {
-            var uiSettings = _services.GetRequiredService<IUiSettingsStore>();
-
-            // 等待主窗口可见
-            if (_mainWindow is { IsVisible: false } waiting)
+            if (!await WaitUntilVisibleAsync(window).ConfigureAwait(true))
             {
-                var opened = new TaskCompletionSource();
-                void OnOpened(object? sender, EventArgs e)
-                {
-                    waiting.Opened -= OnOpened;
-                    opened.TrySetResult();
-                }
-
-                waiting.Opened += OnOpened;
-                await opened.Task.ConfigureAwait(true);
+                Log.Info("启动指引：主窗口一直不可见，本次跳过。");
+                return;
             }
 
-            // 1. 若从未走完过向导且无实例，先弹配置向导
-            if (!_firstRunWizardShown && !uiSettings.Current.FirstRunCompleted && _services.GetRequiredService<IInstanceService>().Instances.Count == 0)
+            // 等入场动效落位再盖遮罩：Windows 关闭动效时这里为 0，不会平白多等。
+            await Task.Delay(EntranceSettleDelay()).ConfigureAwait(true);
+            if (!window.IsVisible)
             {
+                return;
+            }
+
+            var settings = _services.GetRequiredService<IUiSettingsStore>().Current;
+            var instances = _services.GetRequiredService<IInstanceService>();
+            var wizardDue = !_firstRunWizardShown
+                            && !settings.FirstRunCompleted
+                            && instances.Instances.Count == 0;
+
+            if (wizardDue)
+            {
+                if (window is MainWindow { IsOnboardingActive: true })
+                {
+                    Log.Info("启动指引：界面导览正在播放，本次跳过首次启动指引。");
+                    return;
+                }
+
                 _firstRunWizardShown = true;
+                Log.Info("启动指引：打开首次启动指引；本次启动不再自动打开界面导览。");
                 await _services.GetRequiredService<IFirstRunWizardLauncher>()
                                .LaunchAsync()
                                .ConfigureAwait(true);
+                return;
             }
 
-            // 2. 若从未展示过软件功能高亮导览，则自动启动高亮导览
-            if (!uiSettings.Current.HasSeenOnboardingTour && _mainWindow is MainWindow mw)
+            var tourDue = !settings.HasSeenOnboardingTour && instances.Instances.Count > 0;
+            if (!tourDue || window is not MainWindow main)
             {
-                // 稍微延时 300ms 让首帧布局稳定渲染完成后再高亮
-                await Task.Delay(300).ConfigureAwait(true);
-                mw.ShowOnboardingGuide();
+                return;
             }
+
+            // 启动期间用户可能已经切走：导览是全屏遮罩，只在窗口真在前台、且没有别的导览在播时开。
+            await Task.Delay(TourDelay).ConfigureAwait(true);
+            if (!main.IsVisible || !main.IsActive || main.IsOnboardingActive)
+            {
+                Log.Info("启动指引：窗口不在前台或导览已在播放，本次不自动打开界面导览。");
+                return;
+            }
+
+            main.ShowOnboardingGuide();
         }
         catch (Exception ex)
         {
             Log.Warn("首次启动指引或高亮导览未能显示。", ex);
         }
+    }
+
+    /// <summary>界面导览比向导晚一步出现，避开对话框自己的淡入与页面入场尾巴。</summary>
+    private static readonly TimeSpan TourDelay = TimeSpan.FromMilliseconds(400);
+
+    /// <summary>等主窗口真正可见；托盘启动/启动即隐藏时不让引导挂在一个看不见的 owner 上。</summary>
+    private static async Task<bool> WaitUntilVisibleAsync(Window window)
+    {
+        if (window.IsVisible)
+        {
+            return true;
+        }
+
+        var visible = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (e.Property == Visual.IsVisibleProperty && window.IsVisible)
+            {
+                visible.TrySetResult(true);
+            }
+        }
+
+        window.PropertyChanged += OnChanged;
+        try
+        {
+            var finished = await Task.WhenAny(visible.Task, Task.Delay(TimeSpan.FromSeconds(30))).ConfigureAwait(true);
+            return finished == visible.Task || window.IsVisible;
+        }
+        finally
+        {
+            window.PropertyChanged -= OnChanged;
+        }
+    }
+
+    /// <summary>入场落位时长：页面动效 token + 卡片错峰尾巴；动效关闭（token=0）时不等。</summary>
+    private static TimeSpan EntranceSettleDelay()
+    {
+        if (Animations.MotionBudget.IsCollapsed)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var page = TimeSpan.FromMilliseconds(320);
+        if (Application.Current?.Resources.TryGetResource(MotionHost.PageKey, null, out var raw) == true
+            && raw is TimeSpan duration
+            && duration > TimeSpan.Zero)
+        {
+            page = duration;
+        }
+
+        return page + TimeSpan.FromMilliseconds(260);
     }
 
     /// <summary>

@@ -421,6 +421,10 @@
                            TextWrapping="Wrap" />
               </Grid>
             </Border>
+            <TextBlock Text="{Binding DoneTourHint}"
+                       FontSize="{DynamicResource CkanFontSizeBody}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                       TextWrapping="Wrap" />
             <TextBlock Text="{Binding DoneTip}"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextTertiaryBrush}"

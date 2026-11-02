@@ -101,7 +101,7 @@ public sealed partial class MainWindow : Window
     /// 之后真正的首次点击只剩「翻可见性」的 1–2 ms（§29 的同一个机制）。
     /// 见 docs/ops/perf-baseline.md §35。
     /// </summary>
-    private readonly DispatcherTimer _pageWarmTimer = new() { Interval = TimeSpan.FromMilliseconds(420) };
+    private readonly DispatcherTimer _pageWarmTimer = new() { Interval = TimeSpan.FromMilliseconds(2500) };
 
     /// <summary>等待预热的导航键，按首次进入成本从高到低。</summary>
     private readonly Queue<string> _warmQueue = new();
@@ -578,6 +578,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+
         foreach (var key in WarmupOrder)
         {
             if (_shell.NavItems.Any(item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase)))
@@ -607,6 +608,25 @@ public sealed partial class MainWindow : Window
         if (_shell is null || PageStage is null)
         {
             _pageWarmTimer.Stop();
+            return;
+        }
+
+        // 预热把一批页面（含模组页的 DataGrid）实体化，工作集会被撑到 GB 级，收缩是回收器
+        // 轮询的事（8 秒一次 + 128MB 门限），但用户不希望峰值停留太久，所以队列跑空后主动回收一次。
+        if (_warmQueue.Count == 0)
+        {
+            _pageWarmTimer.Stop();
+            if (!_warmReclaimDone)
+            {
+                _warmReclaimDone = true;
+                if (Environment.WorkingSet > WarmReclaimThresholdBytes)
+                {
+                    Dispatcher.UIThread.Post(
+                        static () => Diagnostics.IdleMemoryReclaimer.Instance.ReclaimNow(),
+                        DispatcherPriority.ApplicationIdle);
+                }
+            }
+
             return;
         }
 
@@ -692,12 +712,26 @@ public sealed partial class MainWindow : Window
         view.IsHitTestVisible = false;
         view.IsVisible = true;
         var clock = System.Diagnostics.Stopwatch.StartNew();
+        var allocatedBefore = GC.GetTotalAllocatedBytes(precise: false);
         Dispatcher.UIThread.Post(() =>
         {
             FinishWarm(view, page, key);
+            // 预热一路会把页面实体化，不主动回收就会攒到 GB 级（实测峰值 2.5GB），而普通回收
+            // 不搬大对象堆、不还给系统，工作集不会落。所以每热完一页就按工作集判定做一次
+            // 压缩回收（§39 实测：峰值从 GB 级收到 900MB 以内，代价是空闲期几百毫秒）。
+            if (Environment.WorkingSet > WarmPageReclaimBytes)
+            {
+                Diagnostics.IdleMemoryReclaimer.Instance.ReclaimNow();
+                if (Environment.GetEnvironmentVariable("CKANUI_NAV_TRACE") is { Length: > 0 } rt)
+                {
+                    try { File.AppendAllText(rt, string.Create(CultureInfo.InvariantCulture, $"[reclaim] after={key} ws={Environment.WorkingSet / (1024d * 1024d):F0}MB\n")); } catch (IOException) { }
+                }
+            }
             if (Environment.GetEnvironmentVariable("CKANUI_NAV_TRACE") is { Length: > 0 } trace)
             {
-                try { File.AppendAllText(trace, $"[warm] {key} attach={clock.ElapsedMilliseconds}ms\n"); } catch (IOException) { }
+                var allocatedMb = (GC.GetTotalAllocatedBytes(precise: false) - allocatedBefore) / (1024d * 1024d);
+                var workingSetMb = Environment.WorkingSet / (1024d * 1024d);
+                try { File.AppendAllText(trace, string.Create(CultureInfo.InvariantCulture, $"[warm] {key} attach={clock.ElapsedMilliseconds}ms alloc={allocatedMb:F1}MB ws={workingSetMb:F1}MB\n")); } catch (IOException) { }
             }
         }, DispatcherPriority.ContextIdle);
         return true;
@@ -727,13 +761,20 @@ public sealed partial class MainWindow : Window
     /// <summary>预热定时器最多空转的 tick 数，超过就停表，避免为一个页面永远轮询。</summary>
     private const int WarmIdleTickLimit = 150;
 
+    /// <summary>预热期间每热完一页，工作集超过这个值就压缩回收一次，避免峰值攒到 GB 级。</summary>
+    private const long WarmPageReclaimBytes = 560L * 1024 * 1024;
+
+    /// <summary>预热结束后工作集超过这个值再回收一次。</summary>
+    private const long WarmReclaimThresholdBytes = 700L * 1024 * 1024;
+
+    /// <summary>预热收尾的回收只做一次。</summary>
+    private bool _warmReclaimDone;
+
     /// <summary>预热顺序：按实测首次进入成本从高到低（§21.2 / §27.2）。</summary>
     private static readonly string[] WarmupOrder =
     [
-        "logs", "plugins", "installhistory", "modpack-editor", "modtext", "dedup",
-        "downloadstats", "cache", "instances", "modconfig", "flags", "ships", "settings",
-        "loadingimages", "repos", "kspconfig", "home", "changes", "modpacks", "playtime",
-        "content", "saves", "unmanaged", "mods"
+        "logs", "modtext", "installhistory", "modpack-editor", "dedup", "mods",
+        "cache", "downloadstats", "flags", "modpacks", "ships", "settings"
     ];
 
     private void ShowPage(object? page)

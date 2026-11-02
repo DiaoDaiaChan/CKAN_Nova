@@ -172,6 +172,16 @@ public sealed class IdleMemoryReclaimer : IDisposable
         return true;
     }
 
+    /// <summary>立即执行一次回收（不等轮询与策略判定）：预热结束后工作集被撑大时用。</summary>
+    public void ReclaimNow()
+    {
+        _reclaim();
+        _hasReclaimed = true;
+        _workingSetAfterLastReclaim = _readWorkingSet();
+        _sinceLastReclaim.Restart();
+        ReclaimCount++;
+    }
+
     /// <inheritdoc />
     public void Dispose() => Detach();
 

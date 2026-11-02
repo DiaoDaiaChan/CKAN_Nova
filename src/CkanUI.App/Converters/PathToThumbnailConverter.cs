@@ -2,8 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
+using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform;
+using CkanUI.Services.Assets;
 
 namespace CkanUI.App.Converters;
 
@@ -68,8 +72,15 @@ public sealed class PathToThumbnailConverter : IValueConverter
         Bitmap? bitmap = null;
         try
         {
-            using var stream = File.OpenRead(path);
-            bitmap = Bitmap.DecodeToWidth(stream, width, BitmapInterpolationMode.HighQuality);
+            // 停用的加载图带 .disabled 后缀，解码要按真实扩展名判断，否则缩略图会整片空掉。
+            var effective = path.EndsWith(LoadingImageService.DisabledSuffix, StringComparison.OrdinalIgnoreCase)
+                ? path[..^LoadingImageService.DisabledSuffix.Length]
+                : path;
+
+            // DDS 是游戏格式（ROLoadingImages 的加载图全是 DXT1），Avalonia 没内置解码器，走我们自己的块解压。
+            bitmap = string.Equals(Path.GetExtension(effective), ".dds", StringComparison.OrdinalIgnoreCase)
+                ? DecodeDds(path, width)
+                : DecodeWithAvalonia(path, width);
         }
         catch (Exception)
         {
@@ -94,6 +105,37 @@ public sealed class PathToThumbnailConverter : IValueConverter
             CacheOrder.Enqueue(key);
             return bitmap;
         }
+    }
+
+    private static Bitmap? DecodeWithAvalonia(string path, int width)
+    {
+        using var stream = File.OpenRead(path);
+        return Bitmap.DecodeToWidth(stream, width, BitmapInterpolationMode.HighQuality);
+    }
+
+    private static Bitmap? DecodeDds(string path, int width)
+    {
+        var image = DdsDecoder.TryDecode(path, width);
+        if (image is null)
+        {
+            return null;
+        }
+
+        var bitmap = new WriteableBitmap(
+            new PixelSize(image.Width, image.Height),
+            new Vector(96, 96),
+            PixelFormat.Bgra8888,
+            AlphaFormat.Unpremul);
+        using (var buffer = bitmap.Lock())
+        {
+            var row = image.Width * 4;
+            for (var y = 0; y < image.Height; y++)
+            {
+                Marshal.Copy(image.Pixels, y * row, buffer.Address + (y * buffer.RowBytes), row);
+            }
+        }
+
+        return bitmap;
     }
 
     /// <summary>从 <c>ConverterParameter</c> 取目标宽度；不传就用默认值。</summary>

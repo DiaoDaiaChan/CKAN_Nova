@@ -1821,3 +1821,61 @@ CKAN_CONFIG_FILE=<probe-config.json> CKANUI_PROBE_REAL_CONFIG=1 CKANUI_PROBE_INS
 - 不采纳延后收尾：换 unmanaged 300ms，用掉 1.2GB 峰值，不值。
 - 已知瞬态：启动后预热窗口内峰值 1.7GB、稳态 467MB（真实实例 336 模组）。要压峰值只能减少预热页数或改成一页一回收，属于下一轮候选。
 - 未管理文件页的 340–600ms 属「默认展开的树一次性实体化」，要改必须动展开策略（视觉变化），登记为已知停顿。
+
+## 39. 预热的内存峰值：范围收到 12 页 + 一页一回收
+
+### 39.1 问题
+
+§35–§36 的预热把 22–24 个导航页全部挂进 `PageStage` 并实体化一次。换页变快了，但内存峰值失控：每次启动后十几秒内工作集被推到 **2.2–2.8 GB**（5 次独立 soak 复现），稳态回落到 557–620 MB。用户视角就是任务管理器里闪一个数 GB 的尖峰。
+
+### 39.2 归因（去掉了「某个页面有毒」这个假设）
+
+| 实验 | 做法 | 结果 |
+| --- | --- | --- |
+| 无预热对照 | `CKANUI_NO_WARM=1`（临时开关，已删） | 峰值 **770 MB** / 稳态 300–435 MB → 峰来自预热 |
+| 去掉 settings | 预热队列删 settings | 峰值仍 2298 MB |
+| 逐页回收（560 MB 门限） | 每热完一页按工作集判定回收 | 峰值仍 2193 MB |
+| 非压缩回收 | `GC.Collect(2, Forced, compacting:false)` | 峰值 2829 MB，**稳态回不去**（2263 MB）→ 压缩回收才是把页还给系统的那个动作 |
+| 顺序打乱 | mods 提到第一位 | 尖峰跟着顺序漂移，不跟着某个页面 → **是常驻页面累计，不是单页** |
+
+结论：`PageStage` 里每多一棵已实体化的页面树，预热期的分代堆就多一份存活压力；堆越大，回收的提交页越多，尖峰越高。压峰值只有一条路——少热几页。
+
+### 39.3 改法（`src/CkanUI.App/MainWindow.axaml.cs`、`src/CkanUI.App/Diagnostics/IdleMemoryReclaimer.cs`）
+
+- `WarmupOrder` 从 22–24 页收到 **12 页**（按实测首次进入 layout 从高到低挑）：`logs, modtext, installhistory, modpack-editor, dedup, mods, cache, downloadstats, flags, modpacks, ships, settings`。
+  - `mods` 故意放在第 6 位：放第一位时仓库快照还没到位，预热量到的是空表（实测首次进入仍 514 ms）；放第 6 位（约 12 秒）才量到带数据的表（50 ms）。
+- 预热节拍 `420 ms → 2500 ms`：一次预热占 UI 线程最多 1.4 秒（settings），420 ms 连排会把启动后的几秒填满；拉长后预热摊到约 30 秒，用户随时点页面都能让位（`1.2 s since navigation` 门仍在）。
+- 每热完一页若工作集 > 560 MB 就 `IdleMemoryReclaimer.ReclaimNow()`；队列跑空时再按 700 MB 门限回收一次。`ReclaimNow()` 是新增的公开入口（`IdleMemoryReclaimer` 原本只有带策略门限的 `ReclaimIfNeeded`），回收仍走「两次 Aggressive + compacting + finalizer」并在测试之外保持原策略不变。
+- 新增 `WarmReclaimThresholdBytes = 700 MB`、`WarmPageReclaimBytes = 560 MB`、`_warmReclaimDone`；`OnPageWarmTick` 在队列空时停表并做收尾回收。
+
+### 39.4 实测（真机 Release、镜像实例 Probe (Steam mirror) 336 模组、3 秒采样）
+
+| 口径 | 峰值工作集 | 稳态工作集 | 空转 CPU |
+| --- | ---: | ---: | ---: |
+| 24 页预热（§35/§36 版本） | 2200–2800 MB | 557–620 MB | 0.0–1.1% 单核 |
+| **12 页预热 + 逐页回收** | **814 MB** | **620 MB** | 0.0–0.8% 单核 |
+| 无预热（对照） | 770 MB | 300–435 MB | 0.0–0.2% 单核 |
+
+首次进入成本（真机 `NavigationProbe`，`layout / maxGap` ms；括号内为未被预热的页面）：
+
+| 页面 | 首次 | 页面 | 首次 |
+| --- | ---: | --- | ---: |
+| mods | 50.3 / 32 | settings | 48.7 / 18 |
+| modtext | 11.1 / 8 | logs | 87.4 / 67 |
+| installhistory | 11.7 / 15 | modpack-editor | 7.8 / 6 |
+| dedup | 174.8 / 171 | flags | 15.2 / 10 |
+| downloadstats | 182.5 / 165 | modpacks | 10.5 / 7 |
+| ships | 14.5 / 12 | cache | 379.5 / 226 |
+| （loadingimages） | 133.6 / 100 | （instances） | 127.8 / 57 |
+| （repos） | 114.1 / 32 | （unmanaged） | 113.7 / 85 |
+
+第二轮（点回已看过的页）：除 unmanaged（316.5，树实体化，§38）外全部 ≤ 91.5 ms。
+
+`dedup` / `downloadstats` / `cache` 的 174–380 ms 是激活期的真实数据整理（不是排版），预热只覆盖到首屏结构；要再降得改它们的 `OnActivated`，属下一轮。
+
+### 39.5 代价与边界
+
+- 稳态工作集比无预热高约 **185 MB**（620 vs 435）——这是「页面常驻」的直接成本，换页 1–20 ms 的收益就建立在这上面。
+- 未被预热的 4 个页面（loadingimages / instances / repos / unmanaged）保持原首次成本 114–134 ms；继续加页会把峰值推回 GB 级，不做。
+- 逐页回收在空闲期各付几百毫秒（压缩回收），页面此时不可交互，用户看不到。
+- `docs/ops/perf-baseline.md` §38.3 里「峰值 1.7 GB 属预热固有」的说法由本节修正为「预热页数决定峰值」。

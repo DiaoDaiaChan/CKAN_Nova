@@ -16,7 +16,17 @@ public sealed class LoadingImageService : ILoadingImageService
     /// <summary>清单文件名（相对 <c>GameData/CkanUI</c>）。</summary>
     public const string FolderListFileName = "loading-image-folders.txt";
 
-    private static readonly string[] SupportedExtensions = [".png", ".jpg", ".jpeg"];
+    /// <summary>ROLoadingImages（RP-1 元安装自带）的来源名。</summary>
+    public const string RoLoadingImagesProvider = "ROLoadingImages";
+
+    /// <summary>LoadingScreenManager 的来源名。</summary>
+    public const string LoadingScreenManagerProvider = "LoadingScreenManager";
+
+    /// <summary>停用标记：加在扩展名后面，两个加载图模组都只认原扩展名，所以改了就不会被读。</summary>
+    public const string DisabledSuffix = ".disabled";
+
+    // .dds 是 ROLoadingImages 实际吃的格式：它只认这个目录里的 dds，没有别的开关。
+    private static readonly string[] SupportedExtensions = [".png", ".jpg", ".jpeg", ".dds"];
 
     private static readonly string[] ModFolderNames = ["LoadingImages", "LoadingScreens"];
 
@@ -45,6 +55,17 @@ public sealed class LoadingImageService : ILoadingImageService
         Add(Path.Combine(gameDir, "LoadingImages"));
 
         var gameData = Path.Combine(gameDir, "GameData");
+
+        // ROLoadingImages 写死读 GameData/ROLoadingImages/PluginData/Screens（见其 LoadingImageReplacer），
+        // 目录名不带 Loading 前缀，靠 ModFolderNames 匹配不到，这里单列。
+        Add(Path.Combine(gameData, "ROLoadingImages", "PluginData", "Screens"));
+
+        // LoadingScreenManager 把用户配置的目录写在 FOLDER 节点里，默认 Screenshots 与 UserLoadingScreens。
+        foreach (var (folder, _) in ReadLoadingScreenManagerFolders(gameDir))
+        {
+            Add(folder);
+        }
+
         if (Directory.Exists(gameData))
         {
             try
@@ -117,10 +138,13 @@ public sealed class LoadingImageService : ILoadingImageService
     }
 
     /// <inheritdoc />
-    public Task<OperationResult<IReadOnlyList<LoadingImageAsset>>> ScanAsync(IReadOnlyList<string> folders, CancellationToken cancellationToken = default)
+    public Task<OperationResult<IReadOnlyList<LoadingImageAsset>>> ScanAsync(
+        IReadOnlyList<string> folders,
+        IReadOnlyCollection<string>? recursiveFolders = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(folders);
-        return Task.Run(() => ScanCore(folders, cancellationToken), cancellationToken);
+        return Task.Run(() => ScanCore(folders, recursiveFolders, cancellationToken), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -131,9 +155,9 @@ public sealed class LoadingImageService : ILoadingImageService
             return Task.FromResult(OperationResult<LoadingImageAsset>.Fail("请先选一个目录。"));
         }
 
-        if (!IsSupportedImage(sourceFile))
+        if (!IsSupportedImage(sourceFile) || sourceFile.EndsWith(DisabledSuffix, StringComparison.OrdinalIgnoreCase))
         {
-            return Task.FromResult(OperationResult<LoadingImageAsset>.Fail("只支持 png / jpg / jpeg 图片。"));
+            return Task.FromResult(OperationResult<LoadingImageAsset>.Fail("只支持 png / jpg / jpeg / dds 图片。"));
         }
 
         if (!File.Exists(sourceFile))
@@ -163,6 +187,57 @@ public sealed class LoadingImageService : ILoadingImageService
     }
 
     /// <inheritdoc />
+    public Task<OperationResult<LoadingImageAsset>> SetEnabledAsync(
+        LoadingImageAsset image,
+        bool enabled,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        if (image.IsEnabled == enabled)
+        {
+            return Task.FromResult(OperationResult<LoadingImageAsset>.Ok(image));
+        }
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!File.Exists(image.FilePath))
+            {
+                return Task.FromResult(OperationResult<LoadingImageAsset>.Fail("找不到这张加载图。"));
+            }
+
+            var target = enabled ? StripDisabled(image.FilePath) : image.FilePath + DisabledSuffix;
+            if (File.Exists(target))
+            {
+                return Task.FromResult(OperationResult<LoadingImageAsset>.Fail("同名文件已存在，先处理它再切换启停。", target));
+            }
+
+            File.Move(image.FilePath, target);
+            return Task.FromResult(OperationResult<LoadingImageAsset>.Ok(Create(image.Folder, target)));
+        }
+        catch (OperationCanceledException)
+        {
+            return Task.FromResult(OperationResult<LoadingImageAsset>.Fail("切换加载图启停已取消。"));
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or SecurityException)
+        {
+            _errors.Report(ex, "加载图库", "切换加载图启停失败");
+            return Task.FromResult(OperationResult<LoadingImageAsset>.Fail(
+                "没有权限改这个文件：确认游戏已关闭、目录可写，或先用「在文件夹中打开」手动改名。",
+                ex.Message,
+                retryable: true));
+        }
+        catch (IOException ex)
+        {
+            _errors.Report(ex, "加载图库", "切换加载图启停失败");
+            return Task.FromResult(OperationResult<LoadingImageAsset>.Fail(
+                "文件正被占用或目录只读：关掉游戏和图片查看器后再试。",
+                ex.Message,
+                retryable: true));
+        }
+    }
+
+    /// <inheritdoc />
     public Task<OperationResult> DeleteAsync(LoadingImageAsset image, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(image);
@@ -188,18 +263,158 @@ public sealed class LoadingImageService : ILoadingImageService
     }
 
     /// <inheritdoc />
-    public bool IsSupportedImage(string path) =>
-        !string.IsNullOrWhiteSpace(path)
-        && SupportedExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
+    /// <remarks>停用的文件（<c>a.dds.disabled</c>）也算可管理的图片，否则停用后卡片会从列表里消失、再也点不回来。</remarks>
+    public bool IsSupportedImage(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var effective = StripDisabled(path);
+        return SupportedExtensions.Contains(Path.GetExtension(effective), StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyDictionary<string, LoadingImageFolderInfo> DescribeFolders(string gameDir)
+    {
+        var folders = new Dictionary<string, LoadingImageFolderInfo>(StringComparer.OrdinalIgnoreCase);
+        void Add(string? path, string? provider, bool recursive)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            try
+            {
+                folders[Normalize(path)] = new LoadingImageFolderInfo(provider, recursive);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                // 记不住路径就不标来源，扫描本身不受影响。
+            }
+        }
+
+        var gameData = Path.Combine(gameDir, "GameData");
+        Add(Path.Combine(gameData, "ROLoadingImages", "PluginData", "Screens"), RoLoadingImagesProvider, recursive: false);
+        foreach (var (folder, recursive) in ReadLoadingScreenManagerFolders(gameDir))
+        {
+            Add(folder, LoadingScreenManagerProvider, recursive);
+        }
+
+        return folders;
+    }
+
+    private static string Normalize(string path) =>
+        Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+    /// <summary>
+    /// 读 LoadingScreenManager 的 FOLDER 节点。
+    /// </summary>
+    /// <remarks>
+    /// LSM 除了主配置 <c>LoadingScreenManager.cfg</c>，还会读同目录下其它 <c>*.cfg</c> 里的 <c>FOLDER</c> 节点做追加/覆盖，
+    /// 所以这里枚举整个 PluginData 目录。不解析 <c>fileMasks</c>：扫描统一按支持的扩展名过滤。
+    /// </remarks>
+    private IReadOnlyList<(string Folder, bool Recursive)> ReadLoadingScreenManagerFolders(string gameDir)
+    {
+        var pluginDir = Path.Combine(gameDir, "GameData", "LoadingScreenManager", "PluginData");
+        if (!Directory.Exists(pluginDir))
+        {
+            return [];
+        }
+
+        try
+        {
+            var folders = new List<(string Folder, bool Recursive)>();
+            foreach (var config in Directory.EnumerateFiles(pluginDir, "*.cfg", SearchOption.TopDirectoryOnly))
+            {
+                string? path = null;
+                var ignoreSubfolders = false;
+                var insideFolder = false;
+                foreach (var raw in File.ReadAllLines(config))
+                {
+                    var line = raw.Trim();
+                    if (line.Length == 0 || line.StartsWith("//", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    if (!insideFolder)
+                    {
+                        insideFolder = line.Equals("FOLDER", StringComparison.OrdinalIgnoreCase);
+                        continue;
+                    }
+
+                    if (line == "}")
+                    {
+                        AddFolder(folders, gameDir, path, ignoreSubfolders);
+                        path = null;
+                        ignoreSubfolders = false;
+                        insideFolder = false;
+                        continue;
+                    }
+
+                    var separator = line.IndexOf('=');
+                    if (separator < 0)
+                    {
+                        continue;
+                    }
+
+                    var key = line[..separator].Trim();
+                    var value = line[(separator + 1)..].Trim().Trim('"').Replace('\\', '/');
+                    if (key.Equals("path", StringComparison.OrdinalIgnoreCase))
+                    {
+                        path = value;
+                    }
+                    else if (key.Equals("ignoreSubfolders", StringComparison.OrdinalIgnoreCase))
+                    {
+                        ignoreSubfolders = bool.TryParse(value, out var parsed) && parsed;
+                    }
+                }
+
+                AddFolder(folders, gameDir, path, ignoreSubfolders);
+            }
+
+            return folders;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException)
+        {
+            _errors.Report(ex, "加载图库", "读取 LoadingScreenManager 配置失败");
+            return [];
+        }
+    }
+
+    private static void AddFolder(List<(string Folder, bool Recursive)> folders, string gameDir, string? path, bool ignoreSubfolders)
+    {
+        if (string.IsNullOrWhiteSpace(path) || path.StartsWith("//", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var resolved = Path.IsPathRooted(path) ? path : Path.Combine(gameDir, path);
+        if (Directory.Exists(resolved) && !folders.Any(item => string.Equals(item.Folder, resolved, StringComparison.OrdinalIgnoreCase)))
+        {
+            folders.Add((resolved, !ignoreSubfolders));
+        }
+    }
 
     private static string FolderListPath(string gameDir) =>
         Path.Combine(gameDir, "GameData", "CkanUI", FolderListFileName);
 
-    private OperationResult<IReadOnlyList<LoadingImageAsset>> ScanCore(IReadOnlyList<string> folders, CancellationToken cancellationToken)
+    private OperationResult<IReadOnlyList<LoadingImageAsset>> ScanCore(
+        IReadOnlyList<string> folders,
+        IReadOnlyCollection<string>? recursiveFolders,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var images = new List<LoadingImageAsset>();
+            var recursive = new HashSet<string>(
+                (recursiveFolders ?? []).Select(Normalize),
+                StringComparer.OrdinalIgnoreCase);
+            // 同一个名字的 a.dds 与 a.dds.disabled 同时存在时只留一张卡片（优先启用态），
+            // 否则画廊里会出现两张同名图，用户分不清哪张是游戏真正在用的。
+            var images = new Dictionary<string, LoadingImageAsset>(StringComparer.OrdinalIgnoreCase);
             foreach (var folder in folders)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -208,18 +423,27 @@ public sealed class LoadingImageService : ILoadingImageService
                     continue;
                 }
 
-                foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.TopDirectoryOnly))
+                var option = recursive.Contains(Normalize(folder)) ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+                foreach (var file in Directory.EnumerateFiles(folder, "*", option))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    if (IsSupportedImage(file))
+                    if (!IsSupportedImage(file))
                     {
-                        images.Add(Create(folder, file));
+                        continue;
+                    }
+
+                    var asset = Create(folder, file);
+                    var key = StripDisabled(asset.FilePath);
+                    if (!images.TryGetValue(key, out var existing) || (!existing.IsEnabled && asset.IsEnabled))
+                    {
+                        images[key] = asset;
                     }
                 }
             }
 
-            images.Sort(static (left, right) => right.ModifiedAt.CompareTo(left.ModifiedAt));
-            return OperationResult<IReadOnlyList<LoadingImageAsset>>.Ok(images);
+            var ordered = images.Values.ToList();
+            ordered.Sort(static (left, right) => right.ModifiedAt.CompareTo(left.ModifiedAt));
+            return OperationResult<IReadOnlyList<LoadingImageAsset>>.Ok(ordered);
         }
         catch (OperationCanceledException)
         {
@@ -235,13 +459,23 @@ public sealed class LoadingImageService : ILoadingImageService
     private static LoadingImageAsset Create(string folder, string filePath)
     {
         var info = new FileInfo(filePath);
+        var isEnabled = !filePath.EndsWith(DisabledSuffix, StringComparison.OrdinalIgnoreCase);
         return new LoadingImageAsset(
-            Path.GetFileName(filePath),
+            Path.GetFileName(StripDisabled(filePath)),
             filePath,
             folder,
             info.Exists ? info.Length : 0,
-            info.Exists ? new DateTimeOffset(info.LastWriteTimeUtc) : DateTimeOffset.UtcNow);
+            info.Exists ? new DateTimeOffset(info.LastWriteTimeUtc) : DateTimeOffset.UtcNow,
+            Provider: null,
+            IsEnabled: isEnabled);
     }
+
+    /// <summary>去掉 <c>.disabled</c> 后缀，得到游戏会读的那个名字。</summary>
+    /// <param name="path">文件路径。</param>
+    private static string StripDisabled(string path) =>
+        path.EndsWith(DisabledSuffix, StringComparison.OrdinalIgnoreCase)
+            ? path[..^DisabledSuffix.Length]
+            : path;
 
     private static string UniqueName(string dir, string desired, string extension)
     {

@@ -386,6 +386,9 @@ public sealed partial class FirstRunWizardViewModel : DialogViewModelBase
     /// <summary>完成页补充.</summary>
     public string DoneTip => Text(LocalizationKeys.FirstRunDoneTip, "想再走一遍？设置 → 首次启动指引。");
 
+    /// <summary>完成页的界面导览入口：自动导览不会紧跟向导播放，这里给出手动重看的方式。</summary>
+    public string DoneTourHint => Text(LocalizationKeys.FirstRunDoneTourHint, "想再看一遍界面？随时按 F1。");
+
     /// <summary>退出按钮文案。</summary>
     public string ExitText => Text(LocalizationKeys.FirstRunExit, "退出向导");
 
