@@ -28,6 +28,9 @@ internal static class NavigationProbe
     /// <summary>首帧后先静置这么久再开始扫，避开启动期的排队。</summary>
     private const int WarmupMilliseconds = 2500;
 
+    /// <summary>采样前静置时长可由 CKANUI_NAV_WARMUP_MS 覆盖（给空闲预热留时间用）。</summary>
+    private static int WarmupMs() => int.TryParse(Environment.GetEnvironmentVariable("CKANUI_NAV_WARMUP_MS"), out var ms) && ms > 0 ? ms : WarmupMilliseconds;
+
     /// <summary>按环境变量挂上探针；没设就什么都不做。</summary>
     /// <param name="window">主窗口。</param>
     public static void Attach(MainWindow window)
@@ -42,7 +45,7 @@ internal static class NavigationProbe
         {
             try
             {
-                await Task.Delay(WarmupMilliseconds);
+                await Task.Delay(WarmupMs());
                 await RunAsync(window, path);
             }
             catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)

@@ -1535,3 +1535,40 @@ Windows 快路径 `ScanWindows`：`EnumProcesses`(psapi) → 每个 pid `OpenPro
 
 ### 34.4 代价
 回来时不重扫 → 如果用户在别处刚下载过模组，缓存页数字要等点「刷新」才更新。这是刻意取舍：缓存页不是实时监控面，而 7.7 秒的冻结是硬伤。
+
+## §35 空闲预热：把首次进入的一次性成本挪到用户没在看的时候
+
+### 35.1 问题
+§29 让「第二次点同一个 tab」降到 1–20 ms，但**首次**进入仍然贵：真机导航探针（镜像实例 336 模组）
+
+| 页面 | 首次进入 layout | 其中最长单帧阻塞 | 探针二次进入 |
+| --- | ---: | ---: | ---: |
+| logs | 1694.7 ms | **879.4 ms** | 72.4 ms |
+| settings | 425.0 ms | 389.9 ms | 16.7 ms |
+| unmanaged | 141.4 ms | 74.5 ms | 293.1 ms |
+| modpack-editor | 608.9 ms | 540.4 ms | 36.5 ms |
+
+插桩确认这些不是「数据重算」：logs 首次 `Refresh()` 只占 **206 ms**（其中 `aggregate=125.5` 是首次 JIT，49 条事件），而导航调用本身被钉住 816 ms —— 主体是**一次性 JIT / 模板与样式首次落地**。
+
+### 35.2 改法
+首帧之后，用 420 ms 间隔的 `DispatcherTimer` 逐页把一个页面视图挂进 `PageStage`：`Opacity=0`、`IsHitTestVisible=false`、`IsVisible=true`，让它在真实尺寸下跑完一次完整 Measure/Arrange，然后在 `DispatcherPriority.ContextIdle` 把它藏起来（`IsVisible=false`、`Opacity=1`）。
+
+- §29 已证明「已挂树、只切可见性」的重新显示只要 1–2 ms，所以预热过的页面首次点击就等价于二次进入。
+- 用户正在点（最近 1.2 s 内有换页）时预热让位，不抢帧。
+- 顺序按实测首次成本：`logs, settings, unmanaged, modpack-editor, mods, content, downloadstats, modpacks, ships, saves`。
+- 旁路解析：`NavigationService.Peek(key)` + `ShellViewModel.PeekPage(key)`（`src/CkanUI.ViewModels/ShellViewModel.Warmup.cs`，单独 partial 文件），只解析页面 VM，不激活、不改当前页。
+
+### 35.3 实测（同脚本同实例，先静置 14 s 让预热跑完再遍历）
+| 页面 | 首次 layout 改前 → 改后 | 最长单帧 改前 → 改后 |
+| --- | --- | --- |
+| logs | 1694.7 → **97.9 ms** | 879.4 → **77.7 ms** |
+| settings | 425.0 → **75.6 ms** | 389.9 → **13.0 ms** |
+| unmanaged | 141.4 → **33.9 ms** | 74.5 → **5.0 ms** |
+| modpack-editor | 608.9 → **10.3 ms** | 540.4 → **7.7 ms** |
+| modpacks | 108.7 → **53.9 ms** | 51.5 → **54.1 ms** |
+
+预热自身的一次性成本（后台，用户看不到）：logs 53 ms、settings **938 ms**、modpack-editor 136 ms、modpacks 31 ms，其余 ≤29 ms。设置页那 938 ms 是它整棵 2338 节点的一次排版，落在首帧后的空闲期。
+
+### 35.4 视觉与内存
+- 预热中的视图 `Opacity=0` 且不吃鼠标，跑完立刻 `IsVisible=false`；对正在运行的应用截屏（`artifacts/perf/warm-after.png`，1296×809）确认画面仍是当前页，没有浮出的预热页。
+- 3 分钟 soak（同口径、镜像实例）：WS 419.7–435.9 MB / private 364.0–380.1 MB / 线程 103–111 / 空转 **0.0–0.1% 单核**，比不带预热的 444.8–457.9 MB 还低（预热只持有 10 个页面的视图，用户访问过之后本来就常驻）。

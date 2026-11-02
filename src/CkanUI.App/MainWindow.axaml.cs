@@ -92,6 +92,22 @@ public sealed partial class MainWindow : Window
     /// <summary>当前可见的页面视图，也是换页动效的落点（见 <see cref="PlayPageReveal"/>）。</summary>
     private Control? _activePageView;
 
+    /// <summary>
+    /// 空闲预热：首帧之后逐页把还没访问过的页面视图挂进 <see cref="PageStage"/> 量一次再藏起来。
+    /// 首次进入某页的一次性 JIT / 模板落地成本（实测日志页 800 ms、设置页 425 ms）因此挪到用户没在看的时候；
+    /// 之后真正的首次点击只剩「翻可见性」的 1–2 ms（§29 的同一个机制）。
+    /// 见 docs/ops/perf-baseline.md §35。
+    /// </summary>
+    private readonly DispatcherTimer _pageWarmTimer = new() { Interval = TimeSpan.FromMilliseconds(420) };
+
+    /// <summary>等待预热的导航键，按首次进入成本从高到低。</summary>
+    private readonly Queue<string> _warmQueue = new();
+
+    /// <summary>最近一次换页的时刻：预热会让位给正在操作的用户。</summary>
+    private DateTime _lastNavigationUtc = DateTime.MinValue;
+
+    private bool _warmTimerHooked;
+
     /// <summary>页面缩放的变换（首次应用缩放时创建）：LayoutTransformControl 靠它把缩放折进测量。</summary>
     private ScaleTransform? _pageZoomTransform;
 
@@ -532,6 +548,8 @@ public sealed partial class MainWindow : Window
         UpdateShellStatusDot(_shell.StatusText);
         _lastPageKey = _shell.SelectedNavItem?.Key;
 
+        StartPageWarmup();
+
         // 窗口构建时 CurrentPage 可能已经有值（ShellViewModel 构造期就导航到首页），
         // 此时不会再有 PropertyChanged，必须主动把第一页切到可见。
         ShowPage(_shell.CurrentPage);
@@ -542,6 +560,111 @@ public sealed partial class MainWindow : Window
     /// 把 <paramref name="page"/> 对应的视图切成可见。视图只建一次、之后常驻 <see cref="PageStage"/>，
     /// 再次进入只切 IsVisible —— 这样切页不再触发整棵可视树重新测量。见 docs/ops/perf-baseline.md §29。
     /// </summary>
+    /// <summary>首帧后开始逐页预热，每 tick 只热一页，避免连排几帧。</summary>
+    private void StartPageWarmup()
+    {
+        if (_shell is null || _warmQueue.Count > 0)
+        {
+            return;
+        }
+
+        foreach (var key in WarmupOrder)
+        {
+            if (_shell.NavItems.Any(item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase)))
+            {
+                _warmQueue.Enqueue(key);
+            }
+        }
+
+        if (_warmQueue.Count == 0)
+        {
+            return;
+        }
+
+        if (!_warmTimerHooked)
+        {
+            _pageWarmTimer.Tick += OnPageWarmTick;
+            _warmTimerHooked = true;
+        }
+
+        _pageWarmTimer.Start();
+    }
+
+    private void OnPageWarmTick(object? sender, EventArgs e)
+    {
+        if (_shell is null || PageStage is null)
+        {
+            _pageWarmTimer.Stop();
+            return;
+        }
+
+        // 用户正在点：这一轮让位，稍后再热。
+        if (DateTime.UtcNow - _lastNavigationUtc < TimeSpan.FromMilliseconds(1200))
+        {
+            return;
+        }
+
+        while (_warmQueue.Count > 0)
+        {
+            if (WarmPage(_warmQueue.Dequeue()))
+            {
+                return;
+            }
+        }
+
+        _pageWarmTimer.Stop();
+    }
+
+    /// <summary>把一个页面视图挂进舞台、透明地跑一次完整排版，然后藏起来。</summary>
+    private bool WarmPage(string key)
+    {
+        if (_shell is null || PageStage is null || _shell.PeekPage(key) is not { } page)
+        {
+            return false;
+        }
+
+        if (_pageViews.TryGetValue(page, out var existing))
+        {
+            existing.IsVisible = false;
+            return false;
+        }
+
+        if (new ViewLocator().Build(page) is not { } view)
+        {
+            return false;
+        }
+
+        _pageViews[page] = view;
+        PageStage.Children.Add(view);
+        view.Opacity = 0;
+        view.IsHitTestVisible = false;
+        view.IsVisible = true;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Dispatcher.UIThread.Post(() =>
+        {
+            FinishWarm(view);
+            if (Environment.GetEnvironmentVariable("CKANUI_NAV_TRACE") is { Length: > 0 } trace)
+            {
+                try { File.AppendAllText(trace, $"[warm] {key} attach={clock.ElapsedMilliseconds}ms\n"); } catch (IOException) { }
+            }
+        }, DispatcherPriority.ContextIdle);
+        return true;
+    }
+
+    private static void FinishWarm(Control view)
+    {
+        view.IsVisible = false;
+        view.Opacity = 1;
+        view.IsHitTestVisible = true;
+    }
+
+    /// <summary>预热顺序：按实测首次进入成本从高到低（§21.2 / §27.2）。</summary>
+    private static readonly string[] WarmupOrder =
+    [
+        "logs", "settings", "unmanaged", "modpack-editor", "mods",
+        "content", "downloadstats", "modpacks", "ships", "saves"
+    ];
+
     private void ShowPage(object? page)
     {
         if (PageStage is null)
@@ -576,6 +699,8 @@ public sealed partial class MainWindow : Window
         {
             return;
         }
+
+        _lastNavigationUtc = DateTime.UtcNow;
 
         foreach (var child in PageStage.Children)
         {

@@ -103,6 +103,11 @@ public sealed class NavigationService : INavigationService
         return Task.FromResult(true);
     }
 
+    /// <summary>
+    /// 只解析页面视图模型、不激活也不改当前页 —— 供空闲预热在用户没在看的时候把页面视图建出来。
+    /// </summary>
+    public object? Peek(string pageKey) => _factory(pageKey);
+
     private bool NavigateCore(string pageKey, bool recordHistory, CancellationToken ct)
     {
         if (ct.IsCancellationRequested)
