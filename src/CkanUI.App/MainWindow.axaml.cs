@@ -776,7 +776,7 @@ public sealed partial class MainWindow : Window
     private const int WarmIdleTickLimit = 150;
 
     /// <summary>预热期间每热完一页，工作集超过这个值就压缩回收一次，避免峰值攒到 GB 级。</summary>
-    private const long WarmPageReclaimBytes = 560L * 1024 * 1024;
+    private const long WarmPageReclaimBytes = 430L * 1024 * 1024;
 
     /// <summary>预热结束后工作集超过这个值再回收一次。</summary>
     private const long WarmReclaimThresholdBytes = 700L * 1024 * 1024;

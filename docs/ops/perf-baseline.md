@@ -2038,3 +2038,44 @@ ActivationWarmups 增加 logs：预热时调用 page.Activate()（触发一次�
 | 预热自身成本 | 53 ms（空壳） | 235 ms / 16.9 MB 分配 |
 
 全页 sweep 未见回归：R1 除 settings 531（未预热，§41 的静置门挡着）、downloadstats 248、modconfig 173 外均 ≤147；R2 除 downloadstats 133、modconfig 120 外均 ≤70。
+
+## §45 预热页数不能再减，回收门限下调把启动峰值压掉 205 MB
+
+### 45.1 实验：12 页预热砍到 8 页（否决）
+
+动机：§39 把预热页数从 24 砍到 12 后启动峰值仍有 845 MB，想再砍 4 页（flags / modpacks / ships / settings）换内存。
+
+实测（真机、镜像实例 336 模组，1.5 分钟 soak，4 秒采样）：
+
+| 口径 | 峰值 WS | 稳态 WS |
+| --- | ---: | ---: |
+| 12 页预热 | 845.6 MB | 639.9 MB |
+| 8 页预热 | 585.7 MB | 565.4 MB |
+
+省下 260 MB 峰值，但被砍掉的四页首次进入代价（单页复核，layout / maxGap）：
+
+| 页面 | 预热时首次进入 | 不预热首次进入 |
+| --- | ---: | ---: |
+| flags | 19 / 44 ms | 181 / 554 ms |
+| modpacks | 15 / 33 ms | 447 / 283 ms |
+| ships | 146 / 83 ms | 227 / 182 ms |
+| settings | 静置门挡着未预热 | 761 / 596 ms |
+
+flags 的 554 ms 与 settings 的 596 ms 单帧停顿是用户点一下就能感觉到的量级，用它们换 260 MB 不值得。**结论：预热名单保持 12 页，改动已回退。**
+
+### 45.2 改法：回收门限 560 MB → 430 MB（采纳）
+
+src/CkanUI.App/MainWindow.axaml.cs 的 private const long WarmPageReclaimBytes 由 560L * 1024 * 1024 改为 430L * 1024 * 1024。每热完一页，工作集超过门限就做一次压缩回收；门限下调只让回收更早发生，不改预热内容与顺序。
+
+实测（同 soak 口径）：
+
+| 口径 | 峰值 WS | 收敛 WS | 峰值 private | 空转 CPU |
+| --- | ---: | ---: | ---: | ---: |
+| 门限 560 MB | 845.6 MB | 639.9 MB | 780.1 MB | 0.0–1.9% |
+| 门限 430 MB | **640.8 MB** | 637.8 MB | 569.3 MB | 0.0–2.4% |
+
+峰值降 205 MB（-24%），稳态不变；代价是预热期间多一两次压缩回收，空转 CPU 多 0.5 个百分点且只发生在启动后那十几秒。
+
+### 45.3 换页未回归
+
+全页 sweep（同 HEAD，真机、336 模组）：R1 除 settings 489（静置门挡着未预热）、unmanaged 287、modconfig 158 外均 ≤121；R2 除 modconfig 121、downloadstats 120 外均 ≤81。
