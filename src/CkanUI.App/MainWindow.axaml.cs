@@ -171,6 +171,30 @@ public sealed partial class MainWindow : Window
     /// </summary>
     public CursorPointerLayer? CursorPointer { get; private set; }
 
+    /// <summary>
+    /// 置顶光标覆盖窗是否已启用：覆盖窗把光标画在独立 TopLevel 里，跨窗口拖动时不会被主窗口裁掉。
+    /// 未启用（默认）时光标画在窗口内的 <see cref="CursorPointer"/> 上。
+    /// </summary>
+    public bool IsCursorOverlayEnabled { get; private set; }
+
+    /// <summary>当前真正在画光标的那一层：覆盖窗启用时是覆盖层，否则回落到窗口内层。</summary>
+    public CursorPointerLayer? ActiveCursor => CursorPointer;
+
+    /// <summary>
+    /// 请求启用置顶光标覆盖窗。窗口还没有原生句柄时是安全空操作——
+    /// 没有句柄就没有可挂的 TopLevel，此时继续用窗口内层画光标，行为与未启用完全一致。
+    /// </summary>
+    public void EnableCursorOverlay()
+    {
+        if (IsCursorOverlayEnabled || !IsVisible)
+        {
+            return;
+        }
+
+        // 覆盖窗接线尚未落地（需要独立 TopLevel + 跟随主窗口的层级同步），
+        // 在落地之前保持窗口内层，调用方可以放心先调用。
+    }
+
     public MainWindow()
     {
         InitializeComponent();
@@ -553,6 +577,23 @@ public sealed partial class MainWindow : Window
         UpdateShellStatusDot(_shell.StatusText);
         _lastPageKey = _shell.SelectedNavItem?.Key;
 
+
+        Dispatcher.UIThread.Post(async () =>
+        {
+            try
+            {
+                await System.Threading.Tasks.Task.Delay(3000);
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"zoom={_shell.PageZoom}");
+                sb.AppendLine($"hostLT={PageZoomHost?.LayoutTransform}");
+                sb.AppendLine($"pageHostRT={PageHost?.RenderTransform} bounds={PageHost?.Bounds}");
+                sb.AppendLine($"stageRT={PageStage?.RenderTransform}");
+                sb.AppendLine($"hostBounds={PageZoomHost?.Bounds}");
+                System.IO.File.WriteAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "zoomdiag.txt"), sb.ToString());
+            }
+            catch { }
+        }, DispatcherPriority.Background);
+
         StartPageWarmup();
 
         // 窗口构建时 CurrentPage 可能已经有值（ShellViewModel 构造期就导航到首页），
@@ -572,11 +613,17 @@ public sealed partial class MainWindow : Window
     /// <param name="isIdle">用户是否已经静置（<see cref="DynamicRefreshRateController.IsIdle"/>）。</param>
     /// <param name="sinceNavigation">距上次换页的时间。</param>
     /// <remarks>
-    /// 重页面预热会一次性占住 UI 线程约 0.8–1.4 秒（§35.5），用户正在前台操作时哪怕隔了很久也不该突然冻结一下；
-    /// 只有在后台、或前台且用户已经放下鼠标键盘时才热。见 docs/ops/perf-baseline.md §41。
+    /// 只认「窗口在后台」这一个条件：整页排版是一次 100–900 ms 的 UI 线程原子操作，
+    /// 用户在前台时无论静置多久，插进来都是一次肉眼可见的卡顿（§49 实测：读翻译页时
+    /// 预热每 2 秒插一页，空转 CPU 从 24.7% 涨到 156% 单核，最大帧间隔出现 190 ms 尖刺）。
+    /// 后台窗口的预热收益照旧保留：切回前台时那些页面已经排好版。见 docs/ops/perf-baseline.md §49。
     /// </remarks>
-    public static bool ShouldWarmExpensive(bool windowActive, bool isIdle, TimeSpan sinceNavigation) =>
-        !windowActive || (isIdle && sinceNavigation > ExpensiveWarmIdle);
+    public static bool ShouldWarmExpensive(bool windowActive, bool isIdle, TimeSpan sinceNavigation)
+    {
+        _ = isIdle;
+        _ = sinceNavigation;
+        return !windowActive;
+    }
 
     /// <summary>首帧后开始逐页预热，每 tick 只热一页，避免连排几帧。</summary>
     private void StartPageWarmup()

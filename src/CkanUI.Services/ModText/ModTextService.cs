@@ -39,6 +39,10 @@ public sealed class ModTextService : IModTextService, IDisposable
     private ModTextBlocklist _blocklist = ModTextBlocklist.Empty;
     private string _currentLanguage = "zh-cn";
     private int _totalEntries;
+    private int _revision;
+
+    /// <summary>上一次真正解析磁盘文件时的输入指纹；命中就整段跳过重载。</summary>
+    private string? _loadedSignature;
 
     public ModTextService(string? customBaseDirectory = null, ModTextPolicy policy = ModTextPolicy.ExistingOnly)
     {
@@ -54,6 +58,7 @@ public sealed class ModTextService : IModTextService, IDisposable
     public IModTextProvider Provider => _provider;
     public string CurrentLanguage => _currentLanguage;
     public int TotalEntries => _totalEntries;
+    public int Revision => Volatile.Read(ref _revision);
     public string BaseDirectory => _baseDirectory;
 
     /// <summary>本地 packs 目录（内含 &lt;lang&gt;/*.jsonl 与 overrides.jsonl）。</summary>
@@ -119,6 +124,32 @@ public sealed class ModTextService : IModTextService, IDisposable
         return Path.Combine(localAppData, "CKAN", "ckan-ui", "i18n");
     }
 
+    /// <summary>
+    /// 语言包输入指纹：语言 + 每个包文件/覆盖层/黑名单的路径、长度、最后写入时间。
+    /// 只做 stat，不读内容，代价是微秒级。
+    /// </summary>
+    private string BuildSignature(string lang)
+    {
+        var builder = new System.Text.StringBuilder(lang);
+        void AppendFile(string path)
+        {
+            var info = new FileInfo(path);
+            builder.Append('\u0001').Append(path).Append('|').Append(info.Exists ? info.Length : -1L).Append('|')
+                .Append(info.Exists ? info.LastWriteTimeUtc.Ticks : 0L);
+        }
+
+        var resolution = PackLocator.Resolve(PacksRoot, lang);
+        foreach (string file in resolution.Files ?? [])
+        {
+            AppendFile(file);
+        }
+
+        AppendFile(Path.Combine(PacksRoot, "overrides.jsonl"));
+        AppendFile(BlocklistPath);
+        AppendFile(Path.Combine(PacksRoot, "blocklist.json"));
+        return builder.ToString();
+    }
+
     public Task ReloadPacksAsync(string? language = null, CancellationToken ct = default)
     {
         return Task.Run(() =>
@@ -126,6 +157,14 @@ public sealed class ModTextService : IModTextService, IDisposable
             ct.ThrowIfCancellationRequested();
             string lang = string.IsNullOrWhiteSpace(language) ? _currentLanguage : language.Trim().ToLowerInvariant();
             _currentLanguage = lang;
+
+            // 磁盘没变就不重新解析：本页每次激活都会调一次重载，语言包有上万条词条时
+            // 一次解析就是 300 ms 的 CPU 和十几 MB 分配，换来的东西和上一次一模一样。
+            string signature = BuildSignature(lang);
+            if (string.Equals(signature, _loadedSignature, StringComparison.Ordinal) && _totalEntries > 0)
+            {
+                return;
+            }
 
             var packs = new DictPack();
             var overrides = new DictPack();
@@ -173,6 +212,8 @@ public sealed class ModTextService : IModTextService, IDisposable
                     _totalEntries = packs.Entries + overrides.Entries;
                     _provider = new ModTextProvider(overrides, packs, _policy, blocklist);
                 }
+                _loadedSignature = signature;
+                Interlocked.Increment(ref _revision);
                 Log.Info($"[ModTextService] 载入语言包 '{lang}' 完成，共 {_totalEntries} 条条目（语言包 {packs.Entries} + 覆盖 {overrides.Entries}），黑名单 {blocklist.Count} 条。");
             }
             catch (Exception ex)
@@ -276,7 +317,8 @@ public sealed class ModTextService : IModTextService, IDisposable
                 entry.Context,
                 entry.Mod,
                 entry.Src,
-                entry.IsKeep));
+                entry.IsKeep,
+                entry.Key));
         }
 
         return items;

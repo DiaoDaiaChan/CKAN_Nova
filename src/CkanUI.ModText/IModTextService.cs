@@ -17,7 +17,8 @@ public sealed record ModTextEntryItem(
     string? Context,
     string? Mod,
     string? Src,
-    bool IsKeep);
+    bool IsKeep,
+    string? Key = null);
 
 /// <summary>
 /// 翻译包文件摘要。
@@ -43,6 +44,15 @@ public interface IModTextService
 
     /// <summary>当前已载入的内存总条目数。</summary>
     int TotalEntries { get; }
+
+    /// <summary>
+    /// 语言包内容版本号：真正重新解析过磁盘文件才自增，命中缓存的重载不动。
+    /// </summary>
+    /// <remarks>
+    /// 页面用它记账：版本没变就说明词条、分组、筛选结果全都还是上一次那份，
+    /// 换页回来可以整段跳过重建（19937 条词条的投影是几十毫秒加十几 MB 分配）。
+    /// </remarks>
+    int Revision { get; }
 
     /// <summary>基础存储根目录（%LocalAppData%/CKAN/ckan-ui/i18n）。</summary>
     string BaseDirectory { get; }

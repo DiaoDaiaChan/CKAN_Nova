@@ -2232,3 +2232,81 @@ cache R1 的 1240 ms 单帧是负载下的离群值：同一页单页复核三�
 - 启动期不再有预热造成的掉帧：用户看到的是入场动画 + 第一页正常渲染。
 - 代价：第一次点重页面（设置 ~500 ms、模组 ~300 ms、日志 ~1.5 s 冷启动首读）仍是一次性停顿；预热会在窗口失焦（Alt-Tab 一下）或静置 45 s 后把这些页补上。
 - 若要让「第一次点也快」同时不雪崩，下一步只能做**带时间预算的启动幕**（例如最多 2.5 s，热到哪算哪，超时就收起），当前未实现。
+
+## §49 用户在前台时一律不预热：读翻译页掉帧的根因是预热自己
+
+### 49.1 现象
+
+用户报「点进模组翻译页特别掉帧」。真机导航探针（镜像实例 Probe (Steam mirror)，336 模组）单页复核：
+
+| 轮次 | layout | maxGap | 帧数 | dropped | nodes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| r1 首次进入 | 348–435 ms | 190–268 ms | 104–199 | 23–66 | 620 |
+| r2 再次进入 | 探针伪值（等不到 Loaded） | 220–285 ms | 184–192 | 75–104 | 622 |
+
+### 49.2 归因
+
+驻留在页面上量 10–12 秒的空转 CPU（非抢焦点采样，页面停在同一页、鼠标不动）：
+
+| 组 | 空转 CPU（单核） |
+| --- | ---: |
+| 模组翻译页，预热开启（后台窗口） | **115.94 / 124.69 / 156.12%** |
+| 模组翻译页，`CKANUI_NO_WARM=1` | **24.74%** |
+| 首页，预热开启 | 93.91% |
+
+结论：页面上持续掉帧的主体不是页面本身，而是**预热队列**。`ShouldWarmExpensive` 的原判定是
+`!windowActive || (isIdle && sinceNavigation > ExpensiveWarmIdle)` —— 用户鼠标不动 45 秒后就满足
+「空闲且久未换页」，预热开始在 UI 线程上逐页排版（每页 100–900 ms 的原子操作，间隔 2 秒），
+正在读翻译页的用户每两秒吃一次卡顿。翻译页词条最多、页面最重，所以体感最明显。
+
+### 49.3 改法
+
+`src/CkanUI.App/MainWindow.axaml.cs` 的 `ShouldWarmExpensive` 只保留「窗口在后台」一个条件：
+
+```csharp
+public static bool ShouldWarmExpensive(bool windowActive, bool isIdle, TimeSpan sinceNavigation)
+{
+    _ = isIdle;
+    _ = sinceNavigation;
+    return !windowActive;
+}
+```
+
+后台窗口的预热收益原样保留（用户切回来时那些页面已经排好版，§35–§36 的数字仍成立）；
+前台再也不同步排版任何页面。用例 `PageWarmGateTests` 同步改成断言「前台 60 秒静置也不热」。
+
+### 49.4 代价
+
+前台首次进入未预热页面回到冷启动成本（§21 空数据表 / §36 带数据表）：settings 约 490 ms、
+unmanaged 约 114–340 ms、downloadstats 约 180–250 ms。这是一次性、可预期、发生在用户自己点击之后的停顿，
+比「读页面时每两秒抖一下」体验更好。若将来要恢复前台预热，前提是把它拆成可中断的小步（当前实现是整页原子排版，做不到）。
+
+## §50 模组翻译页：语言包指纹命中就整段跳过重建
+
+### 50.1 问题
+
+`ModTextPageViewModel.OnActivated` 每次激活都 `LoadAsync()`：
+
+1. `_service.ReloadPacksAsync(...)` 重新解析语言包 JSONL —— 实测 **289 ms**、一次十几 MB 分配；
+2. `ReloadPacksAsync` 末尾 `PackChanged?.Invoke()` → `OnPackChanged` 再 `Post(RefreshEntriesAsync)`，
+   于是**一次激活建两遍 19,837 条词条投影**、跑两遍分组与筛选（UI 线程 `post-ui=63 ms` + `41 ms`）。
+
+### 50.2 改法
+
+- `IModTextService` 新增 `int Revision { get; }`：真正重新解析过磁盘文件才自增，命中缓存的重载不动。
+- `ModTextService.ReloadPacksAsync` 先算输入指纹（语言 + 每个包文件/`overrides.jsonl`/黑名单的路径、长度、
+  最后写入时间，`BuildSignature`，只 stat 不读内容），与上次一致且已载入过条目就直接 return。
+- `ModTextPageViewModel`：`_loadedRevision` 记账，版本没变就跳过 `RefreshEntriesAsync`（词条、分组、筛选结果全都还是上一次那份）；
+  `OnPackChanged` 在 `IsLoading` 时直接 return（重载过程自己会重建，不要再来一遍）；`TrimProjection` 把 `_loadedRevision` 置 -1。
+
+### 50.3 实测
+
+| 指标 | 改前 | 改后 |
+| --- | ---: | ---: |
+| `reload` | 289 ms | 27–105 ms（指纹命中） |
+| UI 线程建投影次数 | 2 次（63 + 41 ms） | 1 次（46–112 ms） |
+| 首次进入 layout | 348–435 ms | 261–362 ms |
+
+分项消融（临时开关，已删）：去掉 3,730 条分组列表 → layout 348 → 261 ms、nodes 620 → 498；
+把词条截到 2,000 条 → layout 527 ms（不变）→ **该页布局成本由分组列表与整体结构决定，不是词条行数**，
+词条列表本身已虚拟化（可视树只有 ~20 个行容器）。

@@ -26,6 +26,27 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
 
     private List<ModTextEntryItemViewModel> _allEntries = new();
 
+    /// <summary>上一次建投影时的语言包版本；版本没变就整段跳过重建（见 <see cref="IModTextService.Revision"/>）。</summary>
+    private int _loadedRevision = -1;
+
+    // 筛选项里的「全部/未标注」文案在构造时解析一次：之后所有比较都用同一份字符串，
+    // 不随界面语言变化而失配（下拉框显示的也是这份文案）。
+    private readonly string _anyFieldLabel;
+    private readonly string _unlabeledModLabel;
+    private readonly string _unlabeledFieldLabel;
+    private readonly string _kindLabelAny;
+    private readonly string _kindLabelTranslated;
+    private readonly string _kindLabelKept;
+    private readonly string _kindLabelManual;
+    private readonly string _groupAllLabel;
+    private readonly string _scopeAllLabel;
+    private readonly string _scopeMetadataLabel;
+    private readonly string _scopeModsLabel;
+
+    // 分组列表与筛选下拉会互相回写选中项，必须防重入，否则两边会反复触发 ApplyFilter 抖动。
+    private bool _syncingGroupSelection;
+    private List<ModTextGroupItem> _allGroups = new();
+
     /// <summary>设计时构造函数。</summary>
     public ModTextPageViewModel()
         : this(new EmptyModTextService(), new EmptyErrorReporter(), new ImmediateDispatcher())
@@ -43,11 +64,32 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
         var initialLanguages = _service.GetAvailableLanguages();
         AvailableLanguages = initialLanguages != null && initialLanguages.Count > 0 ? initialLanguages : new[] { "zh-cn" };
 
+        _anyFieldLabel = Text("全部字段", LocalizationKeys.ModTextPageFilterAllFields);
+        _unlabeledModLabel = Text("未标注", LocalizationKeys.ModTextPageFilterUnlabeledMod);
+        _unlabeledFieldLabel = Text("无字段", LocalizationKeys.ModTextPageFilterUnlabeledField);
+        _kindLabelAny = Text("全部", LocalizationKeys.ModTextPageFilterAllKinds);
+        _kindLabelTranslated = Text("已翻译", LocalizationKeys.ModTextPageFilterKindTranslated);
+        _kindLabelKept = Text("保留原文", LocalizationKeys.ModTextPageFilterKindKeep);
+        _kindLabelManual = Text("人工覆盖", LocalizationKeys.ModTextPageFilterKindOverride);
+        _groupAllLabel = Text("全部模组", LocalizationKeys.ModTextPageGroupAll);
+        _scopeAllLabel = Text("全部范围", LocalizationKeys.ModTextPageScopeAll);
+        _scopeMetadataLabel = Text("CKAN 元数据", LocalizationKeys.ModTextPageScopeMetadata);
+        _scopeModsLabel = Text("模组翻译", LocalizationKeys.ModTextPageScopeMods);
+        ScopeFilterOptions = new[] { _scopeAllLabel, _scopeMetadataLabel, _scopeModsLabel };
+        SelectedScopeFilter = _scopeAllLabel;
+        SelectedFieldFilter = _anyFieldLabel;
+        SelectedKindFilter = _kindLabelAny;
+        FieldFilterOptions = new[] { _anyFieldLabel };
+        KindFilterOptions = new[] { _kindLabelAny, _kindLabelTranslated, _kindLabelKept, _kindLabelManual };
+
         SaveOverrideCommand = new AsyncRelayCommand(ExecuteSaveOverrideAsync, () => CanSaveOverride);
         DeleteOverrideCommand = new AsyncRelayCommand(ExecuteDeleteOverrideAsync, () => CanDeleteOverride);
         SyncFromUniversalI18nCommand = new AsyncRelayCommand(ExecuteSyncFromUniversalI18nAsync);
         ReloadCommand = new AsyncRelayCommand(ExecuteReloadAsync);
         OpenFolderCommand = new RelayCommand(ExecuteOpenFolder);
+        ClearFiltersCommand = new RelayCommand(ExecuteClearFilters);
+        ToggleOverridePanelCommand = new RelayCommand(ExecuteToggleOverridePanel);
+        SelectScopeCommand = new RelayCommand<string>(ExecuteSelectScope);
     }
 
     /// <inheritdoc />
@@ -87,11 +129,77 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
 
     /// <summary>搜索框过滤关键字。</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
     private string _searchQuery = string.Empty;
 
-    /// <summary>仅展示人工覆盖项开关。</summary>
+    /// <summary>按字段筛选（abstract / description / …）；首项是「全部字段」。</summary>
     [ObservableProperty]
-    private bool _filterOverrideOnly;
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    private string _selectedFieldFilter = string.Empty;
+
+    /// <summary>字段筛选项（首项「全部字段」）。</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string> _fieldFilterOptions = Array.Empty<string>();
+
+    /// <summary>按条目类型筛选（全部 / 已翻译 / 保留原文 / 人工覆盖）。</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    private string _selectedKindFilter = string.Empty;
+
+    /// <summary>类型筛选项。</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string> _kindFilterOptions = Array.Empty<string>();
+
+    /// <summary>左栏「按模组查看」的分组列表（首项「全部模组」；受 <see cref="GroupFilterQuery"/> 过滤）。</summary>
+    [ObservableProperty]
+    private IReadOnlyList<ModTextGroupItem> _modGroups = Array.Empty<ModTextGroupItem>();
+
+    /// <summary>分组栏自身的搜索词：全量语言包有三千多个模组，没有它只能滚。空串表示不过滤。</summary>
+    [ObservableProperty]
+    private string _groupFilterQuery = string.Empty;
+
+    /// <summary>当前选中的分组；<c>null</c> 表示还没有分组。</summary>
+    [ObservableProperty]
+    private ModTextGroupItem? _selectedGroup;
+
+    /// <summary>当前分组键；空字符串表示「全部」。</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    private string _selectedGroupKey = string.Empty;
+
+    /// <summary>范围筛选：全部 / CKAN 元数据 / 模组翻译。两套语料混在一起时，左边分组、右边列表都读不出重点。</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveFilters))]
+    [NotifyPropertyChangedFor(nameof(IsScopeAll))]
+    [NotifyPropertyChangedFor(nameof(IsScopeMetadata))]
+    [NotifyPropertyChangedFor(nameof(IsScopeMods))]
+    private string _selectedScopeFilter = string.Empty;
+
+    /// <summary>范围筛选项。</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string> _scopeFilterOptions = Array.Empty<string>();
+
+    /// <summary>范围三态，供视图上的显式按钮做高亮（下拉框藏得太深，用户找不到"只看元数据"）。</summary>
+    public bool IsScopeAll => string.Equals(SelectedScopeFilter, _scopeAllLabel, StringComparison.Ordinal);
+
+    public bool IsScopeMetadata => string.Equals(SelectedScopeFilter, _scopeMetadataLabel, StringComparison.Ordinal);
+
+    public bool IsScopeMods => string.Equals(SelectedScopeFilter, _scopeModsLabel, StringComparison.Ordinal);
+
+    /// <summary>按范围按钮切换；参数是 <see cref="ScopeFilterOptions"/> 里的展示文本。</summary>
+    public IRelayCommand<string> SelectScopeCommand { get; }
+
+    /// <summary>右侧人工覆盖面板是否显示（隐藏后列表能占满窗口）。</summary>
+    [ObservableProperty]
+    private bool _isOverridePanelVisible = true;
+
+    /// <summary>是否正在筛选（决定「清除筛选」可用与页脚是否加「已筛选」）。</summary>
+    public bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(SearchQuery) ||
+        !string.IsNullOrEmpty(SelectedGroupKey) ||
+        !string.Equals(SelectedScopeFilter, _scopeAllLabel, StringComparison.Ordinal) ||
+        !string.Equals(SelectedFieldFilter, _anyFieldLabel, StringComparison.Ordinal) ||
+        !string.Equals(SelectedKindFilter, _kindLabelAny, StringComparison.Ordinal);
 
     /// <summary>总条目数文本。</summary>
     [ObservableProperty]
@@ -140,6 +248,14 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
     public IAsyncRelayCommand SyncFromUniversalI18nCommand { get; }
     public IAsyncRelayCommand ReloadCommand { get; }
     public IRelayCommand OpenFolderCommand { get; }
+    public IRelayCommand ClearFiltersCommand { get; }
+
+    /// <summary>显示/隐藏右侧人工覆盖面板（隐藏后词条列表占满窗口）。</summary>
+    public IRelayCommand ToggleOverridePanelCommand { get; }
+
+    /// <summary>当前结果里存在"非默认来源"条目时才显示类型列（默认词典条目每行挂徽标是纯噪声）。</summary>
+    [ObservableProperty]
+    private bool _showsSourceBadgeColumn = true;
 
     protected override void OnActivated()
     {
@@ -173,7 +289,11 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
         }
 
         _allEntries = new List<ModTextEntryItemViewModel>();
+        _loadedRevision = -1;
         Entries = Array.Empty<ModTextEntryItemViewModel>();
+        _allGroups = new List<ModTextGroupItem>();
+        ModGroups = Array.Empty<ModTextGroupItem>();
+        SelectedGroup = null;
         SelectedEntry = null;
         SummaryText = string.Empty;
         return released;
@@ -181,6 +301,12 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
 
     private void OnPackChanged()
     {
+        // 重载过程中自己就会重建投影，别在这里再来一遍（一次激活两次 19k 条投影）。
+        if (IsLoading)
+        {
+            return;
+        }
+
         _dispatcher.Post(() => _ = RefreshEntriesAsync());
     }
 
@@ -197,7 +323,37 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
         ApplyFilter();
     }
 
-    partial void OnFilterOverrideOnlyChanged(bool value)
+    partial void OnGroupFilterQueryChanged(string value)
+    {
+        ApplyGroupFilter();
+    }
+
+    partial void OnSelectedGroupChanged(ModTextGroupItem? value)
+    {
+        if (_syncingGroupSelection)
+        {
+            return;
+        }
+
+        _syncingGroupSelection = true;
+        try
+        {
+            SelectedGroupKey = value?.Key ?? string.Empty;
+        }
+        finally
+        {
+            _syncingGroupSelection = false;
+        }
+
+        ApplyFilter();
+    }
+
+    partial void OnSelectedFieldFilterChanged(string value)
+    {
+        ApplyFilter();
+    }
+
+    partial void OnSelectedKindFilterChanged(string value)
     {
         ApplyFilter();
     }
@@ -220,10 +376,20 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
         try
         {
             await _service.ReloadPacksAsync(SelectedLanguage, ct);
+
             AvailableLanguages = _service.GetAvailableLanguages();
             SelectedLanguage = _service.CurrentLanguage;
             PackFiles = _service.GetPackFiles(SelectedLanguage);
+            // 语言包没变：词条、分组、筛选结果都还是上一次那份，整段跳过。
+            if (_loadedRevision == _service.Revision && _allEntries.Count > 0)
+            {
+                StatusMessage = Text("载入完成，共 {0} 条词条。", LocalizationKeys.ModTextStatusLoaded, _allEntries.Count);
+                return;
+            }
+
             await RefreshEntriesAsync();
+            _loadedRevision = _service.Revision;
+
             StatusMessage = Text("载入完成，共 {0} 条词条。", LocalizationKeys.ModTextStatusLoaded, _allEntries.Count);
         }
         catch (Exception ex)
@@ -274,18 +440,176 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
             _dispatcher.Post(() =>
             {
                 PackFiles = _service.GetPackFiles(_service.CurrentLanguage);
+                RebuildFilterOptions();
+                RebuildGroups();
                 ApplyFilter();
             });
         });
     }
 
+    /// <summary>
+    /// 重建字段下拉框的候选项：只列当前语言包里真实存在的值，按条目数降序，首项是「全部」。
+    /// </summary>
+    private void RebuildFilterOptions()
+    {
+        var fields = BuildFacet(_allEntries.Select(x => x.Field), _unlabeledFieldLabel);
+        fields.Insert(0, _anyFieldLabel);
+        FieldFilterOptions = fields;
+        if (!FieldFilterOptions.Contains(SelectedFieldFilter, StringComparer.Ordinal))
+        {
+            SelectedFieldFilter = _anyFieldLabel;
+        }
+    }
+
+    private static List<string> BuildFacet(IEnumerable<string> values, string unlabeledLabel)
+    {
+        var list = new List<string>();
+        int unlabeled = 0;
+        foreach (var group in values
+                     .GroupBy(v => v ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                     .OrderByDescending(g => g.Count())
+                     .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            if (group.Key.Length == 0)
+            {
+                unlabeled = group.Count();
+                continue;
+            }
+
+            list.Add(group.Key);
+        }
+
+        if (unlabeled > 0)
+        {
+            list.Add(unlabeledLabel);
+        }
+
+        return list;
+    }
+
+    /// <summary>
+    /// 重建左栏的模组分组：以词条的 CKAN identifier（老数据退回语言包 mod 名）归堆，
+    /// 按条目数降序，首项是「全部模组」。选中项按 Key 找回，找不到就回落「全部」。
+    /// </summary>
+    private void RebuildGroups()
+    {
+        var scoped = ScopeSource().ToList();
+        var groups = new List<ModTextGroupItem>(Math.Min(scoped.Count, 4096) + 1)
+        {
+            new(string.Empty, _groupAllLabel, scoped.Count,
+                Text("{0} 条", LocalizationKeys.ModTextPageGroupCount, scoped.Count), isAll: true),
+        };
+
+        foreach (var group in scoped
+                     .GroupBy(GroupKeyOf, StringComparer.OrdinalIgnoreCase)
+                     .OrderByDescending(g => g.Count())
+                     .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            var count = group.Count();
+            var name = group.Key.Length == 0 ? _unlabeledModLabel : group.Key;
+            groups.Add(new ModTextGroupItem(group.Key, name, count,
+                Text("{0} 条", LocalizationKeys.ModTextPageGroupCount, count), isAll: false));
+        }
+
+        _allGroups = groups;
+        ApplyGroupFilter();
+    }
+
+    /// <summary>
+    /// 按 <see cref="GroupFilterQuery"/> 收窄左栏：首项「全部模组」常驻，其余按名字包含匹配；
+    /// 选中的组被过滤掉时回落到「全部」，否则界面显示的组与筛选条件会各说各话。
+    /// </summary>
+    private void ApplyGroupFilter()
+    {
+        string query = GroupFilterQuery?.Trim() ?? string.Empty;
+        IReadOnlyList<ModTextGroupItem> visible = query.Length == 0
+            ? _allGroups
+            : _allGroups.Where(x => x.IsAll || x.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        if (visible.Count == 0)
+        {
+            visible = _allGroups.Take(1).ToList();
+        }
+
+        ModGroups = visible;
+
+        string previousKey = SelectedGroupKey;
+        var selected = visible.FirstOrDefault(x => !x.IsAll && string.Equals(x.Key, SelectedGroupKey, StringComparison.OrdinalIgnoreCase))
+                       ?? visible[0];
+        _syncingGroupSelection = true;
+        try
+        {
+            SelectedGroup = selected;
+            SelectedGroupKey = selected.Key;
+        }
+        finally
+        {
+            _syncingGroupSelection = false;
+        }
+
+        // 分组被过滤掉时键会回落到空串，而键是普通属性（没有生成回调），
+        // 不在这里补一次 ApplyFilter，列表还会停在上一组的筛选结果上。
+        if (!string.Equals(previousKey, SelectedGroupKey, StringComparison.Ordinal))
+        {
+            ApplyFilter();
+        }
+    }
+
+    /// <summary>词条归堆用的键：优先 CKAN identifier，其次语言包 mod 名，都没有就是空（未标注）。</summary>
+    private static string GroupKeyOf(ModTextEntryItemViewModel entry) =>
+        !string.IsNullOrEmpty(entry.Identifier) ? entry.Identifier
+        : !string.IsNullOrEmpty(entry.Mod) ? entry.Mod
+        : string.Empty;
+
+    /// <summary>当前范围下的条目（元数据 / 模组翻译 / 全部）。分组与列表都从这一份派生，避免两处口径打架。</summary>
+    private IEnumerable<ModTextEntryItemViewModel> ScopeSource()
+    {
+        if (string.Equals(SelectedScopeFilter, _scopeMetadataLabel, StringComparison.Ordinal))
+        {
+            return _allEntries.Where(IsMetadataEntry);
+        }
+
+        if (string.Equals(SelectedScopeFilter, _scopeModsLabel, StringComparison.Ordinal))
+        {
+            return _allEntries.Where(x => !IsMetadataEntry(x));
+        }
+
+        return _allEntries;
+    }
+
+    /// <summary>CKAN 元数据条目的判据：带 <c>ckan:</c> 稳定键，或来自 <c>CKANMeta</c> 包。</summary>
+    private static bool IsMetadataEntry(ModTextEntryItemViewModel entry) =>
+        entry.Key.StartsWith("ckan:", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(entry.Mod, "CKANMeta", StringComparison.OrdinalIgnoreCase);
+
     private void ApplyFilter()
     {
-        IEnumerable<ModTextEntryItemViewModel> query = _allEntries;
+        IEnumerable<ModTextEntryItemViewModel> query = ScopeSource();
 
-        if (FilterOverrideOnly)
+        if (!string.IsNullOrEmpty(SelectedGroupKey))
+        {
+            query = query.Where(x => string.Equals(GroupKeyOf(x), SelectedGroupKey, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.Equals(SelectedFieldFilter, _anyFieldLabel, StringComparison.Ordinal))
+        {
+            bool wantUnlabeled = string.Equals(SelectedFieldFilter, _unlabeledFieldLabel, StringComparison.Ordinal);
+            query = query.Where(x => wantUnlabeled
+                ? string.IsNullOrEmpty(x.Field)
+                : string.Equals(x.Field, SelectedFieldFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (string.Equals(SelectedKindFilter, _kindLabelKept, StringComparison.Ordinal))
+        {
+            query = query.Where(x => x.IsKeep);
+        }
+        else if (string.Equals(SelectedKindFilter, _kindLabelManual, StringComparison.Ordinal))
         {
             query = query.Where(x => x.IsHumanOverride);
+        }
+        else if (string.Equals(SelectedKindFilter, _kindLabelTranslated, StringComparison.Ordinal))
+        {
+            query = query.Where(x => !x.IsKeep && !x.IsHumanOverride && !string.IsNullOrEmpty(x.Translation));
         }
 
         if (!string.IsNullOrWhiteSpace(SearchQuery))
@@ -295,12 +619,84 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
                 x.Source.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 x.Translation.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 x.Identifier.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                x.Normalized.Contains(q, StringComparison.OrdinalIgnoreCase));
+                x.Normalized.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                x.Mod.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                x.Field.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                x.Context.Contains(q, StringComparison.OrdinalIgnoreCase));
         }
 
         var result = query.ToList();
         Entries = result;
-        SummaryText = Text("已显示 {0} / {1} 条", LocalizationKeys.ModTextSummaryShown, result.Count, _allEntries.Count);
+        ShowsSourceBadgeColumn = result.Any(entry => entry.ShowSourceBadge);
+        int scopedTotal = _allEntries.Count;
+        int metadataCount = _allEntries.Count(IsMetadataEntry);
+        if (string.Equals(SelectedScopeFilter, _scopeMetadataLabel, StringComparison.Ordinal))
+        {
+            scopedTotal = metadataCount;
+        }
+        else if (string.Equals(SelectedScopeFilter, _scopeModsLabel, StringComparison.Ordinal))
+        {
+            scopedTotal = _allEntries.Count - metadataCount;
+        }
+        SummaryText = HasActiveFilters
+            ? Text("已显示 {0} / {1} 条 · 已筛选", LocalizationKeys.ModTextSummaryFiltered, result.Count, scopedTotal)
+            : Text("已显示 {0} / {1} 条", LocalizationKeys.ModTextSummaryShown, result.Count, scopedTotal);
+    }
+
+    /// <summary>范围变了就要重算分组并把分组选择归零，否则会停在上一范围的分组上筛出空列表。</summary>
+    partial void OnSelectedScopeFilterChanged(string value)
+    {
+        _syncingGroupSelection = true;
+        try
+        {
+            SelectedGroup = null;
+            SelectedGroupKey = string.Empty;
+        }
+        finally
+        {
+            _syncingGroupSelection = false;
+        }
+
+        RebuildGroups();
+        ApplyFilter();
+    }
+
+    private void ExecuteToggleOverridePanel() => IsOverridePanelVisible = !IsOverridePanelVisible;
+
+    private void ExecuteSelectScope(string? scope)
+    {
+        if (string.IsNullOrEmpty(scope) || string.Equals(scope, SelectedScopeFilter, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        SelectedScopeFilter = scope;
+    }
+
+    private void ExecuteClearFilters()
+    {
+        SearchQuery = string.Empty;
+        if (!string.Equals(SelectedScopeFilter, _scopeAllLabel, StringComparison.Ordinal))
+        {
+            SelectedScopeFilter = _scopeAllLabel;
+        }
+
+        SelectedGroupKey = string.Empty;
+        _syncingGroupSelection = true;
+        try
+        {
+            SelectedGroup = ModGroups.Count > 0 ? ModGroups[0] : null;
+        }
+        finally
+        {
+            _syncingGroupSelection = false;
+        }
+
+        SelectedFieldFilter = _anyFieldLabel;
+        SelectedKindFilter = _kindLabelAny;
+
+        // 三个下拉可能本来就是默认值：属性值没变就不会触发各自的回调，这里显式刷一次。
+        ApplyFilter();
     }
 
     private async Task ExecuteSaveOverrideAsync()
@@ -408,6 +804,8 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
         public IModTextProvider Provider => new EmptyModTextProvider();
         public string CurrentLanguage => "zh-cn";
         public int TotalEntries => 0;
+
+        public int Revision => 0;
         public string BaseDirectory => string.Empty;
         public event Action? PackChanged { add { } remove { } }
 

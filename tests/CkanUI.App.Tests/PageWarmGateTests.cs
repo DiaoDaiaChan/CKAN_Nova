@@ -4,7 +4,7 @@ using NUnit.Framework;
 
 namespace CkanUI.App.Tests;
 
-/// <summary>重页面预热的时间窗判定：窗口前台时不热，后台或长静置才热。</summary>
+/// <summary>预热的时间窗判定：只认窗口在后台，前台一律不热（docs §49）。</summary>
 [TestFixture]
 public class PageWarmGateTests
 {
@@ -21,9 +21,16 @@ public class PageWarmGateTests
     }
 
     [Test]
-    public void FocusedWindow_LongIdle_Warms()
+    public void FocusedWindow_LongIdle_StillDoesNotWarm()
     {
-        Assert.That(MainWindow.ShouldWarmExpensive(windowActive: true, isIdle: true, TimeSpan.FromSeconds(60)), Is.True);
+        // 整页排版是 UI 线程上的原子操作，用户在前台时无论静置多久都不该突然冻结一下。
+        Assert.That(MainWindow.ShouldWarmExpensive(windowActive: true, isIdle: true, TimeSpan.FromSeconds(60)), Is.False);
+    }
+
+    [Test]
+    public void BackgroundWindow_IgnoresIdleAndNavigation()
+    {
+        Assert.That(MainWindow.ShouldWarmExpensive(windowActive: false, isIdle: true, TimeSpan.FromDays(1)), Is.True);
     }
 
     [Test]
