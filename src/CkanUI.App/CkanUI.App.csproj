@@ -66,6 +66,12 @@
                       ReferenceOutputAssembly="false"
                       Private="false"
                       SkipGetTargetFrameworkProperties="true" />
+    <!-- AI 助手（docs/design/ai-assistant.md）：同一个打包通道；它自己带聊天页与工具循环，
+         宿主只提供 IRepositoryService / IRegistryService / INavigationService 的只读桥。 -->
+    <ProjectReference Include="../CkanUI.Plugin.Ai/CkanUI.Plugin.Ai.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -118,6 +124,11 @@
       <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
     </MSBuild>
     <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.Saves/CkanUI.Plugin.Saves.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.Ai/CkanUI.Plugin.Ai.csproj"
              Targets="GetTargetPath"
              Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />

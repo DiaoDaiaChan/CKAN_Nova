@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 内置「AI 助手」插件（交互式问答 + CKAN 数据工具 + 网页搜索 + 界面导航）。
+       架构铁律与 CkanUI.Plugin.Performance 一致：本程序集只允许引用契约层 CkanUI.Services.Abstractions 与 Avalonia。
+       不引用 CkanUI.Services / CkanUI.ViewModels / CkanUI.App / CKAN-core——插件引了宿主实现就被钉死在实现上。
+       包版本全部来自 Directory.Packages.props 的中央包管理，这里只写不带版本的 PackageReference。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.Ai</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.Ai</AssemblyName>
+    <!-- 插件 VM 类型住在插件程序集里，宿主按 ARC-03 由 ViewLocator 反射匹配；
+         这里用运行时绑定（x:CompileBindings="False"），避免插件程序集为了 x:DataType 反过来依赖宿主视图模型层。 -->
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

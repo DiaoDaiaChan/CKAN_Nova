@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 「AI 助手」插件的契约测试：测的是「模型说的话能不能被正确执行、执行结果能不能正确回灌」，
+       不是 UI 好不好看。所以夹具是假桥 + 假 HttpMessageHandler：真端点、真 MCP 子进程都不进单测
+       （端点要 Key、会给结果打分；子进程依赖用户机器上装了什么，都会让测试变成看心情）。
+       Key 加密落盘那条用临时目录 + 记号保护器验证「磁盘上只有保护器输出」，不碰真实 DPAPI。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.Ai.Tests</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.Ai.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/CkanUI.Plugin.Ai/CkanUI.Plugin.Ai.csproj" />
+  </ItemGroup>
+
+</Project>

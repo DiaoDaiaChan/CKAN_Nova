@@ -12,6 +12,16 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 新增
 
+- AI 助手插件（`src/CkanUI.Plugin.Ai`，`com.ckanui.ai`）：工具分节下的「AI 助手」页签，能边聊边查 CKAN 数据。
+  - 接 OpenAI 兼容端点（默认 `http://100.111.24.121:8317/v1` / `gemini-3.8-flash-high`），API Key 用 DPAPI 加密后落
+    `%LocalAppData%/CKAN/ai-assistant.json`，明文只活在内存里。
+  - 7 个工具：`ckan_context`、`ckan_search_mods`、`ckan_mod_detail`、`ckan_installed`、`ckan_list_pages`、
+    `ckan_navigate`（唯一会动界面的一个）、`web_search`。数据经契约 `IAiCkanBridge` 由宿主实现，插件不引用 App。
+  - 轮次用尽不再回一句「工具调用轮次用尽」：再发一次 `tool_choice=none` 的收口请求，让模型拿已查到的结果写正文
+    （真实端点上模型会连着几轮只回工具调用；实测一条完整问答 `stop=Completed`、6 次工具调用、960 字回答）。
+  - 搜索服务默认不配置：`web_search` 直接回 `web_search_unavailable`，模型据实说「没联网查到」而不是白等一次进程启动超时。
+    `free-search-mcp`（Python，非 Node）的打包与运行时成本评估见该仓库的 `PACKAGING.md`。
+  - 真实端点用例在 `tests/CkanUI.Plugin.Ai.Tests/LiveEndpointTests.cs`，默认忽略；设 `CKANUI_AI_LIVE=1` 与 `CKANUI_AI_KEY` 才跑，Key 不入库。
 - 插件页签自带图标：`PluginPageDescriptor` 新增可选 `Glyph`（宿主字形表里的名字），侧栏不再把每个插件都画成同一枚七巧板。
   - 「性能」用速度表、「模组翻译」用翻译字形；字形名认不出来时退回通用插件图标而不是留一格空白（插件 dll 是第三方的，不能因为图标名写错就拒绝加载）。悬停动效另由侧栏悬停改造统一接线，未随本次提交。
   - `tests/CkanUI.App.Tests/PluginGlyphTests.cs` 用真插件 dll 钉住「声明了图标」「宿主认识这个图标名」「两个插件不同图标」三件事。

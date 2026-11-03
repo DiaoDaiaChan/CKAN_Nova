@@ -176,7 +176,8 @@ public sealed class PluginActivationStore : IPluginActivationStore
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         {
             // 写不进去（只读盘、目录被占、路径是文件）：激活/停用本身已经生效，下次启动恢复不了而已。
-            Log.Warn("写入插件激活状态失败（激活/停用仍然生效，只是下次启动不会恢复）：" + _path, ex);
+            // 把异常消息并进可读文案：这条警告会出现在插件页的日志里，只给路径等于让人去猜是权限、占用还是别的原因。
+            Log.Warn("写入插件激活状态失败（激活/停用仍然生效，只是下次启动不会恢复）：" + _path + "：" + ex.Message, ex);
         }
         finally
         {

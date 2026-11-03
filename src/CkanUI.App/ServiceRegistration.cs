@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input.Platform;
+using CkanUI.App.Ai;
 using CkanUI.App.Dialogs;
 using CkanUI.App.Lifecycle;
 using CkanUI.App.Localization;
@@ -105,6 +106,9 @@ public static class ServiceRegistration
         // AI 排障（14 篇 §6）：OpenAI 兼容客户端 + 只在本机可解的密钥保护（DPAPI，密文落盘）。
         services.AddSingleton<ISecretProtector, DpapiSecretProtector>();
         services.AddSingleton<ILlmDiagnosticService>(_ => new OpenAiCompatibleDiagnosticService());
+        // AI 与 CKAN 之间的宿主桥：只读查询走快照、导航走 INavigationService。构造期不做 IO，
+        // 所以它排在 INavigationService 注册之前也没关系——单例解析是惰性的。
+        services.AddSingleton<IAiCkanBridge, AiCkanBridge>();
 
         // IUser 的 UI 形态：Core 的同步回调会在这里被拦到 UI 线程（INT-03）。
         // 外面再套一层 LoggingUser：Core 的进度与警告进结构化缓冲（Kind=User、进度按整十百分点限流）。

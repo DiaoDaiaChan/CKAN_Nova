@@ -1,0 +1,219 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:CkanUI.Plugin.Ai"
+             x:Class="CkanUI.Plugin.Ai.AiAssistantPageView"
+             x:CompileBindings="False">
+  <!--
+    第三方式插件页：只依赖 Avalonia 与 CkanUI.Services.Abstractions，因此这里
+    用宿主 App 级资源 token（Ckan*）与样式类，不引用任何宿主控件程序集。
+    气泡左右对齐靠 Classes.user 绑到 IsUser，再用样式选择器改写对齐与底色——
+    不引入 bool→Alignment 转换器，也不在视图里写代码。
+  -->
+  <UserControl.Resources>
+    <DataTemplate x:Key="AiMessageTemplate">
+      <Border Classes="ai-bubble" Classes.user="{Binding IsUser}">
+        <StackPanel Spacing="2">
+          <TextBlock Text="{Binding Role}"
+                     Classes="CkanCaption"
+                     Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+          <SelectableTextBlock Text="{Binding Text}"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+
+    <DataTemplate x:Key="AiTraceTemplate">
+      <Border Classes="ai-trace" Classes.failed="{Binding !Ok}">
+        <StackPanel Spacing="1">
+          <TextBlock Text="{Binding Header}"
+                     Classes="CkanCaption"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+          <TextBlock Text="{Binding ResultPreview}"
+                     Classes="CkanCaption"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <Style Selector="Border.ai-bubble">
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="MaxWidth" Value="720" />
+      <Setter Property="Padding" Value="12,8" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+      <Setter Property="Background" Value="{DynamicResource CkanMutedBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanCardBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+    </Style>
+    <Style Selector="Border.ai-chat">
+      <Setter Property="Background" Value="{DynamicResource CkanCardBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanCardBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+      <Setter Property="Padding" Value="12" />
+    </Style>
+    <Style Selector="Border.ai-bubble.user">
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    </Style>
+    <Style Selector="Border.ai-trace">
+      <Setter Property="Padding" Value="8,4" />
+      <Setter Property="Margin" Value="0,0,0,4" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+      <Setter Property="Background" Value="{DynamicResource CkanLayerRecessedBrush}" />
+    </Style>
+    <Style Selector="Border.ai-trace.failed">
+      <Setter Property="Background" Value="{DynamicResource CkanWarningBrush}" />
+    </Style>
+    <Style Selector="TextBlock.ai-label">
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="{DynamicResource CkanPagePadding}">
+
+    <!-- ── 标题 + 状态 ──────────────────────────────────────────────────── -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+      <StackPanel Grid.Column="0" Spacing="2">
+        <TextBlock Text="AI 助手" Classes="CkanPageTitle" />
+        <TextBlock Text="{Binding StatusText}"
+                   Classes="CkanCaption"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+      </StackPanel>
+      <TextBlock Grid.Column="1"
+                 Text="思考中…"
+                 Classes="CkanCaption"
+                 IsVisible="{Binding IsBusy}"
+                 VerticalAlignment="Center"
+                 Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+    </Grid>
+
+    <!-- ── 错误条 ──────────────────────────────────────────────────────── -->
+    <Border Grid.Row="1"
+            Classes="CkanInfoBanner Danger"
+            IsVisible="{Binding HasError}"
+            Margin="0,8,0,0">
+      <TextBlock Text="{Binding ErrorText}"
+                 Classes="CkanCaption"
+                 TextWrapping="Wrap" />
+    </Border>
+
+    <!-- ── 对话 ────────────────────────────────────────────────────────── -->
+    <Border Grid.Row="2" Classes="ai-chat" Margin="0,8,0,0">
+      <ScrollViewer x:Name="MessageScroll" VerticalScrollBarVisibility="Auto">
+        <ItemsControl ItemsSource="{Binding Messages}"
+                      ItemTemplate="{StaticResource AiMessageTemplate}" />
+      </ScrollViewer>
+    </Border>
+
+    <!-- ── 工具轨迹（折叠） ────────────────────────────────────────────── -->
+    <Expander Grid.Row="3"
+              Margin="0,8,0,0"
+              HorizontalAlignment="Stretch"
+              IsVisible="{Binding HasToolTraces}"
+              IsExpanded="{Binding IsToolTraceExpanded, Mode=TwoWay}">
+      <Expander.Header>
+        <TextBlock Text="{Binding ToolTraceSummary}" Classes="CkanCaption" />
+      </Expander.Header>
+      <ItemsControl ItemsSource="{Binding ToolTraces}"
+                    ItemTemplate="{StaticResource AiTraceTemplate}"
+                    Margin="0,4,0,0" />
+    </Expander>
+
+    <!-- ── 输入区 ──────────────────────────────────────────────────────── -->
+    <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,8,0,0">
+      <TextBox Grid.Column="0"
+               Text="{Binding DraftText, Mode=TwoWay}"
+               PlaceholderText="问点什么：搜索模组、看详情、打开页面…"
+               AcceptsReturn="True"
+               TextWrapping="Wrap"
+               MinHeight="64"
+               MaxHeight="140"
+               VerticalContentAlignment="Top"
+               VerticalAlignment="Stretch" />
+      <Button Grid.Column="1"
+              Content="发送"
+              Classes="CkanPrimary"
+              Command="{Binding SendCommand}"
+              VerticalAlignment="Bottom"
+              Margin="8,0,0,0" />
+      <Button Grid.Column="2"
+              Content="停止"
+              Classes="CkanSecondary"
+              Command="{Binding CancelCommand}"
+              VerticalAlignment="Bottom"
+              Margin="8,0,0,0" />
+      <Button Grid.Column="3"
+              Content="清空"
+              Classes="CkanGhost"
+              Command="{Binding ClearCommand}"
+              VerticalAlignment="Bottom"
+              Margin="8,0,0,0" />
+    </Grid>
+
+    <!-- ── 设置 ────────────────────────────────────────────────────────── -->
+    <Expander Grid.Row="5" Header="模型与密钥" Margin="0,8,0,0">
+      <StackPanel Spacing="8" Margin="0,4,0,0">
+        <Grid ColumnDefinitions="96,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Base URL" Classes="ai-label" />
+          <TextBox Grid.Row="0"
+                   Grid.Column="1"
+                   Text="{Binding BaseUrl, Mode=TwoWay}"
+                   PlaceholderText="http://host:port/v1" />
+
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="模型" Classes="ai-label" Margin="0,6,0,0" />
+          <TextBox Grid.Row="1"
+                   Grid.Column="1"
+                   Text="{Binding Model, Mode=TwoWay}"
+                   Margin="0,6,0,0" />
+
+          <TextBlock Grid.Row="2" Grid.Column="0" Text="API Key" Classes="ai-label" Margin="0,6,0,0" />
+          <TextBox Grid.Row="2"
+                   Grid.Column="1"
+                   Text="{Binding ApiKey, Mode=TwoWay}"
+                   PasswordChar="●"
+                   PlaceholderText="保存后由 DPAPI 加密落到磁盘，内存里才有明文"
+                   Margin="0,6,0,0" />
+
+          <TextBlock Grid.Row="3" Grid.Column="0" Text="MCP 命令" Classes="ai-label" Margin="0,6,0,0" />
+          <TextBox Grid.Row="3"
+                   Grid.Column="1"
+                   Text="{Binding McpCommand, Mode=TwoWay}"
+                   PlaceholderText="留空表示不配搜索服务；例：python -m search_mcp.server"
+                   Margin="0,6,0,0" />
+
+          <TextBlock Grid.Row="4" Grid.Column="0" Text="MCP 参数" Classes="ai-label" Margin="0,6,0,0" />
+          <TextBox Grid.Row="4"
+                   Grid.Column="1"
+                   Text="{Binding McpArgsText, Mode=TwoWay}"
+                   PlaceholderText="空着表示 web_search 不可用（模型会自己降级）"
+                   Margin="0,6,0,0" />
+        </Grid>
+
+        <WrapPanel Orientation="Horizontal">
+          <Button Content="保存设置"
+                  Classes="CkanPrimary"
+                  Command="{Binding SaveSettingsCommand}"
+                  Margin="0,0,8,6" />
+          <Button Content="测试连接"
+                  Classes="CkanSecondary"
+                  Command="{Binding TestConnectionCommand}"
+                  Margin="0,0,8,6" />
+        </WrapPanel>
+
+        <TextBlock Text="{Binding SettingsPath}"
+                   Classes="CkanCaption"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+      </StackPanel>
+    </Expander>
+  </Grid>
+</UserControl>
