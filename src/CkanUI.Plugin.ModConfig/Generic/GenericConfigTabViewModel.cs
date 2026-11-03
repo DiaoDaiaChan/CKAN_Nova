@@ -49,6 +49,18 @@ public sealed partial class GenericConfigTabViewModel : ObservableObject
     [ObservableProperty]
     private string _searchText = string.Empty;
 
+    /// <summary>
+    /// 宽松扫描：把自定义根节点、扁平键值与视觉/行为配置也列出来。
+    /// 默认关闭（保守模式），但保守模式一个文件都没扫到时页面会自动切到宽松模式一次。
+    /// </summary>
+    [ObservableProperty]
+    private bool _wideScan;
+
+    private int _hiddenWideCandidateCount;
+
+    /// <summary>自动扩大范围时抑制开关回写触发的二次重扫。</summary>
+    private bool _suppressWideScanRefresh;
+
     /// <summary>正在读盘/写盘。</summary>
     [ObservableProperty]
     private bool _isBusy;
@@ -125,7 +137,18 @@ public sealed partial class GenericConfigTabViewModel : ObservableObject
     }
 
     /// <summary>文件计数文案。</summary>
-    public string FileCountText => T($"共 {Files.Count} 个文件", "Ui_ModConfigGeneric_FileCount", Files.Count);
+    public string FileCountText => (T($"共 {Files.Count} 个文件", "Ui_ModConfigGeneric_FileCount", Files.Count))
+        + (HasHiddenWideCandidates
+            ? T($" · 另有 {_hiddenWideCandidateCount} 个候选可宽松查看", "Ui_ModConfigGeneric_HiddenWideCount", _hiddenWideCandidateCount)
+            : string.Empty);
+
+    /// <summary>保守模式下还有多少 cfg 只在宽松模式可见。</summary>
+    public bool HasHiddenWideCandidates => _hiddenWideCandidateCount > 0;
+
+    /// <summary>宽松扫描的额外说明（空态/状态栏用）。</summary>
+    public string HiddenWideCountText => HasHiddenWideCandidates
+        ? T($"还有 {_hiddenWideCandidateCount} 个候选 cfg 没有列出；勾选「宽松扫描」会按内容再筛一遍。", "Ui_ModConfigGeneric_HiddenWideHint", _hiddenWideCandidateCount)
+        : string.Empty;
 
     /// <summary>脏计数文案。</summary>
     public string DirtyText => T($"有 {PendingChangeCount} 处改动未保存", "Ui_ModConfigGeneric_DirtyCount", PendingChangeCount);
@@ -165,8 +188,8 @@ public sealed partial class GenericConfigTabViewModel : ObservableObject
             }
 
             return HasFiles
-                ? T("左侧列出的是 GameData 下的 PluginData 与 settings 一类文件；原版配置与零件定义不在此列。", "Ui_ModConfigGeneric_SelectFileDetail")
-                : T("扫的是 GameData/journal 里的 PluginData 目录与 settings.cfg、config.cfg 一类文件。没有实例或实例没选好时这里会是空的。", "Ui_ModConfigGeneric_EmptyDetail");
+                ? T("左侧列出的是 GameData 下的 PluginData 与 settings 一类文件；原版配置与零件定义不在此列。勾选「宽松扫描」可以纳入自定义节点与视觉/行为配置。", "Ui_ModConfigGeneric_SelectFileDetail")
+                : T("扫的是 GameData/journal 里的 PluginData 目录与 settings.cfg、config.cfg 一类文件。没有实例或实例没选好时这里会是空的；勾选「宽松扫描」可以扩大到自定义节点。", "Ui_ModConfigGeneric_EmptyDetail");
         }
     }
 
@@ -190,6 +213,7 @@ public sealed partial class GenericConfigTabViewModel : ObservableObject
         SelectedFile = null;
         Rows = [];
         Files = [];
+        _hiddenWideCandidateCount = 0;
         ErrorText = null;
         StatusText = string.Empty;
         NotifyAll();
@@ -206,10 +230,18 @@ public sealed partial class GenericConfigTabViewModel : ObservableObject
 
         IsBusy = true;
         ErrorText = null;
+        var requestedWide = WideScan;
         try
         {
-            var discovered = await _service
-                .DiscoverAsync(_gameDir, _instanceName, cancellationToken)
+            // 扫描是同步实现的（服务层 Task.FromResult），这里必须离开界面线程；
+            // 否则一次宽松扫描会冻住整个窗口，用户只会觉得"插件又卡了"。
+            var discovered = await Task.Run(
+                    () => _service.DiscoverAsync(
+                        _gameDir,
+                        _instanceName,
+                        requestedWide ? GenericConfigScanOptions.Wide : GenericConfigScanOptions.Automatic,
+                        cancellationToken),
+                    cancellationToken)
                 .ConfigureAwait(true);
 
             if (!discovered.IsSuccess || discovered.Value is null)
@@ -217,20 +249,54 @@ public sealed partial class GenericConfigTabViewModel : ObservableObject
                 Files = [];
                 SelectedFile = null;
                 Rows = [];
+                _hiddenWideCandidateCount = 0;
                 ErrorText = discovered.Message ?? T("扫描失败。", "Ui_ModConfigGeneric_ScanFailed");
                 return;
             }
 
-            var cards = discovered.Value.Files
+            // 自动适配：保守模式一个文件都没找到、但还有可宽松纳入的 cfg 时，自动扩大到宽松模式一次。
+            // 用户不需要先知道「宽松扫描」这个开关存在，才能看到一个本来就能编辑的文件。
+            if (!requestedWide
+                && discovered.Value.Files.Count == 0
+                && discovered.Value.HiddenWideCandidateCount > 0)
+            {
+                var widened = await Task.Run(
+                        () => _service.DiscoverAsync(
+                            _gameDir,
+                            _instanceName,
+                            GenericConfigScanOptions.Wide,
+                            cancellationToken),
+                        cancellationToken)
+                    .ConfigureAwait(true);
+
+                if (widened.IsSuccess && widened.Value is not null && widened.Value.Files.Count > 0)
+                {
+                    discovered = widened;
+                    requestedWide = true;
+                    _suppressWideScanRefresh = true;
+                    try
+                    {
+                        WideScan = true;
+                    }
+                    finally
+                    {
+                        _suppressWideScanRefresh = false;
+                    }
+                }
+            }
+
+            var catalog = discovered.Value;
+            _hiddenWideCandidateCount = requestedWide ? 0 : catalog.HiddenWideCandidateCount;
+            var cards = catalog.Files
                 .Select(file => new GenericConfigFileCardViewModel(file))
                 .OrderBy(card => card.ModName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(card => card.Subtitle, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
             Files = cards;
-            StatusText = discovered.Value.Diagnostics.Count > 0
-                ? string.Join("；", discovered.Value.Diagnostics)
-                : string.Empty;
+            StatusText = catalog.Diagnostics.Count > 0
+                ? string.Join("；", catalog.Diagnostics)
+                : (requestedWide ? T("宽松扫描已开启：零件、原版定义、补丁与本地化仍然排除。", "Ui_ModConfigGeneric_WideScanStatus") : string.Empty);
 
             var preferred = SelectedFile is null
                 ? null
@@ -276,8 +342,9 @@ public sealed partial class GenericConfigTabViewModel : ObservableObject
         ErrorText = null;
         try
         {
-            var loaded = await _service
-                .LoadAsync(_gameDir, SelectedFile.FilePath, cancellationToken)
+            var loaded = await Task.Run(
+                    () => _service.LoadAsync(_gameDir, SelectedFile.FilePath, cancellationToken),
+                    cancellationToken)
                 .ConfigureAwait(true);
 
             if (!loaded.IsSuccess || loaded.Value is null)
@@ -342,8 +409,9 @@ public sealed partial class GenericConfigTabViewModel : ObservableObject
         ErrorText = null;
         try
         {
-            var saved = await _service
-                .SaveAsync(_gameDir, _instanceName, SelectedFile.FilePath, changes, confirmedGameRunning: false)
+            var saved = await Task.Run(
+                    () => _service.SaveAsync(_gameDir, _instanceName, SelectedFile.FilePath, changes, confirmedGameRunning: false),
+                    CancellationToken.None)
                 .ConfigureAwait(true);
 
             if (!saved.IsSuccess || saved.Value is null)
@@ -406,6 +474,23 @@ public sealed partial class GenericConfigTabViewModel : ObservableObject
 
     partial void OnSearchTextChanged(string value) => NotifyAll();
 
+    partial void OnWideScanChanged(bool value)
+    {
+        // 开关是用户意图：立刻按新范围重扫（已有草稿会在换选中文件时被丢弃，符合"换范围=换数据集"）。
+        OnPropertyChanged(nameof(EmptyDetail));
+        if (_suppressWideScanRefresh)
+        {
+            return;
+        }
+
+        if (_service is null || string.IsNullOrWhiteSpace(_gameDir))
+        {
+            return;
+        }
+
+        _ = RefreshAsync(selectFirst: true);
+    }
+
     partial void OnRowsChanged(IReadOnlyList<GenericConfigRowViewModel> value) => NotifyAll();
 
     partial void OnFilesChanged(IReadOnlyList<GenericConfigFileCardViewModel> value) => NotifyAll();
@@ -442,6 +527,8 @@ public sealed partial class GenericConfigTabViewModel : ObservableObject
         OnPropertyChanged(nameof(HasRows));
         OnPropertyChanged(nameof(FilteredFiles));
         OnPropertyChanged(nameof(FileCountText));
+        OnPropertyChanged(nameof(HasHiddenWideCandidates));
+        OnPropertyChanged(nameof(HiddenWideCountText));
         OnPropertyChanged(nameof(SelectedTitle));
         OnPropertyChanged(nameof(SelectedSubtitle));
         OnPropertyChanged(nameof(EmptyTitle));

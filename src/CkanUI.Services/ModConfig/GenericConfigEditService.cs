@@ -36,6 +36,14 @@ public sealed class GenericConfigEditService : IGenericConfigEditService
         => _inner.DiscoverAsync(gameDir, instanceName, cancellationToken);
 
     /// <inheritdoc />
+    public Task<OperationResult<GenericConfigCatalog>> DiscoverAsync(
+        string gameDir,
+        string instanceName,
+        GenericConfigScanOptions options,
+        CancellationToken cancellationToken = default)
+        => _inner.DiscoverAsync(gameDir, instanceName, options, cancellationToken);
+
+    /// <inheritdoc />
     public async Task<OperationResult<GenericConfigDocumentView>> LoadAsync(
         string gameDir,
         string filePath,

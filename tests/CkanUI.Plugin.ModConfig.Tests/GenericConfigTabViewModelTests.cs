@@ -12,6 +12,10 @@ public sealed class GenericConfigTabViewModelTests
     private sealed class FakeGenericConfigEditService : IGenericConfigEditService
     {
         public List<GenericConfigFile> DiscoveredFiles { get; set; } = [];
+        public List<GenericConfigFile> WideFiles { get; set; } = [];
+        public int HiddenWideCandidateCount { get; set; }
+        public int DiscoverCalls { get; private set; }
+        public GenericConfigScanOptions? LastOptions { get; private set; }
         public Dictionary<string, GenericConfigDocumentView> Documents { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<GenericConfigChange> LastSavedChanges { get; } = [];
         public bool ThrowOnSave { get; set; }
@@ -20,9 +24,21 @@ public sealed class GenericConfigTabViewModelTests
             string gameDir,
             string instanceName,
             CancellationToken cancellationToken = default)
+            => DiscoverAsync(gameDir, instanceName, GenericConfigScanOptions.Automatic, cancellationToken);
+
+        public Task<OperationResult<GenericConfigCatalog>> DiscoverAsync(
+            string gameDir,
+            string instanceName,
+            GenericConfigScanOptions options,
+            CancellationToken cancellationToken = default)
         {
+            DiscoverCalls++;
+            LastOptions = options;
+            var wide = options.Scope == GenericConfigScanScope.Wide;
+            var files = wide ? WideFiles : DiscoveredFiles;
+            var hidden = wide ? 0 : HiddenWideCandidateCount;
             return Task.FromResult(OperationResult<GenericConfigCatalog>.Ok(
-                new GenericConfigCatalog(gameDir, DiscoveredFiles, 0, [])));
+                new GenericConfigCatalog(gameDir, files, 0, [], hidden)));
         }
 
         public Task<OperationResult<GenericConfigDocumentView>> LoadAsync(
@@ -184,6 +200,88 @@ public sealed class GenericConfigTabViewModelTests
         Assert.That(fake.LastSavedChanges.Count, Is.EqualTo(1));
         Assert.That(fake.LastSavedChanges[0].LineNumber, Is.EqualTo(2));
         Assert.That(fake.LastSavedChanges[0].NewValue, Is.EqualTo("true"));
+    }
+
+    [Test]
+    public async Task TabViewModel_ReportsHiddenWideCandidatesFromTheAutomaticScan()
+    {
+        var visible = new GenericConfigFile(
+            "C:/KSP/GameData/ModA/settings.cfg", "ModA/settings.cfg", "ModA", "Settings", "SETTINGS", 5, 200, DateTime.UtcNow, true, null);
+        var fake = new FakeGenericConfigEditService
+        {
+            DiscoveredFiles = [visible],
+            WideFiles = [visible],
+            HiddenWideCandidateCount = 4
+        };
+
+        var tab = new GenericConfigTabViewModel(fake);
+        tab.SetContext("C:/KSP/GameData", "TestInstance");
+        await tab.RefreshAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(fake.LastOptions?.Scope, Is.EqualTo(GenericConfigScanScope.Automatic));
+            Assert.That(tab.Files, Has.Count.EqualTo(1));
+            Assert.That(tab.HasHiddenWideCandidates, Is.True);
+            Assert.That(tab.FileCountText, Does.Contain("另有 4 个候选可宽松查看"));
+            Assert.That(tab.HiddenWideCountText, Does.Contain("还有 4 个候选 cfg 没有列出"));
+            Assert.That(tab.WideScan, Is.False, "保守模式扫到东西就不该自作主张扩大范围");
+        });
+    }
+
+    [Test]
+    public async Task TabViewModel_WideScanIsAnExplicitChoiceAndSilencesTheHint()
+    {
+        var narrow = new GenericConfigFile(
+            "C:/KSP/GameData/ModA/settings.cfg", "ModA/settings.cfg", "ModA", "Settings", "SETTINGS", 5, 200, DateTime.UtcNow, true, null);
+        var extra = new GenericConfigFile(
+            "C:/KSP/GameData/ModB/Config/custom.cfg", "ModB/Config/custom.cfg", "ModB", "Custom", "MODB_SETTINGS", 3, 120, DateTime.UtcNow, true, null);
+        var fake = new FakeGenericConfigEditService
+        {
+            DiscoveredFiles = [narrow],
+            WideFiles = [narrow, extra],
+            HiddenWideCandidateCount = 4
+        };
+
+        var tab = new GenericConfigTabViewModel(fake) { WideScan = true };
+        tab.SetContext("C:/KSP/GameData", "TestInstance");
+        await tab.RefreshAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(fake.LastOptions?.Scope, Is.EqualTo(GenericConfigScanScope.Wide));
+            Assert.That(tab.Files, Has.Count.EqualTo(2));
+            Assert.That(tab.HasHiddenWideCandidates, Is.False);
+            Assert.That(tab.HiddenWideCountText, Is.Empty);
+            Assert.That(tab.FileCountText, Does.Not.Contain("另有"));
+            Assert.That(tab.StatusText, Does.Contain("宽松扫描已开启"));
+        });
+    }
+
+    [Test]
+    public async Task TabViewModel_FallsBackToWideScanWhenNothingWasListed()
+    {
+        var extra = new GenericConfigFile(
+            "C:/KSP/GameData/ModB/Config/custom.cfg", "ModB/Config/custom.cfg", "ModB", "Custom", "MODB_SETTINGS", 3, 120, DateTime.UtcNow, true, null);
+        var fake = new FakeGenericConfigEditService
+        {
+            DiscoveredFiles = [],
+            WideFiles = [extra],
+            HiddenWideCandidateCount = 2
+        };
+
+        var tab = new GenericConfigTabViewModel(fake);
+        tab.SetContext("C:/KSP/GameData", "TestInstance");
+        await tab.RefreshAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(fake.DiscoverCalls, Is.EqualTo(2), "保守模式空手而归时要自动再扫一次");
+            Assert.That(fake.LastOptions?.Scope, Is.EqualTo(GenericConfigScanScope.Wide));
+            Assert.That(tab.WideScan, Is.True, "自动扩大之后开关要反映真实状态");
+            Assert.That(tab.Files, Has.Count.EqualTo(1));
+            Assert.That(tab.HasHiddenWideCandidates, Is.False);
+        });
     }
 
     private sealed class StubConfigService : IModConfigService

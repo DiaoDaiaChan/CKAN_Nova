@@ -267,7 +267,7 @@ public sealed class DemoPlugin : ICkanUiPlugin
 | AI 助手 | `src/CkanUI.Plugin.Ai` | `com.ckanui.ai` | `Sparkle`（星芒） | 「AI 助手」页签（`ai-assistant`，`Section=plugins`、`Order=10`）+ 底栏常驻按钮（与后台任务胶囊同一行，点开右侧抽屉）：问答 + 8 个工具（7 个 `ckan_*`：查询/导航 + 一个必须过用户确认的安装，`web_search` 走 MCP），数据与写权限都经契约 `IAiCkanBridge` 由宿主实现；设计与实测见 [ai-assistant.md](ai-assistant.md) |
 | 音乐 | `src/CkanUI.Plugin.Soundtrack` | `com.ckanui.soundtrack` | `Music`（音符） | 「音乐」页签（`music`，`Section=plugins`、`Order=20`）：读写 KSP 根目录 `Playlists/playlists.cfg`（增删曲目、排序、开关播放列表、备份后保存），乐曲库扫 `<游戏目录>/Music` 与 `GameData`；不做试听。文件契约与已知缺口见 [soundtrack.md](soundtrack.md) |
 | kOS 脚本 | `src/CkanUI.Plugin.Kos` | `com.ckanui.kos` | `Code`（尖括号） | 「kOS 脚本」页签（`kos`，`Section=plugins`、`Order=30`）：读写 KSP 根目录 `Ships/Script/*.ks`（kOS 的 Archive 卷），左侧列表 + 右侧纯文本编辑器，保存前自动备份、外部改动检测；不做语法高亮与执行。文件契约见 [kos.md](kos.md) |
-| Mod 配置 | `src/CkanUI.Plugin.ModConfig` | `com.ckanui.modconfig` | `Sliders`（滑块） | 「Mod 配置」页签（`modconfig`，`Section=mods`、`Order=50`）：解耦为内置插件，嵌入「模组」分节内；提供适配器高级配置模式与通用 ConfigNode（`*.cfg`）自动扫描、就地编辑与安全写回模式 |
+| Mod 配置 | `src/CkanUI.Plugin.ModConfig` | `com.ckanui.modconfig` | `Sliders`（滑块） | 「Mod 配置」页签（`modconfig`，`Section=mods`、`Order=50`）：解耦为内置插件，嵌入「模组」分节内；提供适配器高级配置模式与通用 ConfigNode（`*.cfg`）自动扫描、就地编辑与安全写回模式；通用模式支持宽松扫描（自定义根/扁平键值/视觉配置，见 [mod-config-generic.md](mod-config-generic.md)） |
 
 宿主侧不改一行就能拿到这个页签：插件只引用 `CkanUI.Services.Abstractions` + `Avalonia`（视图里用到缩略图/骨架屏这类共享基元的，再引 `CkanUI.Ui`），
 构造函数里声明 `IInstanceService` 之类的宿主服务，`PluginPageFactory` 用 `ActivatorUtilities` 注入。

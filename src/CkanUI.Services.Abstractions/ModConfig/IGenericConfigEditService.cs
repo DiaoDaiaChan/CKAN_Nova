@@ -19,6 +19,17 @@ public interface IGenericConfigEditService
         string instanceName,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// 按指定范围扫描。默认实现退回保守模式，保证第三方/测试替身不必立刻实现新重载；
+    /// 宿主实现会真正把 <paramref name="options"/> 交给扫描器。
+    /// </summary>
+    Task<OperationResult<GenericConfigCatalog>> DiscoverAsync(
+        string gameDir,
+        string instanceName,
+        GenericConfigScanOptions options,
+        CancellationToken cancellationToken = default)
+        => DiscoverAsync(gameDir, instanceName, cancellationToken);
+
     /// <summary>加载一个 cfg 的只读快照；路径必须落在 gameDir 之内。</summary>
     Task<OperationResult<GenericConfigDocumentView>> LoadAsync(
         string gameDir,

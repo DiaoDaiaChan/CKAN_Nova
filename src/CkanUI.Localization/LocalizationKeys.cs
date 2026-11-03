@@ -908,6 +908,11 @@ public static class LocalizationKeys
     public const string ModConfigGenericRevert = "Ui_ModConfigGeneric_Revert";
     public const string ModConfigGenericReload = "Ui_ModConfigGeneric_Reload";
     public const string ModConfigGenericModifiedTag = "Ui_ModConfigGeneric_ModifiedTag";
+    public const string ModConfigGenericWideScan = "Ui_ModConfigGeneric_WideScan";
+    public const string ModConfigGenericWideScanTip = "Ui_ModConfigGeneric_WideScanTip";
+    public const string ModConfigGenericHiddenWideCount = "Ui_ModConfigGeneric_HiddenWideCount";
+    public const string ModConfigGenericHiddenWideHint = "Ui_ModConfigGeneric_HiddenWideHint";
+    public const string ModConfigGenericWideScanStatus = "Ui_ModConfigGeneric_WideScanStatus";
     public const string ModDetailsInstallThisVersion = "Ui_ModDetails_InstallThisVersion";
     public const string ModDetailsSelectModHint = "Ui_ModDetails_SelectModHint";
     public const string ModPackEditorPageAddRelationship = "Ui_ModPackEditorPage_AddRelationship";

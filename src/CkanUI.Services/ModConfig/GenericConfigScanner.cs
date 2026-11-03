@@ -54,6 +54,26 @@ public static class GenericConfigScanner
         "SETTINGS", "PARAMETERS", "CONFIG", "KSP_SETTINGS", "PERSISTENT",
     };
 
+    /// <summary>
+    /// 宽松模式也不收的内容定义节点：它们描述"东西是什么"（零件、合同、效果模板、本地化文本……），
+    /// 不是"这个 mod 怎么运行"。把它们塞进通用配置页只会让用户以为能调。
+    /// </summary>
+    private static readonly HashSet<string> DefinitionRootNodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "PART", "RESOURCE", "EXPERIMENT_DEFINITION", "PROP", "INTERNAL", "SCIENCE_DEFINITION",
+        "ASTEROID", "CELESTIAL_BODY", "CONTRACT", "CONTRACT_TYPE", "AGENT", "STRATEGY",
+        "EFFECTTEMPLATE", "LOCALIZATION", "CATEGORY", "ORGANIZERSUBCATEGORY", "KERBALCHANGELOG",
+        "KSP_TEXTURE_SET", "SHABBY_MATERIAL_DEF", "TEXTURE", "MATERIAL", "MODEL", "DEPENDENCY",
+        "KSP_MODULEMANAGER", "PARTUPGRADE", "ROL_MODEL", "RPM_CUSTOM_VARIABLE", "RPM_SELECT_VARIABLE",
+        "SUBCATEGORY", "SUBTYPE", "RESOURCE_DEFINITION", "CONTRACT_DEFINITION", "RPM_MATH_VARIABLE",
+    };
+
+    /// <summary>宽松模式仍然跳过的路径段：本地化文本与补丁目录不属于"可编辑配置"。</summary>
+    private static readonly string[] SkippedPathSegments =
+    [
+        "/Localization/", "/Patches/", "/MMPatches/", "/ModuleManagerPatches/",
+    ];
+
     /// <summary>原版目录：CKAN 安装的原版数据，不算 mod 配置。</summary>
     private static readonly HashSet<string> SkippedDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -72,7 +92,8 @@ public static class GenericConfigScanner
         string gameDir,
         CancellationToken cancellationToken = default,
         int maxFiles = DefaultMaxFiles,
-        int maxDepth = DefaultMaxDepth)
+        int maxDepth = DefaultMaxDepth,
+        GenericConfigScanOptions? options = null)
     {
         if (!TryNormalizeDirectory(gameDir, out var root, out var directoryError))
         {
@@ -90,7 +111,8 @@ public static class GenericConfigScanner
             gameDataDirectory,
             Math.Max(1, maxFiles),
             Math.Max(0, maxDepth),
-            cancellationToken);
+            cancellationToken,
+            options ?? GenericConfigScanOptions.Automatic);
 
         try
         {
@@ -120,7 +142,8 @@ public static class GenericConfigScanner
             root,
             files,
             state.SkippedFileCount,
-            state.Diagnostics.ToArray()));
+            state.Diagnostics.ToArray(),
+            state.HiddenWideCandidateCount));
     }
 
     private static bool IsExpectedIo(Exception exception)
@@ -165,7 +188,8 @@ public static class GenericConfigScanner
         string gameDataDirectory,
         int maxFiles,
         int maxDepth,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        GenericConfigScanOptions options)
     {
         private int _examinedFiles;
 
@@ -175,9 +199,14 @@ public static class GenericConfigScanner
 
         public int SkippedFileCount { get; private set; }
 
+        /// <summary>保守模式下被范围挡掉、但宽松模式会列出的文件数。</summary>
+        public int HiddenWideCandidateCount { get; private set; }
+
         public bool FileLimitReached { get; private set; }
 
         public int MaxFiles => maxFiles;
+
+        private bool IsWide => options.Scope == GenericConfigScanScope.Wide;
 
         public void AddDiagnostic(string message)
         {
@@ -317,8 +346,23 @@ public static class GenericConfigScanner
                 || (detectedRoot is not null && CandidateRootNodes.Contains(detectedRoot));
             if (!isCandidate)
             {
-                SkippedFileCount++;
-                return;
+                // 宽松模式：排除内容定义/patch/本地化之后，剩下的 cfg 都当"这个 mod 自己的配置"。
+                // 代价是可能列出视觉/行为配置（TUFX、EVE 云层、Parallax 等）；它们确实可改，
+                // 只是没有 adapter 的语义与风险说明，页面会明确说"这里只有键与值"。
+                if (IsWideCandidate(relativePath, detectedRoot))
+                {
+                    if (!IsWide)
+                    {
+                        HiddenWideCandidateCount++;
+                        SkippedFileCount++;
+                        return;
+                    }
+                }
+                else
+                {
+                    SkippedFileCount++;
+                    return;
+                }
             }
 
             FileInfo info;
@@ -350,7 +394,17 @@ public static class GenericConfigScanner
                 unreadableReason = $"无法解析：{ex.Message}";
             }
 
-            var rootNode = document?.RootNodeName ?? detectedRoot;
+            var rootNode = NormalizeRootNode(document?.RootNodeName ?? detectedRoot);
+
+            // 首 4 KB 的探测可能被畸形首行骗过（现实里有文件第一行是 `P// 注释`）。
+            // 宽松模式也不能把解析后确认是内容定义的文件列成"配置"。
+            if (!isCandidate && rootNode is not null
+                && (DefinitionRootNodes.Contains(rootNode) || IsPatchRoot(rootNode)))
+            {
+                SkippedFileCount++;
+                return;
+            }
+
             var notWritableReason = DetermineNotWritableReason(isReadOnly, unreadableReason, document);
 
             Files.Add(new GenericConfigFile(
@@ -364,6 +418,29 @@ public static class GenericConfigScanner
                 lastWriteUtc,
                 notWritableReason is null,
                 notWritableReason));
+        }
+
+        /// <summary>ModuleManager 的节点操作符：解析后的根节点带这些前缀就是补丁，不是配置。</summary>
+        private static bool IsPatchRoot(string root)
+            => root.Length > 0 && root[0] is '@' or '+' or '-' or '!' or '$' or '%';
+
+        /// <summary>宽松模式还愿意收的文件：不是内容定义、不在本地化/补丁目录里。</summary>
+        private static bool IsWideCandidate(string relativePath, string? detectedRoot)
+        {
+            if (detectedRoot is not null && (DefinitionRootNodes.Contains(detectedRoot) || IsPatchRoot(detectedRoot)))
+            {
+                return false;
+            }
+
+            foreach (var segment in SkippedPathSegments)
+            {
+                if (relativePath.Contains(segment, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static string? DetermineNotWritableReason(
@@ -455,6 +532,21 @@ public static class GenericConfigScanner
             => ModNameOf(relativePath) + " · " + relativePath;
 
         /// <summary>
+        /// ModuleManager 允许给节点写 <c>:NEEDS[...]</c> 条件；根节点判定只看冒号前的名字。
+        /// </summary>
+        private static string? NormalizeRootNode(string? root)
+        {
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                return null;
+            }
+
+            var value = root.Trim();
+            var colon = value.IndexOf(':');
+            return colon > 0 ? value[..colon] : value;
+        }
+
+        /// <summary>
         /// 首 4 KB 里探测根节点：跳过空行与 <c>//</c> 注释，第一行有效内容就是节点名；
         /// 遇到带 <c>=</c> 的行说明是扁平键值文件，返回 null。
         /// </summary>
@@ -478,7 +570,10 @@ public static class GenericConfigScanner
                     return null;
                 }
 
-                return line;
+                // ConfigNode 允许把左花括号写在同一行（现实里 `PART {` / `SETTINGS{` 很常见）。
+                // 只取开头的标识符，否则根节点会变成 "PART {"，后面的原版定义/零件判定全部失效。
+                var tokenEnd = line.IndexOfAny([' ', '\t', '{']);
+                return NormalizeRootNode(tokenEnd < 0 ? line : line[..tokenEnd]);
             }
 
             return null;

@@ -29,16 +29,39 @@ public sealed record GenericConfigFile(
     bool IsWritable,
     string? NotWritableReason);
 
+/// <summary>扫描范围。</summary>
+public enum GenericConfigScanScope
+{
+    /// <summary>保守模式：只收 PluginData、常见配置文件名与常见设置根节点。</summary>
+    Automatic = 0,
+
+    /// <summary>宽松模式：在保守模式的排除项之外，把所有不像内容定义的 cfg 都列出来（自定义根节点、扁平键值、视觉/行为配置）。</summary>
+    Wide = 1,
+}
+
+/// <summary>一次扫描的范围选项。</summary>
+/// <param name="Scope">扫描范围；默认 <see cref="GenericConfigScanScope.Automatic"/>。</param>
+public sealed record GenericConfigScanOptions(GenericConfigScanScope Scope = GenericConfigScanScope.Automatic)
+{
+    /// <summary>保守模式（与旧行为一致）。</summary>
+    public static GenericConfigScanOptions Automatic { get; } = new();
+
+    /// <summary>宽松模式。</summary>
+    public static GenericConfigScanOptions Wide { get; } = new(GenericConfigScanScope.Wide);
+}
+
 /// <summary>一次目录扫描的结果。</summary>
 /// <param name="GameDir">归一化后的游戏目录（绝对路径，结尾不带分隔符）。</param>
 /// <param name="Files">命中的 cfg 文件，按 <see cref="GenericConfigFile.RelativePath"/> 升序。</param>
 /// <param name="SkippedFileCount">因为是原版定义/ModuleManager 补丁/备份文件等原因被跳过的文件数。</param>
 /// <param name="Diagnostics">截断、跳过、无法读取等可展示的说明，按发生顺序。</param>
+/// <param name="HiddenWideCandidateCount">保守模式下没有列出、但宽松模式会列出的 cfg 数量；宽松模式自身为 0。</param>
 public sealed record GenericConfigCatalog(
     string GameDir,
     IReadOnlyList<GenericConfigFile> Files,
     int SkippedFileCount,
-    IReadOnlyList<string> Diagnostics);
+    IReadOnlyList<string> Diagnostics,
+    int HiddenWideCandidateCount = 0);
 
 /// <summary>写回结果。</summary>
 /// <param name="FilePath">实际写入的目标文件绝对路径。</param>

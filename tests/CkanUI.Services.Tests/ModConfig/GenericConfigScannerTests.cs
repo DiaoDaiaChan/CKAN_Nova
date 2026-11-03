@@ -234,6 +234,97 @@ public sealed class GenericConfigScannerTests
     }
 
     [Test]
+    public void Scan_AutomaticMode_CountsWideCandidatesWithoutListingThem()
+    {
+        using var temp = new TempDirectory("scanner-wide-hidden");
+        var gameDir = CreateGameDir(temp);
+        temp.File(
+            "game/GameData/MyMod/Config/custom.cfg",
+            "MYMOD_SETTINGS\n{\n  volume = 0.5\n}\n");
+
+        var automatic = Scan(gameDir);
+
+        Assert.That(automatic.IsSuccess, Is.True, automatic.Message);
+        Assert.Multiple(() =>
+        {
+            Assert.That(automatic.Value!.Files, Is.Empty, "保守模式不该凭自定义根节点就收");
+            Assert.That(automatic.Value!.SkippedFileCount, Is.EqualTo(1));
+            Assert.That(automatic.Value!.HiddenWideCandidateCount, Is.EqualTo(1));
+        });
+
+        var wide = Scan(gameDir, options: GenericConfigScanOptions.Wide);
+
+        Assert.That(wide.IsSuccess, Is.True, wide.Message);
+        Assert.Multiple(() =>
+        {
+            Assert.That(wide.Value!.Files, Has.Count.EqualTo(1));
+            Assert.That(wide.Value!.Files[0].RelativePath, Is.EqualTo("MyMod/Config/custom.cfg"));
+            Assert.That(wide.Value!.Files[0].RootNode, Is.EqualTo("MYMOD_SETTINGS"));
+            Assert.That(wide.Value!.HiddenWideCandidateCount, Is.Zero, "宽松模式自己不再藏东西");
+        });
+    }
+
+    [Test]
+    public void Scan_WideMode_StillSkipsDefinitionsPatchesAndLocalization()
+    {
+        using var temp = new TempDirectory("scanner-wide-skip");
+        var gameDir = CreateGameDir(temp);
+        temp.File("game/GameData/MyMod/Parts/engine.cfg", "PART\n{\n  name = myEngine\n}\n");
+        temp.File("game/GameData/MyMod/Effects/fx.cfg", "EFFECTTEMPLATE\n{\n  name = fx\n}\n");
+        temp.File("game/GameData/MyMod/Localization/en.cfg", "MYMOD_STRINGS\n{\n  a = b\n}\n");
+        temp.File("game/GameData/MyMod/Patches/p.cfg", "MYMOD_SETTINGS\n{\n  a = 1\n}\n");
+        temp.File("game/GameData/MyMod/PluginData/patch.cfg", "@PART[fuelTank]\n{\n  @mass = 1\n}\n");
+
+        var result = Scan(gameDir, options: GenericConfigScanOptions.Wide);
+
+        Assert.That(result.IsSuccess, Is.True, result.Message);
+        Assert.That(result.Value!.Files, Is.Empty, "宽松不等于把内容定义也当成配置");
+    }
+
+    [Test]
+    public void Scan_WideMode_CollectsFlatAndVisualConfigs()
+    {
+        using var temp = new TempDirectory("scanner-wide-collect");
+        var gameDir = CreateGameDir(temp);
+        temp.File("game/GameData/ModA/PluginData/settings.cfg", "SETTINGS\n{\n  a = 1\n}\n");
+        temp.File("game/GameData/ModB/Configs/flat.cfg", "volume = 0.8\nmute = false\n");
+        temp.File("game/GameData/ModC/Configs/tufx.cfg", "TUFX_PROFILE\n{\n  name = Default\n}\n");
+
+        var result = Scan(gameDir, options: GenericConfigScanOptions.Wide);
+
+        Assert.That(result.IsSuccess, Is.True, result.Message);
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                result.Value!.Files.Select(static file => file.RelativePath),
+                Is.EqualTo(new[] { "ModA/PluginData/settings.cfg", "ModB/Configs/flat.cfg", "ModC/Configs/tufx.cfg" }));
+            Assert.That(
+                result.Value!.Files.Select(static file => file.RootNode),
+                Is.EqualTo(new string?[] { "SETTINGS", null, "TUFX_PROFILE" }));
+        });
+    }
+
+    [Test]
+    public void Scan_RecognizesRootWhenTheOpeningBraceIsOnTheSameLine()
+    {
+        using var temp = new TempDirectory("scanner-same-line-brace");
+        var gameDir = CreateGameDir(temp);
+        temp.File("game/GameData/ModA/settings.cfg", "SETTINGS {\n  volume = 0.8\n}\n");
+        temp.File("game/GameData/ModB/Parts/engine.cfg", "PART {\n  name = myEngine\n}\n");
+
+        var automatic = Scan(gameDir);
+        var wide = Scan(gameDir, options: GenericConfigScanOptions.Wide);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(automatic.Value!.Files, Has.Count.EqualTo(1));
+            Assert.That(automatic.Value!.Files[0].RootNode, Is.EqualTo("SETTINGS"));
+            Assert.That(wide.Value!.Files.Select(static file => file.RelativePath), Is.EqualTo(new[] { "ModA/settings.cfg" }),
+                "PART { 也必须按零件定义跳过，而不是当成自定义根节点");
+        });
+    }
+
+    [Test]
     public void Scan_FailsWhenGameDataDirectoryMissing()
     {
         using var temp = new TempDirectory("scanner-nogamedata");
@@ -256,6 +347,7 @@ public sealed class GenericConfigScannerTests
     private static OperationResult<GenericConfigCatalog> Scan(
         string gameDir,
         int maxFiles = GenericConfigScanner.DefaultMaxFiles,
-        int maxDepth = GenericConfigScanner.DefaultMaxDepth)
-        => GenericConfigScanner.Scan(gameDir, CancellationToken.None, maxFiles, maxDepth);
+        int maxDepth = GenericConfigScanner.DefaultMaxDepth,
+        GenericConfigScanOptions? options = null)
+        => GenericConfigScanner.Scan(gameDir, CancellationToken.None, maxFiles, maxDepth, options);
 }

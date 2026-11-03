@@ -40,6 +40,13 @@ public interface IGenericConfigService
         string instanceName,
         CancellationToken cancellationToken = default);
 
+    /// <summary>按指定扫描范围发现 cfg；<paramref name="options"/> 为 <c>null</c> 时等同保守模式。</summary>
+    Task<OperationResult<GenericConfigCatalog>> DiscoverAsync(
+        string gameDir,
+        string instanceName,
+        GenericConfigScanOptions? options,
+        CancellationToken cancellationToken = default);
+
     /// <summary>加载一个 cfg；路径必须落在 gameDir 之内（拒绝 <c>..</c> 逃逸）。</summary>
     Task<OperationResult<GenericConfigDocument>> LoadAsync(
         string gameDir,
@@ -90,6 +97,14 @@ public sealed class GenericConfigService : IGenericConfigService
         string gameDir,
         string instanceName,
         CancellationToken cancellationToken = default)
+        => DiscoverAsync(gameDir, instanceName, GenericConfigScanOptions.Automatic, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<OperationResult<GenericConfigCatalog>> DiscoverAsync(
+        string gameDir,
+        string instanceName,
+        GenericConfigScanOptions? options,
+        CancellationToken cancellationToken = default)
     {
         try
         {
@@ -103,7 +118,10 @@ public sealed class GenericConfigService : IGenericConfigService
                     retryable: true));
             }
 
-            return Task.FromResult(GenericConfigScanner.Scan(resolved, cancellationToken));
+            return Task.FromResult(GenericConfigScanner.Scan(
+                resolved,
+                cancellationToken,
+                options: options ?? GenericConfigScanOptions.Automatic));
         }
         catch (OperationCanceledException)
         {
