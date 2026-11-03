@@ -11,13 +11,17 @@ namespace CkanUI.ViewModels.Navigation;
 /// <param name="PluginName">来源插件显示名，用于排障与重名时点名。</param>
 /// <param name="TitleKey">标题的本地化键；为空表示直接用 <paramref name="Title"/>（插件自述）。</param>
 /// <param name="Glyph">导航栏图标字形名；为空时外壳用通用插件图标兜底。</param>
+/// <param name="Section">宿主分节根键（如 <c>instances</c>）；为空表示独立侧栏入口。</param>
+/// <param name="Order">同一分节内的排序权重（没有落到固定槽位时才用得到）。</param>
 public sealed record PluginPageEntry(
     string Key,
     string Title,
     string ViewModelTypeName,
     string PluginName,
     string? TitleKey = null,
-    string? Glyph = null);
+    string? Glyph = null,
+    string? Section = null,
+    int Order = 0);
 
 /// <summary>
 /// 把插件自述的页签整理成导航栏可用的一组页签。
@@ -90,13 +94,17 @@ public static class PluginPageCatalog
 
                 var titleKey = page.TitleKey?.Trim();
                 var glyph = page.Glyph?.Trim();
+                // 分节是宿主的词汇表：插件只负责填名字，认不认由 Shell 决定（认不出退回侧栏入口）。
+                var section = page.Section?.Trim();
                 entries.Add(new PluginPageEntry(
                     key!,
                     title!,
                     typeName!,
                     plugin.DisplayName,
                     string.IsNullOrEmpty(titleKey) ? null : titleKey,
-                    string.IsNullOrEmpty(glyph) ? null : glyph));
+                    string.IsNullOrEmpty(glyph) ? null : glyph,
+                    string.IsNullOrEmpty(section) ? null : section,
+                    page.Order));
             }
         }
 

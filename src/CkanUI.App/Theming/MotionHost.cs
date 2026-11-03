@@ -21,25 +21,25 @@ namespace CkanUI.App.Theming;
 public sealed class MotionHost : IDisposable
 {
     /// <summary>快速反馈时长 token。</summary>
-    public const string FastKey = "CkanMotionDurationFast";
+    public const string FastKey = CkanUI.Ui.Theming.CkanMotionTokens.Fast;
 
     /// <summary>常规过渡时长 token。</summary>
-    public const string BaseKey = "CkanMotionDurationBase";
+    public const string BaseKey = CkanUI.Ui.Theming.CkanMotionTokens.Base;
 
     /// <summary>页面切换时长 token。</summary>
-    public const string PageKey = "CkanMotionDurationPage";
+    public const string PageKey = CkanUI.Ui.Theming.CkanMotionTokens.Page;
 
     /// <summary>档位 1（临界阻尼落位）时长 token。</summary>
-    public const string SpringSoftKey = "CkanMotionDurationSpringSoft";
+    public const string SpringSoftKey = CkanUI.Ui.Theming.CkanMotionTokens.SpringSoft;
 
     /// <summary>档位 2（跟手滑动）时长 token。</summary>
-    public const string SpringSlideKey = "CkanMotionDurationSpringSlide";
+    public const string SpringSlideKey = CkanUI.Ui.Theming.CkanMotionTokens.SpringSlide;
 
     /// <summary>档位 3（清脆回弹）时长 token。</summary>
-    public const string SpringCrispKey = "CkanMotionDurationSpringCrisp";
+    public const string SpringCrispKey = CkanUI.Ui.Theming.CkanMotionTokens.SpringCrisp;
 
     /// <summary>档位 4（冲量轻颤）时长 token。</summary>
-    public const string SpringImpulseKey = "CkanMotionDurationSpringImpulse";
+    public const string SpringImpulseKey = CkanUI.Ui.Theming.CkanMotionTokens.SpringImpulse;
 
     private static readonly ILog Log = LogManager.GetLogger(typeof(MotionHost));
 

@@ -1,6 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:app="using:CkanUI.App.Theming"
+             xmlns:app="using:CkanUI.Ui.Theming"
              x:Class="CkanUI.App.Views.ContentPageView"
              x:CompileBindings="False">
   <!-- 内容预览页（F-29 / UI-03）：可折叠树形结构展示 ZIP 内目录与文件；支持未缓存时下载、复制路径、定位目录。

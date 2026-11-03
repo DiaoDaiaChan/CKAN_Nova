@@ -18,6 +18,10 @@
     <ProjectReference Include="../../src/CkanUI.App/CkanUI.App.csproj" />
     <ProjectReference Include="../../src/CkanUI.Platform/CkanUI.Platform.csproj" />
     <ProjectReference Include="../../src/CkanUI.Plugin.ModText/CkanUI.Plugin.ModText.csproj" />
+    <!-- 实例分节内嵌页签的插件（§11.11）：宿主的视图测试要直接构造这些插件视图，编译期就得看得见。 -->
+    <ProjectReference Include="../../src/CkanUI.Plugin.Saves/CkanUI.Plugin.Saves.csproj" />
+    <ProjectReference Include="../../src/CkanUI.Plugin.Assets/CkanUI.Plugin.Assets.csproj" />
+    <ProjectReference Include="../../src/CkanUI.Plugin.KspConfig/CkanUI.Plugin.KspConfig.csproj" />
     <ProjectReference Include="../CkanUI.TestSupport/CkanUI.TestSupport.csproj" />
   </ItemGroup>
 

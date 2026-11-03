@@ -1,6 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:app="using:CkanUI.App.Theming"
+             xmlns:app="using:CkanUI.Ui.Theming"
              x:Class="CkanUI.App.Views.InstallHistoryPageView"
              x:CompileBindings="False">
   <!-- 安装历史页（03 篇 §6 / 12 篇 F-44 / UI-23 / 04 篇 §5）：

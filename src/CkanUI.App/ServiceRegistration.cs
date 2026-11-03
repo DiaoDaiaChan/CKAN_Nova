@@ -35,7 +35,6 @@ using CkanUI.Services.Abstractions.ModConfig;
 using CkanUI.Services.Abstractions.Mods;
 using CkanUI.Services.Abstractions.Update;
 using CkanUI.ViewModels.Pages;
-using CkanUI.ViewModels.Pages.Assets;
 using CkanUI.ViewModels.Pages.Logs;
 using CkanUI.ViewModels.Pages.Settings;
 using CkanUI.ViewModels.Shell;
@@ -181,11 +180,9 @@ public static class ServiceRegistration
             page.Repair = sp.GetService<IInstanceRepairService>();
             return page;
         });
-        services.AddSingleton<SavesPageViewModel>();
-        // 资产工作台：三页各自持一个 VM 实例，服务层共用同一套扫描/写入实现。
-        services.AddSingleton<ShipsPageViewModel>();
-        services.AddSingleton<FlagsPageViewModel>();
-        services.AddSingleton<LoadingImagesPageViewModel>();
+        // 存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置五页已搬成首方插件（docs/design/plugins.md §11.11）：
+        // 页面实例由 PluginPageFactory 按插件声明创建，宿主不再认识这些类型——
+        // 这也是"停用插件后入口真的消失"的前提，否则 DI 里还留着一份永远不会被用到的单例。
         services.AddSingleton<UnmanagedPageViewModel>();
         services.AddSingleton<CachePageViewModel>();
         services.AddSingleton<DownloadStatsPageViewModel>();
@@ -193,8 +190,6 @@ public static class ServiceRegistration
         services.AddSingleton<DedupPageViewModel>();
         services.AddSingleton<InstallHistoryPageViewModel>();
         services.AddSingleton<PluginsPageViewModel>();
-        // KSP 原生配置页：直接修改 settings.cfg，提取官方 dictionary.cfg 翻译。
-        services.AddSingleton<KspConfigPageViewModel>();
         // Mod 配置页（M9 / CFG-01..05 + ADP-04）：九类字段就地编辑、逐文件写盘、adapter 导入。
         // 用工厂是因为导入端口是 VM 的可写属性（构造参数已经 7 个，再加会破兼容），
         // 选择器（系统文件对话框）由视图挂上可视树时补，VM 不认识 Avalonia。
@@ -287,7 +282,9 @@ public static class ServiceRegistration
         services.AddSingleton<Func<string, string>>(sp => sp.GetRequiredService<ILocalizer>().Get);
 
         // 命令面板（UI-27）：模糊匹配与命令目录属于服务层，视图模型只认接口；
-        // 29 条内置命令（19 导航 + 10 动作）在这里一次性注册，Id 由 DefaultCommands 保证唯一。
+        // 26 条内置命令（16 导航 + 10 动作）在这里一次性注册，Id 由 DefaultCommands 保证唯一。
+        // 搬进插件的页面（存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置 / 模组翻译）不在表里：插件可停用，
+        // 静态表留条目就会留下点了没反应的 nav:<键>。动态注册见 docs/design/plugins.md §11.11。
         // 注意：ShortcutsCatalogViewModel 不登记单例 —— 它是 DialogViewModelBase，IsClosed 是状态，复用会带着上次关闭态。
         services.AddSingleton<IFuzzyMatcher>(_ => new FuzzyMatcher());
         services.AddSingleton<ICommandCatalog>(sp =>
@@ -399,10 +396,6 @@ public static class ServiceRegistration
         ["modpacks"] = typeof(ModPacksPageViewModel),
         ["modpack-editor"] = typeof(ModPackEditorPageViewModel),
         ["instances"] = typeof(InstancesPageViewModel),
-        ["saves"] = typeof(SavesPageViewModel),
-        ["ships"] = typeof(ShipsPageViewModel),
-        ["flags"] = typeof(FlagsPageViewModel),
-        ["loadingimages"] = typeof(LoadingImagesPageViewModel),
         ["unmanaged"] = typeof(UnmanagedPageViewModel),
         ["cache"] = typeof(CachePageViewModel),
         ["downloadstats"] = typeof(DownloadStatsPageViewModel),
@@ -412,7 +405,6 @@ public static class ServiceRegistration
         ["plugins"] = typeof(PluginsPageViewModel),
         ["logs"] = typeof(LogPageViewModel),
         ["modconfig"] = typeof(ModConfigPageViewModel),
-        ["kspconfig"] = typeof(KspConfigPageViewModel),
         ["settings"] = typeof(SettingsPageViewModel),
         ["home"] = typeof(HomePageViewModel),
     };

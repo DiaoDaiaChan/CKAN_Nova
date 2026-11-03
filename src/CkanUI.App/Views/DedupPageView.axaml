@@ -1,6 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:app="using:CkanUI.App.Theming"
+             xmlns:app="using:CkanUI.Ui.Theming"
              x:Class="CkanUI.App.Views.DedupPageView"
              x:CompileBindings="False">
   <!-- 跨实例去重页（规格 F-41 / 03 篇 UI-21 / INT-09）：实例多选 + 扫描 + 分组表格 + 预演/执行。

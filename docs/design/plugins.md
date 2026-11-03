@@ -253,8 +253,11 @@ public sealed class DemoPlugin : ICkanUiPlugin
 | --- | --- | --- | --- | --- |
 | 性能 | `src/CkanUI.Plugin.Performance` | `com.ckanui.performance` | `Performance`（速度表） | 「性能」页签（`performance`），读 KPP 遥测、发命令，契约见 [performance-tab.md](performance-tab.md) |
 | 模组翻译 | `src/CkanUI.Plugin.ModText` | `com.ckanui.modtext` | `Translate`（翻译） | 「模组翻译」页签（`modtext`），原来是宿主内置页，0.2 起整套视图移进插件；导航标题靠 `TitleKey` 取语言包 |
+| 存档 | `src/CkanUI.Plugin.Saves` | `com.ckanui.saves` | `Archive`（归档盒） | 「存档」页签（`saves`，`Section=instances`、`Order=10`）+ SFS 工作台窗口，0.3 起整套视图移进插件 |
+| 资产工作台 | `src/CkanUI.Plugin.Assets` | `com.ckanui.assets` | `Rocket` / `Flag` / `Image` | 「飞船」「旗帜」「加载图」三个页签（`ships`/`flags`/`loadingimages`，`Section=instances`、`Order=20/30/40`）；飞船与旗帜实现 `IPageThumbnailWarmup` 自己预热缩略图 |
+| KSP 游戏设置 | `src/CkanUI.Plugin.KspConfig` | `com.ckanui.kspconfig` | `Settings`（齿轮） | 「KSP 游戏设置」页签（`kspconfig`，`Section=instances`、`Order=50`） |
 
-宿主侧不改一行就能拿到这个页签：插件只引用 `CkanUI.Services.Abstractions` + `Avalonia`，
+宿主侧不改一行就能拿到这个页签：插件只引用 `CkanUI.Services.Abstractions` + `Avalonia`（视图里用到缩略图/骨架屏这类共享基元的，再引 `CkanUI.Ui`），
 构造函数里声明 `IInstanceService` 之类的宿主服务，`PluginPageFactory` 用 `ActivatorUtilities` 注入。
 
 ### 11.5 再加一个首方插件
@@ -453,3 +456,117 @@ public sealed class DemoPlugin : ICkanUiPlugin
 - `tests/CkanUI.ViewModels.Tests/PluginPageCatalogTests.cs`：条件用例各一条——透传（顺带钉住 `Glyph` 必须用
   命名参数，位置参数是 `TitleKey`）与未声明时的 `Puzzle` 兜底。
 
+
+### 11.11 分节内嵌：插件页签进「实例」这一节，而不是侧栏顶格
+
+**动机**：存档、飞船、旗帜、加载图、KSP 游戏设置这五页从来不是侧栏顶格入口——它们是「实例」分节内部的
+页签（`ShellViewModel.SectionTabs`）。只把页面搬进插件、却只支持侧栏入口，等于把它们从原来的位置挪走。
+所以契约得先长出「我属于哪一节」，否则插件化这条路对这五页根本不成立。
+
+**契约**：`PluginPageDescriptor` 追加两个可选参数
+
+| 参数 | 含义 |
+| --- | --- |
+| `string? Section` | 宿主分节根键（`instances` / `mods` / `cache` / `modpacks` / `plugins`）。填了就进该分节顶部页签条 |
+| `int Order` | 同分节内的排序位次，默认 0，小的在前 |
+
+两条兜底，都是「宁可放错位置，也别把页丢掉」：
+
+- `Section` 为空、或宿主认不出这个根键（`SectionRoot` 只认 `SectionSpecs` 里的 Root），退回侧栏入口——
+  第三方插件写错一个键不应该导致页面消失，用户还以为插件坏了。
+- 分节已存在但插件没声明 `Section`：仍是侧栏入口，不会被吸进任何一节。
+
+**定序：槽位优先，插件补位**。`SectionSpecs` 保留这五页的键作为「槽位」
+（`("instances", null, ["instances","saves","ships","flags","loadingimages","kspconfig","unmanaged","installhistory","playtime"])`），
+`BuildSections` 逐槽先找 `_baseNavItems`，找不到再从已激活插件的条目里按 key 摘一个出来；槽位都没命中才跳过。
+于是「插件装了没装」不影响已有页签的相对顺序，五个插件页回到它们历史上的位置，而插件额外声明的同分节页面
+按 `Order → Title` 追加在末尾。
+
+**内嵌页仍然要进 `NavItems`**。选中态（`OnNavigated → SelectedNavItem`）、页面缓存键、命令面板的
+`nav:<键>` 都靠 `NavItems`；`RefreshRailItems` 因为它在某个 `section.Tabs` 里会跳过它，所以侧栏上不会多出
+一项。也就是说「内嵌」只影响**画在哪里**，不影响它是不是一个可导航的页面。
+
+**`Sections` 改成可变**：插件增删会改变分节内容，所以要 `private IReadOnlyList<NavSection> _sections` +
+`OnPropertyChanged(nameof(Sections))`；`RefreshSection` 还得比页签键序列（`SectionsEquivalent` /
+`_activeSectionSignature`），否则同一分节内「插件页多了一个」不会重建 `SectionTabs`——只按分节根键判断是漏的。
+
+**停用之后**：`RebuildPluginNavItems` 先记下当前页原本属于哪一节（`SectionRootForPage`），重建后若当前键已经
+不在 `NavItems` 里，就导航回那一节的根页（没有则 `plugins`），而不是留在空白页上。用例
+`Shell_DeactivatingSectionPagePlugin_RefreshesTabsAndFallsBackToTheSectionHome` 钉这一条——注意造
+`NavigationService` 测试工厂时必须同时给「死页」和目标根页造页面，否则 `NavigateCore` 在工厂返回 null 时直接
+`return false`，`CurrentKey` 不变，断言会以「回退没生效」的假象失败。
+
+**可发现性（「关掉插件后入口找不到」）**：插件页的 `PagesText` 从「提供 N 个页签」改成
+`提供 N 个页签：存档、飞船`（`PluginRowViewModel`）。用户在「工具 › 插件」里始终看得到这个插件**提供过**哪些
+入口，停用只是让它暂时不出现，一键 `ActivateCommand` 就回来。比「入口凭空消失、只剩一个空分节」强。
+
+**共享 UI 层 `src/CkanUI.Ui/`**：插件不能引用 `CkanUI.App`（那是外壳），但这五页的视图用了宿主里的
+`PathToThumbnailConverter` 与 `SkeletonPulse`。于是抽一层 App 与插件都引用的基元：
+
+- `src/CkanUI.Ui/Converters/PathToThumbnailConverter.cs`（原 `src/CkanUI.App/Converters/`）
+- `src/CkanUI.Ui/Theming/SkeletonPulse.cs`（原 `src/CkanUI.App/Theming/`）
+- `src/CkanUI.Ui/Assets/DdsDecoder.cs`（原 `src/CkanUI.Services/Assets/`）
+- `src/CkanUI.Ui/Theming/CkanMotionTokens.cs`：宿主写资源、共享基元读资源，键名必须在共享层；`MotionHost` 的
+  七个 `const` 改成它的别名，公开 API 不变。
+
+搬的时候踩到的两个编译错，记下来省下一次：
+
+- `SkeletonPulse` 直接写 `MotionHost.BaseKey` → 共享层不认识宿主类型。解法是键名下沉到 `CkanMotionTokens`。
+- `PathToThumbnailConverter` 判断停用后缀时用 `LoadingImageService.DisabledSuffix`（服务层具体类型）→ 常量
+  下沉成 `CkanUI.Services.Abstractions/Assets/LoadingImageNaming.DisabledSuffix`，服务层与 UI 层各自引用。
+
+**缩略图预热改成接口**：`MainWindow.PrewarmThumbnails` 原来按具体页面类型 `switch` 到 `FlagsPageViewModel` /
+`ShipsPageViewModel`（页面搬走后外壳就不该认识这些类型）。改成
+`CkanUI.Services.Abstractions/IPageThumbnailWarmup.WarmUpThumbnails()`，页面自己负责「行集合是异步填的，
+所以要等一次 `CollectionChanged` 再预热」的时序。
+
+**命令面板不再列这些页**：`DefaultCommands` 的静态导航表删掉 `saves` / `modtext` / `kspconfig`（其余三页本来
+就不在表里）。理由：插件可停用，静态表留一条 `nav:<键>` 就是一个点了没反应的面板项。面板要重新覆盖插件页，
+得先让 `ICommandCatalog` 支持按前缀注销，再在插件激活/停用时动态注册——这条记为未解决项，别在静态表里补回去。
+
+**迁移形态**：每页一个插件工程（`com.ckanui.saves` / `com.ckanui.assets` 三个页签 / `com.ckanui.kspconfig`），
+沿用 `CkanUI.Plugin.Performance` 的骨架；**视图与视图模型必须同程序集同命名空间**，否则 `ViewLocator` 的
+`ViewModel→View` 全名替换解析不到，会静默退到 `PagePlaceholderView`（页面一片空白，日志里什么都没有）。
+
+**用例**：
+
+- `tests/CkanUI.App.Tests/PluginSectionTabsTests.cs`：装三个真插件 dll 后 `instances` 分节的页签键序列必须是
+  `[instances,saves,ships,flags,loadingimages,kspconfig,unmanaged,installhistory,playtime]`，每个键都在 `NavItems`
+  里、都不在 `RailItems` 里；停用资产插件后三个页签一起消失，其他页签不受影响。
+- `tests/CkanUI.ViewModels.Tests/PluginPageCatalogTests.cs`：`Section` 透传 + `Order` 排序、未知 `Section` 退回
+  侧栏、停用后回退到分节根页。
+
+### 11.12 宿主能力注入：文本输入框这类「要弹窗」的能力
+
+页面搬进插件后，逻辑能跟着走，**弹窗不能**——`TextInputDialogView` 与 `AvaloniaInstanceTextPrompt` 要
+`TopLevel`/`Window`，住在 App 层，而且 InstancesPageView 自己也还在用同一份实现。插件不能反向引用 App，
+于是「飞船重命名 / 复制」「旗帜重命名」会静默降级成「当前环境无法输入文本」——功能还在，只是按钮点了没反应。
+
+解法与缩略图预热同构：页面只声明能力，外壳在建好视图之后注入。
+
+- `src/CkanUI.ViewModels/Pages/Instances/ITextPromptSink.cs`：
+  `IInstanceTextPrompt? TextPrompt { get; set; }`（页面实现，未注入时必须自己降级，不能静默失败）。
+- `MainWindow.AttachPageServices(object page, Control view)`：`page is ITextPromptSink sink && sink.TextPrompt is null`
+  时注入 `new AvaloniaInstanceTextPrompt(view)`。**两个建视图的地方都要调**：`ShowPage`（用户点进来）与
+  `WarmPage`（预热队列提前实体化），漏掉后者就会出现「直接点进去能用、预热过的不能输入」。
+- 判定「外壳认不认识这个页面」一律靠接口，不靠 key 或具体类型——`IPageThumbnailWarmup`、`ITextPromptSink` 都是
+  这条口径。外壳里出现 `switch (pageKey)` 就是漏了一个插件点。
+
+**测试工程也跟着页面走**：`DdsDecoder` 搬到 `CkanUI.Ui` 之后，它的行为锁从 `tests/CkanUI.Services.Tests/Assets/`
+移到新工程 `tests/CkanUI.Ui.Tests`（引 `CkanUI.Ui` + `CkanUI.TestSupport`，不入 `Services.Tests`——那里已经
+引不到 `CkanUI.Ui.Assets.DdsDecoder`）。插件页自己的用例搬进 `tests/CkanUI.Plugin.<X>.Tests`，插件测试工程
+**不引 `CkanUI.App`**（App 引插件，反向引用就把插件测试绑死在外壳上）。
+
+**无头宿主要在整套件里活着**：TestRunner 是一个进程依次跑全部测试程序集，所以插件测试工程里的
+`HeadlessHost.EnsureInitialized()` 不能无脑 `AppBuilder.Configure<…>().SetupWithoutStarting()`——第二个程序集
+再调一次就抛 `InvalidOperationException : Setup was already called on one of AppBuilder instances`
+（症状是整条用例变 Error，而不是断言失败）。两条口径：
+
+1. `Application.Current is null` 才建壳，否则复用；**只有自己建的壳才 `Styles.Add(new FluentTheme())`**。
+   往别人的 `Application.Current.Styles` 里加东西会触发既有窗口的资源宿主回调，撞
+   `TransitioningContentControl.set_PageTransition` 的线程断言（`The calling thread cannot access this object`）。
+2. 无头壳属于建它的那个线程。复用别人建好的壳时，本线程没有窗口亲和性，`window.Show()` 一类用例必须
+   `Assert.Ignore`（理由写清"单跑本程序集可验证"），不能为了全绿把窗口用例删掉或放宽断言。
+3. **全量跑之前先构建整个解决方案**。TestRunner 是一个进程按顺序加载各测试程序集，同名依赖只会加载
+   第一份（通常是先跑的 `CkanUI.App.Tests` 输出目录里那份）。只构建单个测试工程时，后面的程序集
+   跑的是旧依赖，症状是"单跑绿、全量红"——本次就有一条主页回退用例这样假红了两次。

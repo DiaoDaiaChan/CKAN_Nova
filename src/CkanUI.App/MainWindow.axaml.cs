@@ -26,6 +26,7 @@ using CkanUI.App.Converters;
 using CkanUI.App.Views;
 using CkanUI.App.Views.Dialogs;
 using CkanUI.Localization;
+using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Commands;
 using CkanUI.Services.Commands;
 using CkanUI.ViewModels;
@@ -764,7 +765,7 @@ public sealed partial class MainWindow : Window
         }
 
         // 旗帜/载具的缩略图是绑定时同步解码的，等用户点进来才解就是几百毫秒的卡顿。
-        PrewarmThumbnails(page, key);
+        PrewarmThumbnails(page);
 
         if (new ViewLocator().Build(page) is not { } view)
         {
@@ -776,6 +777,7 @@ public sealed partial class MainWindow : Window
             return false;
         }
 
+        AttachPageServices(page, view);
         _pageViews[page] = view;
         _pageViewKeys[page] = key;
         PageStage.Children.Add(view);
@@ -808,45 +810,20 @@ public sealed partial class MainWindow : Window
         return true;
     }
 
-    /// <summary>旗帜与载具列表的缩略图在绑定时同步解码；预热时先在后台上把它们烘进缓存。</summary>
-    private static void PrewarmThumbnails(object page, string key)
+    /// <summary>
+    /// 页面想在「预热」阶段先把缩略图烘进缓存时自己举手（<see cref="IPageThumbnailWarmup"/>）。
+    /// </summary>
+    /// <remarks>
+    /// 宿主不再按具体页面类型分支：页面搬进插件以后这些类型宿主编译期就看不见了，
+    /// 而按 key 硬编码又等于把插件的键写进外壳——插件换个键，预热就静默失效。
+    /// 行集合异步填充、"先有行再预热"的时序由页面自己负责（它比谁都清楚自己的数据什么时候到）。
+    /// </remarks>
+    private static void PrewarmThumbnails(object page)
     {
-        switch (key)
+        if (page is IPageThumbnailWarmup warmup)
         {
-            case "flags" when page is CkanUI.ViewModels.Pages.Assets.FlagsPageViewModel flags:
-                PrewarmWhenLoaded(flags.Flags, static rows => Converters.PathToThumbnailConverter.Prewarm(
-                    rows.Select(static row => row.FilePath), 160));
-                break;
-            case "ships" when page is CkanUI.ViewModels.Pages.Assets.ShipsPageViewModel ships:
-                PrewarmWhenLoaded(ships.Crafts, static rows => Converters.PathToThumbnailConverter.Prewarm(
-                    rows.Select(static row => row.ThumbnailPath), 96));
-                break;
+            warmup.WarmUpThumbnails();
         }
-    }
-
-    /// <summary>行集合是异步填的：现在有就立刻预热，没有就等第一次填充后再预热一次。</summary>
-    private static void PrewarmWhenLoaded<T>(
-        System.Collections.ObjectModel.ObservableCollection<T> rows,
-        Action<IReadOnlyList<T>> prewarm)
-    {
-        if (rows.Count > 0)
-        {
-            prewarm(rows.ToList());
-            return;
-        }
-
-        void OnChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-        {
-            if (rows.Count == 0)
-            {
-                return;
-            }
-
-            rows.CollectionChanged -= OnChanged;
-            prewarm(rows.ToList());
-        }
-
-        rows.CollectionChanged += OnChanged;
     }
 
     private static void FinishWarm(Control view, object page, string key)
@@ -862,7 +839,7 @@ public sealed partial class MainWindow : Window
     private static readonly HashSet<string> ActivationWarmups = new(StringComparer.Ordinal)
     {
         "logs", "flags",
-        "mods", "unmanaged", "content", "repos", "modpacks", "modtext", "ships", "saves"
+        "mods", "unmanaged", "content", "repos", "modpacks", "ships", "saves"
     };
 
 
@@ -888,9 +865,21 @@ public sealed partial class MainWindow : Window
     private static readonly string[] WarmupOrder =
     [
         // 前四个是「实例相关」的高频目标页：旗帜、载具、存档都在这里，第一次点它们最容易被感知成卡顿。
-        "logs", "flags", "ships", "saves", "modtext", "installhistory", "modpack-editor", "dedup",
+        "logs", "flags", "ships", "saves", "installhistory", "modpack-editor", "dedup",
         "mods", "cache", "downloadstats", "modpacks", "settings"
     ];
+
+    /// <summary>
+    /// 把外壳才有的能力注入给页面（目前是文本输入框）。插件页只声明接口、不认识 App 的类型，
+    /// 所以注入点必须在建好视图之后——对话框的 owner 要拿 <see cref="TopLevel"/>。
+    /// </summary>
+    private static void AttachPageServices(object page, Control view)
+    {
+        if (page is ITextPromptSink sink && sink.TextPrompt is null)
+        {
+            sink.TextPrompt = new AvaloniaInstanceTextPrompt(view);
+        }
+    }
 
     private void ShowPage(object? page)
     {
@@ -918,6 +907,7 @@ public sealed partial class MainWindow : Window
             }
 
             view = built;
+            AttachPageServices(page, view);
             _pageViews[page] = view;
             PageStage.Children.Add(view);
             if (_shell?.SelectedNavItem?.Key is { Length: > 0 } navKey)
@@ -1616,7 +1606,7 @@ public sealed partial class MainWindow : Window
     /// <summary>本来就"会转"的图标：长悬浮时绕中心连续旋转，其余图标改成轻微摇摆。</summary>
     private static readonly HashSet<string> SpinningGlyphs = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Settings", "Sync", "History", "Clock", "Globe", "Exchange", "Storage", "Archive",
+        "Settings", "Sync",
     };
 
     private FANavigationViewItem CreateNavItem(NavItem nav)

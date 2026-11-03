@@ -5,7 +5,9 @@ using NUnit.Framework;
 namespace CkanUI.ViewModels.Tests.CommandPalette;
 
 /// <summary>
-/// 内置命令表：19 个导航页（顺序与左侧导航栏一致）+ 10 个界面动作 + Id 约定。
+/// 内置命令表：16 个宿主内置导航页（顺序与左侧导航栏一致）+ 10 个界面动作 + Id 约定。
+/// 搬进插件的页面（存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置 / 模组翻译）不在这里——
+/// 插件可停用，留条目就是留一个点了没反应的面板项。
 /// </summary>
 [TestFixture]
 public sealed class DefaultCommandsTests
@@ -13,12 +15,12 @@ public sealed class DefaultCommandsTests
     private static readonly string[] ExpectedPageKeys =
     {
         "mods", "content", "changes", "repos", "modpacks", "modpack-editor", "instances",
-        "playtime", "saves", "unmanaged", "cache", "downloadstats", "dedup",
-        "installhistory", "plugins", "modtext", "logs", "settings", "modconfig", "kspconfig",
+        "playtime", "unmanaged", "cache", "downloadstats", "dedup",
+        "installhistory", "plugins", "logs", "settings", "modconfig",
     };
 
     [Test]
-    public void CreateNavigation_Returns19CommandsInShellOrder()
+    public void CreateNavigation_Returns16CommandsInShellOrder()
     {
         var commands = DefaultCommands.CreateNavigation();
 
@@ -35,7 +37,7 @@ public sealed class DefaultCommandsTests
         var commands = DefaultCommands.CreateNavigation();
 
         Assert.That(commands[0].Title, Is.EqualTo("管理模组"), "没注入翻译时用中文兜底");
-        Assert.That(commands[^1].Title, Is.EqualTo("KSP 游戏设置"));
+        Assert.That(commands[^1].Title, Is.EqualTo("Mod 配置"), "KSP 游戏设置已搬进插件，不再固定排在末尾");
         Assert.That(commands[0].Category, Is.EqualTo("导航"));
         Assert.That(
             commands.All(command => !command.Title.StartsWith("Ui_", StringComparison.Ordinal)),
@@ -119,14 +121,14 @@ public sealed class DefaultCommandsTests
     }
 
     [Test]
-    public void CreateAll_Returns30UniqueCommands()
+    public void CreateAll_Returns28UniqueCommands()
     {
         var commands = DefaultCommands.CreateAll();
 
-        Assert.That(commands.Count, Is.EqualTo(31));
+        Assert.That(commands.Count, Is.EqualTo(28));
         Assert.That(
             commands.Select(command => command.Id).Distinct(StringComparer.Ordinal).Count(),
-            Is.EqualTo(31),
+            Is.EqualTo(28),
             "Id 必须全目录唯一，否则批量注册会被 all-or-nothing 拒绝");
     }
 

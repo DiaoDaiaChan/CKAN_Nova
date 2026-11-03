@@ -1,6 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:app="using:CkanUI.App.Theming"
+             xmlns:app="using:CkanUI.Ui.Theming"
              x:Class="CkanUI.App.Views.CachePageView"
              x:CompileBindings="False">
   <!-- 下载缓存管理页（规格 F-50 / F-40 / 06 篇 UI-19）：容量条 + 条目表 + 三种清理 + ZIP 灌入。

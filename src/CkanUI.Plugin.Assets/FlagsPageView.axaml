@@ -1,0 +1,188 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:thumb="using:CkanUI.Ui.Converters"
+             x:Class="CkanUI.Plugin.Assets.FlagsPageView"
+             x:CompileBindings="False">
+  <!-- 旗帜工作台（assets-workbench 篇 §4）：画廊 + 预览 + 设为默认。
+       「设为默认」写的是游戏根的 settings.cfg（FLAG 行），不是本工具的配置。 -->
+  <UserControl.Resources>
+    <thumb:PathToThumbnailConverter x:Key="Thumb" />
+  </UserControl.Resources>
+  <UserControl.Styles>
+    <Style Selector="ListBoxItem">
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="4" />
+    </Style>
+    <Style Selector="ListBoxItem:selected Border.FlagCard">
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    </Style>
+    <Style Selector="Border.FlagCard">
+      <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}" Background="Transparent">
+
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+      <StackPanel Grid.Column="0" Spacing="4">
+        <TextBlock Text="{DynamicResource Ui_NavRail_Flags}" Classes="CkanPageTitle" />
+        <TextBlock Text="{Binding CurrentDefaultText}" Classes="CkanCaption" TextWrapping="Wrap" />
+      </StackPanel>
+      <Border Grid.Column="1" Classes="CkanBadge" VerticalAlignment="Center"
+              IsVisible="{Binding HasStatus}">
+        <TextBlock Text="{Binding StatusText}" />
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="1" Classes="CkanToolbar stagger-card" Margin="0,12,0,0">
+      <WrapPanel Orientation="Horizontal">
+        <Button Content="{DynamicResource Ui_Common_Refresh}" Command="{Binding RefreshCommand}"
+                Classes="CkanPrimary" Margin="0,0,8,0" IsEnabled="{Binding !IsBusy}" />
+        <Button Content="{DynamicResource Ui_Assets_Action_Import}" Command="{Binding ImportCommand}"
+                Classes="CkanSecondary" Margin="0,0,8,0" IsEnabled="{Binding !IsBusy}" />
+        <Button Content="{DynamicResource Ui_Assets_Action_SetDefault}" Command="{Binding SetDefaultCommand}"
+                Classes="CkanSecondary" Margin="0,0,8,0"
+                IsEnabled="{Binding SelectedFlag, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <Button Content="{DynamicResource Ui_Assets_Action_Rename}" Command="{Binding RenameCommand}"
+                Classes="CkanGhost" Margin="0,0,8,0"
+                IsEnabled="{Binding SelectedFlag, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <Button Content="{DynamicResource Ui_Assets_Action_OpenFolder}" Command="{Binding OpenFolderCommand}"
+                Classes="CkanGhost" Margin="0,0,8,0"
+                IsEnabled="{Binding SelectedFlag, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <Button Content="{DynamicResource Ui_Assets_Action_Delete}" Command="{Binding DeleteCommand}"
+                Classes="CkanDanger"
+                IsEnabled="{Binding SelectedFlag, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      </WrapPanel>
+    </Border>
+
+    <Border Grid.Row="2" Margin="0,12,0,0" Classes="CkanInfoBanner"
+            Background="{DynamicResource CkanDangerBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
+            IsVisible="{Binding HasError}">
+      <Grid ColumnDefinitions="Auto,*">
+        <PathIcon Grid.Column="0" Data="{StaticResource CkanIconHelp}" Width="18" Height="18"
+                  Margin="0,0,12,0" Foreground="{DynamicResource CkanDangerBrush}"
+                  VerticalAlignment="Center" />
+        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+          <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap"
+                     FontSize="{DynamicResource CkanFontSizeBody}" FontWeight="Medium"
+                     Foreground="{DynamicResource CkanDangerBrush}" />
+          <TextBlock Text="{Binding ErrorDetail}" TextWrapping="Wrap" MaxHeight="48"
+                     IsVisible="{Binding ErrorDetail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="3" ColumnDefinitions="*,6,320" Margin="0,12,0,0">
+
+      <Border Grid.Column="0" Classes="CkanCard" Padding="8">
+        <ListBox ItemsSource="{Binding Flags}" Padding="0"
+                 SelectedItem="{Binding SelectedFlag, Mode=TwoWay}"
+                 BorderThickness="0" Background="Transparent">
+          <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+          </ListBox.ItemsPanel>
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Border Classes="FlagCard" Width="150" Padding="8">
+                <StackPanel Spacing="6">
+                  <Border Height="76" CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                          Background="{DynamicResource CkanCanvasBackgroundBrush}" ClipToBounds="True">
+                    <Image Source="{Binding FilePath, Converter={StaticResource Thumb}, ConverterParameter=160}" Stretch="Uniform" />
+                  </Border>
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                             ToolTip.Tip="{Binding ConfigPath}"
+                             Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="{Binding PackText}" Classes="CkanCaption"
+                               TextTrimming="CharacterEllipsis" />
+                    <Border Grid.Column="1" Classes="CkanBadge Accent" IsVisible="{Binding IsDefault}">
+                      <TextBlock Text="{DynamicResource Ui_Assets_Default_Badge}" />
+                    </Border>
+                  </Grid>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+
+      <!-- 空态时整行被 CkanEmptyStateCard 覆盖，没有左右两栏可分配 —— 把手一起收起来，别在空态卡上划一道。 -->
+      <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                    Margin="0,10" ZIndex="5" Cursor="SizeWestEast"
+                    IsVisible="{Binding !ShowEmptyState}" />
+
+      <Border Grid.Column="2" Classes="CkanCard stagger-card" MinWidth="280">
+        <Grid>
+          <StackPanel Spacing="8"
+                      IsVisible="{Binding SelectedFlag, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <Border Height="176" CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+                    Background="{DynamicResource CkanCanvasBackgroundBrush}" ClipToBounds="True">
+              <Image Source="{Binding SelectedFlag.FilePath, Converter={StaticResource Thumb}}" Stretch="Uniform" />
+            </Border>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="{Binding SelectedFlag.Name}" Classes="CkanCardTitle"
+                         TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+              <Border Classes="CkanBadge Accent" VerticalAlignment="Center"
+                      IsVisible="{Binding SelectedFlag.IsDefault}">
+                <TextBlock Text="{DynamicResource Ui_Assets_Default_Badge}" />
+              </Border>
+            </StackPanel>
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="2">
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Ui_Assets_Column_Pack}" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedFlag.PackText}" Classes="CkanCaption" />
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource Ui_Common_Size}" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedFlag.SizeText}" Classes="CkanCaption" />
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Ui_Assets_Column_Folder}" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedFlag.ConfigPath}" Classes="CkanCaption" TextTrimming="CharacterEllipsis" />
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="{DynamicResource Ui_Assets_Action_SetDefault}" Command="{Binding SetDefaultCommand}"
+                      Classes="CkanSecondary" />
+              <Button Content="{DynamicResource Ui_Assets_Action_OpenFolder}" Command="{Binding OpenFolderCommand}"
+                      Classes="CkanGhost" />
+            </StackPanel>
+          </StackPanel>
+
+          <Border Padding="20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                  IsVisible="{Binding SelectedFlag, Converter={x:Static ObjectConverters.IsNull}}">
+            <Border Classes="CkanIconTile Lg Muted">
+              <PathIcon Data="M4 4h16v14H4z M6 6v10h12V6z" />
+            </Border>
+          </Border>
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="0" Grid.ColumnSpan="3" Classes="CkanEmptyStateCard Elevated" Margin="0"
+              IsVisible="{Binding ShowEmptyState}">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="440">
+          <Border Classes="CkanIconTile Lg" HorizontalAlignment="Center">
+            <PathIcon Data="M4 4h16v14H4z M6 6v10h12V6z" />
+          </Border>
+          <TextBlock Text="{DynamicResource Ui_Assets_Empty_Flags}" HorizontalAlignment="Center"
+                     FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+          <Button Content="{DynamicResource Ui_Assets_Action_Import}" Command="{Binding ImportCommand}"
+                  Classes="CkanSecondary" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <Border Grid.RowSpan="4" IsVisible="{Binding IsBusy}"
+            Background="{DynamicResource CkanBlockingScrimBrush}">
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="360">
+        <ProgressBar IsIndeterminate="True" Width="240" />
+        <TextBlock Text="{Binding BusyText}" TextAlignment="Center" TextWrapping="Wrap"
+                   FontSize="{DynamicResource CkanFontSizeBody}"
+                   Foreground="{DynamicResource CkanTextInverseBrush}" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

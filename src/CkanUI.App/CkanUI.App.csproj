@@ -37,6 +37,8 @@
     <ProjectReference Include="../CkanUI.Core/CkanUI.Core.csproj" />
     <ProjectReference Include="../CkanUI.Localization/CkanUI.Localization.csproj" />
     <ProjectReference Include="../CkanUI.ModText/CkanUI.ModText.csproj" />
+    <!-- 宿主与首方插件共用的 UI 基元（缩略图转换器、骨架屏），见 docs/design/plugins.md §11.11。 -->
+    <ProjectReference Include="../CkanUI.Ui/CkanUI.Ui.csproj" />
     <!-- 02/16 篇插件试点：内置插件只参与构建，不作为程序集引用（ReferenceOutputAssembly=false）
          —— 宿主不该在编译期看见插件类型，插件也不该被钉死在宿主的加载顺序里；
          运行期由下面 CopyBundledPlugins 把 dll 拷进 $(OutDir)plugins\，交给 PluginService 自带的
@@ -47,6 +49,20 @@
                       SkipGetTargetFrameworkProperties="true" />
     <!-- 模组翻译页解耦为插件（docs/design/plugins.md §11.9）：同一个打包通道，多个插件就在这里并列加行。 -->
     <ProjectReference Include="../CkanUI.Plugin.ModText/CkanUI.Plugin.ModText.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      SkipGetTargetFrameworkProperties="true" />
+    <!-- 实例分节内嵌页签（存档 / 资产三页 / KSP 设置，docs/design/plugins.md §11.11）：
+         同一打包通道。停用其中一个只影响它自己的页签，宿主不会因为少一个页面就起不来。 -->
+    <ProjectReference Include="../CkanUI.Plugin.Saves/CkanUI.Plugin.Saves.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="../CkanUI.Plugin.Assets/CkanUI.Plugin.Assets.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="../CkanUI.Plugin.KspConfig/CkanUI.Plugin.KspConfig.csproj"
                       ReferenceOutputAssembly="false"
                       Private="false"
                       SkipGetTargetFrameworkProperties="true" />
@@ -87,6 +103,21 @@
       <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
     </MSBuild>
     <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.ModText/CkanUI.Plugin.ModText.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.KspConfig/CkanUI.Plugin.KspConfig.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.Assets/CkanUI.Plugin.Assets.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.Saves/CkanUI.Plugin.Saves.csproj"
              Targets="GetTargetPath"
              Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />

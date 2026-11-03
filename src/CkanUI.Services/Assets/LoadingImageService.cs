@@ -23,7 +23,7 @@ public sealed class LoadingImageService : ILoadingImageService
     public const string LoadingScreenManagerProvider = "LoadingScreenManager";
 
     /// <summary>停用标记：加在扩展名后面，两个加载图模组都只认原扩展名，所以改了就不会被读。</summary>
-    public const string DisabledSuffix = ".disabled";
+    public const string DisabledSuffix = LoadingImageNaming.DisabledSuffix;
 
     // .dds 是 ROLoadingImages 实际吃的格式：它只认这个目录里的 dds，没有别的开关。
     private static readonly string[] SupportedExtensions = [".png", ".jpg", ".jpeg", ".dds"];

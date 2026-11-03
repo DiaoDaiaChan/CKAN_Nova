@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 宿主与首方插件共用的 UI 基元（docs/design/plugins.md §11.11）。
+       为什么单独一层：插件工程不能引用 CkanUI.App（那是宿主外壳），但插件页要用
+       同一套缩略图转换器与骨架屏附加属性，否则「解耦」等于把页面视觉抄一份。
+       依赖只往契约层走：Avalonia + CkanUI.Services.Abstractions，不引任何服务实现。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Ui</RootNamespace>
+    <AssemblyName>CkanUI.Ui</AssemblyName>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -188,8 +188,8 @@ public class PluginPerformanceIntegrationTests
             var hostKeys = new[]
             {
                 "mods", "content", "changes", "repos", "modpacks", "modpack-editor", "instances", "playtime",
-                "saves", "unmanaged", "cache", "downloadstats", "dedup", "installhistory", "plugins", "logs",
-                "settings", "modconfig", "ships", "flags", "loadingimages", "home", "kspconfig",
+                "unmanaged", "cache", "downloadstats", "dedup", "installhistory", "plugins", "logs",
+                "settings", "modconfig", "home",
             };
 
             var entries = PluginPageCatalog.Collect(service.Active, hostKeys);

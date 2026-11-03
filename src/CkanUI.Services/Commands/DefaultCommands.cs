@@ -4,7 +4,7 @@ using CkanUI.Services.Abstractions.Commands;
 namespace CkanUI.Services.Commands;
 
 /// <summary>
-/// 内置命令表（UI-40）：19 个导航页 + 10 个界面动作，命令面板开箱即用。
+/// 内置命令表（UI-40）：16 个宿主内置导航页 + 10 个界面动作，命令面板开箱即用。
 /// </summary>
 /// <remarks>
 /// <para><b>为什么放在服务层</b>：命令表是纯数据 + 纯字符串拼接，和 App 外壳无关；
@@ -48,18 +48,18 @@ public static class DefaultCommands
         new("modpack-editor", "Ui_NavRail_ModPackEditor", new[] { "编辑器", "editor", "modpack", "整合包" }),
         new("instances", "Ui_NavRail_Instances", new[] { "实例", "instance", "instances", "游戏", "ksp" }),
         new("playtime", "Ui_NavRail_PlayTime", new[] { "时长", "playtime", "时间", "游戏时长" }),
-        new("saves", "Ui_NavRail_Saves", new[] { "存档", "save", "saves", "游戏存档" }),
+        // 存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置 / 模组翻译已搬成插件（docs/design/plugins.md §11.11）。
+        // 这里**不留条目**：插件可能被停用，留一条 nav:<键> 就是留一个点了没反应的面板项。
+        // 面板要重新覆盖插件页，得先让 ICommandCatalog 支持按前缀注销 + 在插件激活/停用时动态注册。
         new("unmanaged", "Ui_NavRail_Unmanaged", new[] { "未管理", "unmanaged", "残留", "文件" }),
         new("cache", "Ui_NavRail_Cache", new[] { "缓存", "cache", "下载缓存" }),
         new("downloadstats", "Ui_NavRail_DownloadStats", new[] { "统计", "stats", "下载", "流量" }),
         new("dedup", "Ui_NavRail_Dedup", new[] { "去重", "dedup", "重复", "跨实例" }),
         new("installhistory", "Ui_NavRail_InstallHistory", new[] { "历史", "history", "安装历史" }),
         new("plugins", "Ui_NavRail_Plugins", new[] { "插件", "plugin", "plugins", "扩展" }),
-        new("modtext", "Ui_NavRail_ModText", new[] { "翻译", "modtext", "本地化", "汉化" }),
         new("logs", "Ui_NavRail_Logs", new[] { "日志", "log", "logs", "排障" }),
         new("settings", "Ui_NavRail_Settings", new[] { "设置", "settings", "选项", "偏好" }),
         new("modconfig", "Ui_NavRail_ModConfig", new[] { "配置", "config", "mod 配置", "参数" }),
-        new("kspconfig", "Ui_NavRail_KspConfig", new[] { "游戏设置", "ksp", "settings", "原生设置", "kspconfig" }),
     };
 
     /// <summary>界面动作（命令面板自身的快捷键来自这里）。</summary>

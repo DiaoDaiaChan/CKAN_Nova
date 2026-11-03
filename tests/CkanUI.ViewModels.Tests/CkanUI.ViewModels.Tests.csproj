@@ -17,6 +17,10 @@
     <ProjectReference Include="../../src/CkanUI.ViewModels/CkanUI.ViewModels.csproj" />
     <!-- 搜索语法用例要走真实的服务层解析器（ModSearchParser → 上游 ModSearch），而不是测试内自造的替身。 -->
     <ProjectReference Include="../../src/CkanUI.Services/CkanUI.Services.csproj" />
+    <!-- 存档 / 资产 / KSP 设置三页搬进插件后，页面用例跟着类型所在的程序集走（§11.11）。 -->
+    <ProjectReference Include="../../src/CkanUI.Plugin.Saves/CkanUI.Plugin.Saves.csproj" />
+    <ProjectReference Include="../../src/CkanUI.Plugin.Assets/CkanUI.Plugin.Assets.csproj" />
+    <ProjectReference Include="../../src/CkanUI.Plugin.KspConfig/CkanUI.Plugin.KspConfig.csproj" />
     <ProjectReference Include="../CkanUI.TestSupport/CkanUI.TestSupport.csproj" />
   </ItemGroup>
 

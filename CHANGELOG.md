@@ -30,6 +30,25 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
   - `PluginPageDescriptor` 新增可选 `TitleKey`：插件页的导航标题可以跟语言包走，键不存在时回退插件自述标题（不会把键名当标题显示）。
   - 页面投影缓存（L1 释放）现在也覆盖插件页：`PluginPageCache` 提成 DI 单例，由 `PageProjectionCacheParticipant` 一并 Trim。
   - 顺手修掉 `ModTextPageView.axaml` 的 `TextBox.Watermark` 过时用法（AVLN5001），App 工程构建回到 0 警告。
+- 存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置解耦为内置插件，并且**仍然待在「实例」这一节里**：
+  `src/CkanUI.Plugin.Saves`（`com.ckanui.saves`）、`src/CkanUI.Plugin.Assets`（`com.ckanui.assets`，三个页签）、
+  `src/CkanUI.Plugin.KspConfig`（`com.ckanui.kspconfig`）。宿主不再声明这五页的导航项、DI 登记与预热项。
+  - `PluginPageDescriptor` 新增可选 `Section` 与 `Order`：填了 `Section` 的插件页进对应分节的顶部页签条，而不是
+    在侧栏顶格多出一项；分节里的相对顺序由 `SectionSpecs` 的**槽位**决定（插件补位，历史顺序不变），插件额外
+    声明的同分节页面按 `Order → Title` 排在末尾。
+  - 停用插件后页签一起消失，当前页自动回退到那一节的首页（不会留在空白页上）；未知 `Section` 也会退回侧栏入口，
+    不会因为插件写错一个键就让页面凭空消失。
+  - 可发现性：插件管理页的「提供 N 个页签」改成列出页签名称（`提供 3 个页签：飞船、旗帜、加载图`），
+    用户在「工具 › 插件」里始终看得到某个插件提供过哪些入口，一键就能重新激活。
+  - 主页的「存档」卡片走的是 `saves` 键：插件停用后这个键解析不出页面，卡片会退到「实例」分节，
+    而不是留在原地点了没反应。
+  - 新增共享 UI 层 `src/CkanUI.Ui`：`PathToThumbnailConverter` / `SkeletonPulse` / `DdsDecoder` 从宿主搬进这一层，
+    动效资源键下沉为 `CkanMotionTokens`（宿主写资源、共享基元读资源），加载图的停用后缀下沉为
+    `LoadingImageNaming`。插件因此不再需要反向引用 `CkanUI.App`。
+  - 缩略图预热由 `IPageThumbnailWarmup` 承担：外壳不再按具体页面类型 `switch`（那是把插件的键写进外壳），
+    由页面自己处理「行集合异步填充完再预热」的时序。
+  - 命令面板的静态导航表不再列这几页（插件可停用，留一条 `nav:<键>` 就是留一个点了没反应的面板项）；
+    动态注册记为后续工作，见 `docs/design/plugins.md` §11.11。
 - 主菜单（启动落地页）：新增「主页」页并把它设为应用启动后的默认页（侧栏第一个入口）。
   - 实例概览：名称/版本/模组数/游戏目录，一键「启动游戏」「打开游戏目录」或跳到「实例管理」；实例被占用时禁用启动并说明原因。
   - 「快捷操作」分区按主次三层排布：两张大卡（模组库、变更集）承载核心工作流，三张普通卡（实例管理、存档、模组仓库）是常用页面，两个胶囊（日志、设置）收工具页；同样七个入口，不再平铺成一片。

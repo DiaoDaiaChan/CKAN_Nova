@@ -291,7 +291,7 @@ public sealed class PluginsPageViewModelTests
         await vm.RefreshCommand.ExecuteAsync(null);
         var row = vm.DormantPlugins[0];
 
-        Assert.That(row.PagesText, Is.EqualTo("提供 2 个页签"));
+        Assert.That(row.PagesText, Is.EqualTo("提供 2 个页签：示例页、关于示例"));
         Assert.That(row.MinimumHostVersionText, Is.EqualTo("要求宿主 1.2.0+"));
         Assert.That(row.AssemblyPath, Is.Not.Empty);
     }

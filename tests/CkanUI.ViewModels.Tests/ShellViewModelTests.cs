@@ -20,10 +20,12 @@ public sealed class ShellViewModelTests
     }
 
     [Test]
-    public void NavItems_HasTwentyThreeConfiguredItems()
+    public void NavItems_HasEighteenConfiguredItems()
     {
         var vm = new ShellViewModel();
-        Assert.That(vm.NavItems.Count, Is.EqualTo(23));
+        // 存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置已搬成插件（docs/design/plugins.md §11.11）：
+        // 内置 18 条，缺的那 5 条由插件在「实例」分节的同名槽位上补回来（见 PluginSectionTabsTests）。
+        Assert.That(vm.NavItems.Count, Is.EqualTo(18));
         Assert.That(vm.NavItems[0].Key, Is.EqualTo("mods"));
         Assert.That(vm.NavItems[1].Key, Is.EqualTo("content"));
         Assert.That(vm.NavItems[2].Key, Is.EqualTo("changes"));
@@ -32,26 +34,19 @@ public sealed class ShellViewModelTests
         Assert.That(vm.NavItems[5].Key, Is.EqualTo("modpack-editor"));
         Assert.That(vm.NavItems[6].Key, Is.EqualTo("instances"));
         Assert.That(vm.NavItems[7].Key, Is.EqualTo("playtime"));
-        Assert.That(vm.NavItems[8].Key, Is.EqualTo("saves"));
-        Assert.That(vm.NavItems[9].Key, Is.EqualTo("unmanaged"));
-        Assert.That(vm.NavItems[10].Key, Is.EqualTo("cache"));
-        Assert.That(vm.NavItems[11].Key, Is.EqualTo("downloadstats"));
-        Assert.That(vm.NavItems[12].Key, Is.EqualTo("dedup"));
-        Assert.That(vm.NavItems[13].Key, Is.EqualTo("installhistory"));
-        Assert.That(vm.NavItems[14].Key, Is.EqualTo("plugins"));
+        Assert.That(vm.NavItems[8].Key, Is.EqualTo("unmanaged"));
+        Assert.That(vm.NavItems[9].Key, Is.EqualTo("cache"));
+        Assert.That(vm.NavItems[10].Key, Is.EqualTo("downloadstats"));
+        Assert.That(vm.NavItems[11].Key, Is.EqualTo("dedup"));
+        Assert.That(vm.NavItems[12].Key, Is.EqualTo("installhistory"));
+        Assert.That(vm.NavItems[13].Key, Is.EqualTo("plugins"));
         // 模组翻译已解耦为内置插件：插件页签在引导完成后插在「插件」之后，不再占内置下标。
-        Assert.That(vm.NavItems[15].Key, Is.EqualTo("logs"));
-        Assert.That(vm.NavItems[16].Key, Is.EqualTo("settings"));
+        Assert.That(vm.NavItems[14].Key, Is.EqualTo("logs"));
+        Assert.That(vm.NavItems[15].Key, Is.EqualTo("settings"));
         // Mod 配置页追加在末尾：插在中间会让上面全部下标位移，测试按位置断言导航顺序是刻意的。
-        Assert.That(vm.NavItems[17].Key, Is.EqualTo("modconfig"));
-        // 资产工作台（飞船/旗帜/加载图）同样追加在末尾，与存档同属「实例」分区。
-        Assert.That(vm.NavItems[18].Key, Is.EqualTo("ships"));
-        Assert.That(vm.NavItems[19].Key, Is.EqualTo("flags"));
-        Assert.That(vm.NavItems[20].Key, Is.EqualTo("loadingimages"));
+        Assert.That(vm.NavItems[16].Key, Is.EqualTo("modconfig"));
         // 主菜单同样追加在末尾；它在侧栏分区里排第一，所以 RailItems[0] 恒为主页。
-        Assert.That(vm.NavItems[21].Key, Is.EqualTo("home"));
-        // KSP 游戏原生设置页同样追加在末尾，挂在「实例」分区。
-        Assert.That(vm.NavItems[22].Key, Is.EqualTo("kspconfig"));
+        Assert.That(vm.NavItems[17].Key, Is.EqualTo("home"));
     }
 
     [Test]
@@ -77,20 +72,19 @@ public sealed class ShellViewModelTests
         Assert.That(vm.NavItems[4].Title, Is.EqualTo("T:Ui_NavRail_ModPacks"));
         Assert.That(vm.NavItems[5].Title, Is.EqualTo("T:Ui_NavRail_ModPackEditor"));
         Assert.That(vm.NavItems[7].Title, Is.EqualTo("T:Ui_NavRail_PlayTime"));
-        Assert.That(vm.NavItems[10].Title, Is.EqualTo("T:Ui_NavRail_Cache"));
-        Assert.That(vm.NavItems[11].Title, Is.EqualTo("T:Ui_NavRail_DownloadStats"));
-        Assert.That(vm.NavItems[12].Title, Is.EqualTo("T:Ui_NavRail_Dedup"));
-        Assert.That(vm.NavItems[13].Title, Is.EqualTo("T:Ui_NavRail_InstallHistory"));
-        Assert.That(vm.NavItems[14].Title, Is.EqualTo("T:Ui_NavRail_Plugins"));
-        Assert.That(vm.NavItems[15].Title, Is.EqualTo("T:Ui_NavRail_Logs"));
-        Assert.That(vm.NavItems[16].Title, Is.EqualTo("T:Ui_NavRail_Settings"));
-        Assert.That(vm.NavItems[17].Title, Is.EqualTo("T:Ui_NavRail_ModConfig"));
-        Assert.That(vm.NavItems[18].Title, Is.EqualTo("T:Ui_NavRail_Ships"));
-        Assert.That(vm.NavItems[19].Title, Is.EqualTo("T:Ui_NavRail_Flags"));
-        Assert.That(vm.NavItems[20].Title, Is.EqualTo("T:Ui_NavRail_LoadingScreens"));
-        Assert.That(vm.NavItems[21].Title, Is.EqualTo("T:Ui_NavRail_Home"));
-        Assert.That(vm.NavItems[22].Title, Is.EqualTo("T:Ui_NavRail_KspConfig"));
-        Assert.That(vm.NavItems.Count, Is.EqualTo(23));
+        Assert.That(vm.NavItems[8].Title, Is.EqualTo("T:Ui_NavRail_Unmanaged"));
+        Assert.That(vm.NavItems[9].Title, Is.EqualTo("T:Ui_NavRail_Cache"));
+        Assert.That(vm.NavItems[10].Title, Is.EqualTo("T:Ui_NavRail_DownloadStats"));
+        Assert.That(vm.NavItems[11].Title, Is.EqualTo("T:Ui_NavRail_Dedup"));
+        Assert.That(vm.NavItems[12].Title, Is.EqualTo("T:Ui_NavRail_InstallHistory"));
+        Assert.That(vm.NavItems[13].Title, Is.EqualTo("T:Ui_NavRail_Plugins"));
+        Assert.That(vm.NavItems[14].Title, Is.EqualTo("T:Ui_NavRail_Logs"));
+        Assert.That(vm.NavItems[15].Title, Is.EqualTo("T:Ui_NavRail_Settings"));
+        Assert.That(vm.NavItems[16].Title, Is.EqualTo("T:Ui_NavRail_ModConfig"));
+        Assert.That(vm.NavItems[17].Title, Is.EqualTo("T:Ui_NavRail_Home"));
+        // 存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置已搬进插件：它们的标题由插件自述，
+        // 不再出现在宿主 _baseNavItems 里（插件激活时才会被追加到 NavItems）。
+        Assert.That(vm.NavItems.Count, Is.EqualTo(18));
     }
 
     [Test]

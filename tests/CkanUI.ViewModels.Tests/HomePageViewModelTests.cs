@@ -56,6 +56,20 @@ public sealed class HomePageViewModelTests
     }
 
     [Test]
+    public async Task QuickAction_FallsBackToInstances_WhenTheTargetPageBelongsToADisabledPlugin()
+    {
+        // 存档页搬进了可停用的插件：停用后 "saves" 解析不出页面，卡片不能变成死按钮。
+        var navigation = new RecordingNavigation(availableKey: "instances");
+        var vm = new HomePageViewModel(null, null, navigation);
+        var saves = vm.PageActions.Single(action => action.Title == "存档");
+
+        await ((IAsyncRelayCommand)saves.Command).ExecuteAsync(null);
+
+        Assert.That(navigation.Requests, Is.EqualTo(new[] { "saves", "instances" }),
+            "目标页不可用时退到它的归属分节，让用户还能看到当前有哪些页签。");
+    }
+
+    [Test]
     public void WithoutInstance_ShowsEmptyState_AndDisablesInstanceCommands()
     {
         var vm = new HomePageViewModel();
@@ -170,6 +184,32 @@ public sealed class HomePageViewModelTests
 
         Assert.That(vm.Screenshots, Is.Empty, "切走实例后旧的截图不能落到新实例的页签里。");
         Assert.That(vm.IsBusy, Is.False);
+    }
+
+    /// <summary>只记录跳转请求的导航替身：可以精确断言"先试目标页、失败再退分节"。</summary>
+    private sealed class RecordingNavigation : INavigationService
+    {
+        private readonly string _availableKey;
+
+        public RecordingNavigation(string availableKey) => _availableKey = availableKey;
+
+        public List<string> Requests { get; } = new();
+
+        public object? CurrentPage => null;
+
+        public string CurrentKey => string.Empty;
+
+        public event Action<object?, string>? Navigated
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<bool> NavigateAsync(string pageKey, object? parameter = null, CancellationToken ct = default)
+        {
+            Requests.Add(pageKey);
+            return Task.FromResult(string.Equals(pageKey, _availableKey, StringComparison.Ordinal));
+        }
     }
 
     private sealed class FakeScreenshotService : IGameScreenshotService

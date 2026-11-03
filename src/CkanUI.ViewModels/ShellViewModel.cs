@@ -81,8 +81,14 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>插件页签的缓存，按 key 复用同一实例，避免重建列表时丢掉 ListBox 的选中项。</summary>
     private readonly Dictionary<string, NavItem> _pluginNavItems = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>当前页签条对应的入口键；只在换入口时才重建页签。</summary>
+    /// <summary>当前页签条对应的入口键；只在换入口或页签集合变化时才重建页签。</summary>
     private string? _activeSectionKey;
+
+    /// <summary>当前页签条的键序列签名：同一入口内页签被插件增删时靠它察觉。</summary>
+    private string? _activeSectionSignature;
+
+    /// <summary>入口表快照（插件增删页签后整体替换，见 <see cref="Sections"/>）。</summary>
+    private IReadOnlyList<NavSection> _sections = Array.Empty<NavSection>();
 
     /// <summary>
     /// 导航项列表（内置页签 + 已激活插件声明的页签）。标题在构造时按当前语言解析；
@@ -96,8 +102,14 @@ public sealed partial class ShellViewModel : ObservableObject
     /// </summary>
     public ObservableCollection<NavItem> RailItems { get; } = new();
 
-    /// <summary>入口表：每个入口包含哪些页面（顺序即页签顺序）。</summary>
-    public IReadOnlyList<NavSection> Sections { get; }
+    /// <summary>
+    /// 入口表：每个入口包含哪些页面（顺序即页签顺序）。
+    /// </summary>
+    /// <remarks>
+    /// 可变：插件激活/停用会往分节里增删页签（见 <see cref="RebuildPluginNavItems"/>），
+    /// 所以这里是「当前快照」而不是构造期一次算完的常量。
+    /// </remarks>
+    public IReadOnlyList<NavSection> Sections => _sections;
 
     /// <summary>当前页所属入口的页签；只有一个页面时为空集合（页面区不出现页签条）。</summary>
     public ObservableCollection<NavTab> SectionTabs { get; } = new();
@@ -173,7 +185,8 @@ public sealed partial class ShellViewModel : ObservableObject
             new("modpack-editor", _translate("Ui_NavRail_ModPackEditor"), "Edit"),
             new("instances", _translate("Ui_NavRail_Instances"), "Folder"),
             new("playtime", _translate("Ui_NavRail_PlayTime"), "Clock"),
-            new("saves", _translate("Ui_NavRail_Saves"), "Archive"),
+            // 存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置这五页已搬成首方插件（docs/design/plugins.md §11.11）：
+            // 它们不再是宿主的内置页，由插件在 SectionSpecs 的同名槽位上补进来——键名不变，用户看到的顺序不变。
             new("unmanaged", _translate("Ui_NavRail_Unmanaged"), "FolderOpen"),
             new("cache", _translate("Ui_NavRail_Cache"), "Storage"),
             new("downloadstats", _translate("Ui_NavRail_DownloadStats"), "Chart"),
@@ -187,16 +200,10 @@ public sealed partial class ShellViewModel : ObservableObject
             new("modconfig", _translate("Ui_NavRail_ModConfig"), "Sliders"),
             // 主菜单：同样追加在末尾保住既有下标；它在 SectionSpecs 里排第一，
             // 于是 RailItems[0] 就是主页——启动默认页靠的就是这一条（App.axaml.cs 取 RailItems[0]）。
-            // 资产工作台（旗帜 / 飞船 / 加载图）：与游戏装在同一份目录里的「可换的皮」，
-            // 和存档一样挂在「实例」组下——脱离实例谈旗帜没有意义。
-            new("ships", _translate("Ui_NavRail_Ships"), "Rocket"),
-            new("flags", _translate("Ui_NavRail_Flags"), "Flag"),
-            new("loadingimages", _translate("Ui_NavRail_LoadingScreens"), "Image"),
-            new("home", _translate("Ui_NavRail_Home"), "Home"),
-            new("kspconfig", _translate("Ui_NavRail_KspConfig"), "Settings")
+            new("home", _translate("Ui_NavRail_Home"), "Home")
         };
         NavItems = new ObservableCollection<NavItem>(_baseNavItems);
-        Sections = BuildSections();
+        _sections = BuildSections(null);
         RefreshRailItems();
         _statusText = _translate("Ui_Common_Status_Ready");
 
@@ -645,6 +652,11 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         var entries = PluginPageCatalog.Collect(_plugins?.Active, _baseNavItems.Select(item => item.Key));
 
+        // 重建前先记住当前页原本属于哪个分节：插件被停用后要退回该分节的首页（「实例」），
+        // 而不是把用户丢到插件管理页——他关掉的是「存档」，不是「实例」。
+        var currentKey = _navigation.CurrentKey;
+        var previousSection = SectionRootForPage(currentKey);
+
         var desired = new List<NavItem>(_baseNavItems.Count + entries.Count);
         var desiredKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < _baseNavItems.Count; i++)
@@ -672,9 +684,26 @@ public sealed partial class ShellViewModel : ObservableObject
             _pluginNavItems.Remove(stale);
         }
 
-        if (NavItems.Count == desired.Count &&
-            desired.Select((item, index) => ReferenceEquals(item, NavItems[index])).All(same => same))
+        // 分节页签随插件增删变化；先重算入口表，RefreshRailItems 才会用新的 Tabs 判重
+        // （分节内的插件页也进 NavItems：选中态与 RailItemFor 都按 NavItems 找自己）。
+        var sections = BuildSections(entries);
+        var sectionsChanged = !SectionsEquivalent(_sections, sections);
+        if (sectionsChanged)
         {
+            _sections = sections;
+            OnPropertyChanged(nameof(Sections));
+        }
+
+        var navChanged = NavItems.Count != desired.Count ||
+                         desired.Select((item, index) => !ReferenceEquals(item, NavItems[index])).Any(different => different);
+        if (!navChanged)
+        {
+            if (sectionsChanged)
+            {
+                RefreshRailItems();
+                RefreshSection(currentKey);
+            }
+
             return;
         }
 
@@ -706,12 +735,13 @@ public sealed partial class ShellViewModel : ObservableObject
 
         // 插件页在侧栏里是独立入口（不进任何组的页签条），列表变了要跟着重排。
         RefreshRailItems();
+        RefreshSection(currentKey);
 
-        // 当前页所属插件被卸载时，页签已经不存在：退回插件管理页，避免停在一个无入口的页面。
-        var currentKey = _navigation.CurrentKey;
-        if (!string.IsNullOrEmpty(currentKey) && NavItems.All(item => !string.Equals(item.Key, currentKey, StringComparison.OrdinalIgnoreCase)))
+        // 当前页所属插件被停用时，页签已经不存在：退回它原本所在分节的首页，没有分节才退回插件管理页。
+        if (!string.IsNullOrEmpty(currentKey) &&
+            NavItems.All(item => !string.Equals(item.Key, currentKey, StringComparison.OrdinalIgnoreCase)))
         {
-            _ = ExecuteNavigateAsync("plugins", CancellationToken.None);
+            _ = ExecuteNavigateAsync(previousSection ?? "plugins", CancellationToken.None);
         }
     }
 
@@ -855,6 +885,8 @@ public sealed partial class ShellViewModel : ObservableObject
         // 模组翻译已解耦为内置插件（com.ckanui.modtext），作为独立侧栏入口落在「扩展」分组里：
         // 它不再是宿主的页签，分组也就不能写死在这里。
         // 实例：一份安装本身 + 它衍生的存档、磁盘垃圾、历史与时长 + KSP 原生设置。
+        // 存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置这五页已搬成插件（docs/design/plugins.md §11.11），
+        // 但仍然占着这里的槽位——槽位决定它们在分节里的位置，插件按 key 补位，所以装了没装都不改变既有顺序。
         ("instances", null, ["instances", "saves", "ships", "flags", "loadingimages", "kspconfig", "unmanaged", "installhistory", "playtime"]),
         // 整合包：导入导出与直接编辑 .ckan。
         ("modpacks", null, ["modpacks", "modpack-editor"]),
@@ -864,17 +896,61 @@ public sealed partial class ShellViewModel : ObservableObject
         ("plugins", "Ui_NavRail_Tools", ["plugins"]),
     ];
 
-    private List<NavSection> BuildSections()
+    /// <summary>
+    /// 按槽位表组入口：每个槽位先找内置页，找不到再问插件（「存档」这类页解耦成插件后仍占原来的位置）。
+    /// 插件声明了分节但不在任何槽位里的页，按 Order→标题追加在同一分节末尾。
+    /// </summary>
+    /// <param name="pluginEntries">已激活插件声明的页签；构造期为 null。</param>
+    private List<NavSection> BuildSections(IReadOnlyList<PluginPageEntry>? pluginEntries)
     {
+        // 宿主不认的分节名不进这里，调用方（RebuildPluginNavItems）把它们留在侧栏。
+        var embedded = new Dictionary<string, List<PluginPageEntry>>(StringComparer.OrdinalIgnoreCase);
+        if (pluginEntries is { Count: > 0 })
+        {
+            foreach (var entry in pluginEntries)
+            {
+                if (SectionRoot(entry.Section) is not { } root)
+                {
+                    continue;
+                }
+
+                if (!embedded.TryGetValue(root, out var list))
+                {
+                    embedded[root] = list = new List<PluginPageEntry>();
+                }
+
+                list.Add(entry);
+            }
+        }
+
         var result = new List<NavSection>(SectionSpecs.Length);
         foreach (var (root, titleKey, keys) in SectionSpecs)
         {
-            var tabs = new List<NavItem>(keys.Length);
+            var pending = embedded.TryGetValue(root, out var declared) ? new List<PluginPageEntry>(declared) : null;
+            var tabs = new List<NavItem>(keys.Length + (pending?.Count ?? 0));
             foreach (var key in keys)
             {
                 if (_baseNavItems.FirstOrDefault(item => string.Equals(item.Key, key, StringComparison.Ordinal)) is { } item)
                 {
                     tabs.Add(item);
+                    continue;
+                }
+
+                var index = pending?.FindIndex(candidate => string.Equals(candidate.Key, key, StringComparison.OrdinalIgnoreCase)) ?? -1;
+                if (index >= 0)
+                {
+                    tabs.Add(GetOrCreatePluginNavItem(pending![index]));
+                    pending!.RemoveAt(index);
+                }
+            }
+
+            if (pending is not null)
+            {
+                foreach (var entry in pending
+                             .OrderBy(candidate => candidate.Order)
+                             .ThenBy(candidate => candidate.Title, StringComparer.CurrentCulture))
+                {
+                    tabs.Add(GetOrCreatePluginNavItem(entry));
                 }
             }
 
@@ -888,6 +964,49 @@ public sealed partial class ShellViewModel : ObservableObject
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// 把插件声明的分节名映射回宿主的分节根键；宿主不认的返回 null（调用方退回侧栏入口）。
+    /// 「分节」是宿主的词汇表，插件写错名字只能是放错位置，不能是页签消失。
+    /// </summary>
+    private static string? SectionRoot(string? section) =>
+        string.IsNullOrWhiteSpace(section)
+            ? null
+            : SectionSpecs.FirstOrDefault(spec => string.Equals(spec.Root, section.Trim(), StringComparison.OrdinalIgnoreCase)).Root;
+
+    /// <summary>某个页面键当前落在哪个分节里；不在任何分节返回 null。</summary>
+    private string? SectionRootForPage(string? pageKey) =>
+        string.IsNullOrEmpty(pageKey)
+            ? null
+            : Sections.FirstOrDefault(section => section.Tabs.Any(tab => string.Equals(tab.Key, pageKey, StringComparison.OrdinalIgnoreCase)))?.Key;
+
+    /// <summary>入口表是否等价（根键与每个分节的页签键序列都相同），等价就不必惊动侧栏与页签条。</summary>
+    private static bool SectionsEquivalent(IReadOnlyList<NavSection> left, IReadOnlyList<NavSection> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < left.Count; i++)
+        {
+            if (!string.Equals(left[i].Key, right[i].Key, StringComparison.Ordinal) ||
+                left[i].Tabs.Count != right[i].Tabs.Count)
+            {
+                return false;
+            }
+
+            for (var j = 0; j < left[i].Tabs.Count; j++)
+            {
+                if (!string.Equals(left[i].Tabs[j].Key, right[i].Tabs[j].Key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     /// <summary>重建侧栏入口列表：六个入口在前，插件自述页追加在后（日志与设置由外壳放进底部区）。</summary>
@@ -926,6 +1045,7 @@ public sealed partial class ShellViewModel : ObservableObject
         {
             ActiveSection = null;
             _activeSectionKey = null;
+            _activeSectionSignature = null;
             if (SectionTabs.Count == 0)
             {
                 return;
@@ -936,7 +1056,11 @@ public sealed partial class ShellViewModel : ObservableObject
             return;
         }
 
-        if (!string.Equals(_activeSectionKey, section.Key, StringComparison.Ordinal))
+        // 换入口要重建；同一入口内页签被插件增删（比如停用「存档」插件）也要重建，
+        // 否则页签条会停在上一份快照上，用户看着一个已经不存在页签。
+        var signature = string.Join('\u001f', section.Tabs.Select(tab => tab.Key));
+        if (!string.Equals(_activeSectionKey, section.Key, StringComparison.Ordinal) ||
+            !string.Equals(_activeSectionSignature, signature, StringComparison.Ordinal))
         {
             SectionTabs.Clear();
             foreach (var tab in section.Tabs)
@@ -945,6 +1069,7 @@ public sealed partial class ShellViewModel : ObservableObject
             }
 
             _activeSectionKey = section.Key;
+            _activeSectionSignature = signature;
             ActiveSection = section;
             OnPropertyChanged(nameof(HasSectionTabs));
         }

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 「KspConfig」页签插件的页面测试（docs/design/plugins.md §11.11）。
+       页面已经搬进插件程序集，宿主测试工程看不到这些类型，所以跟着页面一起搬。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.KspConfig.Tests</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.KspConfig.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <!-- 视图用例要真的解析一遍 XAML（x:Class / xmlns 搬家后写错会红），所以需要无头 Avalonia 运行时。 -->
+    <PackageReference Include="Avalonia.Headless" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/CkanUI.Plugin.KspConfig/CkanUI.Plugin.KspConfig.csproj" />
+  </ItemGroup>
+
+</Project>

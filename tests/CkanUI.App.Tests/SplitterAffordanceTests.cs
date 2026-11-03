@@ -24,13 +24,20 @@ namespace CkanUI.App.Tests;
 [TestFixture]
 public sealed class SplitterAffordanceTests
 {
-    /// <summary>需要运行期核查的分割条页面：导航 key → 人类可读名。</summary>
+    /// <summary>
+    /// 需要运行期核查的分割条页面：导航 key → 人类可读名。
+    /// </summary>
+    /// <remarks>
+    /// 只列宿主自己的页面：载具 / 旗帜 / 载入图 / 存档 已经搬进可停用的插件，外壳里没有插件时
+    /// 根本导航不过去。它们的声明由 <see cref="EverySplitterDeclaration_DeclaresTheHandleContract"/>
+    /// 覆盖（扫描范围含 <c>src/CkanUI.Plugin.*</c>），这里不再假装检查过。
+    /// </remarks>
     private static readonly (string Key, string Label)[] Pages =
     [
-        ("ships", "载具"),
-        ("flags", "旗帜"),
-        ("loadingimages", "载入图"),
-        ("saves", "存档"),
+        ("content", "变更集"),
+        ("dedup", "去重"),
+        ("instances", "实例"),
+        ("mods", "模组库"),
     ];
 
     private ServiceProvider _services = null!;
@@ -62,9 +69,11 @@ public sealed class SplitterAffordanceTests
         foreach (var (key, label) in Pages)
         {
             var item = _shell.NavItems.FirstOrDefault(i => i.Key == key);
+            Assert.That(item, Is.Not.Null, $"宿主页面 {key} 必须在导航项里，运行期核查不该被悄悄跳过。");
+
             if (item is null)
             {
-                Assert.Ignore($"导航项 {key} 在当前外壳里不存在，跳过 {label} 页。");
+                continue;
             }
 
             _shell.NavigateCommand.Execute(item.Key);
@@ -97,12 +106,22 @@ public sealed class SplitterAffordanceTests
     [Test]
     public void EverySplitterDeclaration_DeclaresTheHandleContract()
     {
-        var viewsRoot = Path.Combine(ResolveRepositoryRoot(), "src", "CkanUI.App", "Views");
+        // 页面搬进插件之后，视图也搬走了：只扫宿主 Views 会漏掉插件自带的声明
+        // （这条用例曾经因为扫描范围没跟上，阈值 10 掉到 4 而假红）。
+        // 契约对「任何视图」都成立，所以扫整个 src 下的 axaml，插件和共享 UI 层一起算。
+        var viewsRoot = Path.Combine(ResolveRepositoryRoot(), "src");
         var offenders = new List<string>();
         var scanned = 0;
 
         foreach (var file in Directory.EnumerateFiles(viewsRoot, "*.axaml", SearchOption.AllDirectories))
         {
+            // 构建输出里也有 axaml 副本，扫进来会把同一份声明数两遍。
+            if (file.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                || file.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             var text = File.ReadAllText(file);
             foreach (Match match in Regex.Matches(text, "<GridSplitter\\b[^>]*>", RegexOptions.Singleline))
             {

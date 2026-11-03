@@ -360,7 +360,14 @@ public sealed partial class HomePageViewModel : PageViewModel
             return;
         }
 
-        await _navigation.NavigateAsync(pageKey!).ConfigureAwait(true);
+        var navigated = await _navigation.NavigateAsync(pageKey!).ConfigureAwait(true);
+
+        // 卡片指向的页面可能住在可停用的插件里（存档就是），插件关掉后这个键解析不出页面。
+        // 与其留一个点了没反应的按钮，不如退到它的归属分节——「实例」页能把当前可用的页签摆出来。
+        if (!navigated && !string.Equals(pageKey, "instances", StringComparison.Ordinal))
+        {
+            await _navigation.NavigateAsync("instances").ConfigureAwait(true);
+        }
     }
 
     /// <summary>把七张常用功能卡建好（卡片内容是静态的，建一次就够）。</summary>
