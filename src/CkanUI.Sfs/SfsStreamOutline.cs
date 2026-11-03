@@ -36,6 +36,7 @@ public static class SfsStreamOutline
         var hasRoot = !string.IsNullOrEmpty(profile.RootName);
         var rootDepth = hasRoot ? 1 : 0;
         var rootFields = new List<SfsOutlineField>();
+        var rootTruncated = false;
         foreach (var field in profile.Fields)
         {
             if (field.Depth != rootDepth)
@@ -45,6 +46,7 @@ public static class SfsStreamOutline
 
             if (rootFields.Count >= options.MaxFieldsPerSection)
             {
+                rootTruncated = true;
                 break;
             }
 
@@ -63,7 +65,7 @@ public static class SfsStreamOutline
             Order = order++,
             Fields = rootFields,
             Nodes = [],
-            Truncated = profile.Truncated,
+            Truncated = rootTruncated,
             TotalPairCount = rootFields.Count,
         });
 
@@ -97,6 +99,7 @@ public static class SfsStreamOutline
                 : "node:" + block.Line.ToString(CultureInfo.InvariantCulture);
 
             var fields = new List<SfsOutlineField>();
+            var sectionTruncated = false;
             foreach (var field in profile.Fields)
             {
                 if (field.Depth != block.Depth + 1
@@ -109,6 +112,7 @@ public static class SfsStreamOutline
 
                 if (fields.Count >= options.MaxFieldsPerSection)
                 {
+                    sectionTruncated = true;
                     break;
                 }
 
@@ -128,6 +132,7 @@ public static class SfsStreamOutline
             {
                 if (nodes.Count >= options.MaxNodeRefsPerSection)
                 {
+                    sectionTruncated = true;
                     break;
                 }
 
@@ -146,7 +151,7 @@ public static class SfsStreamOutline
                 Order = order++,
                 Fields = fields,
                 Nodes = nodes,
-                Truncated = profile.Truncated,
+                Truncated = sectionTruncated,
                 TotalPairCount = block.PairCount,
                 TotalNodeCount = block.NodeCount,
             });

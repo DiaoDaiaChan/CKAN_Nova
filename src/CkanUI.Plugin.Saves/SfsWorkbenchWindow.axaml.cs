@@ -1,5 +1,6 @@
 using System;
 using Avalonia.Controls;
+using Avalonia.Input;
 using CkanUI.Services.Abstractions.Dtos;
 
 namespace CkanUI.Plugin.Saves;
@@ -21,6 +22,30 @@ public partial class SfsWorkbenchWindow : Window
         if (DataContext is SfsWorkbenchViewModel viewModel)
         {
             await viewModel.InitializeAsync();
+        }
+    }
+
+    private void OnSearchBoxKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || DataContext is not SfsWorkbenchViewModel viewModel)
+        {
+            return;
+        }
+
+        if (viewModel.SearchCommand.CanExecute(null))
+        {
+            viewModel.SearchCommand.Execute(null);
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnNodeDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (DataContext is SfsWorkbenchViewModel viewModel && viewModel.ExpandNodeCommand.CanExecute(null))
+        {
+            viewModel.ExpandNodeCommand.Execute(null);
+            e.Handled = true;
         }
     }
 

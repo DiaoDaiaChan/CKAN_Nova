@@ -201,6 +201,136 @@ public sealed class SfsWorkbenchViewModelTests
         Assert.That(vm.Fields, Is.Not.Empty);
     }
 
+    [Test]
+    public async Task SectionFilter_NarrowsTheListAndKeepsTheSelectionVisible()
+    {
+        var vm = new SfsWorkbenchViewModel(@"C:\saves\persistent.sfs", new FakeSaveEditorService());
+        await vm.InitializeAsync();
+
+        vm.SectionFilterText = "资金";
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vm.VisibleSections.Select(section => section.Title), Is.EqualTo(new[] { "资金" }));
+            Assert.That(vm.SelectedSection, Is.Not.Null);
+            Assert.That(vm.SelectedSection!.Title, Is.EqualTo("资金"));
+            Assert.That(vm.SectionCountText, Does.Contain("1 / 2"));
+        });
+
+        vm.SectionFilterText = string.Empty;
+        Assert.That(vm.VisibleSections, Has.Count.EqualTo(2));
+    }
+
+    [Test]
+    public async Task FieldFilter_NarrowsRowsAndReportsHowManyAreShown()
+    {
+        var vm = new SfsWorkbenchViewModel(@"C:\saves\persistent.sfs", new FakeSaveEditorService());
+        await vm.InitializeAsync();
+        vm.SelectedSection = vm.Sections.First(section => section.Title == "资金");
+
+        vm.FieldFilterText = "sci";
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vm.VisibleFields.Select(field => field.Key), Is.EqualTo(new[] { "sci" }));
+            Assert.That(vm.FieldCountText, Does.Contain("筛出 1 / 2"));
+            Assert.That(vm.HasFieldFilter, Is.True);
+        });
+
+        vm.FieldFilterText = string.Empty;
+        Assert.That(vm.VisibleFields, Has.Count.EqualTo(2));
+    }
+
+    [Test]
+    public async Task NodeFilter_NarrowsBlocksAndCanReachEmptyState()
+    {
+        var vm = new SfsWorkbenchViewModel(@"C:\saves\persistent.sfs", new FakeSaveEditorService());
+        await vm.InitializeAsync();
+
+        vm.NodeFilterText = "一号船";
+        Assert.That(vm.VisibleNodes.Select(node => node.Name), Is.EqualTo(new[] { "VESSEL" }));
+
+        vm.NodeFilterText = "不存在";
+        Assert.Multiple(() =>
+        {
+            Assert.That(vm.VisibleNodes, Is.Empty);
+            Assert.That(vm.NodeCountText, Does.Contain("筛出 0 / 1"));
+        });
+    }
+
+    [Test]
+    public async Task RevertEdit_RestoresTheFileValueWithoutTouchingTheService()
+    {
+        var service = new FakeSaveEditorService();
+        var vm = new SfsWorkbenchViewModel(@"C:\saves\persistent.sfs", service);
+        await vm.InitializeAsync();
+        vm.SelectedField = vm.Fields.First(field => field.Key == "funds");
+
+        vm.EditValue = "999";
+        vm.KeyEdit = "fundsFixed";
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vm.HasPendingEdit, Is.True);
+            Assert.That(vm.CanApplyValue, Is.True);
+            Assert.That(vm.CanRenameKey, Is.True);
+        });
+
+        vm.RevertEditCommand.Execute(null);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vm.EditValue, Is.EqualTo("1234.5"));
+            Assert.That(vm.KeyEdit, Is.EqualTo("funds"));
+            Assert.That(vm.HasPendingEdit, Is.False);
+            Assert.That(vm.CanApplyValue, Is.False);
+            Assert.That(service.Edits, Is.Empty);
+        });
+    }
+
+    [Test]
+    public void DuplicateTitles_GetOrdinalsAndScenarioSubtitleGetsAReadableLabel()
+    {
+        var first = new SfsSectionItem(new SaveOutlineSectionDto
+        {
+            Id = "scenario:3:AlarmClockScenario",
+            Title = "模组数据",
+            Subtitle = "SCENARIO",
+        }, duplicateOrdinal: 1);
+        var second = new SfsSectionItem(new SaveOutlineSectionDto
+        {
+            Id = "scenario:4:ResourceScenario",
+            Title = "模组数据",
+            Subtitle = "SCENARIO",
+        }, duplicateOrdinal: 2);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.DisplayTitle, Is.EqualTo("模组数据 #1"));
+            Assert.That(second.DisplayTitle, Is.EqualTo("模组数据 #2"));
+            Assert.That(first.DisplaySubtitle, Is.EqualTo("场景 #4"));
+            Assert.That(second.DisplaySubtitle, Is.EqualTo("场景 #5"));
+            Assert.That(first.HasSubtitle, Is.True);
+        });
+    }
+
+    [Test]
+    public async Task TruncatedSection_ShowsListedCountsAndPointsAtSearch()
+    {
+        var service = new FakeSaveEditorService { TruncateFunding = true };
+        var vm = new SfsWorkbenchViewModel(@"C:\saves\persistent.sfs", service);
+        await vm.InitializeAsync();
+        vm.SelectedSection = vm.Sections.First(section => section.Title == "资金");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vm.IsCurrentSectionTruncated, Is.True);
+            Assert.That(vm.SelectedSection!.BadgeText, Does.Contain("已列 2/9 键值"));
+            Assert.That(vm.SectionRangeText, Does.Contain("2 / 9 键值"));
+            Assert.That(vm.TruncationHint, Does.Contain("顶部搜索"));
+        });
+    }
+
     private sealed class FakeSaveEditorService : ISaveEditorService
     {
         private static readonly SaveOutlineFieldDto Funds = new()
@@ -217,6 +347,8 @@ public sealed class SfsWorkbenchViewModelTests
         };
 
         public bool LargeFile { get; set; }
+
+        public bool TruncateFunding { get; set; }
 
         public int Loads { get; private set; }
 
@@ -277,7 +409,9 @@ public sealed class SfsWorkbenchViewModelTests
                     },
                 ],
                 Nodes = [],
-                TotalPairCount = 2,
+                TotalPairCount = TruncateFunding ? 9 : 2,
+                TotalNodeCount = 0,
+                Truncated = TruncateFunding,
             };
 
             return Task.FromResult(OperationResult<SaveOutlineDto>.Ok(new SaveOutlineDto

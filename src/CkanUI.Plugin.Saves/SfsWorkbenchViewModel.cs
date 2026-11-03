@@ -55,6 +55,14 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
     [ObservableProperty]
     private IReadOnlyList<SfsSectionItem> _sections = [];
 
+    /// <summary>按左侧筛选框过滤后的分区；没有筛选时与 <see cref="Sections"/> 相同。</summary>
+    [ObservableProperty]
+    private IReadOnlyList<SfsSectionItem> _visibleSections = [];
+
+    /// <summary>左侧分区筛选关键字。</summary>
+    [ObservableProperty]
+    private string _sectionFilterText = string.Empty;
+
     /// <summary>当前分区。</summary>
     [ObservableProperty]
     private SfsSectionItem? _selectedSection;
@@ -62,6 +70,14 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
     /// <summary>当前列出的键值（分区字段或展开块的字段）。</summary>
     [ObservableProperty]
     private IReadOnlyList<SaveOutlineFieldDto> _fields = [];
+
+    /// <summary>按中间筛选框过滤后的键值；没有筛选时与 <see cref="Fields"/> 相同。</summary>
+    [ObservableProperty]
+    private IReadOnlyList<SaveOutlineFieldDto> _visibleFields = [];
+
+    /// <summary>中间键值筛选关键字。</summary>
+    [ObservableProperty]
+    private string _fieldFilterText = string.Empty;
 
     /// <summary>当前选中的键值行。</summary>
     [ObservableProperty]
@@ -78,6 +94,14 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
     /// <summary>当前列出的子块（飞行器/部件/场景）。</summary>
     [ObservableProperty]
     private IReadOnlyList<SaveOutlineNodeDto> _nodes = [];
+
+    /// <summary>按右侧筛选框过滤后的子块；没有筛选时与 <see cref="Nodes"/> 相同。</summary>
+    [ObservableProperty]
+    private IReadOnlyList<SaveOutlineNodeDto> _visibleNodes = [];
+
+    /// <summary>右侧块筛选关键字。</summary>
+    [ObservableProperty]
+    private string _nodeFilterText = string.Empty;
 
     /// <summary>当前选中的块。</summary>
     [ObservableProperty]
@@ -129,6 +153,92 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
 
     /// <summary>字段编辑区是否可用。</summary>
     public bool CanEditField => SelectedField is not null && !IsBusy;
+
+    /// <summary>值输入框与文件里的值不同：按钮才该亮。</summary>
+    public bool HasValueEdit => SelectedField is not null
+        && !string.Equals(SelectedField.Value, EditValue, StringComparison.Ordinal);
+
+    /// <summary>键名输入框与文件里的键不同。</summary>
+    public bool HasKeyEdit => SelectedField is not null
+        && !string.Equals(SelectedField.Key, KeyEdit, StringComparison.Ordinal);
+
+    /// <summary>编辑区里有任何未提交改动。</summary>
+    public bool HasPendingEdit => HasValueEdit || HasKeyEdit;
+
+    /// <summary>“保存改动”是否可用：值没变就不该让人以为点了会写盘。</summary>
+    public bool CanApplyValue => CanEditField && HasValueEdit;
+
+    /// <summary>“改名”是否可用：键名没变就不该亮。</summary>
+    public bool CanRenameKey => CanEditField && HasKeyEdit;
+
+    /// <summary>当前分区是否有内容被展示预算裁掉。</summary>
+    public bool IsCurrentSectionTruncated => SelectedSection?.Dto.Truncated == true;
+
+    /// <summary>分区列表计数：筛选后 / 全部。</summary>
+    public string SectionCountText => HasSectionFilter
+        ? $"筛出 {VisibleSections.Count} / {Sections.Count} 个分区"
+        : $"{Sections.Count} 个分区";
+
+    /// <summary>键值列表计数：筛选后 / 已列出 / 文件里实际数量。</summary>
+    public string FieldCountText
+    {
+        get
+        {
+            if (SelectedSection is null)
+            {
+                return "0 个键值";
+            }
+
+            if (HasFieldFilter)
+            {
+                return $"筛出 {VisibleFields.Count} / {Fields.Count} 个键值";
+            }
+
+            return SelectedSection.Dto.TotalPairCount > Fields.Count
+                ? $"已列 {Fields.Count} / {SelectedSection.Dto.TotalPairCount} 个键值"
+                : $"{Fields.Count} 个键值";
+        }
+    }
+
+    /// <summary>块列表计数：筛选后 / 已列出 / 文件里实际数量。</summary>
+    public string NodeCountText
+    {
+        get
+        {
+            if (SelectedSection is null)
+            {
+                return "0 个块";
+            }
+
+            if (HasNodeFilter)
+            {
+                return $"筛出 {VisibleNodes.Count} / {Nodes.Count} 个块";
+            }
+
+            return SelectedSection.Dto.TotalNodeCount > Nodes.Count
+                ? $"已列 {Nodes.Count} / {SelectedSection.Dto.TotalNodeCount} 个块"
+                : $"{Nodes.Count} 个块";
+        }
+    }
+
+    /// <summary>当前分区展示范围：不要把“文件里有多少”与“界面上列了多少”混成一句话。</summary>
+    public string SectionRangeText => SelectedSection is null
+        ? string.Empty
+        : $"列出 {SelectedSection.Dto.Fields.Count} / {SelectedSection.Dto.TotalPairCount} 键值 · {SelectedSection.Dto.Nodes.Count} / {SelectedSection.Dto.TotalNodeCount} 块";
+
+    /// <summary>被预算截断时的操作提示。筛选只能筛已列出的行，未列出的必须走全局搜索。</summary>
+    public string TruncationHint => IsCurrentSectionTruncated
+        ? "这个分区只列出了前一部分；未列出的内容请用顶部搜索定位，列表筛选只能筛已列出的行。"
+        : string.Empty;
+
+    /// <summary>左侧是否有筛选词。</summary>
+    public bool HasSectionFilter => SectionFilterText.Trim().Length > 0;
+
+    /// <summary>中间是否有筛选词。</summary>
+    public bool HasFieldFilter => FieldFilterText.Trim().Length > 0;
+
+    /// <summary>右侧是否有筛选词。</summary>
+    public bool HasNodeFilter => NodeFilterText.Trim().Length > 0;
 
     /// <summary>块操作是否可用。大文件模式不支持整块复制/删除（要搬动未知长度的大段内容）。</summary>
     public bool CanTouchNode => SelectedNode is not null && !IsBusy && !IsLargeFileMode;
@@ -232,17 +342,37 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
             LargeFileNote = outline.LargeFileNote;
             OversizedBlocks = outline.OversizedBlocks;
 
+            var titleTotals = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var section in outline.Sections)
+            {
+                titleTotals[section.Title] = titleTotals.TryGetValue(section.Title, out var seen) ? seen + 1 : 1;
+            }
+
+            var titleSeen = new Dictionary<string, int>(StringComparer.Ordinal);
             var items = new List<SfsSectionItem>(outline.Sections.Count);
             foreach (var section in outline.Sections)
             {
-                items.Add(new SfsSectionItem(section));
+                var duplicateOrdinal = 0;
+                if (titleTotals[section.Title] > 1)
+                {
+                    titleSeen[section.Title] = titleSeen.TryGetValue(section.Title, out var seen) ? seen + 1 : 1;
+                    duplicateOrdinal = titleSeen[section.Title];
+                }
+
+                items.Add(new SfsSectionItem(section, duplicateOrdinal));
             }
 
             Sections = items;
-            SelectedSection = items.FirstOrDefault();
+            ApplySectionFilter(selectFirstWhenMissing: keepLine is null);
             if (keepLine is not null)
             {
+                SelectedSection = items.FirstOrDefault();
                 RestoreSelection(keepLine.Value);
+                // 回选的行如果被筛选挡住，就先把筛选清掉：改完值以后用户必须还能看到它。
+                if (SelectedSection is not null && !VisibleSections.Contains(SelectedSection))
+                {
+                    SectionFilterText = string.Empty;
+                }
             }
 
             IsSearchResult = false;
@@ -532,9 +662,16 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
             BreadcrumbText = string.IsNullOrEmpty(detail.Path) ? detail.Title : detail.Path;
             Fields = detail.Fields;
             Nodes = detail.Nodes;
+            FieldFilterText = string.Empty;
+            NodeFilterText = string.Empty;
+            ApplyFieldFilter();
+            ApplyNodeFilter();
             StatusText = detail.Truncated
-                ? $"{detail.Title}：内容超出展示预算，只列前一部分。"
+                ? $"{detail.Title}：界面只列出了前一部分；未列出的内容请用顶部搜索定位。"
                 : $"{detail.Title}：{detail.Fields.Count} 键值 / {detail.Nodes.Count} 子块。";
+            OnPropertyChanged(nameof(IsCurrentSectionTruncated));
+            OnPropertyChanged(nameof(SectionRangeText));
+            OnPropertyChanged(nameof(TruncationHint));
         }
         catch (Exception ex)
         {
@@ -590,6 +727,11 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
         {
             return false;
         }
+
+        // 搜索定位必须无视当前筛选：目标行很可能正好被筛掉。
+        SectionFilterText = string.Empty;
+        FieldFilterText = string.Empty;
+        NodeFilterText = string.Empty;
 
         foreach (var section in Sections)
         {
@@ -733,11 +875,24 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
     /// <summary>选中分区：列出它的字段与块。</summary>
     partial void OnSelectedSectionChanged(SfsSectionItem? value)
     {
+        OnPropertyChanged(nameof(IsCurrentSectionTruncated));
+        OnPropertyChanged(nameof(SectionRangeText));
+        OnPropertyChanged(nameof(TruncationHint));
+        OnPropertyChanged(nameof(FieldCountText));
+        OnPropertyChanged(nameof(NodeCountText));
+
         if (value is null)
         {
+            Fields = [];
+            Nodes = [];
+            VisibleFields = [];
+            VisibleNodes = [];
+            BreadcrumbText = string.Empty;
             return;
         }
 
+        FieldFilterText = string.Empty;
+        NodeFilterText = string.Empty;
         ShowSection(value);
     }
 
@@ -747,6 +902,43 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
         EditValue = value?.Value ?? string.Empty;
         KeyEdit = value?.Key ?? string.Empty;
         OnPropertyChanged(nameof(CanEditField));
+        OnPropertyChanged(nameof(HasValueEdit));
+        OnPropertyChanged(nameof(HasKeyEdit));
+        OnPropertyChanged(nameof(HasPendingEdit));
+        OnPropertyChanged(nameof(CanApplyValue));
+        OnPropertyChanged(nameof(CanRenameKey));
+    }
+
+    partial void OnEditValueChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasValueEdit));
+        OnPropertyChanged(nameof(HasPendingEdit));
+        OnPropertyChanged(nameof(CanApplyValue));
+    }
+
+    partial void OnKeyEditChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasKeyEdit));
+        OnPropertyChanged(nameof(HasPendingEdit));
+        OnPropertyChanged(nameof(CanRenameKey));
+    }
+
+    partial void OnSectionFilterTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasSectionFilter));
+        ApplySectionFilter(selectFirstWhenMissing: true);
+    }
+
+    partial void OnFieldFilterTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasFieldFilter));
+        ApplyFieldFilter();
+    }
+
+    partial void OnNodeFilterTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasNodeFilter));
+        ApplyNodeFilter();
     }
 
     /// <summary>选中块：刷新块操作可用性。</summary>
@@ -785,18 +977,94 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
     partial void OnIsBusyChanged(bool value)
     {
         OnPropertyChanged(nameof(CanEditField));
+        OnPropertyChanged(nameof(CanApplyValue));
+        OnPropertyChanged(nameof(CanRenameKey));
         OnPropertyChanged(nameof(CanTouchNode));
         OnPropertyChanged(nameof(CanExpandNode));
     }
 
     private void ShowSection(SfsSectionItem section)
     {
-        BreadcrumbText = section.Dto.Subtitle;
+        BreadcrumbText = section.DisplaySubtitle.Length > 0 ? section.DisplaySubtitle : section.DisplayTitle;
         Fields = section.Dto.Fields;
         Nodes = section.Dto.Nodes;
+        ApplyFieldFilter();
+        ApplyNodeFilter();
         StatusText = section.Dto.Truncated
-            ? $"{section.Title}：内容超出展示预算，只列前一部分。"
-            : $"{section.Title}：{section.Dto.TotalPairCount} 键值 / {section.Dto.TotalNodeCount} 块。";
+            ? $"{section.DisplayTitle}：界面只列出了前一部分；未列出的内容请用顶部搜索定位。"
+            : $"{section.DisplayTitle}：{section.Dto.TotalPairCount} 键值 / {section.Dto.TotalNodeCount} 块。";
+        OnPropertyChanged(nameof(IsCurrentSectionTruncated));
+        OnPropertyChanged(nameof(SectionRangeText));
+        OnPropertyChanged(nameof(TruncationHint));
+    }
+
+    private void ApplySectionFilter(bool selectFirstWhenMissing)
+    {
+        var query = SectionFilterText.Trim();
+        VisibleSections = query.Length == 0
+            ? Sections
+            : Sections.Where(section => section.Matches(query)).ToArray();
+        OnPropertyChanged(nameof(SectionCountText));
+
+        if (SelectedSection is not null && VisibleSections.Contains(SelectedSection))
+        {
+            return;
+        }
+
+        if (selectFirstWhenMissing)
+        {
+            SelectedSection = VisibleSections.FirstOrDefault();
+        }
+    }
+
+    private void ApplyFieldFilter()
+    {
+        var query = FieldFilterText.Trim();
+        VisibleFields = query.Length == 0
+            ? Fields
+            : Fields.Where(field => FieldMatches(field, query)).ToArray();
+        OnPropertyChanged(nameof(FieldCountText));
+    }
+
+    private void ApplyNodeFilter()
+    {
+        var query = NodeFilterText.Trim();
+        VisibleNodes = query.Length == 0
+            ? Nodes
+            : Nodes.Where(node => NodeMatches(node, query)).ToArray();
+        OnPropertyChanged(nameof(NodeCountText));
+    }
+
+    private static bool FieldMatches(SaveOutlineFieldDto field, string query)
+        => Contains(field.Label, query)
+            || Contains(field.Key, query)
+            || Contains(field.Value, query)
+            || Contains(field.DisplayValue, query)
+            || Contains(field.Path, query)
+            || Contains(field.Line.ToString(System.Globalization.CultureInfo.InvariantCulture), query);
+
+    private static bool NodeMatches(SaveOutlineNodeDto node, string query)
+        => Contains(node.Label, query)
+            || Contains(node.Name, query)
+            || Contains(node.Summary, query)
+            || Contains(node.Path, query)
+            || Contains(node.Line.ToString(System.Globalization.CultureInfo.InvariantCulture), query);
+
+    private static bool Contains(string? value, string query)
+        => value is { Length: > 0 } && value.Contains(query, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>把编辑框还原成文件里的当前值；不写盘。</summary>
+    [RelayCommand]
+    private void RevertEdit()
+    {
+        if (SelectedField is null)
+        {
+            return;
+        }
+
+        EditValue = SelectedField.Value;
+        KeyEdit = SelectedField.Key;
+        StatusText = "已还原为文件里的值（尚未写盘）。";
     }
 
     /// <summary>把“改完以后回到第几行”做成回选：先切分区，再选回同一行的字段。</summary>
@@ -860,22 +1128,84 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
 /// <summary>分区的展示包装：界面只读 Title/Subtitle/BadgeText，编辑逻辑仍走原始 DTO。</summary>
 public sealed class SfsSectionItem
 {
-    public SfsSectionItem(SaveOutlineSectionDto dto)
+    public SfsSectionItem(SaveOutlineSectionDto dto, int duplicateOrdinal = 0)
     {
         Dto = dto;
+        DuplicateOrdinal = duplicateOrdinal;
     }
 
     /// <summary>原始分区 DTO（字段、块、截断状态都在这里）。</summary>
     public SaveOutlineSectionDto Dto { get; }
 
+    /// <summary>同名分区里的序号（从 1 开始）；0 表示没有重名。</summary>
+    public int DuplicateOrdinal { get; }
+
     public string Title => Dto.Title;
+
+    /// <summary>重名分区带序号，避免左栏出现一屏「模组数据」。</summary>
+    public string DisplayTitle => DuplicateOrdinal > 0
+        ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Dto.Title} #{DuplicateOrdinal}")
+        : Dto.Title;
 
     public string Subtitle => Dto.Subtitle;
 
-    /// <summary>分区规模摘要；被预算截断时明确标出来，避免用户以为块丢了。</summary>
+    /// <summary>能区分同名分区的副标题；没信息时返回空串。</summary>
+    public string DisplaySubtitle
+    {
+        get
+        {
+            if (Dto.Subtitle.Length == 0 || string.Equals(Dto.Subtitle, Dto.Title, StringComparison.Ordinal))
+            {
+                return string.Empty;
+            }
+
+            // 存档里每个 SCENARIO 的 Subtitle 都是字面量 SCENARIO；用 Id 里的序号代替。
+            if (string.Equals(Dto.Subtitle, "SCENARIO", StringComparison.OrdinalIgnoreCase)
+                && TryReadScenarioIndex(Dto.Id, out var scenarioIndex))
+            {
+                return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"场景 #{scenarioIndex + 1}");
+            }
+
+            return Dto.Subtitle;
+        }
+    }
+
+    public bool HasSubtitle => DisplaySubtitle.Length > 0;
+
+    /// <summary>分区规模摘要；被预算截断时给出已列条数，避免用户以为块丢了。</summary>
     public string BadgeText => Dto.Truncated
-        ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Dto.TotalPairCount} 键值 · {Dto.TotalNodeCount} 块 · 已截断")
-        : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Dto.TotalPairCount} 键值 · {Dto.TotalNodeCount} 块");
+        ? string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"已列 {Dto.Fields.Count}/{Dto.TotalPairCount} 键值 · {Dto.Nodes.Count}/{Dto.TotalNodeCount} 块")
+        : string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"{Dto.TotalPairCount} 键值 · {Dto.TotalNodeCount} 块");
+
+    public bool Matches(string query)
+        => Dto.Title.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || DisplayTitle.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || Dto.Subtitle.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || DisplaySubtitle.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || Dto.Id.Contains(query, StringComparison.OrdinalIgnoreCase);
+
+    private static bool TryReadScenarioIndex(string id, out int index)
+    {
+        index = 0;
+        const string Prefix = "scenario:";
+        if (!id.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var rest = id.AsSpan(Prefix.Length);
+        var separator = rest.IndexOf(':');
+        if (separator <= 0)
+        {
+            return false;
+        }
+
+        return int.TryParse(rest[..separator], System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out index);
+    }
 }
 
 /// <summary>设计器/预览用的空实现：任何调用都明确失败，不伪造数据。</summary>

@@ -146,7 +146,7 @@ public sealed class SfsStreamOutlineTests
     }
 
     [Test]
-    public void Build_MarksTruncatedWhenFieldBudgetIsHit()
+    public void Build_KeepsGlobalTruncationOnTheSnapshot()
     {
         var path = Write(SfsWorkbenchSamples.Career);
         var profile = SfsStreamScanner.Scan(path, new SfsStreamOptions { FieldBudget = 2 });
@@ -155,8 +155,26 @@ public sealed class SfsStreamOutlineTests
         Assert.Multiple(() =>
         {
             Assert.That(profile.Truncated, Is.True);
-            Assert.That(stream.Snapshot.Truncated, Is.True);
-            Assert.That(stream.Sections, Is.All.Matches<SfsOutlineSection>(section => section.Truncated));
+            Assert.That(stream.Snapshot.Truncated, Is.True, "整份存档仍要标记截断");
+        });
+    }
+
+    [Test]
+    public void Build_MarksOnlyTheSectionsWhoseOwnListWasClipped()
+    {
+        const string sample =
+            "GAME\r\n{\r\n\tversion = 1.0\r\n\tUT = 5\r\n\tSCENARIO\r\n\t{\r\n\t\tname = Funding\r\n\t}\r\n}\r\n";
+        var path = Write(sample);
+        var profile = SfsStreamScanner.Scan(path);
+        var stream = SfsStreamOutline.Build(profile, options: new SfsOutlineOptions { MaxFieldsPerSection = 1 });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(stream.Snapshot.Truncated, Is.False, "文件本身没有超过扫描预算");
+            Assert.That(stream.Sections.Single(section => section.Id == "game").Truncated, Is.True,
+                "存档根有两个键值，超过每区预算");
+            Assert.That(stream.Sections.Single(section => section.Subtitle == "Funding").Truncated, Is.False,
+                "资金场景只有一个键值，没被裁就不该跟着喊已截断");
         });
     }
 

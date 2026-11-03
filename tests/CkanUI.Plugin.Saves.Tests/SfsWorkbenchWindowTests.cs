@@ -31,6 +31,7 @@ public sealed class SfsWorkbenchWindowTests
 
         var viewModel = new SfsWorkbenchViewModel(@"C:\saves\persistent.sfs", new FakeSaveEditorService());
         await viewModel.InitializeAsync();
+        viewModel.SelectedField = viewModel.Fields[0];
 
         var window = new SfsWorkbenchWindow { DataContext = viewModel };
         window.Show();
@@ -49,8 +50,17 @@ public sealed class SfsWorkbenchWindowTests
             Assert.That(texts.Any(text => text.Contains("存档信息", StringComparison.Ordinal)), Is.True);
             Assert.That(texts.Any(text => text.Contains("资金", StringComparison.Ordinal)), Is.True);
             Assert.That(texts, Does.Contain("展开块"));
+            Assert.That(texts, Does.Contain("双击块也能展开"));
             Assert.That(texts, Does.Contain("复制块"));
             Assert.That(texts, Does.Contain("删除块"));
+            Assert.That(texts, Does.Contain("还原"));
+
+            var filters = window.GetVisualDescendants().OfType<TextBox>()
+                .Select(box => box.PlaceholderText ?? string.Empty)
+                .ToList();
+            Assert.That(filters.Any(text => text.Contains("筛选分区", StringComparison.Ordinal)), Is.True);
+            Assert.That(filters.Any(text => text.Contains("筛选键值", StringComparison.Ordinal)), Is.True);
+            Assert.That(filters.Any(text => text.Contains("筛选块", StringComparison.Ordinal)), Is.True);
         }
         finally
         {
