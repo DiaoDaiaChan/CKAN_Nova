@@ -267,6 +267,7 @@ public sealed class DemoPlugin : ICkanUiPlugin
 | AI 助手 | `src/CkanUI.Plugin.Ai` | `com.ckanui.ai` | `Sparkle`（星芒） | 「AI 助手」页签（`ai-assistant`，`Section=plugins`、`Order=10`）+ 底栏常驻按钮（与后台任务胶囊同一行，点开右侧抽屉）：问答 + 8 个工具（7 个 `ckan_*`：查询/导航 + 一个必须过用户确认的安装，`web_search` 走 MCP），数据与写权限都经契约 `IAiCkanBridge` 由宿主实现；设计与实测见 [ai-assistant.md](ai-assistant.md) |
 | 音乐 | `src/CkanUI.Plugin.Soundtrack` | `com.ckanui.soundtrack` | `Music`（音符） | 「音乐」页签（`music`，`Section=plugins`、`Order=20`）：读写 KSP 根目录 `Playlists/playlists.cfg`（增删曲目、排序、开关播放列表、备份后保存），乐曲库扫 `<游戏目录>/Music` 与 `GameData`；不做试听。文件契约与已知缺口见 [soundtrack.md](soundtrack.md) |
 | kOS 脚本 | `src/CkanUI.Plugin.Kos` | `com.ckanui.kos` | `Code`（尖括号） | 「kOS 脚本」页签（`kos`，`Section=plugins`、`Order=30`）：读写 KSP 根目录 `Ships/Script/*.ks`（kOS 的 Archive 卷），左侧列表 + 右侧纯文本编辑器，保存前自动备份、外部改动检测；不做语法高亮与执行。文件契约见 [kos.md](kos.md) |
+| RP-1 生涯日志 | `src/CkanUI.Plugin.Rp1` | `com.ckanui.rp1` | `History`（时钟箭头） | 「RP-1 生涯日志」页签（`rp1-career`，`Section=plugins`、`Order=40`）：只读当前实例 `saves/<存档>/persistent.sfs`，合并 `RP1ContractTracker` / `CareerLog` / `MilestoneHandler` / `ProgramHandler` / `CrewHandler` 的合同、里程碑、项目、人员与预算周期，按游戏时间排序；标题读 `GameData/RP-1` 的定义文件。文件契约与实测见 [rp1-career.md](rp1-career.md) |
 | Mod 配置 | `src/CkanUI.Plugin.ModConfig` | `com.ckanui.modconfig` | `Sliders`（滑块） | 「Mod 配置」页签（`modconfig`，`Section=mods`、`Order=50`）：解耦为内置插件，嵌入「模组」分节内；提供适配器高级配置模式与通用 ConfigNode（`*.cfg`）自动扫描、就地编辑与安全写回模式；通用模式支持宽松扫描（自定义根/扁平键值/视觉配置，见 [mod-config-generic.md](mod-config-generic.md)） |
 
 宿主侧不改一行就能拿到这个页签：插件只引用 `CkanUI.Services.Abstractions` + `Avalonia`（视图里用到缩略图/骨架屏这类共享基元的，再引 `CkanUI.Ui`），
@@ -707,3 +708,21 @@ kOS 的 Archive 卷不是数据库，就是 `Ships/Script` 下扩展名 `.ks` �
 页面层（四层空态、脏标记、保存参数、失败保留正文、未保存切换三种选择）、
 宿主接线（真实插件 dll + 只注册 `IInstanceService` 的 DI 下能构造页面模型）。
 当前是 70 条插件用例（45 条领域层 + 25 条页面层），另有 1 条在真实 Avalonia 里加载视图、1 条只注册 `IInstanceService` 的宿主 DI 接线用例。
+
+### 11.17 把「RP-1 生涯日志」做成插件：只读存档，把五个场景折成一条时间线（0.2）
+
+RP-1 的生涯记录不在一个日志文件里，而是散在 `persistent.sfs` 的多个 `SCENARIO` 块：
+合同完成时间只在 `RP1ContractTracker`，里程碑在 `MilestoneHandler`，项目在 `ProgramHandler`，
+人员退役在 `CrewHandler`，预算周期与乘员损失在 `CareerLog`。页面做的是把这五份数据对齐到同一条 UT 轴上。
+
+- **只读**：服务不写存档、不写游戏目录；存档选择只保存路径，页面刷新重新读。
+- **大文件不整树解析**：45.9 MB 的存档先用 `SfsStreamScanner` 取 `SCENARIO` 行区间，再只对九个目标场景切片 `SfsParser.Parse`。
+- **时间不是猜的**：合同优先用 `CompletionTime`，里程碑用定义里的 `contractName` 回查合同完成时间；
+  映射不到就显示「时间未知」，不按相邻事件插值。
+- **当前值不被最后一条周期骗**：`CareerLog` 最后一条 `LogPeriod.CurrentFunds` 在真实存档里是 0，页面读 `Funding` 场景。
+- **标题可缺**：`GameData/RP-1` 的合同/里程碑/项目定义找不到时显示内部名，不隐藏事件。
+- **空态四层**：没选实例 / 未装 RP-1 / 没有存档 / 存档读到了但没有事件；缺数据一律空，不用 0 或示例事件冒充。
+
+用例：`tests/CkanUI.Plugin.Rp1.Tests` 20 条（日期与文本、存档切片、时间线合并、服务校验、插件入口、页面模型），
+`tests/CkanUI.App.Tests` 另有 1 条真实 Avalonia 视图加载、1 条真实插件 dll + 宿主 DI 接线，以及 `ViewLocatorTests` 的插件视图解析断言。
+真实存档实测见 [rp1-career.md](rp1-career.md) §5。

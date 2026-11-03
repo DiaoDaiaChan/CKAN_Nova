@@ -25,6 +25,7 @@
     <ProjectReference Include="../../src/CkanUI.Plugin.ModConfig/CkanUI.Plugin.ModConfig.csproj" />
     <ProjectReference Include="../../src/CkanUI.Plugin.Soundtrack/CkanUI.Plugin.Soundtrack.csproj" />
     <ProjectReference Include="../../src/CkanUI.Plugin.Kos/CkanUI.Plugin.Kos.csproj" />
+    <ProjectReference Include="../../src/CkanUI.Plugin.Rp1/CkanUI.Plugin.Rp1.csproj" />
     <ProjectReference Include="../CkanUI.TestSupport/CkanUI.TestSupport.csproj" />
   </ItemGroup>
 

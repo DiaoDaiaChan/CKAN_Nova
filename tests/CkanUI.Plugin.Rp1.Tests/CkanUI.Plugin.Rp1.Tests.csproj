@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 「RP-1 生涯日志」插件的测试：存档切片、定义解析、时间线合并与页面筛选。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.Rp1.Tests</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.Rp1.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/CkanUI.Plugin.Rp1/CkanUI.Plugin.Rp1.csproj" />
+    <ProjectReference Include="../CkanUI.TestSupport/CkanUI.TestSupport.csproj" />
+  </ItemGroup>
+
+</Project>

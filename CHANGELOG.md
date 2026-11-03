@@ -12,6 +12,12 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 新增
 
+- RP-1 生涯日志插件（`src/CkanUI.Plugin.Rp1`，`com.ckanui.rp1`）：工具分节下的「RP-1 生涯日志」页签，把当前实例存档里的生涯记录折成一条时间线。
+  - 只读 `saves/<存档>/persistent.sfs`，合并 `RP1ContractTracker`（合同完成时间）、`CareerLog`（合同备用来源/预算周期/乘员损失）、`MilestoneHandler`（里程碑）、`ProgramHandler`（项目启动/完成）、`CrewHandler`（人员退役）。
+  - 大文件不整树解析：先用流式扫描定位 `SCENARIO` 行区间，再只解析九个目标场景；当前资金/科技/声望/信心读 `Funding` 等场景，不用最后一条预算周期的 0 冒充。
+  - 时间显示按 RP-1 的 1951-01-01 纪元与 365 天年（真实存档 UT=1,186,012,800 → 1988-08-01 00:00）；标题从 `GameData/RP-1` 的合同/里程碑/项目定义读取，映射不到就保留内部名。
+  - 页面：存档下拉 + 搜索 + 筛选 + 时间线，右栏统计卡与「事件详情 / 预算周期」；空态分四层，缺数据不用示例冒充。
+  - 测试 20 条（日期/文本、存档切片、时间线合并、服务、插件入口、页面模型）+ 1 条真实 Avalonia 视图加载 + 1 条真实插件 dll + 宿主 DI 接线。
 - kOS 脚本插件（`src/CkanUI.Plugin.Kos`，`com.ckanui.kos`）：工具分节下的「kOS 脚本」页签，直接管理 kOS 的 Archive 卷。
   - 读写 KSP 根目录 `Ships/Script/*.ks`（kOS 官方文档明确 Archive 卷就是这些真实文件，不是打包格式）。左栏搜索与脚本列表（大小/修改时间/行数/`boot.ks` 标记），右栏纯文本编辑器。
   - 写盘安全：保存前备份 `<名>.bak-yyyyMMdd-HHmmss`，同目录临时文件 + 原子替换，UTF-8 无 BOM、按原换行还原；`expectedLastWriteUtc` 与磁盘相差超过 1 秒即拒绝覆盖（外部编辑器同时改）。

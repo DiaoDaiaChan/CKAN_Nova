@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 首方内置插件：RP-1 生涯日志（docs/design/rp1-career.md）。
+       只读 <gameDir>/saves/<save>/persistent.sfs 的五个 RP-1 SCENARIO，
+       不引用 CkanUI.App / CkanUI.Services。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.Rp1</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.Rp1</AssemblyName>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
+    <ProjectReference Include="../CkanUI.Sfs/CkanUI.Sfs.csproj" />
+  </ItemGroup>
+
+</Project>
