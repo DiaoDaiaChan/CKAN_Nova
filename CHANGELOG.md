@@ -12,6 +12,9 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 新增
 
+- 插件页签自带图标：`PluginPageDescriptor` 新增可选 `Glyph`（宿主字形表里的名字），侧栏不再把每个插件都画成同一枚七巧板。
+  - 「性能」用速度表、「模组翻译」用翻译字形；字形名认不出来时退回通用插件图标而不是留一格空白（插件 dll 是第三方的，不能因为图标名写错就拒绝加载）。悬停动效另由侧栏悬停改造统一接线，未随本次提交。
+  - `tests/CkanUI.App.Tests/PluginGlyphTests.cs` 用真插件 dll 钉住「声明了图标」「宿主认识这个图标名」「两个插件不同图标」三件事。
 - 插件系统试点（F-17）：新增随包携带的「性能」页签，作为首个**内置（首方）插件**，端到端跑通「插件目录 → 激活 → 导航栏页签 → 宿主注入服务 → 卸载」。
   - 内置目录 `<App>/plugins` 与用户目录 `%LocalAppData%/CKAN/plugins` 分开：内置插件由宿主背书激活，用户插件仍默认不激活；同 Id 时内置优先并把用户那份记进失败清单。
   - 激活状态持久化到 `%LocalAppData%/CKAN/plugin-activation.json`（tmp → 原子替换，读坏按空表处理，写失败只告警）。
@@ -22,6 +25,11 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
   - 空态分得清「没装」和「装的是旧版」：遥测目录不在但同级有 KPP 本体（`Plugins/` 或 `*.version`）时，标题是「KPP 已安装，但版本不带遥测桥」、徽标「待升级」，并提示升级到 1.2.0+ 而不是让人去重装同一个旧版本。
   - 侧栏重建同时订阅 `RailItems.CollectionChanged`：视图模型是「先改 NavItems、最后刷 RailItems」，只订阅前者会永远拿旧快照重建（表现：视图模型里有 `performance`，侧栏看不见）。
   - 插件页一路验到视图：`ViewLocator` 的插件分支按程序集查同名 View，断掉时静默落到占位视图，看上去就是「插件只是个占位符」。
+- 模组翻译解耦为内置插件：把原来写死在宿主里的「模组翻译」页整套搬进 `src/CkanUI.Plugin.ModText`（`com.ckanui.modtext`），宿主不再声明它的导航项、分区、DI 登记与预热项。
+  - 页面视图模型与视图都在插件程序集里，宿主只保留领域服务 `IModTextService` 的注入；停用插件后侧栏不会留一个点进去空白的入口。
+  - `PluginPageDescriptor` 新增可选 `TitleKey`：插件页的导航标题可以跟语言包走，键不存在时回退插件自述标题（不会把键名当标题显示）。
+  - 页面投影缓存（L1 释放）现在也覆盖插件页：`PluginPageCache` 提成 DI 单例，由 `PageProjectionCacheParticipant` 一并 Trim。
+  - 顺手修掉 `ModTextPageView.axaml` 的 `TextBox.Watermark` 过时用法（AVLN5001），App 工程构建回到 0 警告。
 - 主菜单（启动落地页）：新增「主页」页并把它设为应用启动后的默认页（侧栏第一个入口）。
   - 实例概览：名称/版本/模组数/游戏目录，一键「启动游戏」「打开游戏目录」或跳到「实例管理」；实例被占用时禁用启动并说明原因。
   - 「快捷操作」分区按主次三层排布：两张大卡（模组库、变更集）承载核心工作流，三张普通卡（实例管理、存档、模组仓库）是常用页面，两个胶囊（日志、设置）收工具页；同样七个入口，不再平铺成一片。
@@ -152,11 +160,20 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 修复
 
+- 从一个选项（A）切到另一个（B）时，A 会「又亮一下」：行的底色挂了 120–200 ms 的 `BrushTransition`，
+  选中色退场要跑完整段过渡，旧行在那段时间里一直带着选中色。现在 `ListBoxItem` / `DataGridRow` 的底色瞬时切换，
+  位移弹簧仍挂在模板内的 `ContentPresenter` 上；键盘焦点只画焦点环、不再重绘整行底色（否则焦点迁移也像一次选中闪烁）。
+  回归用例：`RowSelectionFlashTests.MovingTheSelectionAwayFromARow_LeavesNoLingeringHighlight`、
+  `RowSelectionFlashTests.RowContainers_DoNotAnimateTheirBackground`、
+  `HoverStyleContractTests.RowSelection_SwapsInstantly_WithoutAFadingBackground`、
+  `HoverStyleContractTests.KeyboardFocus_DoesNotRepaintTheRowBackground`（后两个读样式表，去掉过渡后单测会红）。
 - 指针停在列表行的边缘时，行会在「选中 / 未选中」之间疯狂闪烁：悬停的 2px 位移原本挂在
   `ListBoxItem` 自己身上，而 `RenderTransform` 参与命中测试——行一右移，停在左缘的指针就掉出包围盒，
   悬停态消失、行弹回、指针又落回行内，每帧来回切换。位移现在下沉到模板内的 `ContentPresenter`
   （行的包围盒原地不动），表格行 `DataGridRow` 同样处理；卡片与引导卡不再整体上浮 2px，抬升感交给阴影，
-  指针压住卡片下缘也不会再抖。回归用例：`LogListScrollTests.HoveringARow_SlidesItsPresenter_WithoutMovingTheRowItself`。
+  指针压住卡片下缘也不会再抖。回归用例：`HoverStyleContractTests.HoverEffects_DoNotMoveTheControlThatOwnsThePointer`、
+  `HoverStyleContractTests.RowHoverSlide_LivesOnTheTemplatePresenter_SoTheRowKeepsItsGeometry`、
+  `HoverInteractionTests.ListBoxItem_HoverMovesItsPresenterNotItself_SoTheHitBoxStaysPut`。
 - 启动游戏前的那次 L1「释放页面投影」会把当前正显示着的列表也清空（模组翻译 19837 条词条、模组表、内容树都中招）：
   释放后不会再有 `OnActivated`，用户看到的是一张只剩表头的空列表，而状态栏还挂着「载入完成，共 N 条词条」——
   启动失败时尤其刺眼。现在 `TrimProjection()` 在页面 `IsActive` 时直接返回 0（离屏页面照常释放，

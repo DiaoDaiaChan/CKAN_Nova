@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 首方内置插件：模组翻译页（docs/design/plugins.md §11.9）。
+       与第三方式插件（CkanUI.Plugin.Performance）的差别是这一份要住进宿主的页面基类：
+       页面 UI 的 800+ 条本地化键靠 PageViewModel.Text(...) 解析，激活生命周期靠 IActivatable，
+       L1 投影释放靠 IPageProjectionTrim——三个契约都在 CkanUI.ViewModels，所以这里允许引用它。
+       绝不引用 CkanUI.App / CkanUI.Services：插件不碰宿主外壳与具体服务实现，服务从 DI 注入。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.ModText</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.ModText</AssemblyName>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CkanUI.ViewModels/CkanUI.ViewModels.csproj" />
+    <ProjectReference Include="../CkanUI.ModText/CkanUI.ModText.csproj" />
+    <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

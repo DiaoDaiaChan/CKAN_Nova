@@ -40,7 +40,10 @@ public sealed class NavGlyphToGeometryConverter : IValueConverter
         ["Puzzle"] = "M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7s2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z",
         ["Info"] = "M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z",
         // 主菜单：Material 的 home，与「应用落地页」的语义一致。
-        ["Home"] = "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"
+        ["Home"] = "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z",
+        // 性能页：Material 的 speed（速度表），与「帧率/耗时」的语义一致。
+        // 插件页签靠它跟「插件」入口的七巧板区分开——以前契约里没有图标字段，所有插件都长一个样。
+        ["Performance"] = "M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z"
     };
 
     /// <summary>已知字形与它们的路径数据：图标动效按字形认语义时拿来做指纹比对。</summary>
@@ -81,6 +84,15 @@ public sealed class NavGlyphToGeometryConverter : IValueConverter
             if (PathData.TryGetValue(glyph, out var data))
             {
                 var geom = StreamGeometry.Parse(data);
+                Cache[glyph] = geom;
+                return geom;
+            }
+
+            // 插件自述的图标名不受宿主控制：认不出来时退回通用插件图标，
+            // 而不是返回 null 让导航栏留一个空位（用户只会觉得"这页没图标"，不会想到是名字拼错）。
+            if (PathData.TryGetValue("Puzzle", out var fallback))
+            {
+                var geom = StreamGeometry.Parse(fallback);
                 Cache[glyph] = geom;
                 return geom;
             }

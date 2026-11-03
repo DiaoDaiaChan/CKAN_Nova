@@ -17,6 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/CkanUI.App/CkanUI.App.csproj" />
     <ProjectReference Include="../../src/CkanUI.Platform/CkanUI.Platform.csproj" />
+    <ProjectReference Include="../../src/CkanUI.Plugin.ModText/CkanUI.Plugin.ModText.csproj" />
     <ProjectReference Include="../CkanUI.TestSupport/CkanUI.TestSupport.csproj" />
   </ItemGroup>
 

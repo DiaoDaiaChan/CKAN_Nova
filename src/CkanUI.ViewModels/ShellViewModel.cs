@@ -180,8 +180,7 @@ public sealed partial class ShellViewModel : ObservableObject
             new("dedup", _translate("Ui_NavRail_Dedup"), "Link"),
             new("installhistory", _translate("Ui_NavRail_InstallHistory"), "History"),
             new("plugins", _translate("Ui_NavRail_Plugins"), "Puzzle"),
-            new("modtext", _translate("Ui_NavRail_ModText"), "Translate"),
-            new("logs", _translate("Ui_NavRail_Logs"), "Bug"),
+                new("logs", _translate("Ui_NavRail_Logs"), "Bug"),
             new("settings", _translate("Ui_NavRail_Settings"), "Settings"),
             // Mod 配置页（M9）：追加在末尾而不是插进中间——既有测试按数组下标断言导航项，
             // 插中间会让后面每一项整体位移。
@@ -718,13 +717,25 @@ public sealed partial class ShellViewModel : ObservableObject
 
     private NavItem GetOrCreatePluginNavItem(PluginPageEntry entry)
     {
+        // 有 TitleKey 的插件（首方内置）走语言包，没有的用自述标题；键写错时 _translate 会原样回键名，
+        // 所以这里再兜一层：译文等于键名就退回自述标题，页签至少是可读的。
+        var title = entry.TitleKey is { Length: > 0 } key ? _translate(key) : entry.Title;
+        if (string.Equals(title, entry.TitleKey, StringComparison.Ordinal))
+        {
+            title = entry.Title;
+        }
+
+        // 图标由插件自述（Glyph）：不填或填了宿主不认的名字才落到通用插件图标。
+        var glyph = entry.Glyph is { Length: > 0 } declared ? declared : "Puzzle";
+
         if (_pluginNavItems.TryGetValue(entry.Key, out var existing) &&
-            string.Equals(existing.Title, entry.Title, StringComparison.Ordinal))
+            string.Equals(existing.Title, title, StringComparison.Ordinal) &&
+            string.Equals(existing.Glyph, glyph, StringComparison.Ordinal))
         {
             return existing;
         }
 
-        var item = new NavItem(entry.Key, entry.Title, "Puzzle");
+        var item = new NavItem(entry.Key, title, glyph);
         _pluginNavItems[entry.Key] = item;
         return item;
     }
@@ -841,9 +852,8 @@ public sealed partial class ShellViewModel : ObservableObject
         ("home", null, ["home"]),
         // 模组：装什么、装进去长什么样、哪些待应用、元数据打哪来、单个 mod 怎么配。
         ("mods", null, ["mods", "content", "changes", "repos", "modconfig"]),
-        // 模组翻译：独立侧栏入口（原为「模组」的第 6 个页签）。词条检索与人工覆盖是独立工作面，
-        // 挂在「模组」里既挤爆那排页签，也让「我在看哪个 mod」和「我在改哪条译文」混成一件事。
-        ("modtext", null, ["modtext"]),
+        // 模组翻译已解耦为内置插件（com.ckanui.modtext），作为独立侧栏入口落在「扩展」分组里：
+        // 它不再是宿主的页签，分组也就不能写死在这里。
         // 实例：一份安装本身 + 它衍生的存档、磁盘垃圾、历史与时长 + KSP 原生设置。
         ("instances", null, ["instances", "saves", "ships", "flags", "loadingimages", "kspconfig", "unmanaged", "installhistory", "playtime"]),
         // 整合包：导入导出与直接编辑 .ckan。

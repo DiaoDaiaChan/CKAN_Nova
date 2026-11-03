@@ -193,7 +193,6 @@ public static class ServiceRegistration
         services.AddSingleton<DedupPageViewModel>();
         services.AddSingleton<InstallHistoryPageViewModel>();
         services.AddSingleton<PluginsPageViewModel>();
-        services.AddSingleton<ModTextPageViewModel>();
         // KSP 原生配置页：直接修改 settings.cfg，提取官方 dictionary.cfg 翻译。
         services.AddSingleton<KspConfigPageViewModel>();
         // Mod 配置页（M9 / CFG-01..05 + ADP-04）：九类字段就地编辑、逐文件写盘、adapter 导入。
@@ -225,7 +224,9 @@ public static class ServiceRegistration
         // 插件工具项（12 篇 F-17）：目前只有模组管理页的工具条接收插件按钮。
         services.AddSingleton<IPluginToolHost>(sp => sp.GetRequiredService<ModsPageViewModel>());
         services.AddSingleton<IPageProjectionTrim>(sp => sp.GetRequiredService<ContentPageViewModel>());
-        services.AddSingleton<IPageProjectionTrim>(sp => sp.GetRequiredService<ModTextPageViewModel>());
+        // 插件页（「模组翻译」）也实现了 IPageProjectionTrim，但它不在 DI 里：
+        // 实例由 PluginPageCache 持有，参与者在 TrimAppCache 里单独问一遍（见 PageProjectionCacheParticipant）。
+        services.AddSingleton<Plugins.PluginPageCache>();
         services.AddSingleton<UiViewResourceParticipant>();
         services.AddSingleton<IViewResourceParticipant>(sp => sp.GetRequiredService<UiViewResourceParticipant>());
         services.AddSingleton<IAppCacheParticipant, PageProjectionCacheParticipant>();
@@ -410,7 +411,6 @@ public static class ServiceRegistration
         ["installhistory"] = typeof(InstallHistoryPageViewModel),
         ["plugins"] = typeof(PluginsPageViewModel),
         ["logs"] = typeof(LogPageViewModel),
-        ["modtext"] = typeof(ModTextPageViewModel),
         ["modconfig"] = typeof(ModConfigPageViewModel),
         ["kspconfig"] = typeof(KspConfigPageViewModel),
         ["settings"] = typeof(SettingsPageViewModel),
@@ -422,7 +422,7 @@ public static class ServiceRegistration
         // 插件页实例按导航键缓存：内置页是 DI 单例（同一个实例反复返回），插件页否则每导航一次
         // 就构造一个新实例。外壳把页面视图常驻舞台上（换页只切可见性），新实例会让旧视图和它的
         // 轮询定时器永远留在可视树里（插件页视图的 StartPolling/StopPolling 挂在挂载/卸载事件上）。
-        var pluginPages = new Plugins.PluginPageCache();
+        var pluginPages = services.GetRequiredService<Plugins.PluginPageCache>();
         if (services.GetService<IPluginService>() is { } plugins)
         {
             // 插件停用/卸载后它的页签不再出现在目录里：先把实例摘掉并 Dispose（停定时器、退订阅），

@@ -45,6 +45,11 @@
                       ReferenceOutputAssembly="false"
                       Private="false"
                       SkipGetTargetFrameworkProperties="true" />
+    <!-- 模组翻译页解耦为插件（docs/design/plugins.md §11.9）：同一个打包通道，多个插件就在这里并列加行。 -->
+    <ProjectReference Include="../CkanUI.Plugin.ModText/CkanUI.Plugin.ModText.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -77,6 +82,11 @@
        Copy 于是拷 0 个文件、构建还照样成功——"插件目录永远是空的"这种坑只在运行期表现为少一个页签。 -->
   <Target Name="_CollectBundledPlugins">
     <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.Performance/CkanUI.Plugin.Performance.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.ModText/CkanUI.Plugin.ModText.csproj"
              Targets="GetTargetPath"
              Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />

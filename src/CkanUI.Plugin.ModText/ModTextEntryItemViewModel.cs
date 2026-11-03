@@ -1,7 +1,7 @@
 using CkanUI.ModText;
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace CkanUI.ViewModels.Pages.ModText;
+namespace CkanUI.Plugin.ModText;
 
 /// <summary>
 /// 词条条目呈现视图模型。

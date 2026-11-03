@@ -23,7 +23,7 @@ public sealed class ShellViewModelTests
     public void NavItems_HasTwentyThreeConfiguredItems()
     {
         var vm = new ShellViewModel();
-        Assert.That(vm.NavItems.Count, Is.EqualTo(24));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(23));
         Assert.That(vm.NavItems[0].Key, Is.EqualTo("mods"));
         Assert.That(vm.NavItems[1].Key, Is.EqualTo("content"));
         Assert.That(vm.NavItems[2].Key, Is.EqualTo("changes"));
@@ -39,19 +39,19 @@ public sealed class ShellViewModelTests
         Assert.That(vm.NavItems[12].Key, Is.EqualTo("dedup"));
         Assert.That(vm.NavItems[13].Key, Is.EqualTo("installhistory"));
         Assert.That(vm.NavItems[14].Key, Is.EqualTo("plugins"));
-        Assert.That(vm.NavItems[15].Key, Is.EqualTo("modtext"));
-        Assert.That(vm.NavItems[16].Key, Is.EqualTo("logs"));
-        Assert.That(vm.NavItems[17].Key, Is.EqualTo("settings"));
+        // 模组翻译已解耦为内置插件：插件页签在引导完成后插在「插件」之后，不再占内置下标。
+        Assert.That(vm.NavItems[15].Key, Is.EqualTo("logs"));
+        Assert.That(vm.NavItems[16].Key, Is.EqualTo("settings"));
         // Mod 配置页追加在末尾：插在中间会让上面全部下标位移，测试按位置断言导航顺序是刻意的。
-        Assert.That(vm.NavItems[18].Key, Is.EqualTo("modconfig"));
+        Assert.That(vm.NavItems[17].Key, Is.EqualTo("modconfig"));
         // 资产工作台（飞船/旗帜/加载图）同样追加在末尾，与存档同属「实例」分区。
-        Assert.That(vm.NavItems[19].Key, Is.EqualTo("ships"));
-        Assert.That(vm.NavItems[20].Key, Is.EqualTo("flags"));
-        Assert.That(vm.NavItems[21].Key, Is.EqualTo("loadingimages"));
+        Assert.That(vm.NavItems[18].Key, Is.EqualTo("ships"));
+        Assert.That(vm.NavItems[19].Key, Is.EqualTo("flags"));
+        Assert.That(vm.NavItems[20].Key, Is.EqualTo("loadingimages"));
         // 主菜单同样追加在末尾；它在侧栏分区里排第一，所以 RailItems[0] 恒为主页。
-        Assert.That(vm.NavItems[22].Key, Is.EqualTo("home"));
+        Assert.That(vm.NavItems[21].Key, Is.EqualTo("home"));
         // KSP 游戏原生设置页同样追加在末尾，挂在「实例」分区。
-        Assert.That(vm.NavItems[23].Key, Is.EqualTo("kspconfig"));
+        Assert.That(vm.NavItems[22].Key, Is.EqualTo("kspconfig"));
     }
 
     [Test]
@@ -82,25 +82,23 @@ public sealed class ShellViewModelTests
         Assert.That(vm.NavItems[12].Title, Is.EqualTo("T:Ui_NavRail_Dedup"));
         Assert.That(vm.NavItems[13].Title, Is.EqualTo("T:Ui_NavRail_InstallHistory"));
         Assert.That(vm.NavItems[14].Title, Is.EqualTo("T:Ui_NavRail_Plugins"));
-        Assert.That(vm.NavItems[15].Title, Is.EqualTo("T:Ui_NavRail_ModText"));
-        Assert.That(vm.NavItems[16].Title, Is.EqualTo("T:Ui_NavRail_Logs"));
-        Assert.That(vm.NavItems[17].Title, Is.EqualTo("T:Ui_NavRail_Settings"));
-        Assert.That(vm.NavItems[18].Title, Is.EqualTo("T:Ui_NavRail_ModConfig"));
-        Assert.That(vm.NavItems[19].Title, Is.EqualTo("T:Ui_NavRail_Ships"));
-        Assert.That(vm.NavItems[20].Title, Is.EqualTo("T:Ui_NavRail_Flags"));
-        Assert.That(vm.NavItems[21].Title, Is.EqualTo("T:Ui_NavRail_LoadingScreens"));
-        Assert.That(vm.NavItems[22].Title, Is.EqualTo("T:Ui_NavRail_Home"));
-        Assert.That(vm.NavItems[23].Title, Is.EqualTo("T:Ui_NavRail_KspConfig"));
-        Assert.That(vm.NavItems.Count, Is.EqualTo(24));
+        Assert.That(vm.NavItems[15].Title, Is.EqualTo("T:Ui_NavRail_Logs"));
+        Assert.That(vm.NavItems[16].Title, Is.EqualTo("T:Ui_NavRail_Settings"));
+        Assert.That(vm.NavItems[17].Title, Is.EqualTo("T:Ui_NavRail_ModConfig"));
+        Assert.That(vm.NavItems[18].Title, Is.EqualTo("T:Ui_NavRail_Ships"));
+        Assert.That(vm.NavItems[19].Title, Is.EqualTo("T:Ui_NavRail_Flags"));
+        Assert.That(vm.NavItems[20].Title, Is.EqualTo("T:Ui_NavRail_LoadingScreens"));
+        Assert.That(vm.NavItems[21].Title, Is.EqualTo("T:Ui_NavRail_Home"));
+        Assert.That(vm.NavItems[22].Title, Is.EqualTo("T:Ui_NavRail_KspConfig"));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(23));
     }
 
     [Test]
-    public async Task ModText_IsItsOwnRailEntry_NotATabOfMods()
+    public async Task ModText_IsNoLongerAHostPage_TheBuiltInPluginOwnsIt()
     {
         var navService = new NavigationService(key => key switch
         {
             "mods" => new ModsPageViewModel(),
-            "modtext" => new ModTextPageViewModel(),
             "plugins" => new PluginsPageViewModel(),
             _ => null
         });
@@ -112,16 +110,11 @@ public sealed class ShellViewModelTests
         Assert.That(vm.ActiveSection?.Key, Is.EqualTo("mods"));
         Assert.That(vm.SectionTabs.Any(tab => tab.Key == "modtext"), Is.False);
 
-        // 模组翻译独立成侧栏入口：独占一个分区、单页签，页签条不再出现。
-        await vm.NavigateCommand.ExecuteAsync("modtext");
-        Assert.That(vm.ActiveSection?.Key, Is.EqualTo("modtext"));
-        Assert.That(vm.ActiveSection!.RailItem.Key, Is.EqualTo("modtext"));
-        Assert.That(vm.SectionTabs.Count, Is.EqualTo(1));
-        Assert.That(vm.SectionTabs[0].Key, Is.EqualTo("modtext"));
-        Assert.That(vm.HasSectionTabs, Is.False);
-        Assert.That(vm.RailItems.Any(item => item.Key == "modtext"), Is.True, "侧栏必须有模组翻译入口");
-        Assert.That(vm.RailItems.Count(item => item.Key == "modtext"), Is.EqualTo(1), "侧栏只应有一个模组翻译入口");
-        Assert.That(vm.SelectedNavItem?.Key, Is.EqualTo("modtext"));
+        // 模组翻译解耦为内置插件（com.ckanui.modtext）后，宿主不该再有它的导航项、侧栏入口和分区条目：
+        // 否则插件被停用后，界面上还会留一个点进去空白的入口。
+        Assert.That(vm.NavItems.Any(item => item.Key == "modtext"), Is.False, "宿主不该再声明模组翻译页签");
+        Assert.That(vm.RailItems.Any(item => item.Key == "modtext"), Is.False, "没有插件时侧栏不该有模组翻译入口");
+        Assert.That(vm.Sections.Any(section => section.Key == "modtext"), Is.False, "分区表也不能残留：插件页落在「扩展」分组");
 
         // 工具入口同样只剩插件一页。
         await vm.NavigateCommand.ExecuteAsync("plugins");

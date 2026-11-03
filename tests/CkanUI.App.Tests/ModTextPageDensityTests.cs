@@ -12,6 +12,7 @@ using Avalonia.VisualTree;
 using CkanUI.App.Tests.Automation;
 using CkanUI.App.Views;
 using CkanUI.ModText;
+using CkanUI.Plugin.ModText;
 using CkanUI.Services.Abstractions;
 using CkanUI.TestSupport;
 using CkanUI.ViewModels.Pages;

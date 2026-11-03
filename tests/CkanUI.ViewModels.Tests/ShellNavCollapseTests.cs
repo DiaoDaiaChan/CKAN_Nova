@@ -84,7 +84,7 @@ public sealed class ShellNavCollapseTests
 
         vm.IsNavCollapsed = true;
 
-        Assert.That(vm.NavItems.Count, Is.EqualTo(24), "收起侧栏不能丢导航项：展开后要原样回来。");
+        Assert.That(vm.NavItems.Count, Is.EqualTo(23), "收起侧栏不能丢导航项：展开后要原样回来。");
         Assert.That(vm.SelectedNavItem, Is.Not.Null);
         Assert.That(vm.SelectedNavItem!.Key, Is.EqualTo("repos"), "收起时选中项必须保持，否则图标栏就看不出当前页。");
     }

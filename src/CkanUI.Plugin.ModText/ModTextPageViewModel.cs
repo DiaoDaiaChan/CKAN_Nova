@@ -8,11 +8,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using CkanUI.ModText;
 using CkanUI.Services.Abstractions;
-using CkanUI.ViewModels.Pages.ModText;
+using CkanUI.ViewModels;
+using CkanUI.ViewModels.Pages;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
-namespace CkanUI.ViewModels.Pages;
+namespace CkanUI.Plugin.ModText;
 
 /// <summary>
 /// 模组元数据翻译与词库管理页面视图模型（Plan 17）。

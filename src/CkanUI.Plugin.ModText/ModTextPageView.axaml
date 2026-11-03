@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:CkanUI.ViewModels.Pages"
-             xmlns:modtext="using:CkanUI.ViewModels.Pages.ModText"
-             x:Class="CkanUI.App.Views.ModTextPageView"
+             xmlns:vm="using:CkanUI.Plugin.ModText"
+             xmlns:modtext="using:CkanUI.Plugin.ModText"
+             x:Class="CkanUI.Plugin.ModText.ModTextPageView"
              x:CompileBindings="False">
 
   <!-- 行内边距压到 2px：4807 条词条靠虚拟化滚动，单行一表才有信息密度 -->
@@ -90,7 +90,7 @@
                        Classes="CkanSectionTitle" Margin="6,4,6,6" />
             <TextBox Grid.Row="1" Margin="6,0,6,6" Classes="CkanSearchBox"
                      Text="{Binding GroupFilterQuery, Mode=TwoWay}"
-                     Watermark="{DynamicResource Ui_ModTextPage_GroupSearch}" />
+                     PlaceholderText="{DynamicResource Ui_ModTextPage_GroupSearch}" />
             <ListBox Grid.Row="2" x:Name="ModTextGroupList"
                      ItemsSource="{Binding ModGroups}"
                      SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"

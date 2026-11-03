@@ -1,3 +1,4 @@
+using CkanUI.App.Plugins;
 using CkanUI.Services.Abstractions;
 using CkanUI.ViewModels.Pages;
 
@@ -19,11 +20,15 @@ public sealed class PageProjectionCacheParticipant : IAppCacheParticipant
 
     private readonly IEnumerable<IPageProjectionTrim> _pages;
 
+    private readonly PluginPageCache? _pluginPages;
+
     /// <summary>构造参与者。</summary>
     /// <param name="pages">所有支持裁剪的页面；容器里没有注册时为空集合。</param>
-    public PageProjectionCacheParticipant(IEnumerable<IPageProjectionTrim> pages)
+    /// <param name="pluginPages">插件页实例缓存；插件页不在 DI 里，只登记了 <see cref="IPageProjectionTrim"/> 是接不住它们的。</param>
+    public PageProjectionCacheParticipant(IEnumerable<IPageProjectionTrim> pages, PluginPageCache? pluginPages = null)
     {
         _pages = pages ?? throw new ArgumentNullException(nameof(pages));
+        _pluginPages = pluginPages;
     }
 
     /// <inheritdoc />
@@ -48,6 +53,39 @@ public sealed class PageProjectionCacheParticipant : IAppCacheParticipant
             catch (Exception ex)
             {
                 Log.Warn($"释放页面投影失败：{page.PageName}。", ex);
+            }
+        }
+
+        released += TrimPluginPages();
+        return released;
+    }
+
+    /// <summary>
+    /// 插件页的同一档释放：插件页实例不经过 DI（按导航键现造、由缓存持有），
+    /// 所以 <see cref="IPageProjectionTrim"/> 的容器登记看不到它们。
+    /// </summary>
+    private int TrimPluginPages()
+    {
+        if (_pluginPages is null)
+        {
+            return 0;
+        }
+
+        var released = 0;
+        foreach (var page in _pluginPages.Instances)
+        {
+            if (page is not IPageProjectionTrim trimmable)
+            {
+                continue;
+            }
+
+            try
+            {
+                released += trimmable.TrimProjection();
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"释放插件页投影失败：{trimmable.PageName}。", ex);
             }
         }
 

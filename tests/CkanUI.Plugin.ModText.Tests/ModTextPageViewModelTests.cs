@@ -5,11 +5,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using CkanUI.ModText;
 using CkanUI.Services.Abstractions;
+using CkanUI.Plugin.ModText;
 using CkanUI.TestSupport;
-using CkanUI.ViewModels.Pages;
 using NUnit.Framework;
 
-namespace CkanUI.ViewModels.Tests;
+namespace CkanUI.Plugin.ModText.Tests;
 
 [TestFixture]
 public sealed class ModTextPageViewModelTests

@@ -2,7 +2,7 @@ using System;
 using Avalonia.Controls;
 using Avalonia.Threading;
 
-namespace CkanUI.App.Views;
+namespace CkanUI.Plugin.ModText;
 
 public partial class ModTextPageView : UserControl
 {

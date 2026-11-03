@@ -26,7 +26,8 @@ public sealed class PerformancePlugin : ICkanUiPlugin
 
     private static readonly PluginPageDescriptor[] PageList =
     {
-        new(PageKey, "性能", typeof(PerformancePageViewModel).FullName ?? nameof(PerformancePageViewModel)),
+        // Glyph 取宿主的「速度表」字形：插件页签得跟「插件」入口的七巧板图标区分开。
+        new(PageKey, "性能", typeof(PerformancePageViewModel).FullName ?? nameof(PerformancePageViewModel), Glyph: "Performance"),
     };
 
     /// <inheritdoc />

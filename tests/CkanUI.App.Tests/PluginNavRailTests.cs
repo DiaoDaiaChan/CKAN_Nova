@@ -214,18 +214,4 @@ public sealed class PluginNavRailTests
         }
     }
 
-    private sealed class SilentNavigation : INavigationService
-    {
-        public object? CurrentPage => null;
-
-        public string CurrentKey => "mods";
-
-        public event Action<object?, string>? Navigated;
-
-        public Task<bool> NavigateAsync(string pageKey, object? parameter = null, CancellationToken ct = default)
-        {
-            Navigated?.Invoke(null, pageKey);
-            return Task.FromResult(true);
-        }
-    }
 }

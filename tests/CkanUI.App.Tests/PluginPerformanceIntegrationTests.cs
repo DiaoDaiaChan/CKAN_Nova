@@ -188,8 +188,8 @@ public class PluginPerformanceIntegrationTests
             var hostKeys = new[]
             {
                 "mods", "content", "changes", "repos", "modpacks", "modpack-editor", "instances", "playtime",
-                "saves", "unmanaged", "cache", "downloadstats", "dedup", "installhistory", "plugins", "modtext",
-                "logs", "settings", "modconfig", "ships", "flags", "loadingimages", "home", "kspconfig",
+                "saves", "unmanaged", "cache", "downloadstats", "dedup", "installhistory", "plugins", "logs",
+                "settings", "modconfig", "ships", "flags", "loadingimages", "home", "kspconfig",
             };
 
             var entries = PluginPageCatalog.Collect(service.Active, hostKeys);
@@ -382,20 +382,6 @@ public class PluginPerformanceIntegrationTests
         }
     }
 
-    private sealed class SilentNavigation : INavigationService
-    {
-        public object? CurrentPage => null;
-
-        public string CurrentKey => "mods";
-
-        public event Action<object?, string>? Navigated;
-
-        public Task<bool> NavigateAsync(string pageKey, object? parameter = null, CancellationToken ct = default)
-        {
-            Navigated?.Invoke(null, pageKey);
-            return Task.FromResult(true);
-        }
-    }
 
     private sealed class FakeInstances : IInstanceService
     {

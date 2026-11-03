@@ -1,4 +1,4 @@
-namespace CkanUI.ViewModels.Pages.ModText;
+namespace CkanUI.Plugin.ModText;
 
 /// <summary>
 /// 左栏「按模组查看」的一条分组。词条来自 CKAN 元数据时，Key 是 normalized 里解析出的

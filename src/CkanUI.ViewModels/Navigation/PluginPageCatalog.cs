@@ -9,7 +9,15 @@ namespace CkanUI.ViewModels.Navigation;
 /// <param name="Title">页签标题（插件自述，宿主不本地化）。</param>
 /// <param name="ViewModelTypeName">视图模型的程序集限定名，由 App 层反射解析。</param>
 /// <param name="PluginName">来源插件显示名，用于排障与重名时点名。</param>
-public sealed record PluginPageEntry(string Key, string Title, string ViewModelTypeName, string PluginName);
+/// <param name="TitleKey">标题的本地化键；为空表示直接用 <paramref name="Title"/>（插件自述）。</param>
+/// <param name="Glyph">导航栏图标字形名；为空时外壳用通用插件图标兜底。</param>
+public sealed record PluginPageEntry(
+    string Key,
+    string Title,
+    string ViewModelTypeName,
+    string PluginName,
+    string? TitleKey = null,
+    string? Glyph = null);
 
 /// <summary>
 /// 把插件自述的页签整理成导航栏可用的一组页签。
@@ -80,7 +88,15 @@ public static class PluginPageCatalog
                     continue;
                 }
 
-                entries.Add(new PluginPageEntry(key!, title!, typeName!, plugin.DisplayName));
+                var titleKey = page.TitleKey?.Trim();
+                var glyph = page.Glyph?.Trim();
+                entries.Add(new PluginPageEntry(
+                    key!,
+                    title!,
+                    typeName!,
+                    plugin.DisplayName,
+                    string.IsNullOrEmpty(titleKey) ? null : titleKey,
+                    string.IsNullOrEmpty(glyph) ? null : glyph));
             }
         }
 

@@ -106,19 +106,88 @@ public sealed class PluginPageCatalogTests
         plugins.ActiveItems.Add(Plugin("Hello", Page("hello-page", "Hello 页")));
         var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key, plugins: plugins);
 
-        Assert.That(shell.NavItems, Has.Count.EqualTo(25));
+        // 内置 23 条 + 插件 1 条：模组翻译改由插件提供后，这里只剩「插件页签插在 plugins 之后」这一条规则要守。
+        Assert.That(shell.NavItems, Has.Count.EqualTo(24));
         Assert.That(shell.NavItems[14].Key, Is.EqualTo("plugins"));
         Assert.That(shell.NavItems[15].Key, Is.EqualTo("hello-page"));
         Assert.That(shell.NavItems[15].Title, Is.EqualTo("Hello 页"));
-        Assert.That(shell.NavItems[16].Key, Is.EqualTo("modtext"));
-        Assert.That(shell.NavItems[17].Key, Is.EqualTo("logs"));
-        Assert.That(shell.NavItems[18].Key, Is.EqualTo("settings"));
-        Assert.That(shell.NavItems[19].Key, Is.EqualTo("modconfig"));
-        Assert.That(shell.NavItems[20].Key, Is.EqualTo("ships"));
-        Assert.That(shell.NavItems[21].Key, Is.EqualTo("flags"));
-        Assert.That(shell.NavItems[22].Key, Is.EqualTo("loadingimages"));
-        Assert.That(shell.NavItems[23].Key, Is.EqualTo("home"));
-        Assert.That(shell.NavItems[24].Key, Is.EqualTo("kspconfig"));
+        Assert.That(shell.NavItems[16].Key, Is.EqualTo("logs"));
+        Assert.That(shell.NavItems[17].Key, Is.EqualTo("settings"));
+        Assert.That(shell.NavItems[18].Key, Is.EqualTo("modconfig"));
+        Assert.That(shell.NavItems[19].Key, Is.EqualTo("ships"));
+        Assert.That(shell.NavItems[20].Key, Is.EqualTo("flags"));
+        Assert.That(shell.NavItems[21].Key, Is.EqualTo("loadingimages"));
+        Assert.That(shell.NavItems[22].Key, Is.EqualTo("home"));
+        Assert.That(shell.NavItems[23].Key, Is.EqualTo("kspconfig"));
+    }
+
+    [Test]
+    public void Collect_PassesThroughTitleKey_SoFirstPartyPluginsKeepLocalizedTitles()
+    {
+        var plugin = Plugin("ModText", new PluginPageDescriptor(
+            "modtext",
+            "模组翻译",
+            "CkanUI.Plugin.ModText.ModTextPageViewModel",
+            "Ui_NavRail_ModText"));
+
+        var entries = PluginPageCatalog.Collect(new[] { plugin }, Array.Empty<string>());
+
+        Assert.That(entries, Has.Count.EqualTo(1));
+        Assert.That(entries[0].TitleKey, Is.EqualTo("Ui_NavRail_ModText"));
+    }
+
+    [Test]
+    public void Shell_PrefersTitleKey_AndFallsBackToThePluginTitleWhenTheKeyIsUnknown()
+    {
+        var plugins = new FakePluginService();
+        plugins.ActiveItems.Add(Plugin("ModText", new PluginPageDescriptor(
+            "modtext",
+            "模组翻译",
+            "CkanUI.Plugin.ModText.ModTextPageViewModel",
+            "Ui_NavRail_ModText")));
+
+        // 翻译委托把键原样回键名 = 语言包里没有这条键：导航标题必须退回插件自述标题，不能显示一串键名。
+        var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key, plugins: plugins);
+        var item = shell.NavItems.Single(nav => nav.Key == "modtext");
+        Assert.That(item.Title, Is.EqualTo("T:Ui_NavRail_ModText"));
+
+        var unknownKey = new FakePluginService();
+        unknownKey.ActiveItems.Add(Plugin("Broken", new PluginPageDescriptor(
+            "broken-page",
+            "坏键页",
+            "CkanUI.ViewModels.SomePageViewModel",
+            "Ui_No_Such_Key")));
+        var shell2 = new ShellViewModel(new NavigationService(_ => null), key => key, plugins: unknownKey);
+        Assert.That(shell2.NavItems.Single(nav => nav.Key == "broken-page").Title, Is.EqualTo("坏键页"));
+    }
+
+    [Test]
+    public void Collect_PassesThroughGlyph_SoEachPluginCanPickItsOwnIcon()
+    {
+        var plugins = new FakePluginService();
+        plugins.ActiveItems.Add(Plugin("Perf", new PluginPageDescriptor(
+            "performance",
+            "性能",
+            "CkanUI.Plugin.Performance.PerformancePageViewModel",
+            Glyph: "Performance")));
+
+        var entries = PluginPageCatalog.Collect(plugins.Active, Array.Empty<string>());
+        Assert.That(entries[0].Glyph, Is.EqualTo("Performance"));
+
+        // 契约第四位是 TitleKey，图标必须靠命名参数传——这条用例顺手钉住顺序，防止有人把它写成第五个位置参数后串位。
+        var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key, plugins: plugins);
+        Assert.That(shell.NavItems.Single(nav => nav.Key == "performance").Glyph, Is.EqualTo("Performance"));
+    }
+
+    [Test]
+    public void Shell_FallsBackToTheGenericPluginGlyph_WhenThePluginDeclaresNone()
+    {
+        var plugins = new FakePluginService();
+        plugins.ActiveItems.Add(Plugin("Plain", Page("plain-page")));
+
+        var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key, plugins: plugins);
+
+        Assert.That(shell.NavItems.Single(nav => nav.Key == "plain-page").Glyph, Is.EqualTo("Puzzle"));
     }
 
     [Test]
@@ -132,7 +201,8 @@ public sealed class PluginPageCatalogTests
         plugins.ActiveItems.Clear();
         plugins.RaiseChanged();
 
-        Assert.That(shell.NavItems, Has.Count.EqualTo(24));
+        // 插件页卸掉后回到纯内置的 23 条。
+        Assert.That(shell.NavItems, Has.Count.EqualTo(23));
         Assert.That(shell.NavItems.Any(item => item.Key == "hello-page"), Is.False);
         Assert.That(shell.NavItems.Single(item => item.Key == "settings"), Is.SameAs(settingsItem));
     }
@@ -172,6 +242,6 @@ public sealed class PluginPageCatalogTests
     {
         var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key);
 
-        Assert.That(shell.NavItems, Has.Count.EqualTo(24));
+        Assert.That(shell.NavItems, Has.Count.EqualTo(23));
     }
 }

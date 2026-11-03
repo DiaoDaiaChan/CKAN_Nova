@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using CkanUI.App.Views;
+using CkanUI.Plugin.ModText;
 using NUnit.Framework;
 
 namespace CkanUI.App.Tests.Automation;

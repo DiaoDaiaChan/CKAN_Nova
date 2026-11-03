@@ -23,6 +23,9 @@ public sealed class PluginPageCache
     /// <summary>当前缓存的页面实例数（诊断与测试用）。</summary>
     public int Count => _pages.Count;
 
+    /// <summary>当前缓存的页面实例快照（L1 投影释放要逐个问它们能不能丢行）。</summary>
+    public IReadOnlyList<object> Instances => _pages.Values.ToList();
+
     /// <summary>按导航键取页面实例，没有就调一次工厂并记住结果（工厂返回 <c>null</c> 不缓存）。</summary>
     public object? GetOrCreate(string key, Func<object?> factory)
     {

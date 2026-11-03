@@ -249,17 +249,23 @@ public sealed class DemoPlugin : ICkanUiPlugin
 
 ### 11.4 内置插件清单
 
-| 插件 | 目录 | Id | 贡献 |
-| --- | --- | --- | --- |
-| 性能 | `src/CkanUI.Plugin.Performance` | `com.ckanui.performance` | 「性能」页签（`performance`），读 KPP 遥测、发命令，契约见 [performance-tab.md](performance-tab.md) |
+| 插件 | 目录 | Id | 图标 | 贡献 |
+| --- | --- | --- | --- | --- |
+| 性能 | `src/CkanUI.Plugin.Performance` | `com.ckanui.performance` | `Performance`（速度表） | 「性能」页签（`performance`），读 KPP 遥测、发命令，契约见 [performance-tab.md](performance-tab.md) |
+| 模组翻译 | `src/CkanUI.Plugin.ModText` | `com.ckanui.modtext` | `Translate`（翻译） | 「模组翻译」页签（`modtext`），原来是宿主内置页，0.2 起整套视图移进插件；导航标题靠 `TitleKey` 取语言包 |
 
 宿主侧不改一行就能拿到这个页签：插件只引用 `CkanUI.Services.Abstractions` + `Avalonia`，
 构造函数里声明 `IInstanceService` 之类的宿主服务，`PluginPageFactory` 用 `ActivatorUtilities` 注入。
 
 ### 11.5 再加一个首方插件
 
-1. 新建 `src/CkanUI.Plugin.<名字>`（net10.0，只引 `Avalonia`（无版本，走中央包管理）+ 契约层 `ProjectReference`，
+1. 新建 `src/CkanUI.Plugin.<名字>`（net10.0，引 `Avalonia`（无版本，走中央包管理）+ 契约层 `ProjectReference`，
    `AvaloniaUseCompiledBindingsByDefault=false`），实现 `ICkanUiPlugin` 并声明 `Pages`。
+   页面视图模型要继承宿主的 `PageViewModel`（`Text(...)` 本地化、`IActivatable`、`IPageProjectionTrim` 三个契约都在
+   `CkanUI.ViewModels`），这时才额外引 `CkanUI.ViewModels` 与领域库——首方插件可以，第三方插件不行（契约层之外不保证稳定）。
+   要跟语言包走就在 `PluginPageDescriptor` 上填 `TitleKey`，宿主用当前翻译取标题；键不存在时回退 `Title`。
+   侧栏图标靠 `Glyph`：填 `NavGlyphToGeometryConverter` 里已有的字形名（`Performance`、`Translate`、`Storage`…），
+   不填或名字认不出来时退回通用「插件」七巧板——见 §11.10。
 2. `dotnet sln add --solution-folder src <csproj>`；测试工程同理 `--solution-folder tests`。
 3. `src/CkanUI.App/CkanUI.App.csproj` 的 `ProjectReference` 加一行，`ReferenceOutputAssembly=false` / `Private=false` /
    `SkipGetTargetFrameworkProperties=true`；`ItemGroup` 把那枚 csproj 加进 `_BundledPluginProject`。
@@ -380,3 +386,70 @@ public sealed class DemoPlugin : ICkanUiPlugin
 - 应用退出时没有统一「处置所有页面实例」的收口，靠进程结束；`_services.Dispose()` 只处理服务。
 - 页面视图模型不实现 `IActivatable`，所以「切走页面」不会触发停轮询——目前靠插件页自己的
   `DetachedFromVisualTree`（视图被真正撤下时才发生）。
+
+### 11.9 把宿主页面搬成插件：模组翻译（0.2）
+
+第二个首方插件走的是另一条路：页面原本写死在宿主里，「插件化」等于把它**拆下来**，而不是并排新写一个。
+顺序反过来做会留下两套实现（宿主一套、插件一套），谁也不知道界面上看到的是哪套。
+
+**宿主侧要一起拆的东西（少拆一处就留一个死入口）**
+
+| 位置 | 拆分前 | 拆分后 |
+| --- | --- | --- |
+| `src/CkanUI.ViewModels/ShellViewModel.cs` | `_baseNavItems` 有 `modtext`；`SectionSpecs` 有 `("modtext", null, ["modtext"])` | 两条都删；插件页由 `RebuildPluginNavItems` 插在「插件」之后、落「扩展」分组 |
+| `src/CkanUI.App/ServiceRegistration.cs` | `AddSingleton<ModTextPageViewModel>()` + `IPageProjectionTrim` 映射 + `PageTypes["modtext"]` | 三处都删；插件页不在 DI 里，工厂按页签目录问 `PluginPageCache` |
+| `src/CkanUI.App/MainWindow.axaml.cs` | `ActivationWarmups` / `WarmupOrder` 里的 `"modtext"` | 删掉（预热的是宿主页面实例，插件页由插件自己管） |
+| 领域库 `src/CkanUI.ModText` | 服务 `IModTextService` 在宿主 | **不动**：插件只管界面，服务照旧由宿主注入 |
+
+**`TitleKey`：插件页也要跟语言包走**
+
+`PluginPageDescriptor` 加了可选尾参 `string? TitleKey = null`（3 参构造仍可用，向后兼容），
+`PluginPageCatalog` 原样透传到 `PluginPageEntry`，`ShellViewModel.GetOrCreatePluginNavItem` 优先用
+`_translate(TitleKey)`，**翻译委托把键原样返回**（语言包没这条键）时退回插件自述的 `Title`——
+否则界面上会直接显示 `Ui_NavRail_ModText` 这种键名。两条用例钉住：透传一条、回退一条。
+
+**L1 页面投影缓存要认得插件页**
+
+`PageProjectionCacheParticipant` 原来只扫 DI 里的 `IPageProjectionTrim`，搬走之后模组翻译页不在 DI 里，
+启动前那次释放就碰不到它。改法：`PluginPageCache` 提成 DI 单例（工厂与参与者共用同一个实例），
+参与者额外遍历 `PluginPageCache.Instances`，对 `is IPageProjectionTrim` 的页面各调一次 `TrimProjection()`（逐个 try/catch）。
+少了这一步，插件页的内存与投影缓存只能等卸载时才放。
+
+**搬文件的 git 教训**
+
+`git mv` 之后原路径又冒出来（并行流程还原了删除），`git status` 里目的地还是 `??`——说明 git 没把这当成重命名。
+补救是先 `git rm` 五个原路径再 `git add` 新目录，然后**必须** `git status --short` 确认状态是 `R` 且原路径消失；
+只 `ls` 看不出这种半搬状态，下一次构建就会因为一个程序集里定义了两份同名类型而炸。
+
+**测试迁移**
+
+- `tests/CkanUI.ViewModels.Tests/ModTextPageViewModelTests.cs` → `tests/CkanUI.Plugin.ModText.Tests/`（命名空间 `CkanUI.Plugin.ModText.Tests`），27 条照样绿。
+- `ShellViewModelTests` / `PluginPageCatalogTests` / `ShellNavCollapseTests` 里写死的 `24` 全部降到 `23`（内置项少一条），
+  按下标断言导航顺序的用例同步位移——这类断言脆，但正因为脆，漏改会立刻红。
+- `tests/CkanUI.App.Tests` 直接 `new ModTextPageView()` 的三个文件改成引用插件工程（`using CkanUI.Plugin.ModText;`）。
+
+### 11.10 插件页签的图标：契约里没有这个字段，所有插件就长同一张脸
+
+试点刚上线时侧栏里「性能」和「模组翻译」都是一枚七巧板——不是画错了，是
+`ShellViewModel.GetOrCreatePluginNavItem` 里硬编码了 `new NavItem(entry.Key, entry.Title, "Puzzle")`：
+契约层没地方让插件说"我想用什么图标"，宿主只能给个通用占位。
+
+改法（沿用 `TitleKey` 那套形状，向后兼容）：
+
+- `PluginPageDescriptor` 加可选尾参 `string? Glyph = null`；`PluginPageCatalog` 透传到 `PluginPageEntry`；
+  `ShellViewModel` 取 `entry.Glyph`（空白按未填处理），没填就还是 `Puzzle`。
+- `Glyph` 是**宿主字形表里的名字**，不是路径也不是 emoji：`NavGlyphToGeometryConverter.PathData` 的键即白名单
+  （`Performance` = Material speed、`Translate`、`Storage`、`Chart`…）。宿主不解释第三方图标的含义，只负责查表。
+- 认不出来的名字**退回七巧板**（写进缓存），不返回 `null`：返回 null 导航栏会留一格空白，用户只会以为
+  "这页本来就没图标"，看不出是插件把名字拼错了。
+- 悬停动效同理：`IconHoverGlyph` 没配的字形走默认，新字形想加动效自己补一行。
+
+**为什么把兜底做在转换器里，而不是让描述符校验失败**：插件 dll 是第三方的，宿主不能因为图标名写错就拒绝加载
+整个插件——页签能用比图标好看重要。反过来，首方插件必须被用例钉住，不然"忘了填"会一直没人发现：
+
+- `tests/CkanUI.App.Tests/PluginGlyphTests.cs`：加载两个真插件 dll，断言每个页签都声明了 `Glyph`、
+  不是 `Puzzle`、`NavGlyphToGeometryConverter.Convert` 真能返回几何（名字拼错会红）、两个插件的图标不同、
+  且 `ShellViewModel.NavItems` 里拿到的就是这一枚。
+- `tests/CkanUI.ViewModels.Tests/PluginPageCatalogTests.cs`：条件用例各一条——透传（顺带钉住 `Glyph` 必须用
+  命名参数，位置参数是 `TitleKey`）与未声明时的 `Puzzle` 兜底。
+

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 「模组翻译」插件页的视图模型测试（docs/design/plugins.md §11.9）。
+       页面从 CkanUI.ViewModels 搬进插件后，宿主测试工程不再引插件程序集：
+       这个工程独立引用插件 + 共用测试替身，保证插件的边界靠引用方向自己证明。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.ModText.Tests</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.ModText.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/CkanUI.Plugin.ModText/CkanUI.Plugin.ModText.csproj" />
+    <ProjectReference Include="../CkanUI.TestSupport/CkanUI.TestSupport.csproj" />
+  </ItemGroup>
+
+</Project>
