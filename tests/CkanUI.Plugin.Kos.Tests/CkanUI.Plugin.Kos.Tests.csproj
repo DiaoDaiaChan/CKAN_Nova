@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 「kOS 脚本」页签插件的测试（docs/design/plugins.md）。
+       kOS 的 Archive 就是 Ships/Script/*.ks：文件名的合法性、备份、原子替换、外部改动检测都要钉死。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.Kos.Tests</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.Kos.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/CkanUI.Plugin.Kos/CkanUI.Plugin.Kos.csproj" />
+    <ProjectReference Include="../CkanUI.TestSupport/CkanUI.TestSupport.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -82,6 +82,11 @@
                       ReferenceOutputAssembly="false"
                       Private="false"
                       SkipGetTargetFrameworkProperties="true" />
+    <!-- kOS 脚本：读写 KSP 根目录 Ships/Script/*.ks（kOS 的 Archive 卷）。 -->
+    <ProjectReference Include="../CkanUI.Plugin.Kos/CkanUI.Plugin.Kos.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -149,6 +154,11 @@
       <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
     </MSBuild>
     <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.Soundtrack/CkanUI.Plugin.Soundtrack.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.Kos/CkanUI.Plugin.Kos.csproj"
              Targets="GetTargetPath"
              Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />

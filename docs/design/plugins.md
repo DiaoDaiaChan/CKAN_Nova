@@ -266,6 +266,7 @@ public sealed class DemoPlugin : ICkanUiPlugin
 | KSP 游戏设置 | `src/CkanUI.Plugin.KspConfig` | `com.ckanui.kspconfig` | `Settings`（齿轮） | 「KSP 游戏设置」页签（`kspconfig`，`Section=instances`、`Order=50`） |
 | AI 助手 | `src/CkanUI.Plugin.Ai` | `com.ckanui.ai` | `Sparkle`（星芒） | 「AI 助手」页签（`ai-assistant`，`Section=plugins`、`Order=10`）+ 底栏常驻按钮（与后台任务胶囊同一行，点开右侧抽屉）：问答 + 8 个工具（7 个 `ckan_*`：查询/导航 + 一个必须过用户确认的安装，`web_search` 走 MCP），数据与写权限都经契约 `IAiCkanBridge` 由宿主实现；设计与实测见 [ai-assistant.md](ai-assistant.md) |
 | 音乐 | `src/CkanUI.Plugin.Soundtrack` | `com.ckanui.soundtrack` | `Music`（音符） | 「音乐」页签（`music`，`Section=plugins`、`Order=20`）：读写 KSP 根目录 `Playlists/playlists.cfg`（增删曲目、排序、开关播放列表、备份后保存），乐曲库扫 `<游戏目录>/Music` 与 `GameData`；不做试听。文件契约与已知缺口见 [soundtrack.md](soundtrack.md) |
+| kOS 脚本 | `src/CkanUI.Plugin.Kos` | `com.ckanui.kos` | `Code`（尖括号） | 「kOS 脚本」页签（`kos`，`Section=plugins`、`Order=30`）：读写 KSP 根目录 `Ships/Script/*.ks`（kOS 的 Archive 卷），左侧列表 + 右侧纯文本编辑器，保存前自动备份、外部改动检测；不做语法高亮与执行。文件契约见 [kos.md](kos.md) |
 | Mod 配置 | `src/CkanUI.Plugin.ModConfig` | `com.ckanui.modconfig` | `Sliders`（滑块） | 「Mod 配置」页签（`modconfig`，`Section=mods`、`Order=50`）：解耦为内置插件，嵌入「模组」分节内；提供适配器高级配置模式与通用 ConfigNode（`*.cfg`）自动扫描、就地编辑与安全写回模式 |
 
 宿主侧不改一行就能拿到这个页签：插件只引用 `CkanUI.Services.Abstractions` + `Avalonia`（视图里用到缩略图/骨架屏这类共享基元的，再引 `CkanUI.Ui`），
@@ -684,3 +685,25 @@ public sealed class DemoPlugin : ICkanUiPlugin
 **用例**：`tests/CkanUI.Plugin.Soundtrack.Tests` 65 条（44 条领域层：往返/未知节点/重复键/备份/原子替换；
 17 条页面层：脏状态/保存成功与失败/空态/缺失曲目/未选实例；3 条插件入口：页签声明与生命周期；
 1 条宿主分节接线在 `tests/CkanUI.ViewModels.Tests/PluginPageCatalogTests.cs`）。
+
+### 11.16 把「kOS 脚本」做成插件：直接编辑 Archive 卷（0.2）
+
+kOS 的 Archive 卷不是数据库，就是 `Ships/Script` 下扩展名 `.ks` 的真实文件（官方 `general/volumes`，2021，对应 kOS 1.4）。
+所以这一页没有“导出/导入”，只有目录、文本和保存纪律。
+
+- **服务留在插件里**：宿主只注册 `IInstanceService`，`IKosScriptService` 是插件内部实现；页面单参构造函数自己接上，
+  真实 DI 下不会退化成“服务未就绪”。播放列表插件（§11.15）用同一形态。
+- **写盘纪律**：保存前备份 `<名>.bak-yyyyMMdd-HHmmss`，写同目录临时文件后 `File.Move(overwrite:true)`；
+  `expectedLastWriteUtc` 与磁盘相差超过 1 秒即拒绝（外部编辑器同时改）；超过 2 MB 不塞进编辑器；
+  公开方法一律不抛异常，失败转 `OperationResult.Fail` 中文文案。
+- **名字就是攻击面**：空、路径分隔符、冒号、`..`、不以 `.ks` 结尾全部拒绝；新建与重命名都不覆盖已有文件。
+- **未保存保护**：切换脚本、刷新、重新载入前不静默丢稿，页内确认条给“保存并切换 / 放弃修改 / 取消”；宿主级关闭/导航切换目前拦不住（`IPluginPage` 还是空标记接口），已在 [kos.md](kos.md) §6 登记。
+- **空态分四层**：没选实例、没装 kOS、装了但没有 `Ships/Script`、目录存在但没有脚本。四层给不同的下一步，
+  缺数据一律空，不用 0 或示例脚本冒充。
+- **不做**：语法高亮、补全、脚本执行/编译（那是 kOS 终端的事）；不解析存档 persistence 里的非 Archive 卷；
+  不做常驻文件监视，进入页面或点刷新才扫描。
+
+用例三层：领域层（文件名校验、BOM、CRLF/LF 往返、备份、冲突、外部改动、2 MB 上限）、
+页面层（四层空态、脏标记、保存参数、失败保留正文、未保存切换三种选择）、
+宿主接线（真实插件 dll + 只注册 `IInstanceService` 的 DI 下能构造页面模型）。
+当前是 70 条插件用例（45 条领域层 + 25 条页面层），另有 1 条在真实 Avalonia 里加载视图、1 条只注册 `IInstanceService` 的宿主 DI 接线用例。

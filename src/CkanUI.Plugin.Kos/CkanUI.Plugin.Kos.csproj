@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 首方内置插件：kOS 脚本管理（docs/design/kos-scripts.md）。
+       kOS 的 Archive 卷就是 KSP 根目录的 Ships/Script/*.ks（kOS 官方文档 general/volumes 明确写了
+       "a file stored on the volume called Archive ... stored as an actual file, with the extension .ks
+       ... located in Ships/Script"）。本插件只读写这个目录，不引用 CkanUI.App / CkanUI.Services。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.Kos</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.Kos</AssemblyName>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

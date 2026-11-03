@@ -12,6 +12,13 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 新增
 
+- kOS 脚本插件（`src/CkanUI.Plugin.Kos`，`com.ckanui.kos`）：工具分节下的「kOS 脚本」页签，直接管理 kOS 的 Archive 卷。
+  - 读写 KSP 根目录 `Ships/Script/*.ks`（kOS 官方文档明确 Archive 卷就是这些真实文件，不是打包格式）。左栏搜索与脚本列表（大小/修改时间/行数/`boot.ks` 标记），右栏纯文本编辑器。
+  - 写盘安全：保存前备份 `<名>.bak-yyyyMMdd-HHmmss`，同目录临时文件 + 原子替换，UTF-8 无 BOM、按原换行还原；`expectedLastWriteUtc` 与磁盘相差超过 1 秒即拒绝覆盖（外部编辑器同时改）。
+  - 管理动作：新建自动补 `.ks`、重命名不覆盖、删除先确认并保留备份；名字里的路径分隔符/冒号/`..` 一律拒绝。
+  - 空态分四层：没选实例 / 没装 kOS / 装了但没有 `Ships/Script` / 目录存在但没有脚本；四层给不同下一步，缺数据不用 0 或示例脚本冒充。
+  - 未保存保护：切换脚本、刷新、重新载入前挂起动作，页内确认条给「保存并切换 / 放弃修改 / 取消」，原稿不静默丢失。
+  - 测试 70 条（45 条领域层 + 25 条页面层）+ 1 条真实 Avalonia 加载视图 + 1 条只注册 `IInstanceService` 的宿主 DI 接线。
 - 音乐插件（`src/CkanUI.Plugin.Soundtrack`，`com.ckanui.soundtrack`）：工具分节下的「音乐」页签，管理 Soundtrack 的播放列表。
   - 读写 KSP 根目录 `Playlists/playlists.cfg`：左栏播放列表（启用开关、曲目数、场景摘要），右栏改名与 loop/shuffle/pauseOnGamePause/disableAfterPlay、曲目上移/下移/移除、从乐曲库搜索添加；缺失曲目如实标「缺失」。
   - 写盘安全：不认识的键与子节点原样保留、`enabled` 没写就不补、重复键后者覆盖；保存先备份 `.bak-yyyyMMdd-HHmmss` 再原子替换，UTF-8 无 BOM、换行沿用原文件。

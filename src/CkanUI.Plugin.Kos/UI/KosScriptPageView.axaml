@@ -1,0 +1,289 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CkanUI.Plugin.Kos.UI.KosScriptPageView"
+             x:CompileBindings="False">
+  <UserControl.Styles>
+    <!-- 行只放形状；选中色走动态资源，换主题时不用改页面。 -->
+    <Style Selector="Border.kos-script-row">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+      <Setter Property="Padding" Value="8,6" />
+      <Setter Property="Margin" Value="0,1" />
+    </Style>
+    <Style Selector="Border.kos-script-row.selected">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    </Style>
+    <Style Selector="Button.kos-tool">
+      <Setter Property="MinHeight" Value="32" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}" Background="Transparent">
+
+    <!-- 页头：这页管的是 kOS 的 Archive 卷，不是别的脚本目录 -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+      <StackPanel Grid.Column="0" Spacing="4">
+        <TextBlock Text="kOS 脚本" Classes="CkanPageTitle" />
+        <TextBlock Text="管理 kOS Archive 卷：Ships/Script 下的 .ks 就是游戏里 Archive 上的文件。保存前自动备份，外部改动会被拒绝覆盖。"
+                   Classes="CkanCaption" TextWrapping="Wrap" MaxWidth="760" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right">
+        <TextBlock Text="{Binding InstanceName}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+        <TextBlock Text="{Binding InstanceGameDir}" Classes="CkanCaption" HorizontalAlignment="Right"
+                   TextTrimming="CharacterEllipsis" MaxWidth="420" />
+      </StackPanel>
+    </Grid>
+
+    <!-- 事实条：模组状态、脚本数、目录。目录是服务算出来的，不是页面拼的 -->
+    <StackPanel Grid.Row="1" Spacing="4" Margin="0,0,0,8">
+      <WrapPanel Orientation="Horizontal">
+        <Border Classes="CkanBadge Success" IsVisible="{Binding IsModInstalled}" Margin="0,0,8,4">
+          <TextBlock Text="{Binding ModStatusText}" TextTrimming="CharacterEllipsis" MaxWidth="460" />
+        </Border>
+        <Border Classes="CkanBadge Danger" IsVisible="{Binding !IsModInstalled}" Margin="0,0,8,4">
+          <TextBlock Text="{Binding ModStatusText}" TextTrimming="CharacterEllipsis" MaxWidth="460" />
+        </Border>
+        <Border Classes="CkanBadge" Margin="0,0,8,4">
+          <TextBlock Text="{Binding ScriptCountText}" />
+        </Border>
+        <Border Classes="CkanBadge Warning" IsVisible="{Binding HasDiagnostics}" Margin="0,0,8,4">
+          <TextBlock Text="有诊断信息" />
+        </Border>
+      </WrapPanel>
+      <TextBlock Text="{Binding ScriptDirectory}" Classes="CkanCaption"
+                 Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                 TextTrimming="CharacterEllipsis" />
+    </StackPanel>
+
+    <!-- 工具条：保存/重命名/删除/重新载入/打开文件夹/刷新，CanExecute 由 IsBusy、IsDirty、是否有文档决定 -->
+    <Border Grid.Row="2" Classes="CkanToolbar" Padding="10,8" Margin="0,0,0,8">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Content="保存" Command="{Binding SaveCommand}" Classes="CkanPrimary kos-tool"
+                  ToolTip.Tip="保存当前脚本；有外部改动时服务会拒绝覆盖" />
+          <Button Content="重命名" Command="{Binding RenameScriptCommand}" Classes="CkanSecondary kos-tool" />
+          <Button Content="删除" Command="{Binding DeleteScriptCommand}" Classes="CkanSecondary kos-tool" />
+          <Button Content="重新载入" Command="{Binding ReloadDocumentCommand}" Classes="CkanSecondary kos-tool"
+                  ToolTip.Tip="用磁盘内容重读当前脚本；有未保存修改时先确认" />
+          <Button Content="打开所在文件夹" Command="{Binding OpenFolderCommand}" Classes="CkanGhost kos-tool" />
+          <Button Content="刷新" Command="{Binding RefreshCatalogCommand}" Classes="CkanGhost kos-tool"
+                  ToolTip.Tip="重新扫描 Ships/Script" />
+          <Button Content="放弃修改" Command="{Binding DiscardChangesCommand}" Classes="CkanGhost kos-tool" />
+          <TextBlock Text="读盘中…" Classes="CkanCaption" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <Border Classes="CkanBadge Warning" IsVisible="{Binding IsDirty}">
+            <TextBlock Text="{Binding DirtyText}" />
+          </Border>
+          <Border Classes="CkanBadge Success" IsVisible="{Binding !IsDirty}">
+            <TextBlock Text="{Binding DirtyText}" />
+          </Border>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- 错误/成功提示单独占行，长文案不挤工具条；服务失败时正文仍在编辑器里 -->
+    <StackPanel Grid.Row="3" Spacing="6" Margin="0,0,0,8">
+      <Border IsVisible="{Binding HasError}"
+              Background="{DynamicResource CkanDangerBackgroundBrush}"
+              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,10">
+        <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap"
+                   Foreground="{DynamicResource CkanDangerBrush}" Classes="CkanCaption" />
+      </Border>
+      <Border IsVisible="{Binding HasStatusMessage}"
+              Background="{DynamicResource CkanSuccessBackgroundBrush}"
+              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,10">
+        <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"
+                   Foreground="{DynamicResource CkanSuccessBrush}" Classes="CkanCaption" />
+      </Border>
+      <Border IsVisible="{Binding HasDiagnostics}"
+              Background="{DynamicResource CkanWarningBackgroundBrush}"
+              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,10">
+        <TextBlock Text="{Binding DiagnosticsText}" TextWrapping="Wrap"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}" Classes="CkanCaption" />
+      </Border>
+    </StackPanel>
+
+    <!-- 空态：四层文案由 VM 给；只有“已安装但目录/脚本为空”才给新建入口 -->
+    <Border Grid.Row="4" Classes="CkanEmptyStateCard Elevated" IsVisible="{Binding ShowEmptyState}"
+            VerticalAlignment="Top">
+      <StackPanel Spacing="10" MaxWidth="720" HorizontalAlignment="Left">
+        <TextBlock Text="{Binding EmptyTitle}" Classes="CkanSectionTitle" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding EmptyDetail}" Classes="CkanCaption" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding ScriptDirectory}" Classes="CkanCaption"
+                   Foreground="{DynamicResource CkanTextTertiaryBrush}" TextWrapping="Wrap" />
+        <Button Content="新建 kOS 脚本" Command="{Binding NewScriptCommand}"
+                Classes="CkanPrimary" HorizontalAlignment="Left" IsVisible="{Binding ShowEmptyAction}" />
+      </StackPanel>
+    </Border>
+
+    <!-- 主体：左列表，右编辑器 -->
+    <Grid Grid.Row="4" ColumnDefinitions="320,12,*" IsVisible="{Binding ShowContent}">
+
+      <Border Grid.Column="0" Classes="CkanCard" Padding="4">
+        <Grid RowDefinitions="Auto,Auto,*,Auto">
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="10,8,8,6">
+            <StackPanel Grid.Column="0" Spacing="1">
+              <TextBlock Text="Archive 卷" FontWeight="SemiBold" FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Text="{Binding ScriptCountText}" Classes="CkanCaption" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="＋ 新建" Command="{Binding NewScriptCommand}"
+                    Classes="CkanGhost" Padding="8,3" MinHeight="26" FontSize="{DynamicResource CkanFontSizeCaption}"
+                    VerticalAlignment="Center" ToolTip.Tip="新建一个 Ships/Script 下的 .ks 文件" />
+          </Grid>
+
+          <TextBox Grid.Row="1" Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                   PlaceholderText="搜索脚本名…" Classes="CkanSearchBox" Margin="8,0,8,6" />
+
+          <ListBox Grid.Row="2" ItemsSource="{Binding Scripts}"
+                   SelectedItem="{Binding SelectedScript, Mode=TwoWay}"
+                   BorderThickness="0" Background="Transparent"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Border Classes="kos-script-row" Classes.selected="{Binding IsSelected}">
+                  <Grid RowDefinitions="Auto,Auto">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                      <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold"
+                                 TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                 ToolTip.Tip="{Binding FullPath}" />
+                      <Border Grid.Column="1" Classes="CkanBadge Warning" IsVisible="{Binding IsBoot}"
+                              Margin="6,0,0,0" Padding="5,1">
+                        <TextBlock Text="boot" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                      </Border>
+                    </Grid>
+                    <TextBlock Grid.Row="1" Text="{Binding DetailText}" Classes="CkanCaption"
+                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <Border Grid.Row="3" Padding="10,7" BorderThickness="0,1,0,0"
+                  BorderBrush="{DynamicResource CkanBorderBrush}">
+            <TextBlock Text="列表来自 Ships/Script；boot.ks 会带标记。" Classes="CkanCaption"
+                       TextWrapping="Wrap" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+          </Border>
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="2" Classes="CkanCard" Padding="14">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+
+          <!-- 文档头：名字、boot、完整路径 -->
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0" Spacing="2">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="{Binding DocumentName}" FontWeight="SemiBold" FontSize="15"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <Border Classes="CkanBadge Warning" IsVisible="{Binding IsBootDocument}" Padding="5,1">
+                  <TextBlock Text="boot" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                </Border>
+              </StackPanel>
+              <TextBlock Text="{Binding DocumentPath}" Classes="CkanCaption"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <TextBlock Grid.Column="1" Text="纯文本 · 不执行脚本" Classes="CkanCaption"
+                       VerticalAlignment="Center" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+          </Grid>
+
+          <!-- 未保存保护：页内确认条，不弹系统对话框；原稿一直留在编辑器里 -->
+          <Border Grid.Row="1" IsVisible="{Binding ShowUnsavedPrompt}"
+                  Background="{DynamicResource CkanWarningBackgroundBrush}"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="12,10">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="{Binding UnsavedPromptText}" TextWrapping="Wrap"
+                         Classes="CkanCaption" VerticalAlignment="Center" Margin="0,0,10,0" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                <Button Content="{Binding UnsavedSaveButtonText}" Command="{Binding SaveAndContinueCommand}"
+                        Classes="CkanPrimary" Padding="10,5" />
+                <Button Content="放弃修改" Command="{Binding DiscardAndContinueCommand}"
+                        Classes="CkanSecondary" Padding="10,5" />
+                <Button Content="取消" Command="{Binding CancelPendingActionCommand}"
+                        Classes="CkanGhost" Padding="10,5" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <!-- 编辑器：纯文本、等宽、接受 Tab；没有文档时给占位，不伪造空白文件 -->
+          <Border Grid.Row="2" BorderThickness="1" BorderBrush="{DynamicResource CkanBorderBrush}"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}" ClipToBounds="True">
+            <Grid>
+              <TextBox Text="{Binding EditorText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                       IsVisible="{Binding HasDocument}"
+                       AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
+                       FontFamily="Cascadia Code,Consolas,monospace" FontSize="13"
+                       Padding="12" VerticalContentAlignment="Top"
+                       PlaceholderText="在这里写 kOS 脚本…"
+                       ScrollViewer.VerticalScrollBarVisibility="Auto"
+                       ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+
+              <StackPanel IsVisible="{Binding ShowEditorPlaceholder}" Spacing="6"
+                          HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="从左栏选择一个脚本" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Text="选中后这里显示 Ships/Script 里的真实文件内容。" Classes="CkanCaption"
+                           HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="360" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <!-- 状态行：行数/字符数/换行风格/编码/大小/脏标记；错误和成功在上方单独一行 -->
+          <Border Grid.Row="3" Classes="CkanToolbar" Padding="10,6">
+            <Grid ColumnDefinitions="*,Auto">
+              <WrapPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="{Binding LineCountText}" Classes="CkanCaption" Margin="0,0,12,0" />
+                <TextBlock Text="{Binding CharacterCountText}" Classes="CkanCaption" Margin="0,0,12,0" />
+                <TextBlock Text="{Binding NewLineText}" Classes="CkanCaption" Margin="0,0,12,0" />
+                <TextBlock Text="{Binding EncodingText}" Classes="CkanCaption" Margin="0,0,12,0" />
+                <TextBlock Text="{Binding DocumentSizeText}" Classes="CkanCaption" Margin="0,0,12,0" />
+                <TextBlock Text="{Binding DirtyText}" Classes="CkanCaption" />
+              </WrapPanel>
+              <TextBlock Grid.Column="1" Text="保存前自动备份" Classes="CkanCaption"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}" VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <!-- 新建/重命名：页内轻量表单，不引系统对话框；名字校验失败时表单不关 -->
+    <Border Grid.Row="0" Grid.RowSpan="5" IsVisible="{Binding IsNamePromptOpen}"
+            Background="#66000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <Border Classes="CkanCard Elevated" Width="520" Padding="18"
+              HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel Spacing="10">
+          <TextBlock Text="{Binding NamePromptTitle}" Classes="CkanSectionTitle" />
+          <TextBlock Text="{Binding NamePromptHint}" Classes="CkanCaption" TextWrapping="Wrap" />
+          <TextBox Text="{Binding NamePromptText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                   PlaceholderText="例如 mission.ks" />
+          <TextBlock Text="名字不以 .ks 结尾会自动补上；不会覆盖已存在的文件。" Classes="CkanCaption"
+                     Foreground="{DynamicResource CkanTextTertiaryBrush}" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="取消" Command="{Binding CancelNamePromptCommand}" Classes="CkanGhost" />
+            <Button Content="{Binding NamePromptConfirmText}" Command="{Binding ConfirmNamePromptCommand}"
+                    Classes="CkanPrimary" IsDefault="True" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+
+    <!-- 删除确认：先确认再调服务，服务会先备份 -->
+    <Border Grid.Row="0" Grid.RowSpan="5" IsVisible="{Binding IsDeletePromptOpen}"
+            Background="#66000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <Border Classes="CkanCard Elevated" Width="520" Padding="18"
+              HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel Spacing="10">
+          <TextBlock Text="删除脚本" Classes="CkanSectionTitle" />
+          <TextBlock Text="{Binding DeletePromptText}" Classes="CkanCaption" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="取消" Command="{Binding CancelDeleteCommand}" Classes="CkanGhost" />
+            <Button Content="确认删除" Command="{Binding ConfirmDeleteCommand}" Classes="CkanPrimary" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+  </Grid>
+</UserControl>
