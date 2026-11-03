@@ -269,6 +269,33 @@ public sealed class PluginPageCatalogTests
     }
 
     [Test]
+    public void Shell_EmbedsToolsSectionPagesWithoutGrowingTheRail()
+    {
+        var withoutPlugin = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key);
+        var railCountWithoutPlugin = withoutPlugin.RailItems.Count;
+
+        var plugins = new FakePluginService();
+        plugins.ActiveItems.Add(Plugin(
+            "Music",
+            new PluginPageDescriptor(
+                "music",
+                "音乐",
+                "CkanUI.ViewModels.SomePageViewModel",
+                Glyph: "Music",
+                Section: "plugins",
+                Order: 20)));
+
+        var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key, plugins: plugins);
+
+        var tools = shell.Sections.Single(section => section.Key == "plugins");
+        Assert.That(tools.Tabs.Select(tab => tab.Key), Does.Contain("music"));
+        Assert.That(tools.Tabs[^1].Key, Is.EqualTo("music"), "槽位之外的分节页按 Order 追加在末尾");
+        Assert.That(shell.RailItems.Count, Is.EqualTo(railCountWithoutPlugin), "工具分节多一个页签不该多出一个侧栏入口");
+        Assert.That(shell.RailItems.Any(item => item.Key == "music"), Is.False);
+        Assert.That(shell.NavItems.Any(item => item.Key == "music"), Is.True, "选中态按 NavItems 找自己");
+    }
+
+    [Test]
     public void Shell_UnknownSection_FallsBackToRailEntry_InsteadOfDisappearing()
     {
         var plugins = new FakePluginService();

@@ -1,0 +1,259 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CkanUI.Plugin.Soundtrack.UI.SoundtrackPageView"
+             x:CompileBindings="False">
+  <UserControl.Styles>
+    <!-- 行样式只放“形状”，选中态单独一条：换主题时颜色全走动态资源，页面不硬编码色值。 -->
+    <Style Selector="Border.soundtrack-row">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+      <Setter Property="Padding" Value="8,6" />
+      <Setter Property="Margin" Value="0,1" />
+    </Style>
+    <Style Selector="Border.soundtrack-row.selected">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    </Style>
+    <Style Selector="Button.soundtrack-icon">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="7,3" />
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}" Background="Transparent">
+
+    <!-- 页头：左边说清这页做什么，右边说清现在读写的是哪个实例 -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+      <StackPanel Grid.Column="0" Spacing="4">
+        <TextBlock Text="音乐" Classes="CkanPageTitle" />
+        <TextBlock Text="管理 Soundtrack 的播放列表：改完保存会先备份 playlists.cfg，再原子替换。"
+                   Classes="CkanCaption" TextWrapping="Wrap" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right">
+        <TextBlock Text="{Binding InstanceName}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+        <TextBlock Text="{Binding InstanceGameDir}" Classes="CkanCaption" HorizontalAlignment="Right"
+                   TextTrimming="CharacterEllipsis" MaxWidth="420" />
+      </StackPanel>
+    </Grid>
+
+    <!-- 事实条：模组装没装、有多少播放列表/曲目/缺失，以及文件到底在哪 -->
+    <StackPanel Grid.Row="1" Spacing="4" Margin="0,0,0,8">
+      <WrapPanel Orientation="Horizontal">
+        <Border Classes="CkanBadge Success" IsVisible="{Binding IsModInstalled}" Margin="0,0,8,4">
+          <TextBlock Text="{Binding ModStatusText}" TextTrimming="CharacterEllipsis" MaxWidth="460" />
+        </Border>
+        <Border Classes="CkanBadge Danger" IsVisible="{Binding !IsModInstalled}" Margin="0,0,8,4">
+          <TextBlock Text="{Binding ModStatusText}" TextTrimming="CharacterEllipsis" MaxWidth="460" />
+        </Border>
+        <Border Classes="CkanBadge" Margin="0,0,8,4">
+          <TextBlock Text="{Binding PlaylistCountText, StringFormat='播放列表 {0}'}" />
+        </Border>
+        <Border Classes="CkanBadge" Margin="0,0,8,4">
+          <TextBlock Text="{Binding TrackCountText, StringFormat='曲目 {0}'}" />
+        </Border>
+        <Border Classes="CkanBadge" Margin="0,0,8,4">
+          <TextBlock Text="{Binding MissingTrackCountText}" />
+        </Border>
+      </WrapPanel>
+      <TextBlock Text="{Binding PlaylistFilePath}" Classes="CkanCaption"
+                 Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                 TextTrimming="CharacterEllipsis" />
+    </StackPanel>
+
+    <!-- 工具条：脏状态和按钮同排，用户改完不用去别处找“存没存” -->
+    <Border Grid.Row="2" Classes="CkanToolbar" Padding="10,8" Margin="0,0,0,8">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Content="新建播放列表" Command="{Binding CreatePlaylistCommand}" Classes="CkanSecondary" />
+        <Button Content="删除播放列表" Command="{Binding DeletePlaylistCommand}" Classes="CkanSecondary" />
+        <Button Content="重新载入" Command="{Binding ReloadCommand}" Classes="CkanSecondary"
+                ToolTip.Tip="按磁盘内容重读，未保存的修改会被丢弃" />
+        <Button Content="保存（备份）" Command="{Binding SaveCommand}" Classes="CkanPrimary" />
+        <Button Content="放弃更改" Command="{Binding DiscardChangesCommand}" Classes="CkanGhost" />
+        <Border Classes="CkanBadge Warning" IsVisible="{Binding IsDirty}" Margin="8,0,0,0">
+          <TextBlock Text="{Binding DirtyText}" />
+        </Border>
+        <Border Classes="CkanBadge Success" IsVisible="{Binding !IsDirty}" Margin="8,0,0,0">
+          <TextBlock Text="{Binding DirtyText}" />
+        </Border>
+        <TextBlock Text="读盘中…" Classes="CkanCaption" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />
+      </StackPanel>
+    </Border>
+
+    <!-- 错误与成功提示都单独占一行：保存失败的原因可能很长，塞进工具条会被截断 -->
+    <Border Grid.Row="3" IsVisible="{Binding HasError}" Margin="0,0,0,8"
+            Background="{DynamicResource CkanDangerBackgroundBrush}"
+            CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,10">
+      <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanDangerBrush}" Classes="CkanCaption" />
+    </Border>
+
+    <Border Grid.Row="4" IsVisible="{Binding HasStatusMessage}" Margin="0,0,0,8"
+            Background="{DynamicResource CkanSuccessBackgroundBrush}"
+            CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,10">
+      <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"
+                 Foreground="{DynamicResource CkanSuccessBrush}" Classes="CkanCaption" />
+    </Border>
+
+    <!-- 空态：文件不存在 / 0 个播放列表 / 没选实例，文案由 VM 给，按钮只在能建的时候出现 -->
+    <Border Grid.Row="5" Classes="CkanEmptyStateCard Elevated" IsVisible="{Binding ShowEmptyState}"
+            VerticalAlignment="Top">
+      <StackPanel Spacing="10" MaxWidth="680" HorizontalAlignment="Left">
+        <TextBlock Text="{Binding EmptyTitle}" Classes="CkanSectionTitle" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding EmptyDetail}" Classes="CkanCaption" TextWrapping="Wrap" />
+        <Button Content="新建播放列表并保存" Command="{Binding CreatePlaylistAndSaveCommand}"
+                Classes="CkanPrimary" HorizontalAlignment="Left" IsVisible="{Binding ShowCreateEntry}" />
+      </StackPanel>
+    </Border>
+
+    <!-- 主体：左 300 选列表，右 * 改详情 -->
+    <Grid Grid.Row="5" ColumnDefinitions="300,*" IsVisible="{Binding ShowContent}">
+      <Border Grid.Column="0" Classes="CkanCard" Padding="4" Margin="0,0,12,0">
+        <Grid RowDefinitions="Auto,*">
+          <Border Grid.Row="0" Padding="10,8" BorderThickness="0,0,0,1"
+                  BorderBrush="{DynamicResource CkanBorderBrush}">
+            <TextBlock Text="播放列表" FontWeight="SemiBold" FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          </Border>
+          <ListBox Grid.Row="1" ItemsSource="{Binding Playlists}"
+                   SelectedItem="{Binding SelectedPlaylist, Mode=TwoWay}"
+                   BorderThickness="0" Background="Transparent">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Border Classes="soundtrack-row" Classes.selected="{Binding IsSelected}">
+                  <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <ToggleSwitch Grid.Row="0" Grid.Column="1" IsChecked="{Binding Enabled, Mode=TwoWay}"
+                                  Margin="8,0,0,0" VerticalAlignment="Center"
+                                  ToolTip.Tip="enabled：关掉后 Soundtrack 不会自动放这个列表" />
+                    <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                      <TextBlock Text="{Binding TrackCountText}" Classes="CkanCaption" />
+                      <Border Classes="CkanBadge Danger" IsVisible="{Binding HasMissingTracks}">
+                        <TextBlock Text="{Binding MissingBadgeText}" />
+                      </Border>
+                    </StackPanel>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SceneSummary}" Classes="CkanCaption"
+                               TextTrimming="CharacterEllipsis" MaxWidth="130" HorizontalAlignment="Right" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="1" Classes="CkanCard" Padding="16">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Spacing="12">
+
+            <StackPanel Spacing="3" IsVisible="{Binding HasSelection}">
+              <TextBlock Text="播放列表详情" Classes="CkanSectionTitle" />
+              <TextBlock Text="名字与开关改完要保存才会写进 playlists.cfg；勾选框对应 cfg 里的同名键。"
+                         Classes="CkanCaption" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <StackPanel Spacing="6" IsVisible="{Binding HasSelection}">
+              <TextBlock Text="名称" Classes="CkanCaption" />
+              <TextBox Text="{Binding SelectedPlaylistName, Mode=TwoWay}" Width="360" HorizontalAlignment="Left" />
+            </StackPanel>
+
+            <WrapPanel Orientation="Horizontal" IsVisible="{Binding HasSelection}">
+              <CheckBox Content="循环播放（loop）" IsChecked="{Binding SelectedLoop, Mode=TwoWay}" Margin="0,0,18,6" />
+              <CheckBox Content="随机顺序（shuffle）" IsChecked="{Binding SelectedShuffle, Mode=TwoWay}" Margin="0,0,18,6" />
+              <CheckBox Content="随游戏暂停（pauseOnGamePause）" IsChecked="{Binding SelectedPauseOnGamePause, Mode=TwoWay}" Margin="0,0,18,6" />
+              <CheckBox Content="播完停用（disableAfterPlay）" IsChecked="{Binding SelectedDisableAfterPlay, Mode=TwoWay}" Margin="0,0,18,6" />
+            </WrapPanel>
+
+            <Border Height="1" Background="{DynamicResource CkanHairlineBrush}" IsVisible="{Binding HasSelection}" />
+
+            <StackPanel Spacing="6" IsVisible="{Binding HasSelection}">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="曲目" Classes="CkanCardTitle" />
+                <TextBlock Grid.Column="1" Text="{Binding SelectedTrackCountText}" Classes="CkanCaption" />
+              </Grid>
+              <TextBlock Text="顺序就是 Soundtrack 的播放顺序；缺失的曲目仍留在列表里，只是播不出来。"
+                         Classes="CkanCaption" TextWrapping="Wrap" />
+              <ItemsControl ItemsSource="{Binding SelectedTracks}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Classes="soundtrack-row">
+                      <Grid ColumnDefinitions="*,Auto,Auto">
+                        <StackPanel Grid.Column="0" Spacing="1">
+                          <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{Binding SizeText}" Classes="CkanCaption" IsVisible="{Binding Exists}" />
+                          <TextBlock Text="{Binding FilePathText}" Classes="CkanCaption" TextTrimming="CharacterEllipsis"
+                                     IsVisible="{Binding Exists}" />
+                        </StackPanel>
+                        <Border Grid.Column="1" Classes="CkanBadge Danger" IsVisible="{Binding HasMissing}"
+                                VerticalAlignment="Center" Margin="8,0">
+                          <TextBlock Text="{Binding MissingText}" />
+                        </Border>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                          <Button Content="上移" Classes="soundtrack-icon"
+                                  Command="{Binding $parent[UserControl].DataContext.MoveTrackUpCommand}"
+                                  CommandParameter="{Binding}" />
+                          <Button Content="下移" Classes="soundtrack-icon"
+                                  Command="{Binding $parent[UserControl].DataContext.MoveTrackDownCommand}"
+                                  CommandParameter="{Binding}" />
+                          <!-- 缺失的曲目也保留这个按钮，由命令的 CanExecute 置灰：
+                               藏起来会让用户以为“这首本来就没有文件”，置灰才说明是文件丢了。 -->
+                          <Button Content="定位" Classes="soundtrack-icon"
+                                  Command="{Binding OpenInExplorerCommand}"
+                                  ToolTip.Tip="在资源管理器里选中这个音频文件；文件缺失时不可用" />
+                          <Button Content="移除" Classes="soundtrack-icon"
+                                  Command="{Binding $parent[UserControl].DataContext.RemoveTrackCommand}"
+                                  CommandParameter="{Binding}" />
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="这个播放列表还没有曲目，从下面的乐曲库点「添加」。"
+                         Classes="CkanCaption" IsVisible="{Binding !HasSelectedTracks}" />
+            </StackPanel>
+
+            <Border Height="1" Background="{DynamicResource CkanHairlineBrush}" IsVisible="{Binding HasSelection}" />
+
+            <StackPanel Spacing="6" IsVisible="{Binding HasSelection}">
+              <TextBlock Text="从乐曲库添加" Classes="CkanCardTitle" />
+              <TextBlock Text="乐曲库来自 GameData 与 KSP 根目录的音频扫描；刚放进新歌时先「重新载入」。"
+                         Classes="CkanCaption" TextWrapping="Wrap" />
+              <TextBox Text="{Binding LibrarySearch, Mode=TwoWay}" PlaceholderText="按文件名或路径搜索"
+                       Width="320" HorizontalAlignment="Left" />
+              <TextBlock Text="{Binding LibrarySummaryText}" Classes="CkanCaption" />
+              <ListBox ItemsSource="{Binding LibraryRows}" MaxHeight="240" BorderThickness="0"
+                       Background="Transparent" IsVisible="{Binding HasLibraryRows}">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <Border Classes="soundtrack-row">
+                      <Grid ColumnDefinitions="*,Auto,Auto">
+                        <StackPanel Grid.Column="0" Spacing="1">
+                          <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{Binding FullPath}" Classes="CkanCaption"
+                                     TextTrimming="CharacterEllipsis" MaxWidth="520" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Text="{Binding AddedText}" Classes="CkanCaption"
+                                   VerticalAlignment="Center" Margin="8,0" />
+                        <Button Grid.Column="2" Content="添加" Classes="CkanSecondary"
+                                Command="{Binding $parent[UserControl].DataContext.AddTrackCommand}"
+                                CommandParameter="{Binding}"
+                                IsEnabled="{Binding !IsAdded}" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <TextBlock Text="没有匹配的音频文件。" Classes="CkanCaption" IsVisible="{Binding !HasLibraryRows}" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

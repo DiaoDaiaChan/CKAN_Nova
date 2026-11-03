@@ -37,6 +37,10 @@ public sealed class ViewLocatorTests
         Assert.That(
             ViewLocator.ResolveViewType(typeof(CkanUI.Plugin.ModConfig.ModConfigPageViewModel))?.FullName,
             Is.EqualTo("CkanUI.Plugin.ModConfig.ModConfigPageView"));
+        // 音乐插件的页面在 UI 子命名空间下：解析只换末尾的 ViewModel→View，前缀原样保留。
+        Assert.That(
+            ViewLocator.ResolveViewType(typeof(CkanUI.Plugin.Soundtrack.UI.SoundtrackPageViewModel))?.FullName,
+            Is.EqualTo("CkanUI.Plugin.Soundtrack.UI.SoundtrackPageView"));
         // 日志页在 Views/Logs 与 ViewModels/Pages/Logs 两个子命名空间下，解析规则只换 ".ViewModels.Pages." 段，
         // 子命名空间原样保留——这条断言就是钉住这一点（写错会静默回退到占位视图）。
         Assert.That(

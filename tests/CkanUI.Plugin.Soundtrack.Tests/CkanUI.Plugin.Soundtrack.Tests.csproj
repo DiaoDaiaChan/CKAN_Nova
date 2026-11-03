@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 「音乐」页签插件的测试（docs/design/plugins.md §11.15）。
+       播放列表格式是本插件的兼容性风险点：Soundtrack 写出来的键顺序、没写的键、未知节点都不能丢。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.Soundtrack.Tests</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.Soundtrack.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/CkanUI.Plugin.Soundtrack/CkanUI.Plugin.Soundtrack.csproj" />
+    <ProjectReference Include="../CkanUI.TestSupport/CkanUI.TestSupport.csproj" />
+  </ItemGroup>
+
+</Project>

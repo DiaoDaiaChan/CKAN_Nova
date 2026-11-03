@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 首方内置插件：音乐（Soundtrack 播放列表管理）（docs/design/plugins.md §11.15）。
+       播放列表文件是 KSP 根目录的 Playlists/playlists.cfg（Soundtrack 4.x / SoundtrackEditor 的读盘位置）。
+       本插件只读写这个文件与扫描乐曲，不引用 CkanUI.App / CkanUI.Services，服务全在插件内。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.Soundtrack</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.Soundtrack</AssemblyName>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

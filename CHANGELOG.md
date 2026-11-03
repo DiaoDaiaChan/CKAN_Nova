@@ -12,6 +12,11 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 新增
 
+- 音乐插件（`src/CkanUI.Plugin.Soundtrack`，`com.ckanui.soundtrack`）：工具分节下的「音乐」页签，管理 Soundtrack 的播放列表。
+  - 读写 KSP 根目录 `Playlists/playlists.cfg`：左栏播放列表（启用开关、曲目数、场景摘要），右栏改名与 loop/shuffle/pauseOnGamePause/disableAfterPlay、曲目上移/下移/移除、从乐曲库搜索添加；缺失曲目如实标「缺失」。
+  - 写盘安全：不认识的键与子节点原样保留、`enabled` 没写就不补、重复键后者覆盖；保存先备份 `.bak-yyyyMMdd-HHmmss` 再原子替换，UTF-8 无 BOM、换行沿用原文件。
+  - 没有 `playlists.cfg` 时给路径与「新建播放列表并保存」入口；不做试听，也不改 `playWhen/playNext/Before/After`（保存时原样保留）。
+  - 测试 65 条（44 条领域层 + 17 条页面层 + 3 条插件入口 + 1 条分节接线）。
 - 插件功能微型视觉角标（页面与子页面统一标出）：
   - 架构数据层：`NavItem` 与 `NavTab` 契约增加 `IsPlugin` 字段，插件解析与分节装配时自动置位；`ShellViewModel` 暴露 `IsCurrentPagePlugin` 用于外壳顶层感知。
   - 子页面分节页签（`SectionTabsControl`）：在「实例」（存档/飞船/旗帜/加载图/KSP设置）与「模组」（Mod配置）等内嵌插件页签上，标题右侧呈现精致微型「插件」胶囊角标（`CkanPluginCornerTag`），激活时自适应主题反色，清晰辨识原生与插件功能。
