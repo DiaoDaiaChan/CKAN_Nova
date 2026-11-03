@@ -900,6 +900,14 @@ public static class LocalizationKeys
     public const string ModConfigStatusSaved = "Ui_ModConfig_StatusSaved";
     public const string ModConfigVisibleCount = "Ui_ModConfig_VisibleCount";
     public const string ModConfigWriteNote = "Ui_ModConfig_WriteNote";
+    public const string ModConfigTabAdapters = "Ui_ModConfig_TabAdapters";
+    public const string ModConfigTabGeneric = "Ui_ModConfig_TabGeneric";
+    public const string ModConfigGenericSearchPlaceholder = "Ui_ModConfigGeneric_SearchPlaceholder";
+    public const string ModConfigGenericDiscoveredFiles = "Ui_ModConfigGeneric_DiscoveredFiles";
+    public const string ModConfigGenericReadOnly = "Ui_ModConfigGeneric_ReadOnly";
+    public const string ModConfigGenericRevert = "Ui_ModConfigGeneric_Revert";
+    public const string ModConfigGenericReload = "Ui_ModConfigGeneric_Reload";
+    public const string ModConfigGenericModifiedTag = "Ui_ModConfigGeneric_ModifiedTag";
     public const string ModDetailsInstallThisVersion = "Ui_ModDetails_InstallThisVersion";
     public const string ModDetailsSelectModHint = "Ui_ModDetails_SelectModHint";
     public const string ModPackEditorPageAddRelationship = "Ui_ModPackEditorPage_AddRelationship";

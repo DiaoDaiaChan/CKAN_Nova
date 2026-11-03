@@ -12,6 +12,11 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 新增
 
+- Mod 配置解耦为内置插件并增加通用配置读写支持（`src/CkanUI.Plugin.ModConfig`，`com.ckanui.modconfig`）：
+  - 架构解耦：将原本硬编码在宿主中的「Mod 配置」整套视图与视图模型迁移至独立插件工程，声明 `Section=mods` 与 `Order=50`，无缝嵌回「模组」分节内部页签条，宿主侧移除死类型注册与预热绑定。
+  - 通用 ConfigNode 配置模式：针对绝大多数没有专属适配器包的模组，新增通用配置扫描器（`GenericConfigScanner`）与编辑服务（`GenericConfigEditService`）。递归扫描当前游戏实例 `GameData` 下可配置的 `*.cfg` 文件（自动排除 ModuleManager 补丁及原版零件节点）。
+  - 双模式无缝切换：页头新增「适配器配置」与「通用配置」切换分段控件。通用模式下提供按 mod 归类的文件列表与快速搜索，右侧直观展示节点层级、键值对列表（支持 bool 勾选及文本/数值就地编辑、行脏标记、撤销修改与写回前安全备份）。
+  - 写入安全纪律：支持运行中游戏探测与冲突阻止，采用原子临时写入 + `.bak-*` 时间戳备份，失败时自动回滚，杜绝直接写坏用户原版 cfg。
 - AI 助手插件（`src/CkanUI.Plugin.Ai`，`com.ckanui.ai`）：工具分节下的「AI 助手」页签，能边聊边查 CKAN 数据。
   - 接 OpenAI 兼容端点（默认 `http://100.111.24.121:8317/v1` / `gemini-3.8-flash-high`），API Key 用 DPAPI 加密后落
     `%LocalAppData%/CKAN/ai-assistant.json`，明文只活在内存里。

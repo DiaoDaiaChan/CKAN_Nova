@@ -44,12 +44,11 @@ public sealed class AiCkanBridge : IAiCkanBridge
     private static readonly (string Key, string TitleKey, string FallbackTitle)[] HostPages =
     [
         ("home", LocalizationKeys.NavRailHome, "主页"),
-        // 模组分节：装什么、装进去长什么样、哪些待应用、元数据打哪来、单个 mod 怎么配。
+        // 模组分节：装什么、装进去长什么样、哪些待应用、元数据打哪来（Mod 配置是插件页，不在这里）。
         ("mods", LocalizationKeys.NavRailManageMods, "模组"),
         ("content", LocalizationKeys.NavRailContent, "内容预览"),
         ("changes", LocalizationKeys.NavRailChanges, "变更集"),
         ("repos", LocalizationKeys.NavRailRepos, "仓库"),
-        ("modconfig", LocalizationKeys.NavRailModConfig, "Mod 配置"),
         // 实例分节（存档 / 资产 / KSP 设置是插件页，不在这里）。
         ("instances", LocalizationKeys.NavRailInstances, "实例"),
         ("playtime", LocalizationKeys.NavRailPlayTime, "游戏时长"),

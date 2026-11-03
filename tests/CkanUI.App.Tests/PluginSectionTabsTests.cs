@@ -1,5 +1,6 @@
 using CkanUI.Plugin.Assets;
 using CkanUI.Plugin.KspConfig;
+using CkanUI.Plugin.ModConfig;
 using CkanUI.Plugin.Saves;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Plugins;
@@ -82,6 +83,46 @@ public class PluginSectionTabsTests
     }
 
     [Test]
+    public void 模组分节的Mod配置页签由插件补进槽位_不进侧栏且顺序不变()
+    {
+        var bundledDirectory = StageBundledPlugins();
+        var userDirectory = Path.Combine(Path.GetTempPath(), "ckanui-plugins-mc-" + Guid.NewGuid().ToString("N"));
+        var storePath = Path.Combine(Path.GetTempPath(), "ckanui-activation-mc-" + Guid.NewGuid().ToString("N") + ".json");
+
+        try
+        {
+            var service = new PluginService(
+                userDirectory,
+                new AssemblyLoadContextPluginLoader(),
+                hostVersion: null,
+                bundledDirectory: bundledDirectory,
+                activationStore: new PluginActivationStore(storePath));
+
+            var discovered = Task.Run(() => service.DiscoverAsync(activateBundled: true)).GetAwaiter().GetResult();
+            Assert.That(discovered.IsSuccess, Is.True, discovered.Message);
+
+            var shell = new ShellViewModel(new SilentNavigation(), plugins: service);
+
+            var mods = shell.Sections.SingleOrDefault(section => section.Key == "mods");
+            Assert.That(mods, Is.Not.Null, "「模组」分节没有建起来");
+
+            Assert.That(
+                mods!.Tabs.Select(tab => tab.Key),
+                Is.EqualTo(new[] { "mods", "content", "changes", "repos", "modconfig" }),
+                "内嵌页签的顺序必须与搬迁前逐字一致：modconfig 落在最后");
+
+            Assert.That(shell.NavItems.Select(item => item.Key), Does.Contain("modconfig"));
+            Assert.That(shell.RailItems.Select(item => item.Key), Does.Not.Contain("modconfig"));
+        }
+        finally
+        {
+            DeleteQuietly(bundledDirectory);
+            DeleteQuietly(userDirectory);
+            DeleteQuietly(storePath);
+        }
+    }
+
+    [Test]
     public void 停用资产插件后它提供的三个页签一起消失_其他页签不受影响()
     {
         var bundledDirectory = StageBundledPlugins();
@@ -130,6 +171,7 @@ public class PluginSectionTabsTests
                      typeof(SavesPlugin).Assembly,
                      typeof(AssetsPlugin).Assembly,
                      typeof(KspConfigPlugin).Assembly,
+                     typeof(ModConfigPlugin).Assembly,
                  })
         {
             var source = assembly.Location;

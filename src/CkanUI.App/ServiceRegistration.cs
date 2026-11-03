@@ -194,20 +194,6 @@ public static class ServiceRegistration
         services.AddSingleton<DedupPageViewModel>();
         services.AddSingleton<InstallHistoryPageViewModel>();
         services.AddSingleton<PluginsPageViewModel>();
-        // Mod 配置页（M9 / CFG-01..05 + ADP-04）：九类字段就地编辑、逐文件写盘、adapter 导入。
-        // 用工厂是因为导入端口是 VM 的可写属性（构造参数已经 7 个，再加会破兼容），
-        // 选择器（系统文件对话框）由视图挂上可视树时补，VM 不认识 Avalonia。
-        services.AddSingleton(sp =>
-        {
-            var page = new ModConfigPageViewModel(
-                sp.GetRequiredService<IModConfigService>(),
-                sp.GetService<IAdapterCatalog>(),
-                sp.GetService<Func<string, string>>(),
-                writer: sp.GetService<IAdapterWriter>(),
-                dialogs: sp.GetService<IDialogService>());
-            page.AdapterInstaller = sp.GetService<IAdapterInstaller>();
-            return page;
-        });
         // 日志页与底部抽屉（M8 / LOG-01..05）：两者共享同一个 ILogStore 单例，抽屉挂在日志页之上
         // （LogDrawerViewModel 内部另建一页供抽屉里的小时间线用），不重建日志页的状态。
         services.AddSingleton<LogPageViewModel>();
@@ -408,7 +394,6 @@ public static class ServiceRegistration
         ["installhistory"] = typeof(InstallHistoryPageViewModel),
         ["plugins"] = typeof(PluginsPageViewModel),
         ["logs"] = typeof(LogPageViewModel),
-        ["modconfig"] = typeof(ModConfigPageViewModel),
         ["settings"] = typeof(SettingsPageViewModel),
         ["home"] = typeof(HomePageViewModel),
     };

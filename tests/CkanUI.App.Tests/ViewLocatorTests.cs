@@ -33,9 +33,10 @@ public sealed class ViewLocatorTests
         Assert.That(ViewLocator.ResolveViewType(typeof(PluginsPageViewModel))?.FullName, Is.EqualTo("CkanUI.App.Views.PluginsPageView"));
         Assert.That(ViewLocator.ResolveViewType(typeof(HomePageViewModel))?.FullName, Is.EqualTo("CkanUI.App.Views.HomePageView"));
 
+        // Mod 配置页已搬进插件：ViewModel→View 按「同程序集同命名空间」解析（插件页回退分支）。
         Assert.That(
-            ViewLocator.ResolveViewType(typeof(ModConfigPageViewModel))?.FullName,
-            Is.EqualTo("CkanUI.App.Views.ModConfigPageView"));
+            ViewLocator.ResolveViewType(typeof(CkanUI.Plugin.ModConfig.ModConfigPageViewModel))?.FullName,
+            Is.EqualTo("CkanUI.Plugin.ModConfig.ModConfigPageView"));
         // 日志页在 Views/Logs 与 ViewModels/Pages/Logs 两个子命名空间下，解析规则只换 ".ViewModels.Pages." 段，
         // 子命名空间原样保留——这条断言就是钉住这一点（写错会静默回退到占位视图）。
         Assert.That(

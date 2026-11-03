@@ -31,6 +31,13 @@ public static class ModConfigServiceCollectionExtensions
             provider.GetRequiredService<Abstractions.IInstanceService>(),
             provider.GetRequiredService<Abstractions.IRegistryService>(),
             provider.GetService<IGameRunningProbe>()));
+        // 通用（无适配器）ConfigNode 读写：只依赖实例目录与游戏运行探测，不碰 adapter 目录。
+        services.TryAddSingleton<IGenericConfigService>(provider => new GenericConfigService(
+            provider.GetRequiredService<Abstractions.IInstanceService>(),
+            provider.GetService<IGameRunningProbe>()));
+        // 插件侧的窄接口：只暴露 Abstractions 里的类型（插件不引用宿主服务实现）。
+        services.TryAddSingleton<IGenericConfigEditService>(provider => new GenericConfigEditService(
+            provider.GetRequiredService<IGenericConfigService>()));
 
         return services;
     }

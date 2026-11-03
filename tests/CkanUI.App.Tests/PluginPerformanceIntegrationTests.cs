@@ -189,7 +189,7 @@ public class PluginPerformanceIntegrationTests
             {
                 "mods", "content", "changes", "repos", "modpacks", "modpack-editor", "instances", "playtime",
                 "unmanaged", "cache", "downloadstats", "dedup", "installhistory", "plugins", "logs",
-                "settings", "modconfig", "home",
+                "settings", "home",
             };
 
             var entries = PluginPageCatalog.Collect(service.Active, hostKeys);

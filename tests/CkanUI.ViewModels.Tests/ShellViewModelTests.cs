@@ -20,12 +20,13 @@ public sealed class ShellViewModelTests
     }
 
     [Test]
-    public void NavItems_HasEighteenConfiguredItems()
+    public void NavItems_HasSeventeenConfiguredItems()
     {
         var vm = new ShellViewModel();
         // 存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置已搬成插件（docs/design/plugins.md §11.11）：
-        // 内置 18 条，缺的那 5 条由插件在「实例」分节的同名槽位上补回来（见 PluginSectionTabsTests）。
-        Assert.That(vm.NavItems.Count, Is.EqualTo(18));
+        // 内置 17 条，缺的那 5 条由插件在「实例」分节的同名槽位上补回来（见 PluginSectionTabsTests）；
+        // 「Mod 配置」同批搬进插件，由「模组」分节的 modconfig 槽位补回来。
+        Assert.That(vm.NavItems.Count, Is.EqualTo(17));
         Assert.That(vm.NavItems[0].Key, Is.EqualTo("mods"));
         Assert.That(vm.NavItems[1].Key, Is.EqualTo("content"));
         Assert.That(vm.NavItems[2].Key, Is.EqualTo("changes"));
@@ -43,10 +44,8 @@ public sealed class ShellViewModelTests
         // 模组翻译已解耦为内置插件：插件页签在引导完成后插在「插件」之后，不再占内置下标。
         Assert.That(vm.NavItems[14].Key, Is.EqualTo("logs"));
         Assert.That(vm.NavItems[15].Key, Is.EqualTo("settings"));
-        // Mod 配置页追加在末尾：插在中间会让上面全部下标位移，测试按位置断言导航顺序是刻意的。
-        Assert.That(vm.NavItems[16].Key, Is.EqualTo("modconfig"));
-        // 主菜单同样追加在末尾；它在侧栏分区里排第一，所以 RailItems[0] 恒为主页。
-        Assert.That(vm.NavItems[17].Key, Is.EqualTo("home"));
+        // 主菜单追加在末尾；它在侧栏分区里排第一，所以 RailItems[0] 恒为主页。
+        Assert.That(vm.NavItems[16].Key, Is.EqualTo("home"));
     }
 
     [Test]
@@ -80,11 +79,10 @@ public sealed class ShellViewModelTests
         Assert.That(vm.NavItems[13].Title, Is.EqualTo("T:Ui_NavRail_Plugins"));
         Assert.That(vm.NavItems[14].Title, Is.EqualTo("T:Ui_NavRail_Logs"));
         Assert.That(vm.NavItems[15].Title, Is.EqualTo("T:Ui_NavRail_Settings"));
-        Assert.That(vm.NavItems[16].Title, Is.EqualTo("T:Ui_NavRail_ModConfig"));
-        Assert.That(vm.NavItems[17].Title, Is.EqualTo("T:Ui_NavRail_Home"));
-        // 存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置已搬进插件：它们的标题由插件自述，
+        Assert.That(vm.NavItems[16].Title, Is.EqualTo("T:Ui_NavRail_Home"));
+        // 存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置 / Mod 配置已搬进插件：它们的标题由插件自述，
         // 不再出现在宿主 _baseNavItems 里（插件激活时才会被追加到 NavItems）。
-        Assert.That(vm.NavItems.Count, Is.EqualTo(18));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(17));
     }
 
     [Test]

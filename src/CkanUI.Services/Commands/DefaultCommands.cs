@@ -48,7 +48,7 @@ public static class DefaultCommands
         new("modpack-editor", "Ui_NavRail_ModPackEditor", new[] { "编辑器", "editor", "modpack", "整合包" }),
         new("instances", "Ui_NavRail_Instances", new[] { "实例", "instance", "instances", "游戏", "ksp" }),
         new("playtime", "Ui_NavRail_PlayTime", new[] { "时长", "playtime", "时间", "游戏时长" }),
-        // 存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置 / 模组翻译已搬成插件（docs/design/plugins.md §11.11）。
+        // 存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置 / 模组翻译 / Mod 配置已搬成插件（docs/design/plugins.md §11.11）。
         // 这里**不留条目**：插件可能被停用，留一条 nav:<键> 就是留一个点了没反应的面板项。
         // 面板要重新覆盖插件页，得先让 ICommandCatalog 支持按前缀注销 + 在插件激活/停用时动态注册。
         new("unmanaged", "Ui_NavRail_Unmanaged", new[] { "未管理", "unmanaged", "残留", "文件" }),
@@ -59,7 +59,6 @@ public static class DefaultCommands
         new("plugins", "Ui_NavRail_Plugins", new[] { "插件", "plugin", "plugins", "扩展" }),
         new("logs", "Ui_NavRail_Logs", new[] { "日志", "log", "logs", "排障" }),
         new("settings", "Ui_NavRail_Settings", new[] { "设置", "settings", "选项", "偏好" }),
-        new("modconfig", "Ui_NavRail_ModConfig", new[] { "配置", "config", "mod 配置", "参数" }),
     };
 
     /// <summary>界面动作（命令面板自身的快捷键来自这里）。</summary>

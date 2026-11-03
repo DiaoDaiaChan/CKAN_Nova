@@ -195,9 +195,6 @@ public sealed partial class ShellViewModel : ObservableObject
             new("plugins", _translate("Ui_NavRail_Plugins"), "Puzzle"),
                 new("logs", _translate("Ui_NavRail_Logs"), "Bug"),
             new("settings", _translate("Ui_NavRail_Settings"), "Settings"),
-            // Mod 配置页（M9）：追加在末尾而不是插进中间——既有测试按数组下标断言导航项，
-            // 插中间会让后面每一项整体位移。
-            new("modconfig", _translate("Ui_NavRail_ModConfig"), "Sliders"),
             // 主菜单：同样追加在末尾保住既有下标；它在 SectionSpecs 里排第一，
             // 于是 RailItems[0] 就是主页——启动默认页靠的就是这一条（App.axaml.cs 取 RailItems[0]）。
             new("home", _translate("Ui_NavRail_Home"), "Home")

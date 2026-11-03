@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 首方内置插件：Mod 配置页（模组分节的页签）（docs/design/plugins.md §11.11）。
+       与第三方插件的差别：这一份要住进宿主的页面基类（PageViewModel / IActivatable / IUnsavedChangesAware
+       与共享 UI 基元都在宿主库里），所以允许引用 CkanUI.ViewModels / CkanUI.Localization / CkanUI.Ui。
+       绝不引用 CkanUI.App 或 CkanUI.Services：插件不碰宿主外壳与具体服务实现，服务一律从 DI 注入。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.ModConfig</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.ModConfig</AssemblyName>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CkanUI.ViewModels/CkanUI.ViewModels.csproj" />
+    <ProjectReference Include="../CkanUI.Localization/CkanUI.Localization.csproj" />
+    <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
+    <ProjectReference Include="../CkanUI.Ui/CkanUI.Ui.csproj" />
+  </ItemGroup>
+
+</Project>

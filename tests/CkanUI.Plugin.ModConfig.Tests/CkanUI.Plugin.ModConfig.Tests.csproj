@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 「ModConfig」页签插件的页面测试（docs/design/plugins.md §11.11）。
+       页面已经搬进插件程序集，宿主测试工程看不到这些类型，所以跟着页面一起搬。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.ModConfig.Tests</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.ModConfig.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/CkanUI.Plugin.ModConfig/CkanUI.Plugin.ModConfig.csproj" />
+    <ProjectReference Include="../CkanUI.TestSupport/CkanUI.TestSupport.csproj" />
+  </ItemGroup>
+
+</Project>

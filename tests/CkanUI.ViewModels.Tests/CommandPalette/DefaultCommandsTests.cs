@@ -16,7 +16,7 @@ public sealed class DefaultCommandsTests
     {
         "mods", "content", "changes", "repos", "modpacks", "modpack-editor", "instances",
         "playtime", "unmanaged", "cache", "downloadstats", "dedup",
-        "installhistory", "plugins", "logs", "settings", "modconfig",
+        "installhistory", "plugins", "logs", "settings",
     };
 
     [Test]
@@ -37,7 +37,7 @@ public sealed class DefaultCommandsTests
         var commands = DefaultCommands.CreateNavigation();
 
         Assert.That(commands[0].Title, Is.EqualTo("管理模组"), "没注入翻译时用中文兜底");
-        Assert.That(commands[^1].Title, Is.EqualTo("Mod 配置"), "KSP 游戏设置已搬进插件，不再固定排在末尾");
+        Assert.That(commands[^1].Title, Is.EqualTo("设置"), "KSP 游戏设置与 Mod 配置都搬进了插件，末尾回到「设置」");
         Assert.That(commands[0].Category, Is.EqualTo("导航"));
         Assert.That(
             commands.All(command => !command.Title.StartsWith("Ui_", StringComparison.Ordinal)),
@@ -121,14 +121,14 @@ public sealed class DefaultCommandsTests
     }
 
     [Test]
-    public void CreateAll_Returns28UniqueCommands()
+    public void CreateAll_Returns27UniqueCommands()
     {
         var commands = DefaultCommands.CreateAll();
 
-        Assert.That(commands.Count, Is.EqualTo(28));
+        Assert.That(commands.Count, Is.EqualTo(27));
         Assert.That(
             commands.Select(command => command.Id).Distinct(StringComparer.Ordinal).Count(),
-            Is.EqualTo(28),
+            Is.EqualTo(27),
             "Id 必须全目录唯一，否则批量注册会被 all-or-nothing 拒绝");
     }
 

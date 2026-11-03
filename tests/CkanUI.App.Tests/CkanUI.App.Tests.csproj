@@ -22,6 +22,7 @@
     <ProjectReference Include="../../src/CkanUI.Plugin.Saves/CkanUI.Plugin.Saves.csproj" />
     <ProjectReference Include="../../src/CkanUI.Plugin.Assets/CkanUI.Plugin.Assets.csproj" />
     <ProjectReference Include="../../src/CkanUI.Plugin.KspConfig/CkanUI.Plugin.KspConfig.csproj" />
+    <ProjectReference Include="../../src/CkanUI.Plugin.ModConfig/CkanUI.Plugin.ModConfig.csproj" />
     <ProjectReference Include="../CkanUI.TestSupport/CkanUI.TestSupport.csproj" />
   </ItemGroup>
 

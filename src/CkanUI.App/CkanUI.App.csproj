@@ -66,6 +66,11 @@
                       ReferenceOutputAssembly="false"
                       Private="false"
                       SkipGetTargetFrameworkProperties="true" />
+    <!-- Mod 配置页解耦为插件（docs/design/plugins.md §11.11）：模组分节的 modconfig 槽位由插件补回。 -->
+    <ProjectReference Include="../CkanUI.Plugin.ModConfig/CkanUI.Plugin.ModConfig.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      SkipGetTargetFrameworkProperties="true" />
     <!-- AI 助手（docs/design/ai-assistant.md）：同一个打包通道；它自己带聊天页与工具循环，
          宿主只提供 IRepositoryService / IRegistryService / INavigationService 的只读桥。 -->
     <ProjectReference Include="../CkanUI.Plugin.Ai/CkanUI.Plugin.Ai.csproj"
@@ -114,6 +119,11 @@
       <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
     </MSBuild>
     <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.KspConfig/CkanUI.Plugin.KspConfig.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.ModConfig/CkanUI.Plugin.ModConfig.csproj"
              Targets="GetTargetPath"
              Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />

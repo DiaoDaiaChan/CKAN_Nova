@@ -106,15 +106,14 @@ public sealed class PluginPageCatalogTests
         plugins.ActiveItems.Add(Plugin("Hello", Page("hello-page", "Hello 页")));
         var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key, plugins: plugins);
 
-        // 内置 18 条 + 插件 1 条：模组翻译改由插件提供后，这里只剩「插件页签插在 plugins 之后」这一条规则要守。
-        Assert.That(shell.NavItems, Has.Count.EqualTo(19));
+        // 内置 17 条 + 插件 1 条：模组翻译改由插件提供后，这里只剩「插件页签插在 plugins 之后」这一条规则要守。
+        Assert.That(shell.NavItems, Has.Count.EqualTo(18));
         Assert.That(shell.NavItems[13].Key, Is.EqualTo("plugins"));
         Assert.That(shell.NavItems[14].Key, Is.EqualTo("hello-page"));
         Assert.That(shell.NavItems[14].Title, Is.EqualTo("Hello 页"));
         Assert.That(shell.NavItems[15].Key, Is.EqualTo("logs"));
         Assert.That(shell.NavItems[16].Key, Is.EqualTo("settings"));
-        Assert.That(shell.NavItems[17].Key, Is.EqualTo("modconfig"));
-        Assert.That(shell.NavItems[18].Key, Is.EqualTo("home"));
+        Assert.That(shell.NavItems[17].Key, Is.EqualTo("home"));
     }
 
     [Test]
@@ -197,8 +196,8 @@ public sealed class PluginPageCatalogTests
         plugins.ActiveItems.Clear();
         plugins.RaiseChanged();
 
-        // 插件页卸掉后回到纯内置的 18 条。
-        Assert.That(shell.NavItems, Has.Count.EqualTo(18));
+        // 插件页卸掉后回到纯内置的 17 条。
+        Assert.That(shell.NavItems, Has.Count.EqualTo(17));
         Assert.That(shell.NavItems.Any(item => item.Key == "hello-page"), Is.False);
         Assert.That(shell.NavItems.Single(item => item.Key == "settings"), Is.SameAs(settingsItem));
     }
@@ -234,11 +233,11 @@ public sealed class PluginPageCatalogTests
     }
 
     [Test]
-    public void Shell_WithoutPluginService_HasEighteenItems()
+    public void Shell_WithoutPluginService_HasSeventeenItems()
     {
         var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key);
 
-        Assert.That(shell.NavItems, Has.Count.EqualTo(18));
+        Assert.That(shell.NavItems, Has.Count.EqualTo(17));
     }
 
     [Test]
