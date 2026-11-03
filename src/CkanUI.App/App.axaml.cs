@@ -28,6 +28,15 @@ public sealed partial class App : Application
     private static readonly ILog Log = LogManager.GetLogger(typeof(App));
 
     private ServiceProvider? _services;
+
+    /// <summary>
+    /// 当前应用的服务容器（应用组装根之外唯一的读取口子）。
+    /// </summary>
+    /// <remarks>
+    /// 只在「外壳要按导航键临时造一个插件页」这类场景用：底栏 AI 面板不是导航页，容器里的页面表认不到它，
+    /// 只能由视图层现解析一次。未启动完成或已关闭时为 <c>null</c>，调用方必须自己兜底。
+    /// </remarks>
+    public static IServiceProvider? Services { get; private set; }
     private LocalizationHost? _localization;
     private ThemeHost? _theme;
     private DensityHost? _density;
@@ -109,6 +118,7 @@ public sealed partial class App : Application
             }
 
             _services = ServiceRegistration.Build(() => desktop.MainWindow);
+            Services = _services;
             Mark("di-build");
 
             // 实例服务解析 = 初始化 Core 的实例管理（读 config.json + 探测实例目录），实测 140ms 纯磁盘 I/O。
@@ -822,6 +832,7 @@ public sealed partial class App : Application
             _localization?.Dispose();
             _pluginBootstrapCts?.Dispose();
             _services.Dispose();
+            Services = null;
         }
     }
 

@@ -79,6 +79,38 @@ internal sealed class FakeCkanBridge : IAiCkanBridge
     /// <summary>最后一次导航的目标键。</summary>
     public string? LastNavigateKey { get; private set; }
 
+    /// <summary>安装计划结果；默认给出一步安装。</summary>
+    public OperationResult<AiInstallPlan> PlanInstallResult { get; set; } = OperationResult<AiInstallPlan>.Ok(
+        new AiInstallPlan(
+            "TestMod",
+            new[] { new AiInstallStep("TestMod", "测试模组", "Install", null, "1.2.0") },
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            1024));
+
+    /// <summary>安装结果；默认成功装上。</summary>
+    public OperationResult<AiInstallOutcome> InstallResult { get; set; } = OperationResult<AiInstallOutcome>.Ok(
+        new AiInstallOutcome(
+            "TestMod",
+            true,
+            "已安装 TestMod。",
+            new[] { "TestMod" },
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            Array.Empty<string>()));
+
+    /// <summary>PlanInstallAsync 被调用的次数。</summary>
+    public int PlanInstallCalls { get; private set; }
+
+    /// <summary>最后一次计划请求的标识符。</summary>
+    public string? LastPlanIdentifier { get; private set; }
+
+    /// <summary>InstallAsync 被调用的次数。</summary>
+    public int InstallCalls { get; private set; }
+
+    /// <summary>最后一次安装请求的标识符。</summary>
+    public string? LastInstallIdentifier { get; private set; }
+
     /// <inheritdoc />
     public AiBridgeContext GetContext() => Context;
 
@@ -100,6 +132,22 @@ internal sealed class FakeCkanBridge : IAiCkanBridge
         NavigateCalls++;
         LastNavigateKey = pageKey;
         return Task.FromResult(NavigateResult);
+    }
+
+    /// <inheritdoc />
+    public Task<OperationResult<AiInstallPlan>> PlanInstallAsync(string identifier, CancellationToken cancellationToken = default)
+    {
+        PlanInstallCalls++;
+        LastPlanIdentifier = identifier;
+        return Task.FromResult(PlanInstallResult);
+    }
+
+    /// <inheritdoc />
+    public Task<OperationResult<AiInstallOutcome>> InstallAsync(string identifier, CancellationToken cancellationToken = default)
+    {
+        InstallCalls++;
+        LastInstallIdentifier = identifier;
+        return Task.FromResult(InstallResult);
     }
 }
 

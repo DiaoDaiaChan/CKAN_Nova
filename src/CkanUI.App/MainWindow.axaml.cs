@@ -18,6 +18,7 @@ using Avalonia.Media.Transformation;
 using Avalonia.Threading;
 using Avalonia.Automation;
 using Avalonia.VisualTree;
+using CkanUI.App.Ai;
 using CkanUI.App.Animations;
 using CkanUI.App.Branding;
 using CkanUI.App.Diagnostics;
@@ -99,6 +100,19 @@ public sealed partial class MainWindow : Window
 
     /// <summary>当前可见的页面视图，也是换页动效的落点（见 <see cref="PlayPageReveal"/>）。</summary>
     private Control? _activePageView;
+
+    /// <summary>
+    /// 底栏 AI 助手面板：导航键 → 插件页实例 → 视图。关掉时连视图模型一起释放。
+    /// </summary>
+    /// <remarks>
+    /// 面板内容刻意现造而不是复用导航页：同一条视图模型不能同时挂在页面舞台和抽屉里（一个控件只能有一个父），
+    /// 而 <c>PluginPageCache</c> 只认导航页的键，认不到这个实例——所以释放必须由 <see cref="CloseAiAssistant"/> 负责。
+    /// </remarks>
+    private readonly AiAssistantLauncher _aiAssistant = new(
+        key => App.Services is { } services
+            ? Plugins.PluginPageFactory.CreateFor(services, key, reservedKeys: null)
+            : null,
+        page => new ViewLocator().Build(page));
 
     /// <summary>当前显示的页面视图（诊断探针用来在正确的子树里找滚动容器）。</summary>
     internal Control? ActivePageView => _activePageView;
@@ -609,6 +623,84 @@ public sealed partial class MainWindow : Window
         // 此时不会再有 PropertyChanged，必须主动把第一页切到可见。
         ShowPage(_shell.CurrentPage);
         Dispatcher.UIThread.Post(SyncSectionTabIndicator, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>底栏 AI 助手按钮：第一次点开抽屉，再点收起。</summary>
+    private void OnStatusAiButtonClick(object? sender, RoutedEventArgs e) => ToggleAiAssistant();
+
+    /// <summary>抽屉右上角的关闭按钮。</summary>
+    private void OnAiAssistantCloseClick(object? sender, RoutedEventArgs e) => CloseAiAssistant();
+
+    private void ToggleAiAssistant()
+    {
+        if (AiAssistantOverlay is null)
+        {
+            return;
+        }
+
+        if (AiAssistantOverlay.IsVisible)
+        {
+            CloseAiAssistant();
+            return;
+        }
+
+        OpenAiAssistant();
+    }
+
+    private void OpenAiAssistant()
+    {
+        if (AiAssistantOverlay is null)
+        {
+            return;
+        }
+
+        // 打开失败也要开面板：空面板不解释原因，用户只会以为按钮坏了。
+        var opened = _aiAssistant.Open(out var error);
+        if (AiAssistantContent is not null)
+        {
+            AiAssistantContent.Content = opened ? _aiAssistant.View : null;
+        }
+
+        SetAiAssistantError(error);
+        AiAssistantOverlay.IsVisible = true;
+        AiAssistantCloseButton?.Focus();
+    }
+
+    private void CloseAiAssistant()
+    {
+        _aiAssistant.Close();
+
+        if (AiAssistantContent is not null)
+        {
+            AiAssistantContent.Content = null;
+        }
+
+        SetAiAssistantError(null);
+
+        if (AiAssistantOverlay is not null)
+        {
+            AiAssistantOverlay.IsVisible = false;
+        }
+    }
+
+    private void SetAiAssistantError(string? message)
+    {
+        if (AiAssistantErrorBar is null || AiAssistantErrorText is null)
+        {
+            return;
+        }
+
+        var hasMessage = !string.IsNullOrWhiteSpace(message);
+        AiAssistantErrorText.Text = hasMessage ? message : string.Empty;
+        AiAssistantErrorBar.IsVisible = hasMessage;
+    }
+
+    /// <inheritdoc />
+    protected override void OnClosed(EventArgs e)
+    {
+        // 抽屉里的页面实例不是导航页缓存的那一份，窗口关掉时没人替它收尾。
+        CloseAiAssistant();
+        base.OnClosed(e);
     }
 
     /// <summary>
@@ -2221,9 +2313,17 @@ public sealed partial class MainWindow : Window
         AddHandler(KeyDownEvent, OnGlobalKeyDown, RoutingStrategies.Tunnel);
     }
 
-    /// <summary>全局键位：Ctrl+K 开关命令面板，Ctrl+/ 打开快捷键目录，F1 打开新手高亮导览。</summary>
+    /// <summary>全局键位：Esc 收起 AI 抽屉，Ctrl+K 开关命令面板，Ctrl+/ 打开快捷键目录，F1 打开新手高亮导览。</summary>
     private void OnGlobalKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && AiAssistantOverlay is { IsVisible: true })
+        {
+            // 抽屉盖在最上层，页面里的 Esc 不该越过它。
+            CloseAiAssistant();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.F1 && !e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt))
         {
             ShowOnboardingGuide();
@@ -2369,6 +2469,13 @@ public sealed partial class MainWindow : Window
 
     private void OnWindowKeyDownTunnel(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && AiAssistantOverlay is { IsVisible: true })
+        {
+            CloseAiAssistant();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.F12)
         {
             TogglePerformanceMonitor();

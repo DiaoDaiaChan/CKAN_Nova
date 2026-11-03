@@ -1,3 +1,4 @@
+using System.Globalization;
 using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Ai;
@@ -10,15 +11,18 @@ namespace CkanUI.App.Ai;
 /// AI 与 CKAN 之间的宿主桥（宿主侧唯一实现）。
 /// </summary>
 /// <remarks>
-/// <para>三条纪律，缺一条就会在启动早期或坏输入上炸界面：</para>
+/// <para>四条纪律，缺一条就会在启动早期或坏输入上炸界面：</para>
 /// <list type="number">
 /// <item><b>只读快照</b>：<see cref="IRepositoryService.Current"/> / <see cref="IRegistryService.Current"/> 都是内存里的
 /// 对象图，这里不触发刷新、不读磁盘、不联网——AI 的每一次提问都不该变成一次仓库同步。</item>
 /// <item><b>绝不抛异常</b>：AI 的话是外部输入。任一服务缺失、快照为空、实现方自己抛了，都只能降级成空列表 / 空上下文；
-/// 唯一会动界面的动作是 <see cref="NavigateAsync(string, System.Threading.CancellationToken)"/>，它把失败折成
+/// 两个会改变状态的入口——<see cref="NavigateAsync(string, System.Threading.CancellationToken)"/> 与
+/// <see cref="InstallAsync(string, System.Threading.CancellationToken)"/>——都把失败折成
 /// <see cref="OperationResult{T}"/> 而不是让调用方去 catch。</item>
 /// <item><b>键与外壳一致</b>：<see cref="ListPages"/> 给出的键必须能在 <c>ServiceRegistration.PageTypes</c> 里找到，
 /// 否则「帮我打开 XX 页」会导向一个不存在的页面。这条不变量由 <c>AiCkanBridgeTests</c> 锁住。</item>
+/// <item><b>安装先确认</b>：安装是桥里第二个有副作用的动作（第一个是导航），必须有用户确认——没有对话框就宁可失败，
+/// 也不让 AI 在没人点头时动磁盘。确认之后要重算一次计划再交给安装器，因为确认期间仓库可能已经刷新。</item>
 /// </list>
 /// <para>
 /// 构造期不做任何 IO：所有服务都通过可空注入拿，解析时也允许为 <c>null</c>（插件宿主、设计时、单测）。
@@ -72,6 +76,10 @@ public sealed class AiCkanBridge : IAiCkanBridge
     private readonly IInstanceService? _instances;
     private readonly INavigationService? _navigation;
     private readonly Func<string, string>? _translate;
+    private readonly IChangeSetService? _changeSets;
+    private readonly IInstallerService? _installer;
+    private readonly IOperationQueue? _queue;
+    private readonly IDialogService? _dialogs;
 
     /// <summary>
     /// 全部依赖可选：宿主没装齐（单测、设计时、插件宿主）时桥退化成「查不到但也不炸」。
@@ -79,20 +87,32 @@ public sealed class AiCkanBridge : IAiCkanBridge
     /// <param name="repository">仓库索引快照。</param>
     /// <param name="registry">注册表快照（已安装）。</param>
     /// <param name="instances">当前实例。</param>
-    /// <param name="navigation">页面导航（唯一会动界面的依赖）。</param>
+    /// <param name="navigation">页面导航（会动界面的依赖之一）。</param>
     /// <param name="translate">取译文委托；为 <c>null</c> 时页面标题回落到内置中文。</param>
+    /// <param name="changeSets">变更集计算（安装计划的唯一来源）；为 <c>null</c> 时安装整体不可用。</param>
+    /// <param name="installer">安装器；为 <c>null</c> 时安装整体不可用。</param>
+    /// <param name="queue">后台任务队列；非空时安装入队（底栏可见、可取消），为空时直接执行。</param>
+    /// <param name="dialogs">确认对话框；为 <c>null</c> 时 AI 不允许安装（没人点头不动磁盘）。</param>
     public AiCkanBridge(
         IRepositoryService? repository = null,
         IRegistryService? registry = null,
         IInstanceService? instances = null,
         INavigationService? navigation = null,
-        Func<string, string>? translate = null)
+        Func<string, string>? translate = null,
+        IChangeSetService? changeSets = null,
+        IInstallerService? installer = null,
+        IOperationQueue? queue = null,
+        IDialogService? dialogs = null)
     {
         _repository = repository;
         _registry = registry;
         _instances = instances;
         _navigation = navigation;
         _translate = translate;
+        _changeSets = changeSets;
+        _installer = installer;
+        _queue = queue;
+        _dialogs = dialogs;
     }
 
     /// <inheritdoc />
@@ -276,6 +296,216 @@ public sealed class AiCkanBridge : IAiCkanBridge
         }
     }
 
+    // ---- 安装（桥里第二个有副作用的动作） --------------------------------------
+
+    /// <inheritdoc />
+    public async Task<OperationResult<AiInstallPlan>> PlanInstallAsync(
+        string identifier,
+        CancellationToken cancellationToken = default)
+    {
+        var wanted = (identifier ?? string.Empty).Trim();
+        if (wanted.Length == 0)
+        {
+            return OperationResult<AiInstallPlan>.Fail("缺少模组标识符。");
+        }
+
+        var changeSets = _changeSets;
+        if (changeSets is null)
+        {
+            return OperationResult<AiInstallPlan>.Fail("安装能力未连接（缺少 IChangeSetService）。");
+        }
+
+        try
+        {
+            var built = await BuildPreviewAsync(changeSets, wanted, cancellationToken).ConfigureAwait(true);
+            if (!built.IsSuccess)
+            {
+                return OperationResult<AiInstallPlan>.Fail(
+                    built.Message ?? "无法计算安装计划。",
+                    built.Detail,
+                    built.Retryable);
+            }
+
+            var preview = built.Value;
+            if (preview is null)
+            {
+                return OperationResult<AiInstallPlan>.Fail("变更集服务没有返回安装预览。");
+            }
+
+            return OperationResult<AiInstallPlan>.Ok(ToPlan(wanted, preview));
+        }
+        catch (OperationCanceledException)
+        {
+            return OperationResult<AiInstallPlan>.Fail("安装计划已取消。", retryable: true);
+        }
+        catch (Exception ex)
+        {
+            return OperationResult<AiInstallPlan>.Fail($"计算「{wanted}」的安装计划时出错。", ex.Message);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<OperationResult<AiInstallOutcome>> InstallAsync(
+        string identifier,
+        CancellationToken cancellationToken = default)
+    {
+        var wanted = (identifier ?? string.Empty).Trim();
+        try
+        {
+            var planned = await PlanInstallAsync(wanted, cancellationToken).ConfigureAwait(true);
+            if (!planned.IsSuccess)
+            {
+                return OperationResult<AiInstallOutcome>.Fail(
+                    planned.Message ?? "无法计算安装计划。",
+                    planned.Detail,
+                    planned.Retryable);
+            }
+
+            var plan = planned.Value;
+            if (plan is null)
+            {
+                return OperationResult<AiInstallOutcome>.Fail("变更集服务没有返回安装预览。");
+            }
+
+            if (plan.Conflicts.Count > 0)
+            {
+                return OperationResult<AiInstallOutcome>.Fail(
+                    "安装被冲突挡住：" + string.Join("；", plan.Conflicts),
+                    "先解决冲突，再让 AI 安装。");
+            }
+
+            if (plan.IsEmpty)
+            {
+                return OperationResult<AiInstallOutcome>.Fail("没有可执行的安装步骤（可能已经是最新版本）。");
+            }
+
+            var changeSets = _changeSets;
+            var installer = _installer;
+            if (changeSets is null || installer is null)
+            {
+                // PlanInstallAsync 已经挡过 changeSets，这里实际只剩 installer 缺失这一种形态。
+                return OperationResult<AiInstallOutcome>.Fail("安装能力未连接（缺少 IInstallerService）。");
+            }
+
+            var dialogs = _dialogs;
+            if (dialogs is null)
+            {
+                return OperationResult<AiInstallOutcome>.Fail("没有可用的确认对话框，AI 不会在没人点头时动磁盘。");
+            }
+
+            var confirmed = await dialogs
+                .ConfirmAsync("AI 想安装模组", ConfirmMessage(wanted, plan), ConfirmDetail(plan))
+                .ConfigureAwait(true);
+            if (!confirmed)
+            {
+                // 拒绝不是错误：磁盘没动，模型该把这句话原样转述给用户。
+                return OperationResult<AiInstallOutcome>.Ok(new AiInstallOutcome(
+                    wanted,
+                    Applied: false,
+                    Summary: "用户拒绝了这次安装，磁盘没有变化。",
+                    Installed: Array.Empty<string>(),
+                    Removed: Array.Empty<string>(),
+                    Failed: Array.Empty<string>(),
+                    Warnings: Array.Empty<string>()));
+            }
+
+            // 确认期间仓库可能刷新（用户也可能在别处动过东西）：重算一份再交安装器，
+            // 不把几分钟前那份计划当成事实。
+            var refreshed = await BuildPreviewAsync(changeSets, wanted, cancellationToken).ConfigureAwait(true);
+            if (!refreshed.IsSuccess)
+            {
+                return OperationResult<AiInstallOutcome>.Fail(
+                    refreshed.Message ?? "确认后重新计算安装计划失败。",
+                    refreshed.Detail,
+                    refreshed.Retryable);
+            }
+
+            var preview = refreshed.Value;
+            if (preview is null)
+            {
+                return OperationResult<AiInstallOutcome>.Fail("确认后变更集服务没有返回安装预览。");
+            }
+
+            var report = await ApplyAsync(installer, preview, wanted, cancellationToken).ConfigureAwait(true);
+            if (!report.IsSuccess)
+            {
+                return OperationResult<AiInstallOutcome>.Fail(
+                    report.Message ?? "安装失败。",
+                    report.Detail,
+                    report.Retryable);
+            }
+
+            var done = report.Value;
+            if (done is null)
+            {
+                return OperationResult<AiInstallOutcome>.Fail("安装器没有返回安装结果。");
+            }
+
+            return OperationResult<AiInstallOutcome>.Ok(new AiInstallOutcome(
+                wanted,
+                Applied: true,
+                Summary: $"已安装 {CountOf(done.Installed)} 个、移除 {CountOf(done.Removed)} 个、失败 {CountOf(done.Failed)} 个。",
+                Installed: done.Installed ?? Array.Empty<string>(),
+                Removed: done.Removed ?? Array.Empty<string>(),
+                Failed: done.Failed ?? Array.Empty<string>(),
+                Warnings: done.Warnings ?? Array.Empty<string>()));
+        }
+        catch (OperationCanceledException)
+        {
+            return OperationResult<AiInstallOutcome>.Fail("安装已取消。", retryable: true);
+        }
+        catch (Exception ex)
+        {
+            return OperationResult<AiInstallOutcome>.Fail($"安装「{wanted}」时出错。", ex.Message);
+        }
+    }
+
+    private static Task<OperationResult<ChangeSetPreview>> BuildPreviewAsync(
+        IChangeSetService changeSets,
+        string identifier,
+        CancellationToken cancellationToken) =>
+        changeSets.BuildAsync([new ChangeRequest(identifier, ChangeAction.Install)], cancellationToken);
+
+    /// <summary>
+    /// 走队列（底栏任务栏可见、可取消）或直接执行。队列回调是 fire-and-forget 语义，
+    /// 异常必须在回调里折成 TCS 的结果，否则 <see cref="TaskCompletionSource{TResult}.Task"/> 永远等不到落点。
+    /// </summary>
+    private async Task<OperationResult<InstallReport>> ApplyAsync(
+        IInstallerService installer,
+        ChangeSetPreview preview,
+        string identifier,
+        CancellationToken cancellationToken)
+    {
+        var queue = _queue;
+        if (queue is null)
+        {
+            return await installer.ApplyAsync(preview, progress: null, cancellationToken).ConfigureAwait(true);
+        }
+
+        var tcs = new TaskCompletionSource<OperationResult<InstallReport>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        queue.Enqueue(
+            "install",
+            "AI 安装 " + identifier,
+            async token =>
+            {
+                try
+                {
+                    tcs.TrySetResult(await installer.ApplyAsync(preview, progress: null, token).ConfigureAwait(true));
+                }
+                catch (OperationCanceledException)
+                {
+                    tcs.TrySetCanceled(token);
+                }
+                catch (Exception ex)
+                {
+                    tcs.TrySetException(ex);
+                }
+            });
+
+        return await tcs.Task.WaitAsync(cancellationToken).ConfigureAwait(true);
+    }
+
     // ---- 快照读取（每个入口都兜住实现方抛异常） --------------------------------
 
     private IReadOnlyList<ModRowData> Available => AvailableOf(TryRead(() => _repository?.Current));
@@ -453,6 +683,56 @@ public sealed class AiCkanBridge : IAiCkanBridge
     }
 
     private static string KnownKeys() => string.Join("、", HostPages.Select(page => page.Key));
+
+    // ---- 安装投影与文案 --------------------------------------------------------
+
+    /// <summary>把 Core 的变更集投影成 AI 看得懂的安装计划（顺序＝安装顺序，原样保留）。</summary>
+    private static AiInstallPlan ToPlan(string identifier, ChangeSetPreview preview) =>
+        new(
+            identifier,
+            preview.Items
+                .Select(item => new AiInstallStep(
+                    item.Identifier,
+                    item.Name,
+                    item.Action.ToString(),
+                    item.FromVersion,
+                    item.ToVersion))
+                .ToArray(),
+            preview.Conflicts ?? Array.Empty<string>(),
+            preview.Warnings ?? Array.Empty<string>(),
+            preview.EstimatedDownloadBytes);
+
+    private static string ConfirmMessage(string identifier, AiInstallPlan plan) =>
+        $"AI 助手请求安装「{identifier}」，共 {plan.Steps.Count} 步，预计下载 {FormatBytes(plan.EstimatedDownloadBytes)}。允许这次安装吗？";
+
+    /// <summary>确认框正文：一步一行，告警附在最后（模型和用户看的是同一份清单）。</summary>
+    private static string ConfirmDetail(AiInstallPlan plan)
+    {
+        var lines = plan.Steps
+            .Select(step => $"{step.Action} {step.Name} ({step.Identifier}) {step.FromVersion} -> {step.ToVersion}")
+            .ToList();
+
+        if (plan.Warnings.Count > 0)
+        {
+            lines.Add(string.Empty);
+            lines.Add("警告：");
+            lines.AddRange(plan.Warnings.Select(warning => "· " + warning));
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>体积：一位小数；小于 1 MB 用 KB，避免「0.0 MB」这种糊弄人的显示。</summary>
+    private static string FormatBytes(long bytes)
+    {
+        const double OneMegabyte = 1024d * 1024d;
+        var size = Math.Max(0, bytes);
+        return size < OneMegabyte
+            ? (size / 1024d).ToString("0.0", CultureInfo.InvariantCulture) + " KB"
+            : (size / OneMegabyte).ToString("0.0", CultureInfo.InvariantCulture) + " MB";
+    }
+
+    private static int CountOf(IReadOnlyList<string>? items) => items?.Count ?? 0;
 
     /// <summary>空白折成 <c>null</c>：AI 拿到的字段宁可缺失，也不要是空串。</summary>
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

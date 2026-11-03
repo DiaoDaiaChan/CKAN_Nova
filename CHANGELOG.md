@@ -25,8 +25,13 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 - AI 助手插件（`src/CkanUI.Plugin.Ai`，`com.ckanui.ai`）：工具分节下的「AI 助手」页签，能边聊边查 CKAN 数据。
   - 接 OpenAI 兼容端点（默认 `http://100.111.24.121:8317/v1` / `gemini-3.8-flash-high`），API Key 用 DPAPI 加密后落
     `%LocalAppData%/CKAN/ai-assistant.json`，明文只活在内存里。
-  - 7 个工具：`ckan_context`、`ckan_search_mods`、`ckan_mod_detail`、`ckan_installed`、`ckan_list_pages`、
-    `ckan_navigate`（唯一会动界面的一个）、`web_search`。数据经契约 `IAiCkanBridge` 由宿主实现，插件不引用 App。
+  - 8 个工具：`ckan_context`、`ckan_search_mods`、`ckan_mod_detail`、`ckan_installed`、`ckan_list_pages`、
+    `ckan_navigate`（唯一会切页面的一个）、`ckan_install_mod`（唯一会动磁盘的一个）、`web_search`。
+    数据与写权限都经契约 `IAiCkanBridge` 由宿主实现，插件不引用 App。
+  - 底栏常驻入口：和后台任务胶囊同一行的「AI 助手」按钮，点开右侧抽屉就地提问（不用先切到插件页）；
+    面板关闭即释放页面实例（它不是导航页，页面缓存认不到它），Esc 也能收起。
+  - AI 能直接装 mod，但闸门在宿主：先算变更计划 → 弹确认框逐条列步骤 → 用户拒绝回 `applied=false`（不是失败）→
+    同意后重算计划再交安装器，并走底栏后台任务（可见、可取消）；`applied=false` 不得被模型说成「装好了」。
   - 轮次用尽不再回一句「工具调用轮次用尽」：再发一次 `tool_choice=none` 的收口请求，让模型拿已查到的结果写正文
     （真实端点上模型会连着几轮只回工具调用；实测一条完整问答 `stop=Completed`、6 次工具调用、960 字回答）。
   - 搜索服务默认不配置：`web_search` 直接回 `web_search_unavailable`，模型据实说「没联网查到」而不是白等一次进程启动超时。

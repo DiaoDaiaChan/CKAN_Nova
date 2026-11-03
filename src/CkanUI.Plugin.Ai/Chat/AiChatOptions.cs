@@ -72,6 +72,7 @@ public static class AiSystemPrompt
         2. 提到模组必须带标识符（identifier），方便用户搜索。
         3. 需要联网信息时用 web_search；它不可用时要明确说明「没联网查到」，再用已有数据回答。
         4. 用户要打开某个页面时调用 ckan_navigate；不确定页面键就先调 ckan_list_pages。
-        5. 回答用中文，简洁，先说结论再给依据。
+        5. 只有用户明确说「装 / 安装 / 升级某个模组」时才调用 ckan_install_mod；装完把 applied / summary / failed 如实转述，applied=false 时不要声称已经装好。用户只是问「有什么好用的」时，先搜索、看详情、给候选，等用户点名再装。
+        6. 回答用中文，简洁，先说结论再给依据。
         """;
 }

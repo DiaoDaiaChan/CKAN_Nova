@@ -716,7 +716,33 @@
               </StackPanel>
               <!-- 右侧：后台任务胶囊 + 版本号 -->
               <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                <!-- 嵌入底栏的后台任务微件胶囊（悬浮紧凑，点击展开详细卡片） -->
+                <!-- 底栏 AI 助手入口：与后台任务胶囊同一行，强调色按钮，任何页面都能拉起（面板内容由插件页现造） -->
+              <Border Background="{DynamicResource CkanAccentBrush}"
+                      CornerRadius="4"
+                      VerticalAlignment="Center">
+                <Button x:Name="StatusAiButton"
+                        Classes="CkanGhost"
+                        Padding="8,2"
+                        MinHeight="20"
+                        CornerRadius="4"
+                        Click="OnStatusAiButtonClick"
+                        ToolTip.Tip="{DynamicResource Ui_StatusBar_AiAssistantTip}"
+                        AutomationProperties.Name="{DynamicResource Ui_StatusBar_AiAssistantTip}">
+                  <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <PathIcon Data="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"
+                              Width="10" Height="10"
+                              Foreground="{DynamicResource CkanTextOnAccentBrush}"
+                              VerticalAlignment="Center" />
+                    <TextBlock Text="{DynamicResource Ui_StatusBar_AiAssistant}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource CkanTextOnAccentBrush}"
+                               VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+              </Border>
+
+              <!-- 嵌入底栏的后台任务微件胶囊（悬浮紧凑，点击展开详细卡片） -->
                 <Border x:Name="StatusBarTaskPillBorder"
                         Background="{DynamicResource CkanSubtleBackgroundBrush}"
                         BorderBrush="{DynamicResource CkanGlassBorderBrush}"
@@ -778,6 +804,74 @@
           </Border>
         </Grid>
       </ui:FANavigationView>
+
+      <!--
+        AI 助手抽屉：底栏按钮拉起。内容由插件页视图填充——宿主不引用插件类型，插件被停用时这里
+        只会得到一句「去插件页启用」的提示，而不是一个点了没反应的空白面板。
+      -->
+      <Grid x:Name="AiAssistantOverlay"
+            IsVisible="False"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Stretch"
+            Width="470"
+            ZIndex="18">
+        <Border Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+                BorderBrush="{DynamicResource CkanGlassBorderBrush}"
+                BorderThickness="1,0,0,0">
+          <Grid RowDefinitions="Auto,Auto,*">
+            <Border Grid.Row="0"
+                    Padding="16,12"
+                    BorderBrush="{DynamicResource CkanGlassBorderBrush}"
+                    BorderThickness="0,0,0,1">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <PathIcon Data="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"
+                            Width="14" Height="14"
+                            Foreground="{DynamicResource CkanAccentBrush}"
+                            VerticalAlignment="Center" />
+                  <TextBlock Text="{DynamicResource Ui_StatusBar_AiAssistant}"
+                             FontSize="14"
+                             FontWeight="SemiBold"
+                             VerticalAlignment="Center" />
+                  <Border Background="{DynamicResource CkanAccentSubtleBrush}"
+                          CornerRadius="3"
+                          Padding="5,1"
+                          VerticalAlignment="Center">
+                    <TextBlock Text="{DynamicResource Ui_Plugin_Badge}"
+                               FontSize="9"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource CkanAccentBrush}" />
+                  </Border>
+                </StackPanel>
+                <Button Grid.Column="1"
+                        x:Name="AiAssistantCloseButton"
+                        Classes="CkanGhost"
+                        Padding="6"
+                        CornerRadius="4"
+                        Click="OnAiAssistantCloseClick"
+                        ToolTip.Tip="{DynamicResource Ui_Cmd_Shortcuts_Close}"
+                        AutomationProperties.Name="{DynamicResource Ui_Cmd_Shortcuts_Close}">
+                  <PathIcon Data="M6.4 4.99 12 10.6l5.6-5.6 1.4 1.4-5.6 5.6 5.6 5.6-1.4 1.4-5.6-5.6-5.6 5.6-1.4-1.4 5.6-5.6-5.6-5.6z"
+                            Width="10" Height="10" />
+                </Button>
+              </Grid>
+            </Border>
+            <Border Grid.Row="1"
+                    x:Name="AiAssistantErrorBar"
+                    IsVisible="False"
+                    Margin="12,8"
+                    Padding="10,6"
+                    CornerRadius="4"
+                    Background="{DynamicResource CkanWarningBackgroundBrush}">
+              <TextBlock x:Name="AiAssistantErrorText"
+                         FontSize="11"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </Border>
+            <ContentControl Grid.Row="2" x:Name="AiAssistantContent" />
+          </Grid>
+        </Border>
+      </Grid>
 
       <!-- 操作队列浮层 -->
       <Grid IsVisible="{Binding HasOperationQueue}"

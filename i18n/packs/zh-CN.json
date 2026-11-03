@@ -1331,6 +1331,8 @@
     "Ui_QueueOverlay_Title": "后台任务",
     "Ui_QueueOverlay_CompactTip": "点击展开后台任务详细进度",
     "Ui_QueueOverlay_CollapseTip": "收起为紧凑小胶囊",
+    "Ui_StatusBar_AiAssistant": "AI 助手",
+    "Ui_StatusBar_AiAssistantTip": "打开 AI 助手：问仓库里有什么模组、让它直接安装，也能操作界面",
     "Ui_QueueOverlay_EmptyTip": "暂无后台任务",
     "Ui_QueueOverlay_EmptyDetail": "下载、安装或更新模组时，任务进度将在此实时呈现",
     "Ui_RecommendationDialog_AlwaysDeselectAll": "总是取消全选（记住这个选择）",

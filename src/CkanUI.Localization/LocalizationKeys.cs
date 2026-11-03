@@ -1318,6 +1318,12 @@ public static class LocalizationKeys
     public const string QueueOverlayCompactTip = "Ui_QueueOverlay_CompactTip";
     public const string QueueOverlayCollapseTip = "Ui_QueueOverlay_CollapseTip";
     public const string QueueOverlayEmptyTip = "Ui_QueueOverlay_EmptyTip";
+
+    /// <summary>底栏 AI 助手按钮的文案（与后台任务胶囊同一行）。</summary>
+    public const string StatusBarAiAssistant = "Ui_StatusBar_AiAssistant";
+
+    /// <summary>底栏 AI 助手按钮的提示：说明它既能查仓库也能装模组。</summary>
+    public const string StatusBarAiAssistantTip = "Ui_StatusBar_AiAssistantTip";
     public const string QueueOverlayEmptyDetail = "Ui_QueueOverlay_EmptyDetail";
     public const string RecommendationDialogAlwaysDeselectAll = "Ui_RecommendationDialog_AlwaysDeselectAll";
     public const string ReposPageAddRepo = "Ui_ReposPage_AddRepo";

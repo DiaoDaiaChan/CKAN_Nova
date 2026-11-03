@@ -55,7 +55,8 @@
 | `ckan_mod_detail` | `identifier` | `AiModDetail` 或 `null` | 「它是干什么的」主入口 |
 | `ckan_installed` | `limit` | `AiInstalledMod[]` | 回答「我装了什么、有没有重复」 |
 | `ckan_list_pages` | 无 | `AiPageRef[]` | 导航前先让模型知道有哪些键 |
-| `ckan_navigate` | `page_key` | `{ok, message?}` | 唯一会改界面的工具；失败把原因回给模型 |
+| `ckan_navigate` | `page_key` | `{ok, message?}` | 唯一会切页面的工具；失败把原因回给模型 |
+| `ckan_install_mod` | `identifier` | `{ok, applied, summary, installed, removed, failed, warnings}` 或 `{ok:false, error}` | 唯一会动磁盘的工具；先出变更计划、弹确认框，用户拒绝回 `applied=false`（不是失败） |
 | `web_search` | `query` | `[{title,url,snippet}]` 或 `{ok:false,error}` | 走 MCP 子进程；不可用时降级而不是崩 |
 
 ## 5. 端点、密钥与配置
@@ -76,14 +77,16 @@
 | MCP 未安装 / 起不来 | `web_search` 返回 `web_search_unavailable` | 模型据实说「搜不了网」，仍可回答仓库侧问题 |
 | 仓库快照为空（没切实例/没刷新） | `ckan_context` 里 `availableCount=0` | 提示先到「模组库」刷新索引 |
 
-## 7. 安全边界（为什么现在不给写权限）
+## 7. 安全边界（写权限只有一个口子，且必须过闸门）
 
-「让 AI 操作 CKAN」的完整形态会包含安装与卸载。那类动作需要：变更预览、用户逐项确认、失败回滚、以及「AI 说装好了」与真实结果的分离。当前版本把边界收在**只读 + 导航**：
+「让 AI 操作 CKAN」的完整形态会包含安装与卸载。写动作的闸门不放在模型侧，而在宿主桥里：模型只能**发起**安装请求，真正动磁盘前必须过三道关。
 
-- 模型能做的最大破坏是把你切到另一页；
-- 想装 mod 必须在界面上自己点，AI 只能给建议与标识符。
+- **计划先行**：`PlanInstallAsync` 用 `IChangeSetService` 算出依赖与被顺带安装/升级的项，模型与工具拿到的是计划，不是执行权。
+- **用户点头**：`InstallAsync` 弹 `IDialogService.ConfirmAsync("AI 想安装模组", …)`，正文列出每一步；用户拒绝返回 `applied=false` 且磁盘无变化——拒绝不是错误，模型应原样转述。
+- **确认后重算**：确认期间仓库可能刷新，落盘前重新构建变更集，不把几分钟前的计划当成事实；真正执行交给 `IInstallerService`，并通过 `IOperationQueue` 进底栏后台任务（可取消、可看进度）。
+- **结果分离**：工具把 `applied/summary/installed/removed/failed/warnings` 原样回给模型；`applied=false` 不得被说成「装好了」（系统提示第 5 条钉死这一点）。
 
-这条线要放宽时，先加 **确认闸门**（`AiToolRunner` 里对写工具返回 `needs_confirmation` 而不是执行），再谈自动化。
+仍未开的口子：卸载、批量安装（一次多标识符）、把安装结果写回对话历史之外的状态。
 
 ## 8. 测试与验证
 
@@ -112,3 +115,39 @@
 - 这两条跑在 `tests/CkanUI.Plugin.Ai.Tests/LiveEndpointTests.cs`，默认 `Assert.Ignore`；
   设 `CKANUI_AI_LIVE=1` 与 `CKANUI_AI_KEY`（值不入库）后手动运行。
 - 未验证：MCP 子进程真握手（本机没有装 free-search-mcp 的 Python 环境）、流式输出、长会话截断策略。
+
+## 11. 底栏入口与安装闸门（2026-11-03）
+
+### 11.1 为什么从「一个页签」变成「底栏按钮 + 抽屉」
+
+页签要先切到「工具 › AI 助手」才能开口，用户真正的动作是「手上有问题，顺手问一句」。现在底栏和后台任务胶囊同一行有「AI 助手」按钮（`StatusAiButton`），点开右侧抽屉（`AiAssistantOverlay`，宽 470，ZIndex 18），不离开当前页面就能问。
+
+- 抽屉内容**现造**：`AiAssistantLauncher`（`src/CkanUI.App/Ai/AiAssistantLauncher.cs`）用 `PluginPageFactory.CreateFor(services, "ai-assistant", reservedKeys: null)` 解析视图模型、`ViewLocator.Build` 建视图。
+- 不复用导航页的实例：同一个视图模型不能同时挂在页面舞台和抽屉里（一个控件只能有一个父）；且 `PluginPageCache` 只认导航页的键，认不到抽屉里这一份。
+- **所以释放必须自己负责**：`Close()` 一律 `Dispose`（视图模型实现 `IDisposable`，停聊天流、退订事件），窗口关闭走 `OnClosed`。插件被停用时抽屉里的旧页面也会跟着关，不留一个「还在跟已停用插件对话」的幽灵。
+- 打开失败（插件没启用 / 视图没建起来）**也开抽屉**并显示一条人话错误：空面板不解释原因，用户只会以为按钮坏了。
+- Esc 收起抽屉（`OnGlobalKeyDown` 与 `OnWindowKeyDownTunnel` 都在最前面处理，抽屉盖在最上层，页面里的 Esc 不该越过它）。
+
+### 11.2 安装：模型只能发起，闸门在宿主
+
+工具 `ckan_install_mod`（第 7 个 `ckan_*`、共 8 个工具）→ 桥 `InstallAsync`：
+
+1. `PlanInstallAsync` 用 `IChangeSetService.BuildAsync` 算计划（每步的 Action/From/To），冲突与顺带安装项一并回给模型；
+2. 冲突非空或计划为空 → 直接 Fail，不弹框、不碰盘；
+3. `IDialogService.ConfirmAsync("AI 想安装模组", …)` 逐条列出步骤；**用户拒绝返回 `applied=false`**（不是失败，磁盘没动）；
+4. 同意后**重算**一遍计划（确认期间仓库可能刷新），再交 `IInstallerService.ApplyAsync`；
+5. 队列可用时经 `IOperationQueue.Enqueue("install", "AI 安装 <id>", …)` 进底栏后台任务：进度可见、可取消，AI 面板不阻塞；
+6. 结果 `applied/summary/installed/removed/failed/warnings` 原样回给模型，系统提示第 5 条禁止把 `applied=false` 说成「装好了」。
+
+未开的口子：卸载、一次多标识符批量安装、安装中途取消的端到端验证（只有代码路径与 `WaitAsync(ct)`）。
+
+已知缺口：**抽屉开着时去「工具 › 插件」停用 AI 插件**，抽屉里的旧页面不会自己关（它握着自己的程序集，加载上下文收不回来）；
+关掉抽屉即释放。自动关闭需要在视图层订阅插件变更并判活，收益不抵复杂度，先记为已知项。
+
+### 11.3 测试
+
+- `tests/CkanUI.App.Tests/AiAssistantLauncherTests.cs`（8 条）：解析一次、插件未启用给启用路径、视图缺失/构造抛异常时释放页面、关闭幂等、释放抛异常不外泄、关掉重开必须重造实例。
+- `tests/CkanUI.App.Tests/AiStatusBarTests.cs`（5 条）：按钮与后台任务胶囊同栏、点击打开且「要么有页面要么有解释」、再点收起、关闭按钮收起、Esc 收起。
+- `tests/CkanUI.App.Tests/AiCkanBridgeInstallTests.cs`（12 条）：计划投影、冲突/空计划拦截、确认框文案、拒绝不碰安装器、确认后重算（Build 调 2 次）、队列路径、安装器抛异常折成 Fail。
+- `tests/CkanUI.Plugin.Ai.Tests/AiToolRunnerTests.cs` 新增 5 条安装工具用例（空 identifier、桥失败、applied=false、成功、参数 schema）。
+

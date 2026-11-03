@@ -22,8 +22,9 @@ namespace CkanUI.Plugin.Ai.Chat;
 /// 而模型连「我错在哪」都不知道。</para>
 /// <para><b>紧凑</b>：CKAN 的 abstract/description 里混着 BBCode 与 HTML，整段回给模型既贵又容易跑偏；
 /// 这里统一走 <see cref="AiText.Compact"/> 压成单行并截断。</para>
-/// <para><b>只读 + 一个动作</b>：六个 <c>ckan_*</c> 工具里只有 <c>ckan_navigate</c> 会动界面，
-/// 其余都读快照；失败也照实回给模型（导航失败不是异常，是「这个页面键不存在」这条信息）。</para>
+/// <para><b>只读 + 两个动作</b>：七个 <c>ckan_*</c> 工具里只有 <c>ckan_navigate</c> 与
+/// <c>ckan_install_mod</c> 会改变状态，其余都读快照；失败也照实回给模型（导航失败不是异常，
+/// 是「这个页面键不存在」这条信息；用户拒绝安装也不是错误，是 <c>applied=false</c> 这条信息）。</para>
 /// </remarks>
 public sealed class AiToolRunner
 {
@@ -36,6 +37,7 @@ public sealed class AiToolRunner
         "ckan_installed",
         "ckan_list_pages",
         "ckan_navigate",
+        "ckan_install_mod",
         "web_search",
     };
 
@@ -78,6 +80,10 @@ public sealed class AiToolRunner
             "ckan_navigate",
             "在 CKAN UI 里打开一个页面。只能用在 ckan_list_pages 里出现过的页面键。",
             """{"type":"object","properties":{"page_key":{"type":"string","description":"页面键，如 mods / instances / settings"}},"required":["page_key"],"additionalProperties":false}"""),
+        (
+            "ckan_install_mod",
+            "安装或升级一个模组。会先算出依赖与冲突，再弹确认框让用户点头；用户拒绝时不会动磁盘。只在用户明确要求安装某个模组时调用，不要用搜索结果自行决定安装。",
+            """{"type":"object","properties":{"identifier":{"type":"string","description":"模组标识符，如 ModuleManager"}},"required":["identifier"],"additionalProperties":false}"""),
         (
             "web_search",
             "联网搜索网页（MCP 搜索服务器）。用于查最新版本、公告、论坛帖等仓库里没有的信息。不可用时会返回结构化错误，请据此降级。",
@@ -140,6 +146,7 @@ public sealed class AiToolRunner
                 "ckan_installed" => Ok(InstalledPayload(args)),
                 "ckan_list_pages" => Ok(PagesPayload()),
                 "ckan_navigate" => await NavigateAsync(args, cancellationToken).ConfigureAwait(false),
+                "ckan_install_mod" => await InstallAsync(args, cancellationToken).ConfigureAwait(false),
                 _ => await WebSearchAsync(args, cancellationToken).ConfigureAwait(false),
             };
         }
@@ -285,6 +292,57 @@ public sealed class AiToolRunner
                     detail = result.Detail,
                 },
                 PayloadOptions));
+    }
+
+    private async Task<AiToolResult> InstallAsync(JsonElement args, CancellationToken cancellationToken)
+    {
+        var identifier = GetString(args, "identifier");
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            return Failure("bad_arguments", "缺少 identifier。");
+        }
+
+        try
+        {
+            var result = await _bridge!.InstallAsync(identifier, cancellationToken).ConfigureAwait(false);
+            if (!result.IsSuccess || result.Value is null)
+            {
+                return Failure("install_failed", result.Message ?? "安装失败。");
+            }
+
+            var outcome = result.Value;
+            if (!outcome.Applied)
+            {
+                // 用户拒绝不是错误：模型要能如实说「没装」，而不是把拒绝包装成成功或异常。
+                return Ok(new
+                {
+                    ok = true,
+                    applied = false,
+                    identifier = outcome.Identifier,
+                    summary = outcome.Summary,
+                });
+            }
+
+            return Ok(new
+            {
+                ok = true,
+                applied = true,
+                identifier = outcome.Identifier,
+                summary = outcome.Summary,
+                installed = outcome.Installed,
+                removed = outcome.Removed,
+                failed = outcome.Failed,
+                warnings = outcome.Warnings,
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Failure("install_failed", ex.Message);
+        }
     }
 
     private async Task<AiToolResult> WebSearchAsync(JsonElement args, CancellationToken cancellationToken)

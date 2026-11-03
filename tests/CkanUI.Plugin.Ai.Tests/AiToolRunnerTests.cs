@@ -5,6 +5,7 @@ using CkanUI.Plugin.Ai.Chat;
 using CkanUI.Plugin.Ai.Search;
 using CkanUI.Plugin.Ai.Tests.Support;
 using CkanUI.Services.Abstractions;
+using CkanUI.Services.Abstractions.Ai;
 
 using NUnit.Framework;
 
@@ -112,8 +113,110 @@ public sealed class AiToolRunnerTests
             "ckan_installed",
             "ckan_list_pages",
             "ckan_navigate",
+            "ckan_install_mod",
             "web_search",
         }));
+    }
+
+    [Test]
+    public void InstallToolIsAdvertisedWithRequiredIdentifier()
+    {
+        var install = AiToolRunner.BuildToolSchema()
+            .Select(node => node?["function"])
+            .Single(function => function!["name"]?.GetValue<string>() == "ckan_install_mod")!;
+        var required = install["parameters"]!["required"]!.AsArray()
+            .Select(node => node!.GetValue<string>())
+            .ToArray();
+
+        Assert.That(required, Does.Contain("identifier"));
+    }
+
+    [Test]
+    public async Task InstallApprovedReturnsAppliedOutcome()
+    {
+        var bridge = new FakeCkanBridge
+        {
+            InstallResult = OperationResult<AiInstallOutcome>.Ok(new AiInstallOutcome(
+                "TestMod",
+                true,
+                "已安装 TestMod。",
+                new[] { "TestMod", "ModuleManager" },
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                new[] { "自动安装了依赖 ModuleManager" })),
+        };
+        var runner = new AiToolRunner(bridge);
+
+        var result = await runner.InvokeAsync("ckan_install_mod", "{\"identifier\":\"TestMod\"}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.True);
+            Assert.That(result.Json, Does.Contain("\"applied\":true"));
+            Assert.That(result.Json, Does.Contain("\"installed\":[\"TestMod\",\"ModuleManager\"]"));
+            Assert.That(bridge.LastInstallIdentifier, Is.EqualTo("TestMod"));
+        });
+    }
+
+    [Test]
+    public async Task InstallRefusedIsSuccessWithAppliedFalse()
+    {
+        var bridge = new FakeCkanBridge
+        {
+            InstallResult = OperationResult<AiInstallOutcome>.Ok(new AiInstallOutcome(
+                "TestMod",
+                false,
+                "用户拒绝了安装，未改动磁盘。",
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                Array.Empty<string>())),
+        };
+        var runner = new AiToolRunner(bridge);
+
+        var result = await runner.InvokeAsync("ckan_install_mod", "{\"identifier\":\"TestMod\"}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.True, "用户拒绝不是工具错误，模型要能如实转述");
+            Assert.That(result.Json, Does.Contain("\"applied\":false"));
+            Assert.That(result.Json, Does.Contain("拒绝"));
+        });
+    }
+
+    [Test]
+    public async Task InstallFailureIsReportedAsInstallFailed()
+    {
+        var bridge = new FakeCkanBridge
+        {
+            InstallResult = OperationResult<AiInstallOutcome>.Fail("下载失败：网络不可达"),
+        };
+        var runner = new AiToolRunner(bridge);
+
+        var result = await runner.InvokeAsync("ckan_install_mod", "{\"identifier\":\"TestMod\"}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.False);
+            Assert.That(result.Json, Does.Contain("\"error\":\"install_failed\""));
+            Assert.That(result.Json, Does.Contain("下载失败"));
+        });
+    }
+
+    [Test]
+    public async Task InstallWithoutIdentifierIsBadArgumentsAndNeverCallsBridge()
+    {
+        var bridge = new FakeCkanBridge();
+        var runner = new AiToolRunner(bridge);
+
+        var result = await runner.InvokeAsync("ckan_install_mod", "{\"identifier\":\"   \"}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.False);
+            Assert.That(result.Json, Does.Contain("bad_arguments"));
+            Assert.That(bridge.InstallCalls, Is.Zero, "参数没通过校验就不该碰桥");
+        });
     }
 
     [Test]

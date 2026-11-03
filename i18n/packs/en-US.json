@@ -1331,6 +1331,8 @@
     "Ui_QueueOverlay_Title": "Background Tasks",
     "Ui_QueueOverlay_CompactTip": "Click to expand background task details and progress",
     "Ui_QueueOverlay_CollapseTip": "Collapse to compact pill",
+    "Ui_StatusBar_AiAssistant": "AI Assistant",
+    "Ui_StatusBar_AiAssistantTip": "Open the AI assistant: ask what the repository has, install a mod, or drive the UI",
     "Ui_QueueOverlay_EmptyTip": "No background tasks",
     "Ui_QueueOverlay_EmptyDetail": "Task progress will be displayed here in real time during downloads and updates",
     "Ui_RecommendationDialog_AlwaysDeselectAll": "Always deselect all (remember this choice)",

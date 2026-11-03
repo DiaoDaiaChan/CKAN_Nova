@@ -58,12 +58,67 @@ public sealed record AiInstalledMod(string Identifier, string Version, bool IsAu
 /// <summary>可导航页面（给「帮我打开模组页」这类指令用）。</summary>
 public sealed record AiPageRef(string Key, string Title);
 
+/// <summary>安装计划里的一步（依赖会被摊平成多步，按安装顺序给出）。</summary>
+/// <param name="Identifier">模组标识符。</param>
+/// <param name="Name">显示名。</param>
+/// <param name="Action">动作的英文名：Install / Upgrade / Downgrade / Remove / Replace。</param>
+/// <param name="FromVersion">变更前版本；新装时为空。</param>
+/// <param name="ToVersion">变更后版本；卸载时为空。</param>
+public sealed record AiInstallStep(
+    string Identifier,
+    string Name,
+    string Action,
+    string? FromVersion,
+    string? ToVersion);
+
 /// <summary>
-/// AI 与 CKAN 之间的桥：只读查询走快照（不联网、不阻塞 UI），导航是唯一会动界面的动作。
+/// 「装这个模组会发生什么」的预览：AI 必须先给用户看这份清单，用户点头才允许动磁盘。
+/// </summary>
+/// <param name="Identifier">用户点名要装的标识符。</param>
+/// <param name="Steps">含依赖在内的完整步骤。</param>
+/// <param name="Conflicts">挡住安装的硬冲突（版本不兼容等）。</param>
+/// <param name="Warnings">不挡路但要说清的提示（自动安装的依赖、卸载他人依赖等）。</param>
+/// <param name="EstimatedDownloadBytes">预计下载字节数。</param>
+public sealed record AiInstallPlan(
+    string Identifier,
+    IReadOnlyList<AiInstallStep> Steps,
+    IReadOnlyList<string> Conflicts,
+    IReadOnlyList<string> Warnings,
+    long EstimatedDownloadBytes)
+{
+    /// <summary>没有任何步骤（标识符不在仓库里、或已经是最新）。</summary>
+    public bool IsEmpty => Steps.Count == 0;
+
+    /// <summary>可以执行：有步骤且没有硬冲突。</summary>
+    public bool CanApply => !IsEmpty && Conflicts.Count == 0;
+}
+
+/// <summary>一次安装的结果。</summary>
+/// <param name="Identifier">用户点名要装的标识符。</param>
+/// <param name="Applied">是否真的动了磁盘（用户拒绝、被冲突挡住时为 <c>false</c>）。</param>
+/// <param name="Summary">一句话给模型转述给用户（中文）。</param>
+/// <param name="Installed">装上的标识符。</param>
+/// <param name="Removed">卸掉的标识符。</param>
+/// <param name="Failed">失败的标识符。</param>
+/// <param name="Warnings">安装器给出的告警。</param>
+public sealed record AiInstallOutcome(
+    string Identifier,
+    bool Applied,
+    string Summary,
+    IReadOnlyList<string> Installed,
+    IReadOnlyList<string> Removed,
+    IReadOnlyList<string> Failed,
+    IReadOnlyList<string> Warnings);
+
+/// <summary>
+/// AI 与 CKAN 之间的桥：只读查询走快照（不联网、不阻塞 UI），导航与安装是仅有的两个会改变状态的动作。
 /// </summary>
 /// <remarks>
-/// 放在 Abstractions 里的理由和插件页契约一致：插件工程不引用 App，桥的实现住在 App（它拿得到
-/// <c>INavigationService</c>），插件只认这个接口。所有方法都不抛异常——AI 是外部输入，坏参数不能把界面打崩。
+/// <para>放在 Abstractions 里的理由和插件页契约一致：插件工程不引用 App，桥的实现住在 App（它拿得到
+/// <c>INavigationService</c>、安装器与对话框），插件只认这个接口。所有方法都不抛异常——AI 是外部输入，
+/// 坏参数不能把界面打崩。</para>
+/// <para><b>安装是有副作用的动作</b>：<see cref="InstallAsync"/> 必须先把 <see cref="PlanInstallAsync"/> 的步骤摊给用户看、
+/// 拿到明确同意才写盘；用户拒绝时返回 <c>Applied=false</c> 而不是失败（拒绝不是错误）。</para>
 /// </remarks>
 public interface IAiCkanBridge
 {
@@ -84,4 +139,19 @@ public interface IAiCkanBridge
 
     /// <summary>导航到某个页面键；键不存在时返回失败而不是把界面留在空白上。</summary>
     Task<OperationResult<bool>> NavigateAsync(string pageKey, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 计算「装这个模组会发生什么」：依赖、冲突、预计下载量。只读，不写盘，不弹窗。
+    /// </summary>
+    /// <param name="identifier">模组标识符。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    Task<OperationResult<AiInstallPlan>> PlanInstallAsync(string identifier, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 安装（或升级到最新）一个模组：先算计划，再把步骤交给用户确认，同意后走安装器。
+    /// </summary>
+    /// <param name="identifier">模组标识符。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>用户拒绝时 <see cref="AiInstallOutcome.Applied"/> 为 <c>false</c>；真正的错误走失败结果。</returns>
+    Task<OperationResult<AiInstallOutcome>> InstallAsync(string identifier, CancellationToken cancellationToken = default);
 }
