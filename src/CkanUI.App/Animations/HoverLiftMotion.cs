@@ -2,8 +2,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
+
+using CkanUI.App.Controls;
 
 namespace CkanUI.App.Animations;
 
@@ -127,37 +130,41 @@ public static class HoverLiftMotion
     /// <summary>该类表面要不要抬、抬多少；不认识的类返回 <see langword="null"/>。</summary>
     private static double? LiftOf(Control control)
     {
-        if (control.Classes.Contains(CardClass)
-            || control.Classes.Contains(GuideCardClass)
-            || control.Classes.Contains(GuideButtonClass))
+        // 按钮版引导卡片（Button.CkanGuide）按卡片规格抬，比普通按钮多 0.75 px 是刻意的：
+        // 它视觉上是一整块入口卡，不是工具条按钮。必须在分类之前判，否则会落进 Control 分支。
+        if (control.Classes.Contains(GuideButtonClass))
         {
             return LiftPixels;
         }
 
-        if (control is ListBoxItem or TreeViewItem or DataGridRow)
+        switch (InteractionSurface.KindOf(control))
         {
-            return RowLiftPixels;
+            case InteractionSurfaceKind.Card:
+                return LiftPixels;
+
+            case InteractionSurfaceKind.Row:
+                return RowLiftPixels;
+
+            case InteractionSurfaceKind.Control:
+                // 图标按钮的 :pointerover 明确写 RenderTransform = none（图标本体由 IconHoverMotion 转角度），
+                // 硬接管会跟那条 setter 抢 RenderTransform，结果是两边都不动。
+                if (control.Classes.Contains(IconButtonClass))
+                {
+                    return null;
+                }
+
+                // 卡片内部的按钮不抬：整张卡已经在抬，两层叠加会让按钮"浮"到卡面之上。
+                var insideLiftingCard = control
+                    .GetVisualAncestors()
+                    .OfType<Visual>()
+                    .Any(InteractionSurface.IsCard);
+
+                return insideLiftingCard ? null : ButtonLiftPixels;
+
+            default:
+                // 菜单项 / 页签只给光环，不位移：抬 2 px 会把相邻项的行距错开。
+                return null;
         }
-
-        if (control is not Button)
-        {
-            return null;
-        }
-
-        // 图标按钮的 :pointerover 明确写 RenderTransform = none（图标本体由 IconHoverMotion 转角度），
-        // 硬接管会跟那条 setter 抢 RenderTransform，结果是两边都不动。
-        if (control.Classes.Contains(IconButtonClass))
-        {
-            return null;
-        }
-
-        // 卡片内部的按钮不抬：整张卡已经在抬，两层叠加会让按钮"浮"到卡面之上。
-        var insideLiftingCard = control
-            .GetVisualAncestors()
-            .OfType<Control>()
-            .Any(ancestor => ancestor.Classes.Contains(CardClass) || ancestor.Classes.Contains(GuideCardClass));
-
-        return insideLiftingCard ? null : ButtonLiftPixels;
     }
 
     /// <summary>引导卡片的箭头；不认识的卡片返回 <see langword="null"/>（每个宿主只找一次）。</summary>

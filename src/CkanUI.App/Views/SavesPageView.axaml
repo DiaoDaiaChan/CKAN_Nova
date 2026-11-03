@@ -84,6 +84,9 @@
         <Button Content="{DynamicResource Ui_SavesPage_RewriteInPlace}" Command="{Binding FormatInPlaceCommand}"
                 IsEnabled="{Binding CanFormatInPlace}" Classes="CkanDanger" Margin="0,0,8,0"
                 ToolTip.Tip="{DynamicResource Ui_SavesPage_RewriteInPlace_Tip}" />
+        <Button Content="编辑内容…" Click="OnOpenWorkbench" IsEnabled="{Binding HasSelection}"
+                Classes="CkanSecondary" Margin="0,0,8,0"
+                ToolTip.Tip="打开 SFS 工作台：按分区浏览存档内容，就地改值 / 复制 / 删除块（写前自动留快照）" />
         <Button Content="{DynamicResource Ui_Common_ShowInFolder}" Command="{Binding OpenFolderCommand}"
                 IsEnabled="{Binding CanOpenFolder}" Classes="CkanGhost"
                 ToolTip.Tip="{DynamicResource Ui_SavesPage_OpenFolder_Tip}" />
@@ -215,7 +218,7 @@
 
       <!-- 分割条（GridSplitter） -->
       <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center"
-                    VerticalAlignment="Stretch"
+                    VerticalAlignment="Stretch" Margin="0,10" ZIndex="5" Cursor="SizeWestEast"
                     IsVisible="{Binding HasRows}" />
 
       <!-- 右侧：选中存档详情 + 诊断列表 -->

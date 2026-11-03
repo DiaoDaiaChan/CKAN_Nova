@@ -23,6 +23,7 @@ public static class LogSources
         LogSourceKind.Child => "child",
         LogSourceKind.Ui => "ui",
         LogSourceKind.Legacy => "legacy",
+        LogSourceKind.Game => "game",
         _ => "ui",
     };
 
@@ -45,6 +46,7 @@ public static class LogSources
             var p when p.Equals("child", StringComparison.OrdinalIgnoreCase) => LogSourceKind.Child,
             var p when p.Equals("ui", StringComparison.OrdinalIgnoreCase) => LogSourceKind.Ui,
             var p when p.Equals("legacy", StringComparison.OrdinalIgnoreCase) => LogSourceKind.Legacy,
+            var p when p.Equals("game", StringComparison.OrdinalIgnoreCase) => LogSourceKind.Game,
             _ => LogSourceKind.Ui,
         };
     }

@@ -15,6 +15,7 @@ using CkanUI.Services.Installers;
 using CkanUI.Services.Instances;
 using CkanUI.Services.Labels;
 using CkanUI.Services.Lifecycle;
+using CkanUI.Services.KspConfig;
 using CkanUI.Services.ModConfig;
 using CkanUI.Services.ModPacks;
 using CkanUI.Services.Operations;
@@ -117,8 +118,21 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<IRegistryService>()));
         services.TryAddSingleton<IUiSettingsStore, Settings.UiSettingsStore>();
 
-        // 插件系统（F-17）：插件目录默认 %LocalAppData%/CKAN/plugins，加载器可替换。
-        services.TryAddSingleton<IPluginService, PluginService>();
+        // 插件系统（F-17）：用户插件目录默认 %LocalAppData%/CKAN/plugins，内置插件目录是 <App>/plugins，
+        // 激活状态落在 %LocalAppData%/CKAN/plugin-activation.json。
+        // 用工厂注册而不是类型注册：PluginService 只有全量构造能同时拿到两个目录 + 加载器 + 激活状态存储；
+        // 而且 IPluginService 与 PluginBootstrapper 必须共用同一个 IPluginActivationStore 实例，
+        // 两个实例写同一个文件会互相覆盖「最后一次激活」的记录。
+        services.TryAddSingleton<IPluginActivationStore, PluginActivationStore>();
+        services.TryAddSingleton<IPluginService>(provider => new PluginService(
+            PluginService.DefaultPluginsDirectory(),
+            new AssemblyLoadContextPluginLoader(),
+            null,
+            PluginService.DefaultBundledDirectory(),
+            provider.GetRequiredService<IPluginActivationStore>()));
+
+        // 启动期插件引导（F-17）：App 启动时调用 PluginBootstrapper.RunAsync 完成「建目录 + 发现 + 恢复激活态」。
+        services.TryAddSingleton<PluginBootstrapper>();
 
         // 启动后的分层资源释放（18 篇 E6）：参与方集合由 MS DI 注入空集合，无需额外注册。
         services.TryAddSingleton<IPlatformMemory, PlatformMemory>();
@@ -135,6 +149,7 @@ public static class ServiceCollectionExtensions
 
         // 存档工作台（M7/E1）：格式化与诊断建立在 Sfs 内核之上，磁盘语义（快照 + 原子写）全在服务里。
         services.TryAddSingleton<ISaveFileService, SaveFileService>();
+        services.TryAddSingleton<ISaveEditorService, SaveEditorService>();
 
         // 导入导出（F-39..F-42）：Core 能力收在 IModPackStore 后面，逻辑全在 ModPackCatalog。
         services.TryAddSingleton<IModPackStore>(provider => new CkanModPackStore(
@@ -183,6 +198,9 @@ public static class ServiceCollectionExtensions
         // 解包/备份/替换/回滚都在 UpdateInstaller 里，宿主只负责喂 UpdateInstallPlan。
         services.TryAddSingleton<Abstractions.Update.IUpdateInstaller>(provider =>
             new Update.UpdateInstaller(provider.GetRequiredService<IDownloadService>()));
+
+        // KSP 原生配置（settings.cfg）读取、修改与 Squad 官方本地化服务。
+        services.AddKspConfig();
 
         // Mod 配置适配层（M9）：目录即插件（内置 <App>/adapters + 用户目录），写盘走 IAdapterWriter 单一入口。
         // 用户目录与其它 UI 侧状态同处 %LocalAppData%\CKAN\ui，卸载实例不会连带删掉用户自写的 adapter。

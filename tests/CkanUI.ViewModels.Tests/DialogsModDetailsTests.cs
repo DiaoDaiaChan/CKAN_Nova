@@ -578,4 +578,170 @@ public sealed class DialogsModDetailsTests
         Assert.That(vm.SpacedockImageBytes, Is.Null);
         Assert.That(vm.HasSpacedockImageError, Is.False);
     }
+
+    // ---- 模组元数据译文（IModTextProvider 接线）--------------------------------------------
+    // 语义铁律：原始英文 → Find(Identifier, "abstract"/"description", 原始英文) → 命中用译文，
+    // 否则回落原文；provider/identifier 为 null 时必须与未接入译文前逐字节一致。
+
+    [Test]
+    public void ModDetails_摘要与描述命中译文时替换显示并标记已译()
+    {
+        var repository = new DialogsFakeRepositoryService { Current = Repository(Row()) };
+        var provider = new RecordingModTextProvider();
+        provider.Add("abstract", "一句话摘要", "一句话摘要（译）");
+        provider.Add("description", "详细描述正文", "详细描述正文（译）");
+        var vm = new ModDetailsViewModel(repository, new DialogsFakeRegistryService())
+        {
+            DetailsProvider = _ => Details(),
+            TextProvider = provider,
+        };
+
+        vm.Select("ExampleMod");
+
+        Assert.That(vm.AbstractText, Is.EqualTo("一句话摘要（译）"));
+        Assert.That(vm.DescriptionText, Is.EqualTo("详细描述正文（译）"));
+        Assert.That(vm.IsAbstractTranslated, Is.True);
+        Assert.That(vm.IsDescriptionTranslated, Is.True);
+        Assert.That(vm.HasAbstract, Is.True);
+        Assert.That(vm.HasStaleTranslation, Is.False);
+        Assert.That(vm.StaleTranslationNotice, Is.Empty);
+    }
+
+    [Test]
+    public void ModDetails_未命中译文时回落原文且不报已译()
+    {
+        var repository = new DialogsFakeRepositoryService { Current = Repository(Row()) };
+        var vm = new ModDetailsViewModel(repository, new DialogsFakeRegistryService())
+        {
+            DetailsProvider = _ => Details(),
+            TextProvider = new RecordingModTextProvider(),
+        };
+
+        vm.Select("ExampleMod");
+
+        Assert.That(vm.AbstractText, Is.EqualTo("一句话摘要"));
+        Assert.That(vm.DescriptionText, Is.EqualTo("详细描述正文"));
+        Assert.That(vm.IsAbstractTranslated, Is.False);
+        Assert.That(vm.IsDescriptionTranslated, Is.False);
+        Assert.That(vm.HasStaleTranslation, Is.False);
+        Assert.That(vm.StaleTranslationNotice, Is.Empty);
+    }
+
+    [Test]
+    public void ModDetails_译文过期时给出可见的过期提示()
+    {
+        var repository = new DialogsFakeRepositoryService { Current = Repository(Row()) };
+        var provider = new RecordingModTextProvider();
+        provider.Add("abstract", "一句话摘要", "旧版译文", stale: true);
+        var vm = new ModDetailsViewModel(repository, new DialogsFakeRegistryService())
+        {
+            DetailsProvider = _ => Details(),
+            TextProvider = provider,
+        };
+
+        vm.Select("ExampleMod");
+
+        Assert.That(vm.IsAbstractStale, Is.True);
+        Assert.That(vm.IsDescriptionStale, Is.False);
+        Assert.That(vm.HasStaleTranslation, Is.True);
+        Assert.That(vm.StaleTranslationNotice, Does.Contain("旧版"));
+        Assert.That(vm.AbstractText, Is.EqualTo("旧版译文"));
+    }
+
+    [Test]
+    public void ModDetails_无译文提供者时与旧行为逐字节一致()
+    {
+        var repository = new DialogsFakeRepositoryService { Current = Repository(Row()) };
+        var vm = new ModDetailsViewModel(repository, new DialogsFakeRegistryService());
+        Assert.That(vm.TextProvider, Is.Null);
+
+        vm.ShowDetails(Details());
+
+        Assert.That(vm.AbstractText, Is.EqualTo("一句话摘要"));
+        Assert.That(vm.DescriptionText, Is.EqualTo("详细描述正文"));
+        Assert.That(vm.IsAbstractTranslated, Is.False);
+        Assert.That(vm.IsDescriptionTranslated, Is.False);
+
+        // 空描述仍走占位文案，空摘要仍为空串（与改动前一致）。
+        vm.ShowDetails(new ModDetailsSnapshot(Identifier: "ExampleMod", Name: "示例模组"));
+
+        Assert.That(vm.AbstractText, Is.Empty);
+        Assert.That(vm.DescriptionText, Is.EqualTo("暂无描述"));
+        Assert.That(vm.HasAbstract, Is.False);
+        Assert.That(vm.HasStaleTranslation, Is.False);
+    }
+
+    [Test]
+    public void ModDetails_Find收到当前标识与原始英文字段()
+    {
+        var repository = new DialogsFakeRepositoryService { Current = Repository(Row()) };
+        var provider = new RecordingModTextProvider();
+        var vm = new ModDetailsViewModel(repository, new DialogsFakeRegistryService())
+        {
+            DetailsProvider = _ => Details(),
+            TextProvider = provider,
+        };
+
+        vm.Select("ExampleMod");
+        _ = vm.AbstractText;
+        _ = vm.DescriptionText;
+
+        Assert.That(
+            provider.Calls,
+            Has.Some.Matches<(string Identifier, string Field, string SourceText)>(
+                c => c.Identifier == "ExampleMod" && c.Field == "abstract" && c.SourceText == "一句话摘要"));
+        Assert.That(
+            provider.Calls,
+            Has.Some.Matches<(string Identifier, string Field, string SourceText)>(
+                c => c.Identifier == "ExampleMod" && c.Field == "description" && c.SourceText == "详细描述正文"));
+        Assert.That(provider.Calls, Is.Not.Empty);
+        Assert.That(provider.Calls.TrueForAll(c => c.Identifier == "ExampleMod"), Is.True);
+    }
+
+    [Test]
+    public void ModDetails_换绑提供者时通知所有派生属性重算()
+    {
+        var repository = new DialogsFakeRepositoryService { Current = Repository(Row()) };
+        var vm = new ModDetailsViewModel(repository, new DialogsFakeRegistryService())
+        {
+            DetailsProvider = _ => Details(),
+        };
+        vm.Select("ExampleMod");
+        Assert.That(vm.IsAbstractTranslated, Is.False);
+
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        var provider = new RecordingModTextProvider();
+        provider.Add("abstract", "一句话摘要", "一句话摘要（译）");
+        vm.TextProvider = provider;
+
+        // 空属性名 = 全体属性失效（Refresh 的既有口径），派生属性必须跟着重算。
+        Assert.That(changed, Does.Contain(string.Empty));
+        Assert.That(vm.IsAbstractTranslated, Is.True);
+        Assert.That(vm.AbstractText, Is.EqualTo("一句话摘要（译）"));
+    }
+
+    /// <summary>译文 provider 替身：按 (字段, 原文) 命中，并记录每次 Find 的入参。</summary>
+    private sealed class RecordingModTextProvider : CkanUI.ModText.IModTextProvider
+    {
+        private readonly Dictionary<(string Field, string Text), CkanUI.ModText.ModText> _entries = new();
+
+        /// <summary>每次 Find 收到的 (identifier, field, sourceText)。</summary>
+        public List<(string Identifier, string Field, string SourceText)> Calls { get; } = new();
+
+        /// <summary>登记一条译文（默认人工来源、不过期）。</summary>
+        public void Add(string field, string sourceText, string translation, bool stale = false) =>
+            _entries[(field, sourceText)] = new(
+                translation,
+                CkanUI.ModText.ModTextSource.Human,
+                stale);
+
+        /// <inheritdoc />
+        public CkanUI.ModText.ModText? Find(string identifier, string field, string sourceText)
+        {
+            Calls.Add((identifier, field, sourceText));
+            return _entries.TryGetValue((field, sourceText), out var hit) ? hit : null;
+        }
+    }
 }

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace CkanUI.Sfs.Cli;
 
 /// <summary>format 子命令的解析结果。</summary>
@@ -11,6 +13,32 @@ internal sealed record SfsFormatCommand(
 
 /// <summary>validate 子命令的解析结果。</summary>
 internal sealed record SfsValidateCommand(string FilePath);
+
+/// <summary>outline 子命令的解析结果。</summary>
+internal sealed record SfsOutlineCommand(string FilePath, bool Json, int Limit);
+
+/// <summary>search 子命令的解析结果。</summary>
+internal sealed record SfsSearchCommand(string FilePath, string Query, bool Json, int Limit);
+
+internal enum SfsEditKind
+{
+    Set,
+    Delete,
+    Duplicate,
+    Insert,
+}
+
+/// <summary>set / delete / duplicate / insert 的解析结果（都是行级结构化编辑）。</summary>
+internal sealed record SfsEditCommand(
+    SfsEditKind Kind,
+    string FilePath,
+    int Line,
+    string? Key,
+    string? Value,
+    bool Write,
+    string? OutPath,
+    bool Print);
+
 
 /// <summary>
 /// 手写参数解析（CPM 冻结、不引入 System.CommandLine）。
@@ -231,6 +259,232 @@ internal static class SfsCliArguments
         }
 
         return new SfsValidateCommand(filePath);
+    }
+
+    public static SfsOutlineCommand? ParseOutline(IReadOnlyList<string> args, int start, out string? error)
+    {
+        error = null;
+        string? filePath = null;
+        var json = false;
+        var limit = 200;
+
+        for (var index = start; index < args.Count; index++)
+        {
+            var argument = args[index];
+            if (argument.Length == 0)
+            {
+                continue;
+            }
+
+            if (!argument.StartsWith("--", StringComparison.Ordinal))
+            {
+                if (filePath is not null)
+                {
+                    error = $"多余的位置参数：{argument}";
+                    return null;
+                }
+
+                filePath = argument;
+                continue;
+            }
+
+            var (name, inlineValue) = SplitOption(argument);
+            switch (name)
+            {
+                case "json":
+                    json = true;
+                    break;
+                case "limit":
+                    if (!TryTakeValue(args, ref index, name, inlineValue, out var limitValue, out error))
+                    {
+                        return null;
+                    }
+
+                    if (!int.TryParse(limitValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out limit) || limit < 1)
+                    {
+                        error = $"--limit 需要一个正整数，收到 {limitValue}";
+                        return null;
+                    }
+
+                    break;
+                default:
+                    error = $"未知选项：--{name}";
+                    return null;
+            }
+        }
+
+        if (filePath is null)
+        {
+            error = "outline 需要一个文件路径";
+            return null;
+        }
+
+        return new SfsOutlineCommand(filePath, json, limit);
+    }
+
+    public static SfsSearchCommand? ParseSearch(IReadOnlyList<string> args, int start, out string? error)
+    {
+        error = null;
+        string? filePath = null;
+        string? query = null;
+        var json = false;
+        var limit = 200;
+
+        for (var index = start; index < args.Count; index++)
+        {
+            var argument = args[index];
+            if (argument.Length == 0)
+            {
+                continue;
+            }
+
+            if (!argument.StartsWith("--", StringComparison.Ordinal))
+            {
+                if (filePath is null)
+                {
+                    filePath = argument;
+                }
+                else if (query is null)
+                {
+                    query = argument;
+                }
+                else
+                {
+                    error = $"多余的位置参数：{argument}（查询词请用引号包起来）";
+                    return null;
+                }
+
+                continue;
+            }
+
+            var (name, inlineValue) = SplitOption(argument);
+            switch (name)
+            {
+                case "json":
+                    json = true;
+                    break;
+                case "limit":
+                    if (!TryTakeValue(args, ref index, name, inlineValue, out var limitValue, out error))
+                    {
+                        return null;
+                    }
+
+                    if (!int.TryParse(limitValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out limit) || limit < 1)
+                    {
+                        error = $"--limit 需要一个正整数，收到 {limitValue}";
+                        return null;
+                    }
+
+                    break;
+                default:
+                    error = $"未知选项：--{name}";
+                    return null;
+            }
+        }
+
+        if (filePath is null || query is null)
+        {
+            error = "search 需要 <文件> <查询词>";
+            return null;
+        }
+
+        return new SfsSearchCommand(filePath, query, json, limit);
+    }
+
+    public static SfsEditCommand? ParseEdit(string command, IReadOnlyList<string> args, int start, out string? error)
+    {
+        error = null;
+        var positional = new List<string>();
+        var write = false;
+        var print = false;
+        string? outPath = null;
+
+        for (var index = start; index < args.Count; index++)
+        {
+            var argument = args[index];
+            if (argument.Length == 0)
+            {
+                continue;
+            }
+
+            if (!argument.StartsWith("--", StringComparison.Ordinal))
+            {
+                positional.Add(argument);
+                continue;
+            }
+
+            var (name, inlineValue) = SplitOption(argument);
+            switch (name)
+            {
+                case "write":
+                    write = true;
+                    break;
+                case "print":
+                    print = true;
+                    break;
+                case "out":
+                    if (!TryTakeValue(args, ref index, name, inlineValue, out outPath, out error))
+                    {
+                        return null;
+                    }
+
+                    break;
+                default:
+                    error = $"未知选项：--{name}";
+                    return null;
+            }
+        }
+
+        var (kind, expected) = command switch
+        {
+            "set" => (SfsEditKind.Set, 3),
+            "delete" => (SfsEditKind.Delete, 2),
+            "duplicate" => (SfsEditKind.Duplicate, 2),
+            "insert" => (SfsEditKind.Insert, 4),
+            _ => (SfsEditKind.Set, 3),
+        };
+
+        if (positional.Count != expected)
+        {
+            error = command switch
+            {
+                "set" => "用法：set <文件> <行号> <新值> [--write | --out <路径>]",
+                "insert" => "用法：insert <文件> <块所在行号> <键> <值> [--write | --out <路径>]",
+                _ => $"用法：{command} <文件> <行号> [--write | --out <路径>]",
+            };
+            return null;
+        }
+
+        if (!int.TryParse(positional[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var line) || line < 1)
+        {
+            error = $"行号必须是正整数，收到 {positional[1]}";
+            return null;
+        }
+
+        if (write && outPath is not null)
+        {
+            error = "--write 与 --out 互斥";
+            return null;
+        }
+
+        // set 的第三个位置参数是值；值允许为空字符串（空值在 KSP 里合法）。
+        var key = kind == SfsEditKind.Insert ? positional[2] : null;
+        var value = kind switch
+        {
+            SfsEditKind.Set => positional[2],
+            SfsEditKind.Insert => positional[3],
+            _ => null,
+        };
+
+        return new SfsEditCommand(kind, positional[0], line, key, value, write, outPath, print);
+    }
+
+    private static (string Name, string? InlineValue) SplitOption(string argument)
+    {
+        var separator = argument.IndexOf('=', StringComparison.Ordinal);
+        return separator < 0
+            ? (argument[2..], null)
+            : (argument[2..separator], argument[(separator + 1)..]);
     }
 
     private static bool TryTakeValue(

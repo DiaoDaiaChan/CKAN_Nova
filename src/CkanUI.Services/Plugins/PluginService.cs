@@ -29,16 +29,17 @@ public sealed class PluginService : IPluginService
     private readonly Dictionary<string, PluginEntry> _loaded = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<PluginInfo> _failures = [];
     private readonly IPluginAssemblyLoader _loader;
+    private readonly IPluginActivationStore _activation;
     private readonly Version _hostVersion;
     private readonly string _hostVersionText;
 
-    /// <summary>用默认插件目录与默认加载器构造（DI 用）。</summary>
+    /// <summary>用默认插件目录、默认内置目录与默认加载器构造（DI 用）。</summary>
     public PluginService()
         : this(DefaultPluginsDirectory())
     {
     }
 
-    /// <summary>指定插件目录（默认加载器）。</summary>
+    /// <summary>指定插件目录（默认加载器、默认内置目录、默认激活状态文件）。</summary>
     /// <param name="pluginsDirectory">插件目录的绝对或相对路径。</param>
     public PluginService(string pluginsDirectory)
         : this(pluginsDirectory, new AssemblyLoadContextPluginLoader(), null)
@@ -50,17 +51,60 @@ public sealed class PluginService : IPluginService
     /// <param name="loader">程序集加载器（测试可注入假实现）。</param>
     /// <param name="hostVersion">宿主版本字符串；<c>null</c> 时取本程序集版本。</param>
     public PluginService(string pluginsDirectory, IPluginAssemblyLoader loader, string? hostVersion = null)
+        : this(pluginsDirectory, loader, hostVersion, DefaultBundledDirectory(), null)
+    {
+    }
+
+    /// <summary>全量构造：额外指定内置插件目录与激活状态存储（DI 与测试用）。</summary>
+    /// <param name="pluginsDirectory">用户插件目录。</param>
+    /// <param name="loader">程序集加载器。</param>
+    /// <param name="hostVersion">宿主版本字符串；<c>null</c> 时取本程序集版本。</param>
+    /// <param name="bundledDirectory">
+    /// 内置（首方）插件目录；<c>null</c> 或空白表示「没有内置目录」，此时只扫用户目录。
+    /// </param>
+    /// <param name="activationStore">激活状态存储；<c>null</c> 用默认路径（<c>%LocalAppData%/CKAN/plugin-activation.json</c>）。</param>
+    /// <remarks>单独一个全量构造而不是继续加可选参数到上面那个：多一个可选参数会让既有
+    /// <c>new PluginService(dir, loader, hostVersion)</c> 的调用点在阅读时分不清哪些参数被跳过了。</remarks>
+    public PluginService(
+        string pluginsDirectory,
+        IPluginAssemblyLoader loader,
+        string? hostVersion,
+        string? bundledDirectory,
+        IPluginActivationStore? activationStore)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pluginsDirectory);
         ArgumentNullException.ThrowIfNull(loader);
 
         PluginsDirectory = Path.GetFullPath(pluginsDirectory);
+        BundledDirectory = string.IsNullOrWhiteSpace(bundledDirectory)
+            ? string.Empty
+            : Path.GetFullPath(bundledDirectory);
         _loader = loader;
+        _activation = activationStore ?? new PluginActivationStore();
         (_hostVersion, _hostVersionText) = ResolveHostVersion(hostVersion);
     }
 
     /// <inheritdoc />
     public string PluginsDirectory { get; }
+
+    /// <inheritdoc />
+    public string BundledDirectory { get; }
+
+    /// <inheritdoc />
+    public IReadOnlyList<PluginInfo> Bundled
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _loaded.Values
+                    .Where(entry => entry.Info.IsBundled)
+                    .Select(entry => entry.Info)
+                    .OrderBy(info => info.DisplayName, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+            }
+        }
+    }
 
     /// <inheritdoc />
     public IReadOnlyList<PluginInfo> Active => Snapshot(PluginState.Active);
@@ -92,13 +136,23 @@ public sealed class PluginService : IPluginService
             "CKAN",
             "plugins");
 
+    /// <summary>
+    /// 默认内置插件目录：<c>AppContext.BaseDirectory/plugins</c>（宿主发布目录下的 plugins 子目录）。
+    /// </summary>
+    /// <remarks>安装目录只读时这里只是「建不出来 + 扫不到」，不会影响用户目录里的插件。</remarks>
+    public static string DefaultBundledDirectory() => Path.Combine(AppContext.BaseDirectory, "plugins");
+
     /// <inheritdoc />
-    public Task<OperationResult<IReadOnlyList<PluginInfo>>> DiscoverAsync(CancellationToken ct = default)
+    public Task<OperationResult<IReadOnlyList<PluginInfo>>> DiscoverAsync(CancellationToken ct = default) =>
+        DiscoverAsync(activateBundled: false, ct);
+
+    /// <inheritdoc />
+    public Task<OperationResult<IReadOnlyList<PluginInfo>>> DiscoverAsync(bool activateBundled, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         try
         {
-            return Task.FromResult(OperationResult<IReadOnlyList<PluginInfo>>.Ok(DiscoverCore()));
+            return Task.FromResult(OperationResult<IReadOnlyList<PluginInfo>>.Ok(DiscoverCore(activateBundled)));
         }
         catch (Exception ex)
         {
@@ -312,43 +366,112 @@ public sealed class PluginService : IPluginService
     private PluginEntry? FindByPathLocked(string path) =>
         _loaded.Values.FirstOrDefault(entry => string.Equals(entry.Path, path, StringComparison.OrdinalIgnoreCase));
 
-    private IReadOnlyList<PluginInfo> DiscoverCore()
+    private IReadOnlyList<PluginInfo> DiscoverCore(bool activateBundled)
     {
         EnsureDirectory();
 
-        string[] files;
-        try
+        // 顺序即优先级：内置目录先扫，用户目录后扫。同一 Id 时先到先得（见 LoadCore 的 DuplicateId 分支），
+        // 用户目录里那份会被 DiscoverOne 记成 DuplicateId 失败条目——否则它会「凭空消失」，用户无从解释。
+        foreach (var file in EnumeratePluginFiles(BundledDirectory))
         {
-            files = Directory.GetFiles(PluginsDirectory, "*.dll", SearchOption.TopDirectoryOnly);
-        }
-        catch (Exception ex)
-        {
-            Log.Warn("枚举插件目录失败：" + PluginsDirectory, ex);
-            return Snapshot();
-        }
-
-        Array.Sort(files, StringComparer.OrdinalIgnoreCase);
-        foreach (var file in files)
-        {
-            bool alreadyLoaded;
-            lock (_gate)
+            if (!IsLoadedByPath(file))
             {
-                alreadyLoaded = FindByPathLocked(file) is not null;
+                DiscoverOne(file, isBundled: true, activateBundled: activateBundled);
             }
+        }
 
-            if (alreadyLoaded)
+        foreach (var file in EnumeratePluginFiles(PluginsDirectory))
+        {
+            if (!IsLoadedByPath(file))
             {
-                continue;
+                DiscoverOne(file, isBundled: false, activateBundled: false);
             }
-
-            // 失败会被记进 Failures，这里不需要处理返回值（默认不激活）。
-            LoadCore(file, activate: false);
         }
 
         return Snapshot();
     }
 
-    private PluginLoadResult LoadCore(string pluginPath, bool activate)
+    /// <summary>
+    /// 枚举目录顶层的 <c>*.dll</c>（按路径排序，结果稳定）。目录不存在或读不到时返回空数组并记日志。
+    /// </summary>
+    private static string[] EnumeratePluginFiles(string directory)
+    {
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+        {
+            return [];
+        }
+
+        try
+        {
+            var files = Directory.GetFiles(directory, "*.dll", SearchOption.TopDirectoryOnly);
+            Array.Sort(files, StringComparer.OrdinalIgnoreCase);
+            return files;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Warn("枚举插件目录失败：" + directory, ex);
+            return [];
+        }
+    }
+
+    private bool IsLoadedByPath(string path)
+    {
+        lock (_gate)
+        {
+            return FindByPathLocked(path) is not null;
+        }
+    }
+
+    /// <summary>
+    /// 发现阶段加载单个 dll，并按安全口径决定要不要激活它。
+    /// </summary>
+    /// <param name="file">dll 绝对路径。</param>
+    /// <param name="isBundled">是否来自内置目录。</param>
+    /// <param name="activateBundled">提供方是否要求激活内置插件（只对内置插件有意义）。</param>
+    /// <remarks>
+    /// 激活条件只有两个：<b>(a)</b> 用户上次显式激活过（持久化状态），且它来自内置目录；
+    /// <b>(b)</b> 提供方显式传了 <c>activateBundled:true</c>，且它来自内置目录。
+    /// 用户目录里的插件发现后永远是 Dormant，恢复激活态的活由 <see cref="PluginBootstrapper"/> 干——
+    /// 那样「自动恢复」只发生在启动路径上，页面上的「刷新」永远只做发现，不会偷偷激活用户以为停用了的插件。
+    /// </remarks>
+    private void DiscoverOne(string file, bool isBundled, bool activateBundled)
+    {
+        var loaded = LoadCore(file, activate: false, isBundled);
+        if (!loaded.IsSuccess || loaded.Plugin is null)
+        {
+            if (loaded.Failure == PluginLoadFailure.DuplicateId && loaded.Plugin is { IsBundled: true })
+            {
+                // 用户目录里那份与内置插件撞 Id：内置优先，但用户那份要留痕（否则它在插件页里凭空消失）。
+                RecordFailure(
+                    PluginLoadFailure.DuplicateId,
+                    "用户插件目录里的「" + Path.GetFileName(file) + "」与内置插件「" + loaded.Plugin.DisplayName +
+                    "」使用了同一个标识「" + loaded.Plugin.Id + "」，已跳过（内置插件优先）。",
+                    null,
+                    file);
+            }
+
+            return;
+        }
+
+        if (!isBundled)
+        {
+            return;
+        }
+
+        var shouldActivate = activateBundled || _activation.IsActivated(loaded.Plugin.Id);
+        if (!shouldActivate)
+        {
+            return;
+        }
+
+        var entry = Find(loaded.Plugin.Id);
+        if (entry is not null)
+        {
+            ActivateCore(entry);
+        }
+    }
+
+    private PluginLoadResult LoadCore(string pluginPath, bool activate, bool isBundled = false)
     {
         if (string.IsNullOrWhiteSpace(pluginPath))
         {
@@ -398,7 +521,10 @@ public sealed class PluginService : IPluginService
                 Trim(plugin.Description),
                 Trim(plugin.MinimumHostVersion),
                 fullPath,
-                PluginState.Dormant);
+                PluginState.Dormant)
+            {
+                IsBundled = isBundled,
+            };
             pages = plugin.Pages ?? Array.Empty<PluginPageDescriptor>();
             toolItems = plugin.ToolItems ?? Array.Empty<PluginToolItemDescriptor>();
         }
@@ -502,6 +628,10 @@ public sealed class PluginService : IPluginService
         }
 
         Log.Info("已激活插件：" + entry.Info.Id);
+
+        // 持久化：用户显式激活过 = 下次启动可以恢复。写失败只记日志（存储实现自己吞），
+        // 本次激活已经生效，不因为一个 JSON 文件不可写就回滚激活状态。
+        _activation.Save(entry.Info.Id, activated: true);
         RaiseChanged();
         return PluginLoadResult.Ok(entry.Info, "已激活插件「" + entry.Info.DisplayName + "」。");
     }
@@ -532,6 +662,9 @@ public sealed class PluginService : IPluginService
         }
 
         Log.Info("已停用插件：" + entry.Info.Id);
+
+        // 持久化「用户显式停用」：下次启动不会被恢复成激活（默认不启用，停用就是停用）。
+        _activation.Save(entry.Info.Id, activated: false);
         RaiseChanged();
         return OperationResult.Ok();
     }
@@ -563,6 +696,10 @@ public sealed class PluginService : IPluginService
         }
 
         entry.Load.Release();
+
+        // 卸载 = 用户不希望它再被激活：清掉持久化标记，否则下次启动会被自动恢复成激活。
+        // 重载路径（ReloadCore）会紧接着按原激活态重新 ActivateCore 并写回 true。
+        _activation.Save(entry.Info.Id, activated: false);
         Log.Info("已卸载插件：" + pluginId);
         RaiseChanged();
         return OperationResult.Ok();

@@ -215,9 +215,19 @@ public sealed class ModTextProvider : IModTextProvider
     }
 
     /// <summary>
-    /// 建 (identifier, field) → 条目 的二级索引，键取条目的 n 字段（ckan:&lt;identifier&gt;:&lt;field&gt;）。
-    /// 为什么只认这个形状：上游管线生成的包 n 是归一化原文，n 相同的条目可能属于不同 field，
-    /// 拿它做键会把 A 字段的译文贴到 B 字段上——宁可漏报过期，也不能错报（错报比不报更伤信任）。
+    /// 建 (identifier, field) → 条目 的二级索引。键的取值优先级：<b>k 字段 → 旧包兼容的 n 字段</b>。
+    /// <para>
+    /// <b>为什么 k 优先于 n（别改回去）</b>：<c>n</c> 是<b>归一化原文</b>，不是键。同一句话跨字段出现时
+    /// （CKAN-meta 里 abstract 与 description 经常逐字相同）两条条目的 <c>n</c> 完全一样，
+    /// 拿 <c>n</c> 做索引键会让两条互相覆盖，最后把 abstract 的旧译文贴到 description 上。
+    /// <c>k</c> 由 (identifier, field) 决定、与文本无关，才是过期判定该用的键；
+    /// 也因此上游 CKANMeta 包（<c>n</c>=原文）在有了 <c>k</c> 之后才第一次真正参与过期判定。
+    /// </para>
+    /// <para>
+    /// n 只作为<b>旧包兼容</b>保留：本仓早期的人工覆盖把键写在 <c>n</c> 上（<c>n = ckan:&lt;identifier&gt;:&lt;field&gt;</c>），
+    /// 且<b>仅当</b> n 确实长这个形状才当键用——普通原文不匹配前缀，因此不会被误当键。
+    /// 形状判断是必要的：否则 A 字段的译文会被贴到 B 字段上，错报比漏报更伤信任。
+    /// </para>
     /// </summary>
     /// <param name="pack">层包。</param>
     /// <returns>键索引（不区分层，层优先级由调用顺序保证）。</returns>
@@ -227,8 +237,8 @@ public sealed class ModTextProvider : IModTextProvider
 
         foreach (var entry in pack.AllEntries)
         {
-            string? key = entry.Normalized;
-            if (string.IsNullOrEmpty(key) || !key.StartsWith(KeyPrefix, StringComparison.Ordinal))
+            string key = ResolveIndexKey(entry);
+            if (key.Length == 0)
             {
                 continue;
             }
@@ -250,6 +260,28 @@ public sealed class ModTextProvider : IModTextProvider
         }
 
         return index;
+    }
+
+    /// <summary>
+    /// 取条目的索引键：<c>k</c>（稳定键）优先，<c>k</c> 为空时退回形如 <c>ckan:&lt;identifier&gt;:&lt;field&gt;</c> 的 <c>n</c>（旧包兼容）。
+    /// 两者都不满足返回空串 = 该条目不参与过期判定（宁可漏报，不可错报）。
+    /// </summary>
+    /// <param name="entry">条目。</param>
+    /// <returns>索引键；不适用时为空串。</returns>
+    private static string ResolveIndexKey(DictEntry entry)
+    {
+        // 1) v1.4 稳定键：非空即用。上游管线与 python 侧 api 已校验形状，这里不再重复判断前缀，
+        //    否则老包升级前写进来的 k 会被本地规则二次否决，反而让「同一份数据在两处判定不同」。
+        if (!string.IsNullOrEmpty(entry.Key))
+        {
+            return entry.Key;
+        }
+
+        // 2) 旧包兼容：n 本身就是键（本仓早期人工覆盖的写法）。只认前缀，避免把原文当键。
+        string normalized = entry.Normalized;
+        return !string.IsNullOrEmpty(normalized) && normalized.StartsWith(KeyPrefix, StringComparison.Ordinal)
+            ? normalized
+            : string.Empty;
     }
 
     /// <summary>按 (identifier, field) 拼 n 字段键；identifier 或 field 为空则返回空键（不做过期判定）。</summary>

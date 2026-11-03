@@ -150,6 +150,42 @@ public sealed class ShellPageZoomTests
         Assert.That(store.Saved, Has.Count.EqualTo(1), "重复写入同一比例只会多一次磁盘写，没有意义");
     }
 
+    [Test]
+    public void PageZoom_DraggingCoalescesPersistenceIntoOneWriteOnRelease()
+    {
+        var store = new RecordingSettingsStore();
+        var shell = new ShellViewModel(new NavigationService(_ => null), settingsStore: store);
+
+        shell.BeginPageZoomGesture();
+        foreach (var percent in new[] { 105d, 110d, 115d, 120d, 125d, 135d, 150d })
+        {
+            shell.PageZoomPercent = percent;
+        }
+
+        Assert.That(store.Saved, Is.Empty, "拖动过程中只改内存，不写盘");
+        Assert.That(shell.PageZoom, Is.EqualTo(1.5d).Within(1e-9));
+
+        shell.EndPageZoomGesture();
+
+        Assert.That(store.Saved, Has.Count.EqualTo(1), "松开滑块只落盘一次");
+        Assert.That(store.Saved[0].PageZoom, Is.EqualTo(1.5d).Within(1e-9));
+
+        shell.EndPageZoomGesture();
+        Assert.That(store.Saved, Has.Count.EqualTo(1), "重复收尾不该再写一次");
+    }
+
+    [Test]
+    public void PageZoom_GestureWithoutChangesWritesNothing()
+    {
+        var store = new RecordingSettingsStore();
+        var shell = new ShellViewModel(new NavigationService(_ => null), settingsStore: store);
+
+        shell.BeginPageZoomGesture();
+        shell.EndPageZoomGesture();
+
+        Assert.That(store.Saved, Is.Empty);
+    }
+
     private sealed class RecordingSettingsStore : IUiSettingsStore
     {
         public List<UiSettings> Saved { get; } = [];

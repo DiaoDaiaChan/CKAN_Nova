@@ -66,15 +66,22 @@ internal static class InstallerEngine
             return 1;
         }
 
-        // 4. 准备 Staging 目录并解压/复制
+        // 4. 开工前先确认这个目录真的能写：不然会在解压到一半才炸（非管理员 / 只读目录 /
+        //    安全软件锁目录都表现为 ERROR_ACCESS_DENIED，越早说清楚越好）。
+        progressCallback?.Invoke(30, "检查安装目录权限...");
+        InstallLocation.EnsureWritable(installDir);
+
+        // 5. 准备 Staging 目录并解压/复制
         var appRoot = Path.Combine(installDir, "app");
         var currentDir = Path.Combine(installDir, "current");
-        var stagingDir = Path.Combine(appRoot, ".staging-" + Guid.NewGuid().ToString("N")[..8]);
+        // 不带前导点：点目录在资源管理器里默认隐藏，用户报障时根本找不到；
+        // 少数安全软件的目录规则也会把点开头的新建目录当可疑对象拦一刀。
+        var stagingDir = Path.Combine(appRoot, "staging-" + Guid.NewGuid().ToString("N")[..8]);
 
         var rollbackActions = new List<Action>();
         try
         {
-            Directory.CreateDirectory(appRoot);
+            InstallLocation.CreateDirectoryWithRetry(appRoot);
             rollbackActions.Add(() =>
             {
                 if (Directory.Exists(stagingDir))
@@ -84,16 +91,16 @@ internal static class InstallerEngine
             });
 
             progressCallback?.Invoke(40, "正在解压并写入应用程序核心文件...");
-            ExtractOrCopyPayload(payloadSource, stagingDir);
+            ExtractWithRetry(payloadSource, stagingDir);
 
-            // 5. 确定主程序名与版本号
+            // 6. 确定主程序名与版本号
             var (mainExeName, version) = DetermineExeAndVersion(stagingDir);
             var targetVersionDir = Path.Combine(appRoot, version);
             var backupDir = string.Empty;
 
             if (Directory.Exists(targetVersionDir))
             {
-                backupDir = Path.Combine(appRoot, $".backup-{version}-{DateTime.Now:yyyyMMddHHmmss}");
+                backupDir = Path.Combine(appRoot, $"backup-{version}-{DateTime.Now:yyyyMMddHHmmss}");
                 Directory.Move(targetVersionDir, backupDir);
                 rollbackActions.Add(() =>
                 {
@@ -104,7 +111,7 @@ internal static class InstallerEngine
                 });
             }
 
-            // 6. 原子替换就位
+            // 7. 原子替换就位
             progressCallback?.Invoke(65, "正在更新版本目录与符号链接...");
             Directory.Move(stagingDir, targetVersionDir);
 
@@ -113,7 +120,7 @@ internal static class InstallerEngine
                 try { Directory.Delete(backupDir, true); } catch { }
             }
 
-            // 7. 写入 current 指针与说明
+            // 8. 写入 current 指针与说明
             Directory.CreateDirectory(currentDir);
             File.WriteAllText(Path.Combine(currentDir, "version.txt"), version + Environment.NewLine);
             File.WriteAllText(
@@ -133,7 +140,7 @@ internal static class InstallerEngine
                 }
             }
 
-            // 8. 自克隆作为独立卸载器
+            // 9. 自克隆作为独立卸载器
             var selfExe = Environment.ProcessPath;
             var installerInTarget = Path.Combine(installDir, "CkanUISetup.exe");
             if (!string.IsNullOrEmpty(selfExe) && File.Exists(selfExe))
@@ -147,54 +154,105 @@ internal static class InstallerEngine
 
             var appExePath = Path.Combine(targetVersionDir, mainExeName);
 
-            // 9. 创建快捷方式
+            // 10. 创建快捷方式
             progressCallback?.Invoke(80, "正在注册桌面与开始菜单快捷方式...");
-            if (!options.NoShortcuts)
+            var programsDir = string.IsNullOrWhiteSpace(options.ShortcutRoot)
+                ? Environment.GetFolderPath(Environment.SpecialFolder.Programs)
+                : Path.Combine(options.ShortcutRoot!, "StartMenu");
+            var desktopDir = string.IsNullOrWhiteSpace(options.ShortcutRoot)
+                ? Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                : Path.Combine(options.ShortcutRoot!, "Desktop");
+
+            if (!options.NoStartMenuShortcut)
             {
-                var programsDir = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
-                var desktopDir = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-
-                if (Directory.Exists(programsDir))
+                var startMenuLink = Path.Combine(programsDir, "CKAN UI.lnk");
+                if (ShortcutHelper.CreateShortcut(startMenuLink, appExePath, targetVersionDir, out var startMenuError, "CKAN UI"))
                 {
-                    var startMenuLink = Path.Combine(programsDir, "CKAN UI.lnk");
-                    ShortcutHelper.CreateShortcut(startMenuLink, appExePath, targetVersionDir, "CKAN UI");
-
-                    // 开始菜单增加独立卸载入口
-                    var menuSubDir = Path.Combine(programsDir, "CKAN UI");
-                    Directory.CreateDirectory(menuSubDir);
-                    var uninstLink = Path.Combine(menuSubDir, "卸载 CKAN UI.lnk");
-                    ShortcutHelper.CreateShortcut(uninstLink, installerInTarget, installDir, "卸载 CKAN UI", "-Uninstall");
+                    rollbackActions.Add(() => ShortcutHelper.DeleteShortcut(startMenuLink));
+                }
+                else
+                {
+                    // 建失败不能静默：用户会以为「装好了」，却在开始菜单里搜不到。
+                    options.Warnings.Add("开始菜单快捷方式创建失败（" + startMenuError + "）");
+                    options.WarningDetails.Add("开始菜单: " + startMenuLink + " — " + startMenuError);
                 }
 
-                if (Directory.Exists(desktopDir))
+                // 开始菜单增加独立卸载入口
+                var uninstLink = Path.Combine(programsDir, "CKAN UI", "卸载 CKAN UI.lnk");
+                if (ShortcutHelper.CreateShortcut(uninstLink, installerInTarget, installDir, out var uninstError, "卸载 CKAN UI", "-Uninstall"))
                 {
-                    var desktopLink = Path.Combine(desktopDir, "CKAN UI.lnk");
-                    ShortcutHelper.CreateShortcut(desktopLink, appExePath, targetVersionDir, "CKAN UI");
+                    rollbackActions.Add(() => ShortcutHelper.DeleteShortcut(uninstLink));
+                }
+                else
+                {
+                    options.Warnings.Add("卸载快捷方式创建失败（" + uninstError + "）");
+                    options.WarningDetails.Add("卸载入口: " + uninstLink + " — " + uninstError);
                 }
             }
 
-            // 10. 写入 HKCU 卸载注册表与 App Paths
+            if (!options.NoDesktopShortcut)
+            {
+                var desktopLink = Path.Combine(desktopDir, "CKAN UI.lnk");
+                if (ShortcutHelper.CreateShortcut(desktopLink, appExePath, targetVersionDir, out var desktopError, "CKAN UI"))
+                {
+                    rollbackActions.Add(() => ShortcutHelper.DeleteShortcut(desktopLink));
+                }
+                else
+                {
+                    options.Warnings.Add("桌面快捷方式创建失败（" + desktopError + "）");
+                    options.WarningDetails.Add("桌面: " + desktopLink + " — " + desktopError);
+                }
+            }
+
+            // 11. 写入 HKCU 卸载注册表与 App Paths
             progressCallback?.Invoke(90, "正在写入 Windows 注册表卸载项与路径...");
             var uninstallCmd = $"\"{installerInTarget}\" -Uninstall";
             var quietUninstallCmd = $"\"{installerInTarget}\" -Uninstall -Quiet -Force";
             var estimatedSizeKb = (int)Math.Min(int.MaxValue, CalculateDirectorySizeKb(appRoot));
 
-            RegistryHelper.RegisterUninstallEntry(
-                version,
-                installDir,
-                appExePath,
-                uninstallCmd,
-                quietUninstallCmd,
-                estimatedSizeKb);
+            if (options.NoRegistry)
+            {
+                // 绿色安装：不碰注册表，开始菜单里的卸载入口就是唯一的卸载路径。
+                progressCallback?.Invoke(92, "已跳过注册表（绿色安装）...");
+            }
+            else
+            {
+                try
+                {
+                    RegistryHelper.RegisterUninstallEntry(
+                        version,
+                        installDir,
+                        appExePath,
+                        uninstallCmd,
+                        quietUninstallCmd,
+                        estimatedSizeKb);
 
-            RegistryHelper.RegisterAppPath(mainExeName, appExePath, targetVersionDir);
-            RegistryHelper.CleanStaleAppPaths(ExeCandidates, mainExeName, installDir);
+                    if (!options.NoAppPath)
+                    {
+                        RegistryHelper.RegisterAppPath(mainExeName, appExePath, targetVersionDir);
+                    }
+                }
+                catch (Exception regEx) when (regEx is UnauthorizedAccessException
+                                              or System.Security.SecurityException
+                                              or IOException)
+                {
+                    // 文件都装好了，只差注册表：说清楚是哪一项、给两条可行路径，
+                    // 不要让用户对着「拒绝访问」猜是不是磁盘/杀软的问题。
+                    throw new InvalidOperationException(
+                        "无法写入注册表卸载信息（HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\CkanUI）："
+                        + regEx.Message
+                        + "。请以管理员身份重新运行安装程序；若仍失败，检查组策略或安全软件是否禁止写入 HKCU 注册表。",
+                        regEx);
+                }
+
+                RegistryHelper.CleanStaleAppPaths(ExeCandidates, mainExeName, installDir);
+            }
 
             installedAppExe = appExePath;
             installedVersion = version;
             progressCallback?.Invoke(100, "安装完成！");
 
-            // 11. 启动应用
+            // 12. 启动应用
             if (!options.NoLaunch && options.Quiet)
             {
                 try
@@ -214,11 +272,23 @@ internal static class InstallerEngine
         {
             installedAppExe = string.Empty;
             installedVersion = string.Empty;
-            Console.Error.WriteLine("安装过程中发生错误: " + ex.Message);
             foreach (var rollback in rollbackActions)
             {
                 try { rollback(); } catch { }
             }
+
+            // 只有「目录写不进去」才翻成「换目录 / 提权 / 放行」——EnsureWritable 和
+            // ExtractWithRetry 抛出的异常已经带着具体路径。其它异常（比如注册表被组策略
+            // 拒绝）保留原貌：把注册表问题也说成「安装目录不可写」等于给用户指错方向。
+            var friendly = ex as InstallLocationException;
+
+            if (friendly != null)
+            {
+                Console.Error.WriteLine("安装过程中发生错误: " + friendly.Message);
+                throw friendly;
+            }
+
+            Console.Error.WriteLine("安装过程中发生错误: " + ex.Message);
             throw;
         }
     }
@@ -262,6 +332,27 @@ internal static class InstallerEngine
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// 解压/复制带三次退避：实时防护扫描刚创建的目录时，首个文件写入会瞬时被拒，
+    /// 重试即可过；真无权限时三次都会失败并保留原始异常。
+    /// </summary>
+    private static void ExtractWithRetry(object source, string targetDir, int attempts = 3)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                ExtractOrCopyPayload(source, targetDir);
+                return;
+            }
+            catch (Exception ex) when (attempt < attempts && (ex is UnauthorizedAccessException or IOException))
+            {
+                try { if (Directory.Exists(targetDir)) Directory.Delete(targetDir, true); } catch { }
+                Thread.Sleep(150 * attempt);
+            }
+        }
     }
 
     private static void ExtractOrCopyPayload(object source, string targetDir)

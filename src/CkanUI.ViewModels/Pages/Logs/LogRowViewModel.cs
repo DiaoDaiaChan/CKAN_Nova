@@ -70,6 +70,18 @@ public sealed partial class LogRowViewModel : ObservableObject
     /// <summary>是否用户消息（IUser 通道）。</summary>
     public bool IsUser => Entry.Level == LogLevel.User;
 
+    /// <summary>是否来自 KSP 游戏日志（<c>Kind == Game</c>）。</summary>
+    public bool IsGame => Entry.Kind == LogSourceKind.Game;
+
+    /// <summary>是否堆栈/Unity 附注这类「接着上一行」的续行（游戏日志里成片出现，缩进压暗处理）。</summary>
+    public bool IsContinuation => Entry.Tag("game.cont") == "1";
+
+    /// <summary>游戏日志的模块标签（KSP 的 logger 名）；不是游戏日志时为 null。</summary>
+    public string? Module => IsGame ? Entry.Tag("module") : null;
+
+    /// <summary>行首那枚标签的文字：游戏日志显示模块名（插件名一眼可见），其余仍显示日志族。</summary>
+    public string TagLabel => IsGame ? Module ?? "KSP" : FamilyLabel;
+
     /// <summary>是否当前命中（F3 跳转高亮）。</summary>
     [ObservableProperty]
     private bool _isCurrentMatch;

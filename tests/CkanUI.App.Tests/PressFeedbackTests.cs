@@ -116,13 +116,14 @@ public sealed class PressFeedbackTests
     }
 
     [Test]
-    public void PressingCard_DoesNotTriggerInteractionMotionScale()
+    public void PressingAStaticCard_DipsItByCardInset()
     {
         var card = new Border
         {
             Width = 300,
             Height = 150,
             Classes = { "CkanCard" },
+            Background = Brushes.Transparent,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
         };
@@ -133,10 +134,41 @@ public sealed class PressFeedbackTests
         try
         {
             Press(window, new Point(50, 50));
-            Assert.That(ScaleOf(card), Is.EqualTo(1d), "卡片容器点击时不应被 InteractionMotion 整体收缩，避免引起边框位移");
+
+            var expected = InteractionMotion.ScaleFor(300, 150, InteractionMotion.CardInsetPixels);
+            Assert.That(ScaleOf(card), Is.EqualTo(expected).Within(0.02), "卡片按下必须真的收，收 6 px 而不是按钮的 12 px");
+            Assert.That(card.RenderTransformOrigin.Point.X, Is.LessThan(0.25), "收缩锚点落在按下点，边缘按压才不会被缩出去");
         }
         finally
         {
+            InteractionMotion.Release();
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    [Test]
+    public void PressingAPlainBorderContainer_DoesNotScale()
+    {
+        var plain = new Border
+        {
+            Width = 300,
+            Height = 150,
+            Background = Brushes.Transparent,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        var window = HeadlessAppHost.CreateTestWindow(plain, 400, 300);
+        window.AddHandler(InputElement.PointerPressedEvent, (_, e) => InteractionMotion.Press(e, window), RoutingStrategies.Tunnel, handledEventsToo: true);
+        Pump(5);
+        try
+        {
+            Press(window, new Point(50, 50));
+            Assert.That(ScaleOf(plain), Is.EqualTo(1d), "没有卡片类名的裸 Border 是布局容器，不是按下表面");
+        }
+        finally
+        {
+            InteractionMotion.Release();
             window.Close();
             HeadlessAppHost.PumpJobs();
         }

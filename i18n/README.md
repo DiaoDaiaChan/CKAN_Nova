@@ -10,6 +10,7 @@
 | `i18n/glossary/` | 术语表：保证"模组/实例/依赖"等词在各语言里译法一致 |
 | `i18n/tools/extract_ckan_meta.py` | CKAN-meta 元数据候选抽取（哈希规则与 C# 侧 `UI18n.Core` 一致） |
 | `i18n/tools/contract-vectors.jsonl` | 跨语言哈希契约向量，由上面的脚本产出、由 `HashContractTests` 逐条校验 |
+| `i18n/tools/ckan_i18n_pipeline.py` | 元数据译文全链路编排与验收：`--check`（离线验收）/ `--stage`（extract→translate→sync）/ `--selftest` |
 
 ## 语言包格式
 
@@ -88,11 +89,68 @@
 %LocalAppData%/CKAN/ckan-ui/i18n/blocklist.json                # 不翻译的 mod 名单
 ```
 
-每行一个 JSON 对象：`h`（`fnv1a64(Normalize(s))` 的 16 位小写十六进制）、`n`（`ckan:<identifier>:<field>`）、
-`s`（英文原文）、`t`（译文）、`mod`（`CKANMeta`）、`ctx`（identifier）、`src`（`human`/`machine`）。
+每行一个 JSON 对象：`h`（`fnv1a64(Normalize(s))` 的 16 位小写十六进制）、`n`（**归一化原文** `Normalize(s)`）、
+`s`（英文原文）、`t`（译文）、`mod`（`CKANMeta`），以及可选 `k`（`ckan:<identifier>:<field>`）、`ctx`（identifier）、`src`（`human`/`machine`）。
 查找链与三档策略（关 / 仅已有 / 允许机翻）见 `docs/design/mod-metadata-i18n.md`。
 
-抽取候选：
+> 跨仓契约一句话：**管线产出的包里 `n` 是归一化原文，键名只出现在 `k`（和用户覆盖层）里**；读取侧不靠 `n` 做键匹配，
+> `k` 只用于「同一字段文本改过」的过期判定，所以旧包缺 `k` 也能正常装载，只是报不出过期。
+
+### 全链路
+
+```
+CKAN-meta（abstract / description）
+   │  i18n/tools/extract_ckan_meta.py --export-pool
+   ▼
+packs/ckan_pool.jsonl                 # h / key / text / ctx / field / len
+   │  i18n_tools.translate --pool …    # --plan → 分批 → api 门禁 → journal
+   ▼
+packs/zh-cn/CKANMeta.jsonl            # 源包：h / n / s / t / mod（可选 k）
+   │  ckan_i18n_pipeline.py --stage sync   # 全量语言包：<dest>.tmp → 校验 → os.replace
+   ▼
+%LocalAppData%/CKAN/ckan-ui/i18n/packs/<lang>/*.jsonl（CKANMeta + 游戏内 UI/部件描述等全部语言包）
+   │  CkanUI.ModText（磁盘优先，覆盖层压语言包层）
+   ▼
+ckan-ui 模组详情页的摘要/说明 + i18n 页的全量词条浏览（按模组分组）
+```
+
+一条命令验收、一条命令产出：
+
+```bash
+# 验收：零网络、零写盘，CI 与本地同一套判据
+python i18n/tools/ckan_i18n_pipeline.py --check             # 人读摘要
+python i18n/tools/ckan_i18n_pipeline.py --check --json       # 一行 JSON，可粘贴进工单/CI
+python i18n/tools/ckan_i18n_pipeline.py --check --strict     # 把 warn 也判红
+
+# 产出：extract → translate → sync（失败即停，按退出码定位阶段）
+python i18n/tools/ckan_i18n_pipeline.py --stage all --jobs 4
+python i18n/tools/ckan_i18n_pipeline.py --plan-only          # 只看缺口与下一步，不改仓库
+python i18n/tools/ckan_i18n_pipeline.py --stage sync --dest <packs 根>   # 只同步/换目标目录
+python i18n/tools/ckan_i18n_pipeline.py --stage sync --langs zh-cn,ja    # 限定语言目录（默认 all）
+```
+
+退出码（CI 用它定位阶段）：
+
+| 码 | 含义 |
+| --- | --- |
+| 0 | 成功；`--check` 通过 |
+| 2 | 参数错误（argparse） |
+| 10 | 环境路径解析失败（ckan-ui 根 / 抽取器 / UI18n 根 / CKAN 数据源） |
+| 11 / 12 / 13 | `extract` / `translate` / `sync` 阶段失败（13 含「源包契约不合格，拒绝同步」） |
+| 14 | 可选 `--dotnet-test` 失败 |
+| 20 | `--check` 不合格（error 级；`--strict` 下含 warn 级） |
+| 21 | `--selftest` 断言失败 |
+
+`--check` 逐条核对（JSON 里每条含 `id` / `severity` / `ok` / `message`）：跨语言哈希向量、pool 与源包的字段契约
+（`h == fnv1a64(normalize(s))`、`n == normalize(s)`、`t` 非空、同包 `h` 唯一、`k` 形状合法且 pool 里存在同 `k` 同 `h` 的行
+——`k` 不是主键，一个 `ckan:<identifier>:<field>` 可以有多条历史文本）、
+`packs/index.json` 的登记与行数/字节、运行时目录与源包的 sha256、pool 的 distinct `h` / 已译 / 缺口。
+
+分级原则（已知不一致不塞进 error）：清单**未登记** `CKANMeta` 只记 warn（清单由 UniversalI18n 的 `packindex` 生成，
+本仓只读不改）；**登记了但与磁盘行数/字节/sha 不符**是 error；运行时包与源包不一致只记 warn 并提示「该跑 `--sync`」，
+`--strict` 才判红。
+
+抽取候选（单跑，不经过编排器）：
 
 ```bash
 python i18n/tools/extract_ckan_meta.py --verify-vectors          # 先自检官方向量

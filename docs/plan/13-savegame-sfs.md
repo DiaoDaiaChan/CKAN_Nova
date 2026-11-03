@@ -1,7 +1,7 @@
 # 13 存档工作台与 SFS 格式化工具
 
-> 状态：**v1（计划与文档，未写代码）**。本文覆盖两块用户需求：①**存档管理与编辑（`.sfs`）** ②**SFS 格式化工具**。
-> 与主计划的关系：主计划（00–12 篇，846→854h / 23 周）只做 **mod 管理**；本文是**新增能力域 E1**，独立里程碑 **M7**，不侵占主计划的工时与门禁。代码一行未写，等指令。
+> 状态：**v3（SFS-01/02/03/08/10 已落地；SFS-04 大文件流式路径已落地；SFS-05/06/07 为可运行子集）**。本文覆盖两块用户需求：①**存档管理与编辑（`.sfs`）** ②**SFS 格式化工具**。
+> 与主计划的关系：主计划（00–12 篇，846→854h / 23 周）只做 **mod 管理**；本文是**新增能力域 E1**，独立里程碑 **M7**，不侵占主计划的工时与门禁。实现进度见 §15。
 
 ---
 
@@ -335,8 +335,36 @@ saveMD5          = 空（KSP 自己留空，实测为空）
 
 ---
 
-## 14. 修订记录
+## 15. 交付现状（实现侧记录）
+
+已落地（不是计划）：SFS-01/02/03/08/10 全量；SFS-04 大文件流式路径；SFS-05/06/07 的可运行子集；UI 侧“编辑内容…”入口 + 独立工作台窗口。
+
+| 能力 | 落点 | 现状 |
+|---|---|---|
+| 语义投影 | `src/CkanUI.Sfs/SfsOutline.cs` | 分区（存档信息 / 资金 / 声望 / 科技 / 飞行器 / 每个 `SCENARIO` / 乘员 / 消息 / 其余）、常用内容按 Rank 置顶、展示预算截断（只统计不展开）、懒展开任意块、语义 + 原文双路搜索 |
+| 词表（不是硬编码分支） | `src/CkanUI.Sfs/SfsSemantics.cs` | 键/块/场景三类规则是数据，未知键走通用展示；`SfsVocabulary.FromJson` 可外挂词表，整合包私有内容原样保留 |
+| 大文件流式路径 | `src/CkanUI.Sfs/SfsStreamScan.cs` + `SfsStreamOutline.cs` + `SfsLinePatcher.cs` | 超过 `FullParseLimitBytes = 32 MiB` 不建整棵语法树：单遍扫描统计 + 分块大纲 + 关键词/词表标签搜索 + 按需展开 + 行级补丁改值/改名；单块超过 4 MiB 只统计摘要；同名 `SCENARIO` 共用 Path，分区内容按块的行区间隔离，避免每个分区都列出全部兄弟字段；界面明确禁用整块复制/删除 |
+| 结构化写入 | `src/CkanUI.Sfs/SfsEditor.cs` | 改值 / 改名 / 删块 / 复制块 / 插键值：行级补丁，重解析后按"节点数 + 键值多重集"自校验，不匹配即拒绝 |
+| 写盘安全网 | `src/CkanUI.Services/Saves/SaveEditorService.cs` + `SaveFileWriter` | 快照 `.pre-edit-yyyyMMdd-HHmmss` → 临时文件 + 原子替换 → 保留 mtime；解析有错或有损时拒绝写；大文件补丁后先流式复核计数再落盘 |
+| GUI | `src/CkanUI.App/Views/SfsWorkbenchWindow.axaml` | 三栏（分区 / 键值 + 就地编辑 / 块树）、1280×860 默认窗口与加宽侧栏、两行式紧凑行（标题/路径与值同行、块摘要与计数同行，减少纵向留白）、超长路径/值 tooltip 补全、搜索命中高亮、命中跳行、改值/改名/复制块/删除块（删除二次确认）、常用字段"常用"标记、搜索命中自动逐层展开祖先块并定位到字段（大文件流式模式同样可用）、大文件横幅与超大块提示 |
+| CLI | `src/CkanUI.Sfs.Cli` | `outline` / `search` / `set` / `delete` / `duplicate` / `insert`，与 GUI 同一套内核 |
+
+**实测（本机真实存档）**：
+- `默认323/persistent.sfs`（407 KB / 20,543 行 / 12,695 键值）：全解析 outline 0.16s；流式 outline 60ms；按中文标签搜"资金"15ms 命中第 502 行；改资金 30ms，快照与原文件字节相同，diff 仅第 502 行，行数不变，无 `.patch-` 残留。
+- `M6_FlightUI/persistent.sfs`（4.8 MB / 270,706 行 / 110,695 键值）：全解析 outline 0.60s、搜索 0.69s；流式 outline 91ms（飞行器 59 / 部件 401，与全解析一致）、搜"飞行器"62ms 命中 `FLIGHTSTATE`；改一行 133ms，diff 仅该行，27 万行行数不变。写回验证在 `artifacts/tmp` 的副本上做（本会话对 D: 只读）。
+- 合成百 MB 样本（120k 行 × 900 字节）：流式 scan 176ms、峰值托管内存 12 MB、search 80ms、describe 162ms。
+
+**验证**：`tests/CkanUI.Sfs.Tests` 158 通过（`[Explicit]` 的百 MB 用例单独跑）；`tests/CkanUI.Services.Tests` 1265 通过 / 1 跳过（含 `SaveEditorServiceLargeFileTests` 9 个）；`tests/CkanUI.ViewModels.Tests` 1639 通过（含 `SfsWorkbenchViewModelTests` 10 个、`SfsWorkbenchIntegrationTests` 3 个真实服务端到端：改生涯资金 + 改部件字段 + 大文件搜索定位 + 跨分区搜索定位）；`tests/CkanUI.App.Tests` 的 `SfsWorkbenchWindowTests` 1 个（Avalonia headless 真装载窗口）。
+
+**尚未做**：UI-SAVE-02 的全量虚拟化树（当前按分区 + 预算截断，不是 27 万行一次性建树）、UI-SAVE-03 原始文本视图、SFS-09 差异引擎与 UI-SAVE-04/05 预览/对比、SFS-06 的"50 个存档首屏 ≤300ms"指标（未构造该规模样本压测）；大文件模式下超过单块预算（4 MiB）的块只有摘要，不能展开；写回后尚未同步 `.loadmeta`（主菜单统计可能仍显示旧值）。
+
+---
+
+## 16. 修订记录
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
 | 2026-10-26 | v1 | 新建。依据本机真实存档（`saves/默认/persistent.sfs` 4.86MB / 270,706 行）实测语法；给出格式化器保字/幂等/自校验算法、存档包一致性策略、250h / M7 7 周排期 |
+| 2026-10-27 | v2 | 补 §15 交付现状：语义投影 / 词表 / 结构化写入 / 写盘安全网 / 工作台窗口与 CLI 子命令已落地，附真实存档实测与未做项 |
+| 2026-11-02 | v3 | SFS-04 大文件流式路径落地：32 MiB 阈值、单遍扫描 + 流式大纲 + 词表标签搜索 + 行级补丁，附 4.8 MB / 27 万行真实存档与百 MB 合成样本实测；更新 §15 测试计数、未做项与文档状态 |
+| 2026-11-02 | v3.1 | 修复流式大纲同名 `SCENARIO` 分区内容串台：`SfsStreamOutline` 的字段/子块筛选补上块的行区间，`FindDirectValue` 同样按行区间取 `name`；新增 `Build_SeparatesSamePathSiblingScenariosByLineRange` 回归用例 |

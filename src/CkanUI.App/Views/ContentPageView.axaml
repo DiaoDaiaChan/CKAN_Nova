@@ -112,7 +112,9 @@
         </TreeView>
       </Border>
 
-      <GridSplitter Grid.Column="1" ResizeDirection="Columns" IsVisible="{Binding HasNodes}" />
+      <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Center" ResizeDirection="Columns"
+                    VerticalAlignment="Stretch" Margin="0,10" ZIndex="5" Cursor="SizeWestEast"
+                    IsVisible="{Binding HasNodes}" />
 
       <!-- 右栏：选中条目详情（包内路径 / 类型 / 未压缩大小） -->
       <Border Grid.Column="2" Classes="CkanCard stagger-card" IsVisible="{Binding HasNodes}">

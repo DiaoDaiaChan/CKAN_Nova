@@ -1,0 +1,11 @@
+{
+  "schema": "kpp.command/1",
+  "id": "6f1c0e2a-4f4c-4a7b-9c2d-0b6f3a1d5e77",
+  "op": "set_pad",
+  "ok": true,
+  "completedUnixMs": 1762000000042,
+  "message": "已垫高 4096 MB",
+  "result": {
+    "heldMb": 4096
+  }
+}

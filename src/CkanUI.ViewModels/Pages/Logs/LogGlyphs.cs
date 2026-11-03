@@ -71,6 +71,7 @@ public static class LogGlyphs
         LogSourceKind.Exception => "异常",
         LogSourceKind.Child => "子进程",
         LogSourceKind.Legacy => "导入日志",
+        LogSourceKind.Game => "游戏日志",
         _ => "界面事件",
     };
 }

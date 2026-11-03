@@ -42,16 +42,19 @@ public static class InteractionMotion
         }
 
         var surface = PointerAuraLayer.FindSurface(e.Source as Visual, root);
-        if (surface is null || surface is DataGridRow or MenuItem or TreeViewItem)
+        if (surface is null)
         {
             return null;
         }
 
-        // 普通 Border 容器按下不缩：卡片外面还有边框和分隔线，整块缩会让边框跟着位移。
-        // 但可点卡片（CkanCardInteractive）本身就是按钮语义，它必须有按下反馈——
+        // 收不收、收多少，统一看 InteractionSurface 的矩阵：按钮族与卡片收，行 / 菜单 / 页签不收。
+        // 卡片容器（CkanCard / CkanCardInteractive / CkanEmptyStateCard …）必须收：
         // 样式里那条 :pressed 只有 scale(0.995)，300 px 的卡只缩 1.5 px，等于没反馈。
-        var isCard = surface is Border && surface.Classes.Contains(CardClass);
-        if (surface is Border && !isCard)
+        // 卡片按整块面收 6 px 而不是按钮的 12 px —— 大面积按 12 px 收会像整块塌下去。
+        // 这不会带回"双重边框"：PointerAuraLayer 的描边走元素自身的 RenderTransform，
+        // 按下缩多少，描边就跟着缩多少，任何时刻只有一条边。
+        var kind = InteractionSurface.KindOf(surface);
+        if (!InteractionSurface.DipsOnPress(kind))
         {
             return null;
         }
@@ -59,7 +62,7 @@ public static class InteractionMotion
         var scale = ScaleFor(
             surface.Bounds.Width,
             surface.Bounds.Height,
-            isCard ? CardInsetPixels : PressInsetPixels);
+            InteractionSurface.DipInset(kind));
 
         // 收缩锚点必须落在按下点：以中心收缩会把边缘 3~12px 的区域缩到指针外，
         // 松开时命中点已经不在控件上，Button 不触发 Click —— 看起来就是"动画吃掉了点击"。

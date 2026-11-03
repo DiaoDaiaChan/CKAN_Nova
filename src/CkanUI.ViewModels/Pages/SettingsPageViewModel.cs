@@ -290,7 +290,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         OnPropertyChanged(nameof(HasAppearanceLockNotice));
     }
 
-    /// <summary>要跟着高对比度一起置灰的行：主题、强调色预设、自定义强调色、强调色作用范围，以及背景那十一行。</summary>
+    /// <summary>要跟着高对比度一起置灰的行：主题、强调色预设、自定义强调色、强调色作用范围，以及背景那十二行。</summary>
     /// <remarks>
     /// 背景同属外观：高对比度下 <c>BackgroundHost</c> 整层不画（THM-10），写进去也看不到，
     /// 所以和主题、强调色一样置灰并拒绝保存。
@@ -304,6 +304,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         SettingsKeyNames.AccentColor,
         SettingsKeyNames.AccentColorCustom,
         SettingsKeyNames.AccentScope,
+        SettingsKeyNames.BackgroundScene,
         SettingsKeyNames.BackgroundKind,
         SettingsKeyNames.BackgroundColor,
         SettingsKeyNames.BackgroundGradientStart,
@@ -785,6 +786,23 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                     new SettingChoice("none", Text("关闭动画", LocalizationKeys.SettingsChoiceMotionIntensityNone)),
                 }),
             new SettingItemViewModel(
+                SettingsKeyNames.BackgroundScene,
+                Text("装饰场景", LocalizationKeys.SettingsItemBackgroundScene),
+                SettingItemKind.Choice,
+                SettingPersistence.UiSettings,
+                SettingGroupKey.Appearance,
+                description: Text("应用自带的程序化线稿背景：只在没有自定义背景、非高对比度时显示，页面卡片仍然不透明。切换后立即生效，并保留各场景自己的慢速运动与光标响应。", LocalizationKeys.SettingsItemBackgroundSceneDesc),
+                choices: new[]
+                {
+                    new SettingChoice(BackgroundSceneKinds.Starfield, Text("星空", LocalizationKeys.SettingsChoiceBackgroundSceneStarfield)),
+                    new SettingChoice(BackgroundSceneKinds.Orbital, Text("轨道蓝图", LocalizationKeys.SettingsChoiceBackgroundSceneOrbital)),
+                    new SettingChoice(BackgroundSceneKinds.Lunar, Text("月面晨昏线", LocalizationKeys.SettingsChoiceBackgroundSceneLunar)),
+                    new SettingChoice(BackgroundSceneKinds.Probe, Text("深空探测器", LocalizationKeys.SettingsChoiceBackgroundSceneProbe)),
+                    new SettingChoice(BackgroundSceneKinds.Lens, Text("引力透镜", LocalizationKeys.SettingsChoiceBackgroundSceneLens)),
+                    new SettingChoice(BackgroundSceneKinds.None, Text("无（纯主题底色）", LocalizationKeys.SettingsChoiceBackgroundSceneNone)),
+                },
+                saveHandler: vm => SaveItemAsync(vm)),
+            new SettingItemViewModel(
                 SettingsKeyNames.BackgroundKind,
                 Text("背景来源", LocalizationKeys.SettingsItemBackgroundKind),
                 SettingItemKind.Choice,
@@ -1132,7 +1150,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     }
 
     /// <summary>
-    /// 背景的十一行共用一份 <see cref="BackgroundProfile"/>（20 篇 P-06 / P-07）：整份写盘，而不是
+    /// 背景来源相关的十一行共用一份 <see cref="BackgroundProfile"/>（20 篇 P-06 / P-07）：整份写盘，而不是
     /// 每行各存一个字段，这样「按实例覆盖」才能一次性搬走整组设置，也不会出现半新半旧的组合。
     /// </summary>
     /// <param name="current">刚读到的界面设置。</param>
@@ -1141,6 +1159,10 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         var (scope, profile) = ResolveBackgroundProfile(current);
         var clamped = profile.Clamp();
 
+        ApplyChoice(
+            SettingsKeyNames.BackgroundScene,
+            BackgroundSceneKinds.Normalize(current.BackgroundScene),
+            BackgroundSceneKinds.Starfield);
         ApplyChoice(SettingsKeyNames.BackgroundKind, clamped.Kind, BackgroundProfile.KindNone);
         FindItem(SettingsKeyNames.BackgroundColor)?.ApplyLoaded(clamped.Color ?? string.Empty);
         FindItem(SettingsKeyNames.BackgroundGradientStart)?.ApplyLoaded(clamped.GradientStart ?? string.Empty);
@@ -1675,6 +1697,10 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 next = SaveAccentScope(perInstance);
                 break;
             }
+
+            case SettingsKeyNames.BackgroundScene:
+                next = current with { BackgroundScene = BackgroundSceneKinds.Normalize(item.EditValue) };
+                break;
 
             case SettingsKeyNames.BackgroundKind:
                 next = SaveBackground(p => p with { Kind = item.EditValue });

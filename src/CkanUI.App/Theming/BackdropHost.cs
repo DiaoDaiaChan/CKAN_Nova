@@ -54,7 +54,7 @@ public sealed class BackdropHost : IDisposable
             "mica" => new[] { WindowTransparencyLevel.Mica, WindowTransparencyLevel.None },
             "acrylic" or "blur" => new[] { WindowTransparencyLevel.AcrylicBlur, WindowTransparencyLevel.None },
             "none" or "solid" => new[] { WindowTransparencyLevel.None },
-            _ => new[] { WindowTransparencyLevel.AcrylicBlur, WindowTransparencyLevel.Mica, WindowTransparencyLevel.None }
+            _ => new[] { WindowTransparencyLevel.Mica, WindowTransparencyLevel.AcrylicBlur, WindowTransparencyLevel.None }
         };
     }
 

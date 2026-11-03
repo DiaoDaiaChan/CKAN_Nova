@@ -9,6 +9,7 @@
         xmlns:logs="using:CkanUI.App.Views.Logs"
         xmlns:views="using:CkanUI.App.Views"
         xmlns:controls="using:CkanUI.App.Controls"
+        xmlns:bg="using:CkanUI.App.Controls.Backgrounds"
         xmlns:diag="using:CkanUI.App.Diagnostics"
         xmlns:sys="using:System"
         x:Class="CkanUI.App.MainWindow"
@@ -162,13 +163,15 @@
       背景层（20 篇 P-06 / THM-05）：纯色或渐变走 BackgroundLayer 的画笔，图片走 BackgroundImage，
       平铺也走 BackgroundLayer（ImageBrush）。控件都不吃鼠标事件，内容层整体压在它们之上。
       高对比度下整块被 BackgroundHost 清空（THM-10 优先）。
-      星空（BackgroundStarfield）是应用自带的装饰层，不是设置项：只在没有自定义背景、非高对比度时露面；
-      它整块 IsHitTestVisible=false，光标位置由 MainWindow 的隧道指针事件转发进去。
+      星空（BackgroundStarfield）与程序化场景画布（BackgroundSceneCanvas）是应用自带的装饰层：
+      同一时刻只露面一层，且只在没有自定义背景、非高对比度时显示；两块都 IsHitTestVisible=false，
+      光标位置由 MainWindow 的隧道指针事件转发进去。
     -->
     <Panel IsHitTestVisible="False">
       <Border Background="{DynamicResource CkanSurfaceBackgroundBrush}" />
       <Border x:Name="BackgroundLayer" />
       <controls:StarfieldBackground x:Name="BackgroundStarfield" />
+      <bg:BackgroundSceneCanvas x:Name="BackgroundSceneCanvas" />
       <Image x:Name="BackgroundImage" Stretch="UniformToFill" />
       <Border x:Name="BackgroundDim" Opacity="0" />
       <Border x:Name="BackgroundScrim"
@@ -533,11 +536,18 @@
               <LayoutTransformControl x:Name="PageZoomHost"
                                       HorizontalAlignment="Stretch"
                                       VerticalAlignment="Stretch">
-                <!-- 页面视图常驻这个舞台，换页只切 IsVisible：重新挂载会整棵重排（设置页 500–900ms），
-                     切可见性只要 1–2ms。见 docs/ops/perf-baseline.md §29。 -->
-                <TransitioningContentControl x:Name="PageHost">
-                  <Panel x:Name="PageStage" />
-                </TransitioningContentControl>
+                <!-- 缩放面：LayoutTransformControl 只把矩阵写在自己的 Child 上，而页面动效（SurfaceMotion 的
+                     TransformSpring）会接管 PageHost.RenderTransform 写成 identity —— 直接拿 PageHost 当 Child，
+                     缩放矩阵会被它顶掉：布局缩了、字却还是原尺寸。中间夹一层没人碰的面板，矩阵才不会丢。 -->
+                <Panel x:Name="PageZoomSurface"
+                       HorizontalAlignment="Stretch"
+                       VerticalAlignment="Stretch">
+                  <!-- 页面视图常驻这个舞台，换页只切 IsVisible：重新挂载会整棵重排（设置页 500–900ms），
+                       切可见性只要 1–2ms。见 docs/ops/perf-baseline.md §29。 -->
+                  <TransitioningContentControl x:Name="PageHost">
+                    <Panel x:Name="PageStage" />
+                  </TransitioningContentControl>
+                </Panel>
               </LayoutTransformControl>
               <Border x:Name="TabSwitchHorizonBeam"
                       Classes="CkanTabHorizonBeam"

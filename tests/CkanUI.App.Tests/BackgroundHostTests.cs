@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Styling;
 using CkanUI.App.Controls;
+using CkanUI.App.Controls.Backgrounds;
 using CkanUI.App.Tests.Automation;
 using CkanUI.App.Theming;
 using CkanUI.Services.Abstractions;
@@ -266,6 +267,72 @@ public sealed class BackgroundHostTests
             host.Install();
 
             Assert.That(controls.Starfield.IsVisible, Is.True, "没有自选背景时星空是应用自带的装饰层");
+            Assert.That(controls.Scene.IsVisible, Is.False, "默认场景下另一块画布必须藏着");
+        }
+
+        window.Close();
+    }
+
+    [Test]
+    public void Host_SwapsBetweenStarfieldAndTheSelectedScene()
+    {
+        var (host, window, controls, store) = NewHost(new UiSettings
+        {
+            BackgroundScene = BackgroundSceneKinds.Orbital,
+        });
+
+        using (host)
+        {
+            host.Install();
+
+            Assert.That(controls.Starfield.IsVisible, Is.False);
+            Assert.That(controls.Scene.IsVisible, Is.True);
+            Assert.That(controls.Scene.Scene, Is.EqualTo(BackgroundSceneKinds.Orbital));
+
+            store.Save(new UiSettings { BackgroundScene = BackgroundSceneKinds.Starfield });
+
+            Assert.That(controls.Starfield.IsVisible, Is.True);
+            Assert.That(controls.Scene.IsVisible, Is.False);
+            Assert.That(controls.Scene.Scene, Is.EqualTo(BackgroundSceneKinds.Starfield), "切回星空时画布仍记住上次场景，但不显示");
+        }
+
+        window.Close();
+    }
+
+    [Test]
+    public void Host_NoneScene_HidesEveryDecorativeLayer()
+    {
+        var (host, window, controls, _) = NewHost(new UiSettings
+        {
+            BackgroundScene = BackgroundSceneKinds.None,
+        });
+
+        using (host)
+        {
+            host.Install();
+
+            Assert.That(controls.Starfield.IsVisible, Is.False);
+            Assert.That(controls.Scene.IsVisible, Is.False);
+        }
+
+        window.Close();
+    }
+
+    [Test]
+    public void Host_CustomBackgroundSuppressesTheSelectedScene()
+    {
+        var (host, window, controls, _) = NewHost(new UiSettings
+        {
+            BackgroundScene = BackgroundSceneKinds.Lens,
+            Background = new BackgroundProfile { Kind = BackgroundProfile.KindSolid, Color = "#123456" },
+        });
+
+        using (host)
+        {
+            host.Install();
+
+            Assert.That(controls.Starfield.IsVisible, Is.False);
+            Assert.That(controls.Scene.IsVisible, Is.False, "自定义背景仍要压住所有装饰层");
         }
 
         window.Close();
@@ -310,6 +377,7 @@ public sealed class BackgroundHostTests
 
                 // THM-10：高对比度下任何装饰层都不许出现。
                 Assert.That(controls.Starfield.IsVisible, Is.False);
+                Assert.That(controls.Scene.IsVisible, Is.False);
             }
         }
         finally
@@ -433,7 +501,8 @@ public sealed class BackgroundHostTests
             Scope.Register(BackgroundHost.DimControlName, Dim);
             Scope.Register(BackgroundHost.ScrimControlName, Scrim);
             Scope.Register(BackgroundHost.StarfieldControlName, Starfield);
-            Root = new Panel { Children = { Layer, Image, Dim, Scrim, Starfield } };
+            Scope.Register(BackgroundHost.SceneControlName, Scene);
+            Root = new Panel { Children = { Layer, Image, Dim, Scrim, Starfield, Scene } };
             NameScope.SetNameScope(Root, Scope);
         }
 
@@ -450,6 +519,8 @@ public sealed class BackgroundHostTests
         public Border Scrim { get; } = new() { Name = BackgroundHost.ScrimControlName };
 
         public StarfieldBackground Starfield { get; } = new() { Name = BackgroundHost.StarfieldControlName };
+
+        public BackgroundSceneCanvas Scene { get; } = new() { Name = BackgroundHost.SceneControlName };
     }
 
     private sealed class InlineDispatcher : IDispatcher

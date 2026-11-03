@@ -1,0 +1,285 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:CkanUI.ViewModels.Pages.Saves;assembly=CkanUI.ViewModels"
+        x:Class="CkanUI.App.Views.SfsWorkbenchWindow"
+        x:CompileBindings="False"
+        Title="{Binding Title}"
+        Width="1280" Height="860"
+        MinWidth="1000" MinHeight="640"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource CkanCanvasBackgroundBrush}">
+  <!-- SFS 工作台（SFS-05/06/07）：左边分区（常用内容在前），中间键值+就地编辑，右边块树。
+       文案与状态全部来自 SfsWorkbenchViewModel；本文件只做绑定和布局。 -->
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" Margin="{DynamicResource CkanPagePadding}">
+
+    <!-- 页头：存档名 + 规模摘要 -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+      <StackPanel Grid.Column="0" Spacing="4">
+        <TextBlock Text="{Binding Title}" Classes="CkanPageTitle" />
+        <TextBlock Text="{Binding SummaryText}" Classes="CkanCaption" TextWrapping="Wrap" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+        <StackPanel Spacing="2">
+          <TextBlock Text="资金" Classes="CkanCaption" HorizontalAlignment="Right" />
+          <TextBlock Text="{Binding FundsText}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+        </StackPanel>
+        <StackPanel Spacing="2">
+          <TextBlock Text="科技" Classes="CkanCaption" HorizontalAlignment="Right" />
+          <TextBlock Text="{Binding ScienceText}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+        </StackPanel>
+        <StackPanel Spacing="2">
+          <TextBlock Text="声望" Classes="CkanCaption" HorizontalAlignment="Right" />
+          <TextBlock Text="{Binding ReputationText}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+        </StackPanel>
+        <StackPanel Spacing="2">
+          <TextBlock Text="游戏时间" Classes="CkanCaption" HorizontalAlignment="Right" />
+          <TextBlock Text="{Binding GameTimeText}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+        </StackPanel>
+      </StackPanel>
+    </Grid>
+
+    <!-- 工具条：搜索 + 退出搜索 -->
+    <Border Grid.Row="1" Classes="CkanToolbar">
+      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+        <TextBox Grid.Column="0" Text="{Binding SearchText, Mode=TwoWay}" PlaceholderText="搜索键名 / 中文标签 / 值 / 原文行…"
+                 VerticalAlignment="Center" />
+        <Button Grid.Column="1" Content="搜索" Command="{Binding SearchCommand}" Classes="CkanSecondary"
+                IsEnabled="{Binding !IsBusy}" />
+        <Button Grid.Column="2" Content="返回大纲" Command="{Binding ClearSearchCommand}" Classes="CkanGhost"
+                IsVisible="{Binding IsSearchResult}" />
+      </Grid>
+    </Border>
+
+    <!-- 大文件横幅：流式模式下能做什么、不能做什么，一次说清 -->
+    <Border Grid.Row="2" Margin="0,10,0,0" Padding="12,8"
+            Background="{DynamicResource CkanAccentSubtleBrush}"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            IsVisible="{Binding HasLargeFileNote}">
+      <StackPanel Spacing="4">
+        <TextBlock Text="大文件模式（流式扫描）" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding LargeFileNote}" TextWrapping="Wrap" Classes="CkanCaption" />
+        <TextBlock Text="改值、改键名、搜索、按需展开仍可用；整块复制/删除已禁用，请用 ckanui-sfs 命令行。"
+                   TextWrapping="Wrap" Classes="CkanCaption" IsVisible="{Binding IsLargeFileMode}" />
+        <TextBlock Text="{Binding OversizedBlocksNote}" TextWrapping="Wrap" Classes="CkanCaption"
+                   IsVisible="{Binding HasOversizedBlocks}" />
+      </StackPanel>
+    </Border>
+
+    <!-- 主体 -->
+    <Grid Grid.Row="3" ColumnDefinitions="260,6,*,6,340" Margin="0,8,0,0">
+
+      <!-- 分区 -->
+      <Border Grid.Column="0" Classes="CkanCard">
+        <Grid RowDefinitions="Auto,*">
+          <TextBlock Grid.Row="0" Text="分区" Classes="CkanCaption" Margin="12,10,12,6" />
+          <ListBox Grid.Row="1" ItemsSource="{Binding Sections}" SelectedItem="{Binding SelectedSection, Mode=TwoWay}"
+                   Background="Transparent" BorderThickness="0" IsVisible="{Binding !IsSearchResult}">
+            <ListBox.Styles>
+              <Style Selector="ListBoxItem">
+                <Setter Property="Padding" Value="10,4" />
+                <Setter Property="MinHeight" Value="0" />
+              </Style>
+            </ListBox.Styles>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Spacing="1">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="{Binding Title}" FontWeight="Medium" TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding Title}" />
+                    <TextBlock Grid.Column="1" Text="{Binding BadgeText}" Classes="CkanCaption"
+                               Margin="8,0,0,0" VerticalAlignment="Center" />
+                  </Grid>
+                  <TextBlock Text="{Binding Subtitle}" Classes="CkanCaption" TextTrimming="CharacterEllipsis"
+                             ToolTip.Tip="{Binding Subtitle}" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <ListBox Grid.Row="1" ItemsSource="{Binding Matches}" IsVisible="{Binding IsSearchResult}"
+                   Background="Transparent" BorderThickness="0"
+                   SelectionChanged="OnMatchSelectionChanged">
+            <ListBox.Styles>
+              <Style Selector="ListBoxItem">
+                <Setter Property="Padding" Value="10,4" />
+                <Setter Property="MinHeight" Value="0" />
+              </Style>
+            </ListBox.Styles>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Spacing="1">
+                  <TextBlock TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding DisplayValue}">
+                    <Run Text="{Binding HighlightPrefix}" />
+                    <Run Text="{Binding HighlightHit}" FontWeight="Bold" Foreground="{DynamicResource CkanAccentTextBrush}" />
+                    <Run Text="{Binding HighlightSuffix}" />
+                  </TextBlock>
+                  <TextBlock Classes="CkanCaption" TextTrimming="CharacterEllipsis">
+                    <Run Text="{Binding Match}" />
+                    <Run Text=" · " />
+                    <Run Text="{Binding SectionTitle}" />
+                    <Run Text=" · 第 " />
+                    <Run Text="{Binding Line}" />
+                    <Run Text=" 行" />
+                  </TextBlock>
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+
+      <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center" ResizeDirection="Columns"
+                    VerticalAlignment="Stretch" Margin="0,10" ZIndex="5" Cursor="SizeWestEast" />
+
+      <!-- 键值 + 就地编辑 -->
+      <Border Grid.Column="2" Classes="CkanCard">
+        <Grid RowDefinitions="Auto,*,Auto">
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="12,8,12,4">
+            <TextBlock Text="{Binding BreadcrumbText}" Classes="CkanCaption" TextTrimming="CharacterEllipsis"
+                       ToolTip.Tip="{Binding BreadcrumbText}" />
+            <TextBlock Grid.Column="1" Text="{Binding Fields.Count, StringFormat='{}{0} 个键值'}"
+                       Classes="CkanCaption" Margin="8,0,0,0" />
+          </Grid>
+
+          <ListBox Grid.Row="1" ItemsSource="{Binding Fields}" SelectedItem="{Binding SelectedField, Mode=TwoWay}"
+                   Background="Transparent" BorderThickness="0">
+            <ListBox.Styles>
+              <Style Selector="ListBoxItem">
+                <Setter Property="Padding" Value="10,4" />
+                <Setter Property="MinHeight" Value="0" />
+              </Style>
+            </ListBox.Styles>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Grid.Column="0" Spacing="1">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <TextBlock Text="{Binding Label}" FontWeight="Medium" TextTrimming="CharacterEllipsis"
+                                 ToolTip.Tip="{Binding Key}" />
+                      <Border IsVisible="{Binding IsHighlighted}" Background="{DynamicResource CkanAccentSubtleBrush}"
+                              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="5,0" VerticalAlignment="Center">
+                        <TextBlock Text="常用" Classes="CkanCaption" Foreground="{DynamicResource CkanAccentTextBrush}" />
+                      </Border>
+                    </StackPanel>
+                    <TextBlock Classes="CkanCaption" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}">
+                      <Run Text="{Binding Key}" />
+                      <Run Text=" · " />
+                      <Run Text="{Binding Path}" />
+                    </TextBlock>
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Text="{Binding DisplayValue}" Margin="12,0,0,0"
+                             VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="300"
+                             ToolTip.Tip="{Binding DisplayValue}" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <Border Grid.Row="2" Background="{DynamicResource CkanSubtleBackgroundBrush}" Padding="12,10" Margin="0,8,0,0"
+                  IsVisible="{Binding CanEditField}">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="CkanCaption">
+                <Run Text="修改 " />
+                <Run Text="{Binding SelectedField.Key}" FontWeight="SemiBold" />
+                <Run Text="（第 " />
+                <Run Text="{Binding SelectedField.Line}" />
+                <Run Text=" 行）" />
+              </TextBlock>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                <TextBlock Grid.Column="0" Text="键名" Classes="CkanCaption" VerticalAlignment="Center" />
+                <Grid Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                  <TextBox Grid.Column="0" Text="{Binding KeyEdit, Mode=TwoWay}" VerticalAlignment="Center" />
+                  <Button Grid.Column="1" Content="改名" Command="{Binding RenameKeyCommand}" Classes="CkanSecondary"
+                          IsEnabled="{Binding !IsBusy}" />
+                </Grid>
+              </Grid>
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBox Grid.Column="0" Text="{Binding EditValue, Mode=TwoWay}" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="保存改动" Command="{Binding ApplyValueCommand}"
+                        Classes="CkanPrimary" IsEnabled="{Binding !IsBusy}" />
+              </Grid>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Border>
+
+      <GridSplitter Grid.Column="3" Width="6" HorizontalAlignment="Center" ResizeDirection="Columns"
+                    VerticalAlignment="Stretch" Margin="0,10" ZIndex="5" Cursor="SizeWestEast" />
+
+      <!-- 块树 + 块操作 -->
+      <Border Grid.Column="4" Classes="CkanCard">
+        <Grid RowDefinitions="Auto,*,Auto">
+          <TextBlock Grid.Row="0" Text="块" Classes="CkanCaption" Margin="12,10,12,6" />
+          <ListBox Grid.Row="1" ItemsSource="{Binding Nodes}" SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
+                   Background="Transparent" BorderThickness="0">
+            <ListBox.Styles>
+              <Style Selector="ListBoxItem">
+                <Setter Property="Padding" Value="10,4" />
+                <Setter Property="MinHeight" Value="0" />
+              </Style>
+            </ListBox.Styles>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Spacing="1">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="{Binding Label}" FontWeight="Medium" TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding Name}" />
+                    <TextBlock Grid.Column="1" Text="{Binding Summary}" Classes="CkanCaption"
+                               Margin="8,0,0,0" TextTrimming="CharacterEllipsis" MaxWidth="190"
+                               ToolTip.Tip="{Binding Summary}" />
+                  </Grid>
+                  <TextBlock Classes="CkanCaption">
+                    <Run Text="第 " />
+                    <Run Text="{Binding Line}" />
+                    <Run Text=" 行 · " />
+                    <Run Text="{Binding PairCount}" />
+                    <Run Text=" 键值 / " />
+                    <Run Text="{Binding NodeCount}" />
+                    <Run Text=" 块" />
+                  </TextBlock>
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="6" RowDefinitions="Auto,Auto" RowSpacing="6"
+                Margin="12,6,12,8">
+            <Button Grid.Row="0" Grid.ColumnSpan="2" Content="展开块" Command="{Binding ExpandNodeCommand}"
+                    Classes="CkanSecondary" IsEnabled="{Binding CanExpandNode}" HorizontalAlignment="Stretch" />
+            <Button Grid.Row="1" Grid.Column="0" Content="复制块" Command="{Binding DuplicateNodeCommand}"
+                    Classes="CkanSecondary" IsEnabled="{Binding CanTouchNode}" HorizontalAlignment="Stretch" />
+            <Button Grid.Row="1" Grid.Column="1" Content="删除块" Command="{Binding ArmDeleteCommand}"
+                    Classes="CkanDanger" IsEnabled="{Binding CanTouchNode}" HorizontalAlignment="Stretch" />
+          </Grid>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <!-- 删除确认条：先上膛再确认，避免误删整块 -->
+    <Border Grid.Row="4" Margin="0,10,0,0" Padding="12,8"
+            Background="{DynamicResource CkanDangerBackgroundBrush}"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            IsVisible="{Binding HasPendingDelete}">
+      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+        <TextBlock Text="{Binding PendingDeleteText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Content="确认删除" Command="{Binding ConfirmDeleteCommand}" Classes="CkanDanger" />
+        <Button Grid.Column="2" Content="取消" Command="{Binding CancelDeleteCommand}" Classes="CkanGhost" />
+      </Grid>
+    </Border>
+
+    <!-- 错误条 -->
+    <Border Grid.Row="5" Margin="0,10,0,0" Padding="12,8"
+            Background="{DynamicResource CkanDangerBackgroundBrush}"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            IsVisible="{Binding HasError}">
+      <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" Foreground="{DynamicResource CkanDangerBrush}" />
+    </Border>
+
+    <!-- 状态栏 -->
+    <Border Grid.Row="6" Margin="0,10,0,0" Padding="12,6"
+            Background="{DynamicResource CkanStatusBarBackgroundBrush}"
+            CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+            IsVisible="{Binding HasStatus}">
+      <TextBlock Text="{Binding StatusText}" Classes="CkanCaption" TextWrapping="Wrap" />
+    </Border>
+  </Grid>
+</Window>

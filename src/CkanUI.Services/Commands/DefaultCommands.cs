@@ -59,6 +59,7 @@ public static class DefaultCommands
         new("logs", "Ui_NavRail_Logs", new[] { "日志", "log", "logs", "排障" }),
         new("settings", "Ui_NavRail_Settings", new[] { "设置", "settings", "选项", "偏好" }),
         new("modconfig", "Ui_NavRail_ModConfig", new[] { "配置", "config", "mod 配置", "参数" }),
+        new("kspconfig", "Ui_NavRail_KspConfig", new[] { "游戏设置", "ksp", "settings", "原生设置", "kspconfig" }),
     };
 
     /// <summary>界面动作（命令面板自身的快捷键来自这里）。</summary>
@@ -198,6 +199,7 @@ public static class DefaultCommands
         ["Ui_NavRail_Logs"] = "日志",
         ["Ui_NavRail_Settings"] = "设置",
         ["Ui_NavRail_ModConfig"] = "Mod 配置",
+        ["Ui_NavRail_KspConfig"] = "KSP 游戏设置",
         ["Ui_Cmd_Action_ShowPalette"] = "命令面板",
         ["Ui_Cmd_Action_ShowShortcuts"] = "快捷键目录",
         ["Ui_Cmd_Action_OpenOnboardingGuide"] = "功能指引",

@@ -38,7 +38,8 @@ public sealed class LogPageViewModelTests
         page.Refresh();
 
         Assert.That(page.Rows.Count, Is.EqualTo(2));
-        Assert.That(page.Rows[0].Message, Is.EqualTo("second"), "默认新→旧，最新一条在最上面");
+        Assert.That(page.Rows[0].Message, Is.EqualTo("first"), "列表按时间正序，最旧的一条在最上面");
+        Assert.That(page.Rows[1].Message, Is.EqualTo("second"), "最新的一条在最下面");
         Assert.That(page.TotalMatches, Is.EqualTo(2));
         Assert.That(page.HasSelection, Is.True);
     }
@@ -324,17 +325,18 @@ public sealed class LogPageViewModelTests
     }
 
     [Test]
-    public void RequestAiAnalysis_WithoutBundle_AsksToExportFirst()
+    public void RequestAiAnalysis_WithoutBundle_OpensPreviewImmediately()
     {
         var (_, _, page) = LogTestData.CreatePage();
-        var raised = false;
-        page.AiAnalysisRequested += (_, _) => raised = true;
+        string? payload = null;
+        page.AiAnalysisRequested += (_, path) => payload = path;
 
         page.RequestAiAnalysisCommand.Execute(null);
 
-        Assert.That(raised, Is.False);
-        Assert.That(page.IsAiPanelOpen, Is.False);
-        Assert.That(page.Message, Does.Contain("请先导出诊断包"));
+        Assert.That(page.IsAiPanelOpen, Is.True);
+        Assert.That(page.Ai.IsOpen, Is.True);
+        Assert.That(payload, Is.EqualTo(string.Empty));
+        Assert.That(page.Ai.PreviewText, Does.Contain("日志通道"));
     }
 
     [Test]
@@ -390,7 +392,7 @@ public sealed class LogPageViewModelTests
         store.Append(LogTestData.Entry(LogLevel.Info, "third"));
         page.Refresh();
 
-        Assert.That(page.Rows[0].Message, Is.EqualTo("third"));
+        Assert.That(page.Rows[^1].Message, Is.EqualTo("third"));
         Assert.That(page.SelectedRow!.Seq, Is.EqualTo(pinned.Seq), "不跟随时不要被后台新日志抢走详情面板");
     }
 
@@ -424,6 +426,25 @@ public sealed class LogPageViewModelTests
 
         store.Append(LogTestData.Entry(LogLevel.Warn, "new one"));
         Assert.That(page.Rows.Count, Is.EqualTo(2), "有新事件时照旧自动刷新");
+    }
+
+    [Test]
+    public void Refresh_AppendsNewRowsWithoutRebuildingTheList()
+    {
+        var (store, _, page) = LogTestData.CreatePage();
+        store.Append(LogTestData.Entry(LogLevel.Info, "first"));
+        page.Refresh();
+        var firstRow = page.Rows[0];
+        var actions = new System.Collections.Generic.List<System.Collections.Specialized.NotifyCollectionChangedAction>();
+        page.Rows.CollectionChanged += (_, e) => actions.Add(e.Action);
+
+        store.Append(LogTestData.Entry(LogLevel.Info, "second"));
+        page.Refresh();
+
+        Assert.That(page.Rows[0], Is.SameAs(firstRow), "只有尾部新增时不能重建整张表：Reset 会让虚拟化列表滚回顶部");
+        Assert.That(actions, Does.Not.Contain(System.Collections.Specialized.NotifyCollectionChangedAction.Reset));
+        Assert.That(actions, Does.Contain(System.Collections.Specialized.NotifyCollectionChangedAction.Add));
+        Assert.That(page.Rows[^1].Message, Is.EqualTo("second"));
     }
 
     [Test]

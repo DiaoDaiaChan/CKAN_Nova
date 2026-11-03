@@ -1,0 +1,9 @@
+{
+  "schema": "kpp.command/1",
+  "id": "6f1c0e2a-4f4c-4a7b-9c2d-0b6f3a1d5e77",
+  "op": "set_pad",
+  "issuedUnixMs": 1762000000000,
+  "args": {
+    "megabytes": 4096
+  }
+}

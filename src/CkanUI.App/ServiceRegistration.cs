@@ -11,6 +11,9 @@ using CkanUI.Platform.Dialogs;
 using CkanUI.Platform.Threading;
 using CkanUI.Services;
 using CkanUI.Services.Abstractions;
+using CkanUI.Services.Abstractions.Ai;
+using CkanUI.Services.Abstractions.Security;
+using CkanUI.Services.Ai;
 using CkanUI.Services.Onboarding;
 using CkanUI.Services.Abstractions.Commands;
 using CkanUI.Services.Bootstrap;
@@ -18,12 +21,14 @@ using CkanUI.Services.Commands;
 using CkanUI.Services.Diagnostics;
 using CkanUI.Services.Lifecycle;
 using CkanUI.Services.Logs;
+using CkanUI.Services.Security;
 using CkanUI.Services.Users;
 using CkanUI.ViewModels;
 using CkanUI.ViewModels.CommandPalette;
 using CkanUI.ViewModels.Dialogs;
 using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Operations;
+using log4net;
 using CkanUI.Services.Abstractions.Instances;
 using CkanUI.Services.Abstractions.Logs;
 using CkanUI.Services.Abstractions.ModConfig;
@@ -44,6 +49,8 @@ namespace CkanUI.App;
 /// </summary>
 public static class ServiceRegistration
 {
+    private static readonly ILog Log = LogManager.GetLogger(typeof(ServiceRegistration));
+
     /// <summary>
     /// 构建 UI 容器。
     /// </summary>
@@ -94,6 +101,11 @@ public static class ServiceRegistration
             sp.GetRequiredService<ILogRedactor>(),
             sp.GetService<IDiagnosticFactsProvider>()));
         services.AddSingleton<ILegacyLogImporter>(sp => new LegacyLogImporter(sp.GetRequiredService<ILogStore>()));
+        // 当前实例的 KSP.log 跟随（第五路采集）：实例切换由 App 启动时订阅 IInstanceService 接上。
+        services.AddSingleton<IKspLogTailService>(sp => new KspLogTailService(sp.GetRequiredService<ILogStore>()));
+        // AI 排障（14 篇 §6）：OpenAI 兼容客户端 + 只在本机可解的密钥保护（DPAPI，密文落盘）。
+        services.AddSingleton<ISecretProtector, DpapiSecretProtector>();
+        services.AddSingleton<ILlmDiagnosticService>(_ => new OpenAiCompatibleDiagnosticService());
 
         // IUser 的 UI 形态：Core 的同步回调会在这里被拦到 UI 线程（INT-03）。
         // 外面再套一层 LoggingUser：Core 的进度与警告进结构化缓冲（Kind=User、进度按整十百分点限流）。
@@ -182,6 +194,8 @@ public static class ServiceRegistration
         services.AddSingleton<InstallHistoryPageViewModel>();
         services.AddSingleton<PluginsPageViewModel>();
         services.AddSingleton<ModTextPageViewModel>();
+        // KSP 原生配置页：直接修改 settings.cfg，提取官方 dictionary.cfg 翻译。
+        services.AddSingleton<KspConfigPageViewModel>();
         // Mod 配置页（M9 / CFG-01..05 + ADP-04）：九类字段就地编辑、逐文件写盘、adapter 导入。
         // 用工厂是因为导入端口是 VM 的可写属性（构造参数已经 7 个，再加会破兼容），
         // 选择器（系统文件对话框）由视图挂上可视树时补，VM 不认识 Avalonia。
@@ -201,7 +215,8 @@ public static class ServiceRegistration
         services.AddSingleton<LogPageViewModel>();
         services.AddSingleton(sp => new LogDrawerViewModel(
             sp.GetRequiredService<ILogStore>(),
-            sp.GetRequiredService<ILogQueryService>()));
+            sp.GetRequiredService<ILogQueryService>(),
+            sp.GetRequiredService<IKspLogTailService>()));
 
         // 分层资源释放的参与方（18 篇 §3）：L1 丢页面行投影，L0 放字形与背景位图。
         // 三个页面按窄接口登记，服务层只认识 IPageProjectionTrim，不认识任何具体页面。
@@ -397,17 +412,46 @@ public static class ServiceRegistration
         ["logs"] = typeof(LogPageViewModel),
         ["modtext"] = typeof(ModTextPageViewModel),
         ["modconfig"] = typeof(ModConfigPageViewModel),
+        ["kspconfig"] = typeof(KspConfigPageViewModel),
         ["settings"] = typeof(SettingsPageViewModel),
         ["home"] = typeof(HomePageViewModel),
     };
 
     private static Func<string, object?> CreatePageFactory(IServiceProvider services)
     {
+        // 插件页实例按导航键缓存：内置页是 DI 单例（同一个实例反复返回），插件页否则每导航一次
+        // 就构造一个新实例。外壳把页面视图常驻舞台上（换页只切可见性），新实例会让旧视图和它的
+        // 轮询定时器永远留在可视树里（插件页视图的 StartPolling/StopPolling 挂在挂载/卸载事件上）。
+        var pluginPages = new Plugins.PluginPageCache();
+        if (services.GetService<IPluginService>() is { } plugins)
+        {
+            // 插件停用/卸载后它的页签不再出现在目录里：先把实例摘掉并 Dispose（停定时器、退订阅），
+            // 视图那一侧由 MainWindow 按导航键撤（见 RebuildNavigation → PruneRemovedPageViews），
+            // 否则外层还攥着视图 ⇒ 插件程序集永远卸载不掉。
+            plugins.Changed += (_, _) => ReleaseOrphanedPluginPages(pluginPages, plugins);
+        }
+
         // 内置页签直接查表；查不到再问插件（12 篇 F-17）：插件声明的页签由 App 层反射构造，
         // 契约层与外壳都不需要知道插件程序集在哪。
         return key => PageTypes.TryGetValue(key, out var type)
             ? services.GetService(type)
-            : Plugins.PluginPageFactory.CreateFor(services, key, PageTypes.Keys);
+            : pluginPages.GetOrCreate(key, () => Plugins.PluginPageFactory.CreateFor(services, key, PageTypes.Keys));
+    }
+
+    /// <summary>按当前激活表释放已经不在目录里的插件页实例（插件代码可能抛，这里兜底）。</summary>
+    private static void ReleaseOrphanedPluginPages(Plugins.PluginPageCache cache, IPluginService plugins)
+    {
+        try
+        {
+            var live = PluginPageCatalog
+                .Collect(plugins.Active, PageTypes.Keys)
+                .Select(entry => entry.Key);
+            cache.RetainOnly(live);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("释放已下线的插件页时发生异常（已忽略）。", ex);
+        }
     }
 
     /// <summary>

@@ -217,3 +217,147 @@ public sealed class DemoPlugin : ICkanUiPlugin
 ```
 
 声明了 `ToolItems` 就必须实现 `ExecuteToolItemAsync`（默认实现抛 `NotSupportedException`，宿主把它转成「未实现」的不可重试失败）；纯后台插件或只声明页签的插件不实现它也合法。窗口侧的现象与截图见 `docs/design/milestones.md` §6.3。
+
+## 11. 首方内置插件与「性能」页签试点（0.2）
+
+用户机器上的插件原本只有一个目录（`%LocalAppData%/CKAN/plugins`），宿主自己带的插件也得先落到用户目录才生效——
+于是「插件系统」在界面上永远只是一张空表。0.2 把「宿主随包携带的首方插件」建模成一等公民，并用「性能」页签做第一个真实试点。
+
+### 11.1 两个目录、两个信任级
+
+| 目录 | 路径 | 谁往里放 | 默认状态 |
+| --- | --- | --- | --- |
+| 内置（首方） | `<App>/plugins`（`PluginService.DefaultBundledDirectory()`） | 发布包（`CopyBundledPlugins`） | 引导时按 `activateBundled: true` 激活 |
+| 用户 | `%LocalAppData%/CKAN/plugins` | 用户（插件页「新增」） | 一律 Dormant，只有用户显式激活过才恢复 |
+
+`PluginInfo.IsBundled` 标明来源。同 Id 时内置优先，用户目录那份进 `Failures`（原因写「同一个标识……已跳过」），
+被拒的那份 ALC 当场释放。
+
+### 11.2 激活状态持久化
+
+`PluginActivationStore` 落 `%LocalAppData%/CKAN/plugin-activation.json`：tmp → `File.Move(overwrite)` 原子替换，
+文件读坏按空表处理（`Log.Warn`，不崩），写失败只告警且内存态先生效——插件页刚点的激活不会因为磁盘只读而"回弹"。
+`PluginBootstrapper` 的顺序是「建目录 → `DiscoverAsync(activateBundled: true)` → 恢复持久化激活态」，
+全程 try/catch，永不抛：插件是第三方代码，磁盘也可能只读，启动路径上任何失败都不该让主窗口打不开。
+
+### 11.3 启动时机（性能红线）
+
+`App.axaml.cs` 在 `_pluginTools.Install()` 之后把引导丢进后台任务（`StartPluginBootstrap`，`Task.Run` + 取消令牌，
+`Shutdown` 时 `Cancel()`）。**不要在启动路径上同步跑**：982e93d 的教训是启动期同步重活把帧率从 60 打到 3，
+插件扫描要读磁盘、反射类型、执行插件构造函数，正好属于那一类。引导完成时 `IPluginService.Changed` 触发，
+`ShellViewModel` 在同步上下文里差分重建导航栏，页签自己就出现了，不需要用户点任何按钮。
+
+### 11.4 内置插件清单
+
+| 插件 | 目录 | Id | 贡献 |
+| --- | --- | --- | --- |
+| 性能 | `src/CkanUI.Plugin.Performance` | `com.ckanui.performance` | 「性能」页签（`performance`），读 KPP 遥测、发命令，契约见 [performance-tab.md](performance-tab.md) |
+
+宿主侧不改一行就能拿到这个页签：插件只引用 `CkanUI.Services.Abstractions` + `Avalonia`，
+构造函数里声明 `IInstanceService` 之类的宿主服务，`PluginPageFactory` 用 `ActivatorUtilities` 注入。
+
+### 11.5 再加一个首方插件
+
+1. 新建 `src/CkanUI.Plugin.<名字>`（net10.0，只引 `Avalonia`（无版本，走中央包管理）+ 契约层 `ProjectReference`，
+   `AvaloniaUseCompiledBindingsByDefault=false`），实现 `ICkanUiPlugin` 并声明 `Pages`。
+2. `dotnet sln add --solution-folder src <csproj>`；测试工程同理 `--solution-folder tests`。
+3. `src/CkanUI.App/CkanUI.App.csproj` 的 `ProjectReference` 加一行，`ReferenceOutputAssembly=false` / `Private=false` /
+   `SkipGetTargetFrameworkProperties=true`；`ItemGroup` 把那枚 csproj 加进 `_BundledPluginProject`。
+4. 视图模型实现 `IPluginPage`；视图按「同程序集同命名空间、类名后缀换 View」命名（`FooViewModel` → `FooView`）。
+5. 加 `tests/CkanUI.Plugin.<名字>.Tests`，并在 `PluginPerformanceIntegrationTests` 旁边补一条真 dll 集成用例。
+
+**打包坑（踩过一次）**：拷贝目标必须写成 `DependsOnTargets="_CollectBundledPlugins"`，不能写成
+`<CallTarget Targets="_CollectBundledPlugins" />`——`CallTarget` 会开新的属性/项作用域，里面产出的
+`@(_BundledPluginFile)` 回到调用方是空集，构建照样"成功"，`plugins/` 目录里一个文件都没有。
+构建产物验证点：`src/CkanUI.App/bin/<config>/net10.0/plugins/CkanUI.Plugin.Performance.dll` 存在。
+
+**测试形态**：`tests/CkanUI.App.Tests/PluginPerformanceIntegrationTests.cs` 用**真实**插件 dll 跑「发现 → 激活 →
+页签描述 → 跨 ALC 解析视图模型类型 → DI 构造 → 卸载」全链，并覆盖「同 Id 判重复」「未激活不产生页签」。
+注意把插件工程输出目录里的依赖副本（`CkanUI.Services.Abstractions.dll` 等）过滤掉再当内置目录用，
+否则扫描器会为每个依赖留一条"没有实现 ICkanUiPlugin"的失败记录。
+
+### 11.6 仍然没解决的
+
+- **真机未验证**：性能页签的读盘/命令往返只在样例与测试桩上验证过，没在跑着的 KSP 里走过一遍。
+- **插件页仍是拉取模型**：`PluginsPageViewModel` 首次进入时扫一次，期间若引导还没完成会看到空表，需要点一次「扫描插件目录」；
+  改成订阅 `Changed` 要先把跨线程改集合的问题处理掉（见该 VM 的 remarks）。
+- **ALC 回收仍是尽力而为**：见 §8。
+
+### 11.7 侧栏重建的订阅对象是 RailItems，不是 NavItems
+
+插件页签在视图模型里"有"，侧栏上却"没有"——这是本次试点踩到的最贵的一个坑，记在这里免得下一个人再花两小时。
+
+现象：引导完成、`ShellViewModel.NavItems` 与 `RailItems` 都含 `performance`（延迟 3 秒后可见），但
+`FANavigationView.MenuItems` 仍然只有内置项。真实进程里加探针才看到：视图侧只收到一次变化通知，
+那一刻 `RailItems.Count` 还是旧值（7），重建出来的菜单里当然没有新页面。
+
+根因在 `src/CkanUI.ViewModels/ShellViewModel.cs` 的 `RebuildPluginNavItems()`：它先差分改 `NavItems`，
+**最后**才 `RefreshRailItems()` 按 Sections + NavItems 重填 `RailItems`；而 `RebuildNavigation()` 渲染的是
+`_shell.RailItems`。只订阅 `NavItems.CollectionChanged` 就等于永远早一步拿旧快照重建。
+
+结论（写死在 `MainWindow.AttachShell` 的注释里）：`AttachShell` 必须同时订阅/退订
+`NavItems.CollectionChanged` 与 `RailItems.CollectionChanged`，两者都走同一个 `OnNavItemsChanged`。
+回归用例：`tests/CkanUI.App.Tests/PluginNavRailTests.cs` 的
+「侧栏跟随RailItems重建并给插件页补上扩展分组」——它穿过真实 `MainWindow`，只断言视图模型是抓不到这个 bug 的。
+这条用例做过变异验证：把 `AttachShell` 里的 `RailItems.CollectionChanged` 订阅注释掉，它立刻变红
+（"RailItems 变了侧栏就必须重建"），恢复订阅后转绿——不是那种"删了被测代码也照样过"的假回归。
+
+**写这类界面用例的两个坑（都真踩过）**：
+1. **不要在 headless 里驱动帧**。`HeadlessAppHost` 用的是真 Skia 渲染（`UseHeadlessDrawing = false`），
+   `AvaloniaHeadlessPlatform.ForceRenderTimerTick()` 与 `Dispatcher.UIThread.RunJobs()` 都会把渲染 job
+   排进来、排不空，用例表现为挂死（CPU 空转，或 0.6 秒 CPU 静默等待），日志停在 Test Discovery 之后。
+2. **不要在带 Avalonia `SynchronizationContext` 的测试线程上 `await ... ConfigureAwait(true)`**。
+   NUnit 的 `NoMessagePumpStrategy` 不会替你泵消息，续体被 Post 回一个没人跑的 dispatcher，
+   无限等待且没有异常。插件加载用 `Task.Run(() => service.DiscoverAsync(...)).GetAwaiter().GetResult()` 收口，
+   界面断言全部走同步路径。
+
+另一个同源结论：**点进插件页要验到视图，别只验到 VM**。`ViewLocator` 的插件分支走
+`viewModelType.Assembly.GetType(...)`（插件在可回收 ALC 里，`Type.GetType` 按名字查不到），
+断掉时页面会静默落到 `PagePlaceholderView`，看上去就是"插件只是个占位符"。
+同一文件里的「性能页的视图模型能被视图解析器渲染成插件自带视图」把这条钉住。
+
+### 11.8 关掉插件，资源真的放掉了吗
+
+「停用插件」只是把状态位从 Active 改成 Dormant，插件占用的东西不会自动消失。这一节记录审计出的三个缺口与现在的口径，
+排查顺序也按这个来：服务层 → 页面实例 → 视图。
+
+**三个缺口（都在宿主的接线里，不在插件里）**
+
+1. `PluginService.DeactivateAsync` / `UnloadAsync` 只调插件的 `Deinitialize()` 并释放 ALC，**不处置页面实例**——
+   页面实例是宿主造出来的，谁也不该指望插件自己收拾。
+2. 插件页的工厂每次导航都新建视图模型（`PluginPageFactory.Create` 用 `ActivatorUtilities.CreateInstance`，
+   且刻意不缓存 `Type` 以免钉住可回收 ALC）。于是同一个页签进出三次就有三个视图模型，
+   每个都带着自己的 1 Hz 轮询定时器与事件订阅。
+3. `MainWindow.ShowPage` 按**页面实例**缓存视图（`_pageViews`，ReferenceEqualityComparer），并把视图常驻在
+   `PageStage.Children` 里（换页只切 `IsVisible`）。视图不撤，视图模型就被钉住；而
+   `PerformancePageView` 的轮询开关挂在 `AttachedToVisualTree` / `DetachedFromVisualTree` 上——
+   视图永远不离开可视化树，这两个事件就再也不会发生。结果：`UnloadAsync` 之后 ALC 收不掉、插件 dll 一直映射着。
+
+**现在的口径（三处，互相咬合）**
+
+| 层 | 做法 | 位置 |
+| --- | --- | --- |
+| 页面实例 | 一个导航键一个实例，插件下线时按「还活着的页签目录」批量释放 | `src/CkanUI.App/Plugins/PluginPageCache.cs` |
+| 服务接线 | `CreatePageFactory` 把插件分支接到缓存；订阅 `IPluginService.Changed`，用 `PluginPageCatalog.Collect(...)` 算活着的键 | `src/CkanUI.App/ServiceRegistration.cs` |
+| 视图 | `_pageViewKeys` 记住视图属于哪个导航键，导航项消失时从舞台撤下并 Dispose | `MainWindow.PruneRemovedPageViews` |
+
+三条必须一起成立：少了缓存，反复进出会累积实例；少了 Changed 订阅，插件停用后旧实例还在缓存里；
+少了视图清理，视图钉着视图模型，前面两条都白做。
+
+**证明（用例 + 变异）**
+
+- `tests/CkanUI.App.Tests/PluginPageCacheTests.cs`：同键复用、工厂返回空不缓存、按活键集释放、键名忽略大小写、
+  某个插件写坏 `Dispose` 不连累其它页面。
+- `tests/CkanUI.App.Tests/PluginPageReleaseTests.cs`：拿真的插件 dll 走一遍激活 → 造页面 → 停用 → 卸载，
+  断言页面实例被 `Dispose`（`_disposed` 为真）、视图模型与插件**程序集**都被 GC 回收（`WeakReference.IsAlive` 变假）、
+  暂存目录能直接删掉（dll 句柄已放开）。
+  变异验证：把 `cache.RetainOnly(live)` 注释掉，用例立刻红在「插件程序集还活着」——这不是「删了被测代码也照样过」的假回归。
+- 两条用例都要求把局部变量关进 `[MethodImpl(MethodImplOptions.NoInlining)]` 的辅助方法里，只把 `WeakReference` 带出去；
+  否则 JIT 可能让局部（页面实例、`Type`）活过卸载点，用例变成永远红的假阴性。
+
+**还没做的（诚实登记）**
+
+- 插件页仍是拉取模型（§11.6），管理器不订阅 `Changed`：引导完成前进来会看到空表。
+- 应用退出时没有统一「处置所有页面实例」的收口，靠进程结束；`_services.Dispose()` 只处理服务。
+- 页面视图模型不实现 `IActivatable`，所以「切走页面」不会触发停轮询——目前靠插件页自己的
+  `DetachedFromVisualTree`（视图被真正撤下时才发生）。

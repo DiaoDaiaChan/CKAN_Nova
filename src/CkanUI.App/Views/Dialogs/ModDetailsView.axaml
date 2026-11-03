@@ -112,12 +112,32 @@
               </Border>
             </StackPanel>
 
-            <TextBlock Text="{Binding AbstractText}"
-                       IsVisible="{Binding HasAbstract}"
-                       TextWrapping="Wrap"
-                       Opacity="0.85"
-                       FontStyle="Italic"
-                       FontSize="{DynamicResource CkanFontSizeCaption}" />
+            <!-- 摘要：译文命中时右侧挂「已译」徽标（沿用全局 CkanBadge，颜色走主题 token，不写死） -->
+            <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasAbstract}">
+              <TextBlock Grid.Column="0"
+                         Text="{Binding AbstractText}"
+                         TextWrapping="Wrap"
+                         Opacity="0.85"
+                         FontStyle="Italic"
+                         FontSize="{DynamicResource CkanFontSizeCaption}" />
+              <Border Grid.Column="1"
+                      Classes="CkanBadge Success"
+                      Padding="6,1"
+                      Margin="8,0,0,0"
+                      VerticalAlignment="Top"
+                      IsVisible="{Binding IsAbstractTranslated}">
+                <TextBlock Text="{Binding TranslationBadgeText}" />
+              </Border>
+            </Grid>
+
+            <!-- 译文过期：原文已更新而译文仍是旧版时给可见警告（文案在 VM，颜色不是唯一通道） -->
+            <Border Classes="CkanBadge Warning"
+                    Padding="8,3"
+                    Margin="0,2,0,0"
+                    HorizontalAlignment="Left"
+                    IsVisible="{Binding HasStaleTranslation}">
+              <TextBlock Text="{Binding StaleTranslationNotice}" TextWrapping="Wrap" />
+            </Border>
 
             <!-- 元数据键值（标签与格式都在 VM 内集中，03 篇 §11） -->
             <Border Classes="CkanSubtleCard" Padding="12,10">
@@ -177,7 +197,14 @@
             </ComboBox>
 
             <!-- 描述（Markdown 原文；渲染由后续 Markdown 控件接入，UI-03 遗留项） -->
-            <TextBlock Text="{Binding DescriptionHeaderText}" FontWeight="SemiBold" Margin="0,4,0,0" />
+            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+              <TextBlock Text="{Binding DescriptionHeaderText}" FontWeight="SemiBold" />
+              <Border Classes="CkanBadge Success"
+                      Padding="6,1"
+                      IsVisible="{Binding IsDescriptionTranslated}">
+                <TextBlock Text="{Binding TranslationBadgeText}" />
+              </Border>
+            </StackPanel>
             <Border Classes="CkanSubtleCard" Padding="12,10">
               <SelectableTextBlock Text="{Binding DescriptionText}"
                                    TextWrapping="Wrap"

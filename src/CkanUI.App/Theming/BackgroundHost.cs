@@ -4,6 +4,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 
 using CkanUI.App.Controls;
+using CkanUI.App.Controls.Backgrounds;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.Services.Settings;
@@ -38,8 +39,11 @@ public sealed class BackgroundHost : IDisposable
     /// <summary>表面洗白层（主题底色，压 74% 让底图隐约透出）。</summary>
     public const string ScrimControlName = "BackgroundScrim";
 
-    /// <summary>星空背景层（自绘装饰）：不读设置，只由高对比度与「用户自选了背景」决定是否露面。</summary>
+    /// <summary>星空背景层（自绘装饰）：由场景设置、高对比度与「用户自选了背景」共同决定是否露面。</summary>
     public const string StarfieldControlName = "BackgroundStarfield";
+
+    /// <summary>新的程序化场景画布（轨道蓝图/月面/探测器/引力透镜）。</summary>
+    public const string SceneControlName = "BackgroundSceneCanvas";
 
     private static readonly ILog Log = LogManager.GetLogger(typeof(BackgroundHost));
 
@@ -126,7 +130,7 @@ public sealed class BackgroundHost : IDisposable
 
         var profile = ResolveProfile(settings);
         var highContrast = _application.ActualThemeVariant == ThemeHost.HighContrastVariant;
-        ApplyStarfieldVisibility(highContrast, profile.IsActive);
+        ApplySceneVisibility(highContrast, profile.IsActive, settings.BackgroundScene);
         if (highContrast || !profile.IsActive)
         {
             ClearLayers(layer, image, dim, scrim);
@@ -324,21 +328,32 @@ public sealed class BackgroundHost : IDisposable
         || (tiledSource is not null && ReferenceEquals(tiledSource, bitmap));
 
     /// <summary>
-    /// 星空背景的可见性：系统高对比度优先级最高（THM-10），其次是用户自选的背景（不该被装饰层盖住）。
+    /// 装饰场景的可见性：系统高对比度优先级最高（THM-10），其次是用户自选的背景（不该被装饰层盖住）。
+    /// 星空与四个程序化场景互斥，同一时刻最多只画一层。
     /// </summary>
     /// <remarks>
-    /// 刻意不把星空做成 <see cref="BackgroundProfile"/> 的第五种 Kind：那会把「用户选的背景」和
+    /// 刻意不把场景做成 <see cref="BackgroundProfile"/> 的一种 Kind：那会把「用户选的背景」和
     /// 「应用自带的装饰层」混进同一个枚举，高对比度、无背景、按实例覆盖三条路径都得各判一次，更容易漏。
     /// </remarks>
-    private void ApplyStarfieldVisibility(bool highContrast, bool customBackgroundActive)
+    private void ApplySceneVisibility(bool highContrast, bool customBackgroundActive, string? sceneKey)
     {
+        var visible = !highContrast && !customBackgroundActive;
+        var scene = BackgroundSceneKinds.Normalize(sceneKey);
+
         var starfield = Find<StarfieldBackground>(StarfieldControlName);
-        if (starfield is null)
+        if (starfield is not null)
+        {
+            starfield.IsVisible = visible && BackgroundSceneKinds.IsStarfield(scene);
+        }
+
+        var canvas = Find<BackgroundSceneCanvas>(SceneControlName);
+        if (canvas is null)
         {
             return;
         }
 
-        starfield.IsVisible = !highContrast && !customBackgroundActive;
+        canvas.Scene = scene;
+        canvas.IsVisible = visible && BackgroundSceneKinds.IsSceneCanvas(scene);
     }
 
     private static void ClearLayers(Border layer, Image image, Border dim, Border scrim)

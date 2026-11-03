@@ -31,6 +31,32 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/release/release.ps
 
 脚本本体：[`tools/release/release.ps1`](../../tools/release/release.ps1)。要求 Windows PowerShell 5.1 及以上（CI 与本机都满足），**不依赖 pwsh 7**。
 
+### 1.0 一键出包（不想记参数就双击这个）
+
+只想拿到安装包、不关心开关的人走这里：[`tools/release/build-setup.cmd`](../../tools/release/build-setup.cmd) 双击即可，真实逻辑在同目录的 [`Build-Setup.ps1`](../../tools/release/Build-Setup.ps1)。
+
+它只做三件事，不重复 `release.ps1` 的打包逻辑：
+
+1. **前置条件先验干净** —— .NET SDK ≥ 10、Native AOT 必需的 MSVC 链接器（走 `vswhere` 查 `VC.Tools.x86.x64`）；缺什么当场说清怎么补，不让 `dotnet publish` 在第十几步才炸。
+2. **子进程调 `release.ps1`** —— 参数原样透传，日志实时刷屏。
+3. **收工自检** —— 用 `CkanUISetup.exe /?` 真跑一次（返回 0 才说明这台机器上 AOT 单文件起得来）、打印逐个产物的 MB 与修改时间、校验 `SHA256SUMS.txt` 与 `manifest.json` 是否存在。
+
+```bash
+# 双击等价：全量出包（安装器 + 双 zip + 校验和），开场先清空产物目录
+tools/release/build-setup.cmd -Clean
+
+# 出完直接拉起安装向导，人工过一遍真实安装体验
+tools/release/build-setup.cmd -RunSetup -OpenFolder
+
+# 没有 VS C++ 工具链的机器：只出 zip，不编 Native AOT 安装器
+tools/release/build-setup.cmd -ZipOnly
+
+# 其余参数一律透传给 release.ps1
+tools/release/build-setup.cmd -Version 0.2.0 -NoReadyToRun
+```
+
+没用 7z 也能跑（自动退回 .NET 自带 zip 压缩，只是包大几 MB）；`-ZipOnly` 时目录里上次留下的安装器不会被误当本轮产物，也不做自检。
+
 ### 1.1 十二步流程
 
 | 步 | 做什么 | 失败时的典型原因 |
@@ -277,7 +303,7 @@ sha256sum -c SHA256SUMS.txt
 | 主程序名 | 产物 `CkanUI.exe`（`AssemblyName=CkanUI`） | 已按 09 篇 §2.1 统一，2026-10-29 改名并冒烟通过 |
 | 包体积 | 默认（R2R）自包含 zip 63.7 MB / 解压 150 MB；加 `-NoReadyToRun` 则 zip 49.7 MB / 解压 119 MB | 已加 `-NoReadyToRun` 开关并写进 §3.5 实测表；裁剪与单文件被 external/UniversalI18n 的零第三方依赖门禁挡死（ILLink.Tasks），解压地板约 119 MB |
 | 项目许可证 | 仓库根 `LICENSE.md` 已是 GPL-3.0 全文，出包时复制到包根；关于页与 `THIRD-PARTY-NOTICES.txt` 的双声明（界面 GPL-3.0 / 内置 CKAN MIT）与之对齐 | 无（`release.ps1` 缺 `LICENSE.md` 时直接中止，防止再漏） |
-| 安装器 | 随包 `install/{install.ps1,uninstall.ps1}`（每用户装/卸，已实测）+ Inno 6 模板 `install/CkanUISetup.iss`（本机无 Inno，未跑 ISCC） | M13 验收口径的 `CkanUISetup.exe` 待有 Inno 的机器产出；用法见 `docs/ops/install.md` |
+| 安装器 | 第 [10] 步产出 Native AOT 单文件 `CkanUISetup.exe`（68.4 MB，内嵌便携 zip，含图形向导与 `-Quiet` 静默模式）；快捷方式走裸虚表 COM，AOT 下实测可建桌面/开始菜单/卸载三处 .lnk。随包另附 `install/{install.ps1,uninstall.ps1}` 与 Inno 6 模板（模板保留但不再作为发行主路径） | 无；参数与诊断口径见 `docs/ops/install.md` §3.2 |
 | 代码签名 | 通道已接（`Sign-Artifacts.ps1` 在 stage 后、打包前调用；`-SignDryRun` 预演；`manifest.signing` 记录） | 缺证书；拿到后去掉文件名 `-unsigned` 并置 `signed=true` |
 | macOS / Linux | 未冒烟（M6 不含，属 PKG-04） | 需要真机 |
 | 图标各尺寸 | `tools/icon-gen` 自绘 7 档（16/24/32/48/64/128/256）PNG-entry ICO，29 KB，配色取自 `Resources/Tokens.axaml`；窗口、托盘、exe 共用同一份，见 `docs/design/brand-icon.md` | 无（改令牌后重跑 `dotnet run --project tools/icon-gen/CkanUI.Tools.IconGen.csproj -c Release` 并提交产物） |
@@ -289,3 +315,4 @@ sha256sum -c SHA256SUMS.txt
 | 2026-10-29 | 首版：M6 / PKG-01..03 出包链路、参数 Rationale、冒烟检查单、未签名分发与回滚 |
 | 2026-10-29 | v1.4 回填：程序名改 `CkanUI.exe`、包内新增 `LICENSE.md` 与 `install/`、签名通道与 `-SignDryRun`、`-NoReadyToRun` 与四形态体积实测（§3.5）、安装器与签名行 |
 | 2026-10-31 | 图标换成 `tools/icon-gen` 生成的 7 档自有图标（替掉上游 CKAN 商标图形），补齐 `Assets/ckan.ico` 的三处消费方口径 |
+| 2026-10-31 | 安装器改为 Native AOT 单文件真实发行（修订 §10 安装器行）：修掉 AOT 下 `Marshal.GetObjectForIUnknown` 不支持导致"装完没有开始菜单图标"的缺陷，向导改用应用同一套设计令牌 |

@@ -123,6 +123,13 @@
                 <TextBlock Text="{DynamicResource Ui_Home_OpenGameFolder}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
+            <Button Classes="CkanSecondary" Command="{Binding NavigateCommand}" CommandParameter="kspconfig" IsVisible="{Binding HasInstance}"
+                    ToolTip.Tip="{DynamicResource Ui_NavRail_KspConfig}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource CkanIconSettings}" Width="14" Height="14" />
+                <TextBlock Text="{DynamicResource Ui_NavRail_KspConfig}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
             <Button Classes="CkanSecondary" Command="{Binding NavigateCommand}" CommandParameter="instances">
               <TextBlock Text="{DynamicResource Ui_Home_SwitchInstance}" VerticalAlignment="Center" />
             </Button>
@@ -232,11 +239,12 @@
       <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,10">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
           <TextBlock Text="{DynamicResource Ui_Home_Tab_Screenshots}" Classes="CkanSectionTitle" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding ScreenshotCountText}" Classes="CkanCaption" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding ScreenshotCountText}" Classes="CkanCaption" VerticalAlignment="Center"
+                     IsVisible="{Binding ShowScreenshotRail}" />
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
           <Button Classes="CkanSecondary" Command="{Binding OpenScreenshotsFolderCommand}"
-                  IsVisible="{Binding HasInstance}">
+                  IsVisible="{Binding HasInstance}" ToolTip.Tip="{Binding ScreenshotFolderText}">
             <TextBlock Text="{DynamicResource Ui_Home_OpenScreenshotsFolder}" VerticalAlignment="Center" />
           </Button>
           <Button Classes="CkanSecondary" Command="{Binding RefreshScreenshotsCommand}">
@@ -247,7 +255,7 @@
 
       <ScrollViewer x:Name="ScreenshotRail" Height="158"
                     HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
-                    IsVisible="{Binding HasInstance}">
+                    IsVisible="{Binding ShowScreenshotRail}">
         <ItemsControl ItemsSource="{Binding Screenshots}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
@@ -271,21 +279,11 @@
         </ItemsControl>
       </ScrollViewer>
 
-      <!-- 空态：没有截图时告诉用户截图从哪来 -->
+      <!-- 空态：只留一句状态，取舍说明与目录路径都不在这里重复 -->
       <Border Classes="CkanEmptyStateCard Flat" IsVisible="{Binding ShowEmptyScreenshots}"
-              Padding="24,20" MaxWidth="640" HorizontalAlignment="Left" Margin="0,0,0,10">
-        <StackPanel Spacing="6">
-          <TextBlock Text="{DynamicResource Ui_Home_EmptyScreenshotsTitle}" Classes="CkanTitle" />
-          <TextBlock Text="{DynamicResource Ui_Home_EmptyScreenshotsSubtitle}" Classes="CkanCaption" TextWrapping="Wrap" />
-        </StackPanel>
+              Padding="20,16" HorizontalAlignment="Left" Margin="0,0,0,10">
+        <TextBlock Text="{DynamicResource Ui_Home_EmptyScreenshotsTitle}" Classes="CkanTitle" />
       </Border>
-
-      <!-- 页脚：截图目录在哪，顺手可打开 -->
-      <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,14,0,10" IsVisible="{Binding HasInstance}">
-        <TextBlock Text="{DynamicResource Ui_Home_ScreenshotFolderLabel}" Classes="CkanEyebrow" VerticalAlignment="Center" />
-        <TextBlock Text="{Binding ScreenshotFolderText}" Classes="CkanCaption" VerticalAlignment="Center"
-                   TextTrimming="CharacterEllipsis" MaxWidth="640" ToolTip.Tip="{Binding ScreenshotFolderText}" />
-      </StackPanel>
     </StackPanel>
   </ScrollViewer>
 </UserControl>

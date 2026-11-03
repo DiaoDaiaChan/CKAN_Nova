@@ -609,4 +609,25 @@ public sealed class ModTextPageViewModelTests
         Assert.That(vm2.Entries.Single(entry => entry.Source == "Red Paint").ShowSourceBadge, Is.True);
         Assert.That(vm2.Entries.Single(entry => entry.Source == "Blue Paint").ShowSourceBadge, Is.False);
     }
+
+    [Test]
+    public async Task TrimProjection_WhileTheListIsOnScreen_LeavesTheRowsInPlace()
+    {
+        var service = new FakeModTextService();
+        service.Entries.Add(new ModTextEntryItem(1, null, "src one", "译一", "ModA", "CKANMeta", "machine", false));
+        service.Entries.Add(new ModTextEntryItem(2, null, "src two", "译二", "ModA", "CKANMeta", "machine", false));
+
+        var vm = new ModTextPageViewModel(service, new ModTextFakeErrorReporter(), new FakeDispatcher());
+        vm.Activate();
+        await vm.LoadAsync();
+        Assert.That(vm.Entries.Count, Is.EqualTo(2));
+
+        Assert.That(vm.TrimProjection(), Is.EqualTo(0), "页面还在屏幕上，投影不能丢");
+        Assert.That(vm.Entries.Count, Is.EqualTo(2), "丢了就是「表头在、中间空白」的那张脸");
+        Assert.That(vm.SummaryText, Is.Not.Empty);
+
+        vm.Deactivate();
+        Assert.That(vm.TrimProjection(), Is.GreaterThan(0), "离开页面后照常释放");
+        Assert.That(vm.Entries, Is.Empty);
+    }
 }

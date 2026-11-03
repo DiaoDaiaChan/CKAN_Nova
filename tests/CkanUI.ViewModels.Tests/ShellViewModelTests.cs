@@ -23,7 +23,7 @@ public sealed class ShellViewModelTests
     public void NavItems_HasTwentyThreeConfiguredItems()
     {
         var vm = new ShellViewModel();
-        Assert.That(vm.NavItems.Count, Is.EqualTo(23));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(24));
         Assert.That(vm.NavItems[0].Key, Is.EqualTo("mods"));
         Assert.That(vm.NavItems[1].Key, Is.EqualTo("content"));
         Assert.That(vm.NavItems[2].Key, Is.EqualTo("changes"));
@@ -50,6 +50,8 @@ public sealed class ShellViewModelTests
         Assert.That(vm.NavItems[21].Key, Is.EqualTo("loadingimages"));
         // 主菜单同样追加在末尾；它在侧栏分区里排第一，所以 RailItems[0] 恒为主页。
         Assert.That(vm.NavItems[22].Key, Is.EqualTo("home"));
+        // KSP 游戏原生设置页同样追加在末尾，挂在「实例」分区。
+        Assert.That(vm.NavItems[23].Key, Is.EqualTo("kspconfig"));
     }
 
     [Test]
@@ -88,7 +90,8 @@ public sealed class ShellViewModelTests
         Assert.That(vm.NavItems[20].Title, Is.EqualTo("T:Ui_NavRail_Flags"));
         Assert.That(vm.NavItems[21].Title, Is.EqualTo("T:Ui_NavRail_LoadingScreens"));
         Assert.That(vm.NavItems[22].Title, Is.EqualTo("T:Ui_NavRail_Home"));
-        Assert.That(vm.NavItems.Count, Is.EqualTo(23));
+        Assert.That(vm.NavItems[23].Title, Is.EqualTo("T:Ui_NavRail_KspConfig"));
+        Assert.That(vm.NavItems.Count, Is.EqualTo(24));
     }
 
     [Test]

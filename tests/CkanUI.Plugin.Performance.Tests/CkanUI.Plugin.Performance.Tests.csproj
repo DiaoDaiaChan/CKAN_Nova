@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 性能页签插件的契约测试（docs/design/performance-tab.md）。
+       测的是"插件能不能正确读懂 KPP 写出来的东西"，而不是"UI 好不好看"：
+       上一层的视图模型只做格式化，真正的兼容性风险全在解析与命令桥这两层。
+       插件作为独立程序集被普通引用即可——这里不进宿主的插件加载器，不测 ALC 隔离。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.Performance.Tests</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.Performance.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/CkanUI.Plugin.Performance/CkanUI.Plugin.Performance.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 夹具只有一份：直接拿 docs/design/performance-tab.sample 里的契约样例。
+         测试里另抄一份"心里想的格式"就是在养一个迟早和写方漂移的假真源。 -->
+    <Content Include="../../docs/design/performance-tab.sample/*.json"
+             Link="Fixtures/%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

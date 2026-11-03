@@ -64,6 +64,29 @@ ckan-ui-0.1.0-win-x64-setup.exe -InstallDir "D:\Apps\CKAN UI" -Quiet -NoLaunch
 ckan-ui-0.1.0-win-x64-setup.exe /DIR="D:\Apps\CKAN UI" /S
 ```
 
+原生安装器的全部参数：
+
+| 参数 | 默认 | 说明 |
+| --- | --- | --- |
+| `-InstallDir <path>` / `/DIR=<path>` | `%LocalAppData%\CKAN UI` | 安装根目录 |
+| `-SourceDir <path>` | 内嵌便携包 | 开发/调试时改从目录取文件 |
+| `-Quiet` / `-Silent` / `/S` | 关 | 静默安装，不弹向导 |
+| `-NoShortcuts` | 关 | 等于同时关掉下面两项 |
+| `-NoDesktopShortcut` | 关 | 不建桌面快捷方式 |
+| `-NoStartMenuShortcut` | 关 | 不建开始菜单快捷方式（含「卸载 CKAN UI」入口） |
+| `-NoAppPath` | 关 | 不写 `HKCU\…\App Paths`（「运行」里不能直接输 `CkanUI`） |
+| `-NoRegistry` | 关 | 跳过全部注册表写入（卸载项 + App Paths），绿色/便携安装 |
+| `-ShortcutRoot <path>` | 真实开始菜单与桌面 | 快捷方式根目录覆盖，自动化测试用 |
+| `-NoLaunch` | 关 | 装完不自动启动 |
+| `-Force` | 关 | 检测到同名进程在运行时继续安装（从不强杀进程） |
+| `-Diagnose` | — | **只诊断不改文件**：打印用户/是否提权/进程位数/OS/逐级目录写权限探测/上次安装痕迹，权限类失败时先跑它 |
+
+**失败要说人话，成功不许吹。** 安装器对"程序能跑但系统集成没做完"分两层报告，不会把它当成功糊过去：
+
+- 目标目录不可写在**解压前**就被拦住，给出可执行的三条补救（换目录 / 以管理员身份运行 / 安全软件放行），不再抛 `Access to the path … is denied` 原始异常；
+- 快捷方式创建失败的失败原因会被收进警告（`开始菜单快捷方式创建失败（目录不可写或路径被占用）` 等），命令行打在 stderr 并附 `详情:` 全路径，图形向导在「安装完成」页以 `注意：部分系统集成项未能完成（程序本身已可用）` 明示；
+- 退出码仍是 0（程序可用），但警告不为空时向导不再显示「快捷方式已按你的选择创建」这句话。
+
 ### 3.3 方式二：PowerShell 安装脚本（install.ps1）
 
 适用于下载便携 zip 解压后手动执行安装：

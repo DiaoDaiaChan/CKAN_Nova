@@ -1,0 +1,323 @@
+{
+  "schema": "kpp.telemetry/1",
+  "seq": 4821,
+  "publishedUnixMs": 1762000000000,
+  "publishIntervalMs": 1000,
+  "writer": {
+    "pid": 24188,
+    "dllVersion": "1.2.0",
+    "kspVersion": "1.12.5",
+    "unityVersion": "2019.4.18f1",
+    "os": "Windows 10 (10.0.19045) 64bit"
+  },
+  "session": {
+    "id": "20261101T101500Z-24188",
+    "startedUnixMs": 1761999000000,
+    "uptimeSec": 1000,
+    "frameCount": 61234
+  },
+  "context": {
+    "scene": "FLIGHT",
+    "vesselName": "Kerbal X",
+    "partCount": 187,
+    "modCount": 143,
+    "paused": false,
+    "timeScale": 1,
+    "gameTimeSec": 19348211.5
+  },
+  "frame": {
+    "fps": 54.3,
+    "avgFps": 57.8,
+    "onePercentLowFps": 31.2,
+    "pointOnePercentLowFps": 22.6,
+    "frameMs": 18.42,
+    "avgFrameMs": 17.3,
+    "jitterMs": 4.12,
+    "ptr": 0.934,
+    "dt": 0.02,
+    "physSteps": 4
+  },
+  "breakdownMs": {
+    "moduleScripts": 4.82,
+    "pluginScripts": 2.11,
+    "physx": 5.34,
+    "renderResidual": 3.02,
+    "camera": 1.18,
+    "tufxPostFx": 0.94,
+    "tufxCpu": 0.61,
+    "gc": 0.42
+  },
+  "gpu": {
+    "available": true,
+    "statusText": "D3D11 timestamp queries active",
+    "frameSpanMs": 12.4,
+    "stageTotalMs": 11.1,
+    "unaccountedMs": 1.3,
+    "publishedFrames": 59010,
+    "invalidStageFrames": 12,
+    "dropped": 3,
+    "reordered": 1,
+    "stages": [
+      {
+        "key": "depth",
+        "ms": 1.42,
+        "valid": true
+      },
+      {
+        "key": "opaque",
+        "ms": 5.31,
+        "valid": true
+      },
+      {
+        "key": "transparent",
+        "ms": 2.02,
+        "valid": true
+      },
+      {
+        "key": "postFx",
+        "ms": 1.96,
+        "valid": true
+      },
+      {
+        "key": "final",
+        "ms": null,
+        "valid": false
+      }
+    ]
+  },
+  "gpuBrackets": [
+    {
+      "camera": "FlightCamera",
+      "eventName": "AfterForwardOpaque",
+      "owner": "Scatterer",
+      "ms": 1.24,
+      "samples": 812
+    },
+    {
+      "camera": "FlightCamera",
+      "eventName": "AfterImageEffectsOpaque",
+      "owner": "TUFX",
+      "ms": 0.61,
+      "samples": 810
+    }
+  ],
+  "memory": {
+    "monoHeapMb": 3182.4,
+    "reservedMb": 4096,
+    "monoUsedMb": 2891.2,
+    "gcLastMs": 3.4,
+    "gcAvgMs": 2.1,
+    "gcCount": 271,
+    "padder": {
+      "enabled": true,
+      "targetMb": 4096,
+      "heldMb": 4096,
+      "maxMb": 32768,
+      "physicalMb": 32768
+    },
+    "probe": {
+      "state": "ready",
+      "assetsScanned": 14320,
+      "texturesMb": 2210.5,
+      "meshesMb": 840.2,
+      "soundsMb": 128.9,
+      "dbTexturesMb": 1980.1,
+      "lastScanUnixMs": 1761999800000
+    },
+    "topAllocators": [
+      {
+        "name": "Part.Update",
+        "assembly": "Assembly-CSharp",
+        "bytesPerFrame": 18432
+      },
+      {
+        "name": "Scatterer.OnPreCull",
+        "assembly": "Scatterer",
+        "bytesPerFrame": 4096
+      }
+    ]
+  },
+  "hotspots": {
+    "plugins": [
+      {
+        "name": "Scatterer.OnPreCull",
+        "assembly": "Scatterer",
+        "type": "Scatterer",
+        "ms": 1.82,
+        "peakMs": 9.4,
+        "pct": 9.9,
+        "calls": 60,
+        "isTufx": false
+      },
+      {
+        "name": "TUFX.PostProcess",
+        "assembly": "TUFX",
+        "type": "TUFX",
+        "ms": 1.11,
+        "peakMs": 6.2,
+        "pct": 6,
+        "calls": 60,
+        "isTufx": true
+      }
+    ],
+    "modules": [
+      {
+        "name": "ModuleDeployableSolarPanel",
+        "assembly": "Assembly-CSharp",
+        "type": "ModuleDeployableSolarPanel",
+        "friendly": "太阳能板",
+        "category": "电力",
+        "ms": 1.42,
+        "peakMs": 4.1,
+        "pct": 7.7,
+        "calls": 187,
+        "bytesPerFrame": 2048
+      }
+    ],
+    "methods": [
+      {
+        "name": "FixedUpdate",
+        "assembly": "Assembly-CSharp",
+        "ms": 0.84,
+        "peakMs": 2.2,
+        "pct": 4.6,
+        "calls": 187
+      }
+    ],
+    "parts": [
+      {
+        "name": "solarPanels5",
+        "assembly": "Squad",
+        "ms": 1.02,
+        "pct": 5.5,
+        "calls": 12
+      }
+    ],
+    "assemblies": [
+      {
+        "name": "Assembly-CSharp",
+        "ms": 8.31,
+        "pct": 45.1
+      },
+      {
+        "name": "Scatterer",
+        "ms": 1.82,
+        "pct": 9.9
+      },
+      {
+        "name": "TUFX",
+        "ms": 1.11,
+        "pct": 6
+      }
+    ]
+  },
+  "timeline": {
+    "window": 120,
+    "frames": [
+      {
+        "t": 0,
+        "frameMs": 17.1,
+        "module": 4.4,
+        "plugin": 2,
+        "physx": 5.1,
+        "render": 3,
+        "gpu": 0,
+        "gc": false,
+        "fps": 58.5
+      },
+      {
+        "t": 1,
+        "frameMs": 39.6,
+        "module": 6.2,
+        "plugin": 9.4,
+        "physx": 5.3,
+        "render": 3.1,
+        "gpu": 0,
+        "gc": true,
+        "fps": 25.3
+      },
+      {
+        "t": 2,
+        "frameMs": 18.42,
+        "module": 4.82,
+        "plugin": 2.11,
+        "physx": 5.34,
+        "render": 3.02,
+        "gpu": 0,
+        "gc": false,
+        "fps": 54.3
+      }
+    ]
+  },
+  "diagnostics": {
+    "title": "微卡顿 / GC",
+    "description": "1% Low 帧率骤降，帧抖动剧烈",
+    "advice": "使用内置堆内存垫高延缓 GC 频率",
+    "severity": "warn",
+    "culprits": [
+      {
+        "source": "Plugin",
+        "name": "Scatterer.OnPreCull",
+        "assembly": "Scatterer",
+        "ms": 1.82,
+        "pct": 9.9
+      },
+      {
+        "source": "Module",
+        "name": "ModuleDeployableSolarPanel",
+        "assembly": "Assembly-CSharp",
+        "ms": 1.42,
+        "pct": 7.7
+      }
+    ],
+    "checks": [
+      {
+        "id": "physics",
+        "label": "物理解算",
+        "state": "ok",
+        "value": "93.4%",
+        "detail": "物理实速比 93.4%"
+      },
+      {
+        "id": "gc",
+        "label": "GC 压力",
+        "state": "warn",
+        "value": "271 次 / 平均 2.1 ms",
+        "detail": "平均 2.1 ms，1% Low 受拖累"
+      },
+      {
+        "id": "gpu",
+        "label": "GPU 归因",
+        "state": "unknown",
+        "value": null,
+        "detail": "final 段本次被驱动拒绝计时"
+      }
+    ]
+  },
+  "spikes": [
+    {
+      "frame": 61230,
+      "atUnixMs": 1761999990000,
+      "frameMs": 39.6,
+      "reason": "帧耗时超基准 200% 且 > 35ms",
+      "culprits": [
+        {
+          "name": "Scatterer.OnPreCull",
+          "assembly": "Scatterer",
+          "type": "Scatterer",
+          "ms": 9.4,
+          "peakMs": 12.1,
+          "pct": 23.7,
+          "calls": 60,
+          "isTufx": false
+        }
+      ]
+    }
+  ],
+  "counters": {
+    "gcCount": 271,
+    "spikeCount": 12,
+    "droppedFrames": 3,
+    "reportExports": 2
+  }
+}

@@ -101,6 +101,9 @@ public sealed partial class HomePageViewModel : PageViewModel
     /// <summary>没有实例时显示空态引导。</summary>
     public bool ShowNoInstance => Instance is null;
 
+    /// <summary>是否显示截图胶片带：有实例且确实取到了图才占位，空的时候不白留一条横带。</summary>
+    public bool ShowScreenshotRail => HasInstance && Screenshots.Count > 0;
+
     /// <summary>是否显示状态条。</summary>
     public bool HasStatus => !string.IsNullOrWhiteSpace(StatusText);
 
@@ -190,6 +193,7 @@ public sealed partial class HomePageViewModel : PageViewModel
         OnPropertyChanged(nameof(ModuleCountText));
         OnPropertyChanged(nameof(GameDirText));
         OnPropertyChanged(nameof(ScreenshotFolderText));
+        OnPropertyChanged(nameof(ShowScreenshotRail));
         LaunchGameCommand.NotifyCanExecuteChanged();
         OpenGameFolderCommand.NotifyCanExecuteChanged();
         OpenScreenshotsFolderCommand.NotifyCanExecuteChanged();
@@ -414,6 +418,7 @@ public sealed partial class HomePageViewModel : PageViewModel
     {
         OnPropertyChanged(nameof(ScreenshotCountText));
         OnPropertyChanged(nameof(ShowEmptyScreenshots));
+        OnPropertyChanged(nameof(ShowScreenshotRail));
     }
 
     /// <summary>写错误条（<paramref name="message"/> 为空表示清空）；技术细节跟在第二行。</summary>

@@ -29,10 +29,11 @@ public sealed partial class LogDrawerViewModel : ObservableObject
     }
 
     /// <summary>正常构造：直接挂到缓冲与查询服务上（不依赖日志页实例，便于外壳独立实例化）。</summary>
-    public LogDrawerViewModel(ILogStore store, ILogQueryService query)
+    public LogDrawerViewModel(ILogStore store, ILogQueryService query, IKspLogTailService? gameLog = null)
         : this(store, query, new LogPageViewModel(
             store ?? throw new ArgumentNullException(nameof(store)),
-            query ?? throw new ArgumentNullException(nameof(query))))
+            query ?? throw new ArgumentNullException(nameof(query)),
+            gameLog: gameLog))
     {
     }
 

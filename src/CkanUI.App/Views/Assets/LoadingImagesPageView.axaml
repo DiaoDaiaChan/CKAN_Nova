@@ -128,7 +128,10 @@
         </Grid>
       </Border>
 
-      <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center" VerticalAlignment="Stretch" />
+      <!-- 空态时整行被 CkanEmptyStateCard 覆盖，没有左右两栏可分配 —— 把手一起收起来，别在空态卡上划一道。 -->
+      <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                    Margin="0,10" ZIndex="5" Cursor="SizeWestEast"
+                    IsVisible="{Binding !ShowEmptyState}" />
 
       <!-- 画廊 -->
       <Border Grid.Column="2" Classes="CkanCard" Padding="0">

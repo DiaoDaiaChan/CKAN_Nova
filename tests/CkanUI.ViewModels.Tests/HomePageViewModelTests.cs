@@ -118,6 +118,7 @@ public sealed class HomePageViewModelTests
         Assert.That(vm.Screenshots[0].SizeText, Is.EqualTo("1.5 MB"));
         Assert.That(vm.ScreenshotCountText, Is.EqualTo("1 张截图"));
         Assert.That(vm.ShowEmptyScreenshots, Is.False);
+        Assert.That(vm.ShowScreenshotRail, Is.True, "有图才占胶片带的位置。");
         Assert.That(screenshots.LastLimit, Is.EqualTo(12), "一次只取一屏的量，别把几十张图整个读进来。");
     }
 
@@ -132,6 +133,7 @@ public sealed class HomePageViewModelTests
 
         Assert.That(vm.Screenshots, Is.Empty);
         Assert.That(vm.ShowEmptyScreenshots, Is.True);
+        Assert.That(vm.ShowScreenshotRail, Is.False, "没图就收起胶片带，别在页面上留一条空带。");
         Assert.That(vm.ScreenshotCountText, Is.EqualTo("0 张截图"));
     }
 

@@ -37,9 +37,13 @@ public static class ViewLayerMotion
     private const int MaxVisited = 2400;
 
     /// <summary>这些类自己拥有 RenderTransform 动画，交给样式继续管。</summary>
+    /// <remarks>
+    /// 卡片容器（<c>CkanCard</c> / <c>CkanCardSelected</c> / <c>CkanEmptyStateCard</c> / <c>CkanGuideCard</c> …）
+    /// 不再逐个列举：它们现在统一由 <see cref="Controls.InteractionSurface"/> 识别为可响应表面，
+    /// 悬停抬升与按下回弹都写在 RenderTransform 上，这里再叠一条入场缩放会互相盖掉。
+    /// </remarks>
     private static readonly string[] ConflictClasses =
     [
-        "CkanCardInteractive",
         "stagger-card",
         "overlay-drawer",
         "floating-pill-bar",
@@ -91,7 +95,9 @@ public static class ViewLayerMotion
             snap: snap);
     }
 
-    private static bool HasConflict(Control control)
+    private static bool HasConflict(Control control) => Controls.InteractionSurface.IsCard(control) || HasConflictClass(control);
+
+    private static bool HasConflictClass(Control control)
     {
         foreach (var conflict in ConflictClasses)
         {

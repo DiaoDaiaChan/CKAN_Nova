@@ -1,0 +1,624 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:CkanUI.Plugin.Performance"
+             x:Class="CkanUI.Plugin.Performance.PerformancePageView"
+             x:CompileBindings="False">
+  <!--
+    第三方式插件页：只依赖 Avalonia 与 CkanUI.Services.Abstractions，因此这里
+    用宿主 App 级资源 token（Ckan*）与样式类，不引用任何宿主控件程序集。
+    图表是 local:PerfSparkline / local:PerfBar 自绘控件——不新增 NuGet 包。
+  -->
+  <UserControl.Resources>
+    <DataTemplate x:Key="PerfKeyValueTemplate">
+      <Grid ColumnDefinitions="120,*" Margin="0,1">
+        <TextBlock Grid.Column="0"
+                   Text="{Binding Key}"
+                   Classes="CkanCaption"
+                   Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                   TextTrimming="CharacterEllipsis" />
+        <TextBlock Grid.Column="1"
+                   Text="{Binding Value}"
+                   Classes="CkanCaption"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                   TextWrapping="Wrap" />
+      </Grid>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <Style Selector="Border.perf-card">
+      <Setter Property="Background" Value="{DynamicResource CkanCardBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanCardBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+      <Setter Property="Padding" Value="14,12" />
+    </Style>
+    <Style Selector="Border.perf-card.ok">
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanSuccessBrush}" />
+    </Style>
+    <Style Selector="Border.perf-card.warn">
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanWarningBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CkanWarningBackgroundBrush}" />
+    </Style>
+    <Style Selector="Border.perf-card.critical">
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanDangerBrush}" />
+    </Style>
+    <Style Selector="Border.perf-pill">
+      <Setter Property="Background" Value="{DynamicResource CkanMutedBackgroundBrush}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusPill}" />
+      <Setter Property="Padding" Value="10,3" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.perf-pill.ok">
+      <Setter Property="Background" Value="{DynamicResource CkanSuccessBackgroundBrush}" />
+    </Style>
+    <Style Selector="Border.perf-pill.warn">
+      <Setter Property="Background" Value="{DynamicResource CkanWarningBackgroundBrush}" />
+    </Style>
+    <Style Selector="Border.perf-pill > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Border.perf-pill.ok > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource CkanSuccessBrush}" />
+    </Style>
+    <Style Selector="Border.perf-pill.warn > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource CkanWarningBrush}" />
+    </Style>
+    <Style Selector="Border.perf-metric">
+      <Setter Property="Background" Value="{DynamicResource CkanLayerRecessedBrush}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+      <Setter Property="Padding" Value="10,8" />
+    </Style>
+    <Style Selector="Button.perf-tab">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusPill}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button.perf-tab.selected">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+    </Style>
+    <Style Selector="TextBlock.perf-th">
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}">
+
+    <!-- ── 页头 ─────────────────────────────────────────────────────────── -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+      <StackPanel Grid.Column="0" Spacing="2">
+        <TextBlock Text="性能" Classes="CkanPageTitle" />
+        <TextBlock Text="KPP 文件桥遥测：只读 latest.json / status.json，命令经 commands 目录下发。"
+                   Classes="CkanCaption"
+                   Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                   TextWrapping="Wrap" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <Border Classes="perf-pill"
+                Classes.ok="{Binding IsOnline}"
+                Classes.warn="{Binding IsWarningState}"
+                Classes.critical="{Binding IsCriticalState}">
+          <TextBlock Text="{Binding StatusPill}" />
+        </Border>
+        <TextBlock Text="{Binding AgeText}"
+                   Classes="CkanCaption"
+                   VerticalAlignment="Center"
+                   Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+      </StackPanel>
+    </Grid>
+
+    <!-- ── 状态条 + 命令条 ──────────────────────────────────────────────── -->
+    <Border Grid.Row="1" Classes="perf-card">
+      <StackPanel Spacing="8">
+        <Grid ColumnDefinitions="Auto,*">
+          <Border Grid.Column="0"
+                  Classes="perf-pill"
+                  Classes.ok="{Binding IsOnline}"
+                  Classes.warn="{Binding IsWarningState}"
+                  Classes.critical="{Binding IsCriticalState}">
+            <TextBlock Text="{Binding StatusPill}" />
+          </Border>
+          <StackPanel Grid.Column="1" Margin="10,0,0,0" Spacing="2">
+            <TextBlock Text="{Binding StatusTitle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+            <TextBlock Text="{Binding StatusDetail}"
+                       Classes="CkanCaption"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+
+        <WrapPanel Orientation="Horizontal">
+          <Button Content="立即导出报告"
+                  Classes="CkanPrimary"
+                  Command="{Binding ExportReportCommand}"
+                  IsEnabled="{Binding CanRunCommands}"
+                  Margin="0,0,8,6" />
+          <Button Content="重置统计"
+                  Classes="CkanSecondary"
+                  Command="{Binding ResetStatsCommand}"
+                  IsEnabled="{Binding CanRunCommands}"
+                  Margin="0,0,8,6" />
+          <TextBox Text="{Binding PadTargetMb, Mode=TwoWay}"
+                   Width="76"
+                   PlaceholderText="MB"
+                   Margin="0,0,6,6"
+                   VerticalAlignment="Center"
+                   ToolTip.Tip="垫高目标（MB）" />
+          <Button Content="垫高内存"
+                  Classes="CkanSecondary"
+                  Command="{Binding PadMemoryCommand}"
+                  IsEnabled="{Binding CanRunCommands}"
+                  Margin="0,0,8,6" />
+          <Button Content="归还内存"
+                  Classes="CkanGhost"
+                  Command="{Binding ReleasePadCommand}"
+                  IsEnabled="{Binding CanRunCommands}"
+                  Margin="0,0,8,6" />
+          <Button Content="刷新"
+                  Classes="CkanGhost"
+                  Command="{Binding RefreshCommand}"
+                  IsEnabled="{Binding CanRunCommands}"
+                  Margin="0,0,8,6" />
+          <TextBlock Text="正在等待 KPP 应答…"
+                     Classes="CkanCaption"
+                     IsVisible="{Binding IsCommandBusy}"
+                     VerticalAlignment="Center"
+                     Margin="0,0,0,6"
+                     Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+        </WrapPanel>
+
+        <Border Classes="CkanInfoBanner" IsVisible="{Binding HasCommandMessage}">
+          <TextBlock Text="{Binding CommandMessage}" Classes="CkanCaption" TextWrapping="Wrap" />
+        </Border>
+        <Border Classes="CkanInfoBanner Danger" IsVisible="{Binding HasCommandError}">
+          <TextBlock Text="{Binding CommandError}" Classes="CkanCaption" TextWrapping="Wrap" />
+        </Border>
+      </StackPanel>
+    </Border>
+
+    <!-- ── 内容 / 空态 ───────────────────────────────────────────────────── -->
+    <Grid Grid.Row="2" Margin="0,10,0,0">
+      <ScrollViewer IsVisible="{Binding ShowContent}" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="10">
+
+          <!-- 实例与会话 -->
+          <Border Classes="perf-card">
+            <StackPanel Spacing="6">
+              <TextBlock Text="实例与会话" Classes="CkanSectionTitle" />
+              <ItemsControl ItemsSource="{Binding HeaderRows}" ItemTemplate="{StaticResource PerfKeyValueTemplate}" />
+            </StackPanel>
+          </Border>
+
+          <!-- 实时指标 -->
+          <Border Classes="perf-card">
+            <StackPanel Spacing="8">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="实时指标" Classes="CkanSectionTitle" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding TimelineSummaryText}"
+                           Classes="CkanCaption"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding Metrics}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Classes="perf-metric" Width="200" Margin="0,0,10,10">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding Title}"
+                                   Classes="CkanCaption"
+                                   Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                        <TextBlock Text="{Binding ValueText}"
+                                   Classes="CkanNumericLarge"
+                                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                        <local:PerfSparkline Values="{Binding Trend}"
+                                             Height="30"
+                                             IsVisible="{Binding HasTrend}"
+                                             Stroke="{DynamicResource CkanAccentBrush}" />
+                        <TextBlock Text="{Binding TrendHint}"
+                                   IsVisible="{Binding !HasTrend}"
+                                   Classes="CkanCaption"
+                                   Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding DetailText}"
+                                   Classes="CkanCaption"
+                                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="缺失字段一律显示 N/A；没有序列的指标不画走势，避免用平线冒充数据。"
+                         Classes="CkanCaption"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <!-- 耗时分解 -->
+          <Border Classes="perf-card">
+            <StackPanel Spacing="6">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="耗时分解" Classes="CkanSectionTitle" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding BreakdownTotalText}"
+                           Classes="CkanCaption"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding BreakdownRows}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="110,78,*,62" Margin="0,2">
+                      <TextBlock Grid.Column="0"
+                                 Text="{Binding Title}"
+                                 Classes="CkanCaption"
+                                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                      <TextBlock Grid.Column="1"
+                                 Text="{Binding MsText}"
+                                 Classes="CkanNumeric"
+                                 HorizontalAlignment="Right"
+                                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                      <local:PerfBar Grid.Column="2"
+                                     Height="8"
+                                     Margin="10,0"
+                                     VerticalAlignment="Center"
+                                     Fraction="{Binding Fraction}"
+                                     Fill="{DynamicResource CkanAccentBrush}"
+                                     Track="{DynamicResource CkanMutedBackgroundBrush}" />
+                      <TextBlock Grid.Column="3"
+                                 Text="{Binding PctText}"
+                                 Classes="CkanNumeric"
+                                 HorizontalAlignment="Right"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
+          <!-- GPU -->
+          <Border Classes="perf-card">
+            <StackPanel Spacing="6">
+              <TextBlock Text="GPU 五段" Classes="CkanSectionTitle" />
+              <TextBlock Text="{Binding GpuStatusText}"
+                         Classes="CkanCaption"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                         TextWrapping="Wrap" />
+              <ItemsControl ItemsSource="{Binding GpuStageRows}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="110,78,*,58" Margin="0,2">
+                      <TextBlock Grid.Column="0"
+                                 Text="{Binding Label}"
+                                 Classes="CkanCaption"
+                                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                      <TextBlock Grid.Column="1"
+                                 Text="{Binding MsText}"
+                                 Classes="CkanNumeric"
+                                 HorizontalAlignment="Right"
+                                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                      <local:PerfBar Grid.Column="2"
+                                     Height="8"
+                                     Margin="10,0"
+                                     VerticalAlignment="Center"
+                                     Fraction="{Binding Fraction}"
+                                     IsAvailable="{Binding Valid}"
+                                     Fill="{DynamicResource CkanInfoBrush}"
+                                     Track="{DynamicResource CkanMutedBackgroundBrush}" />
+                      <TextBlock Grid.Column="3"
+                                 Text="{Binding ValidityText}"
+                                 Classes="CkanCaption"
+                                 HorizontalAlignment="Right"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="{Binding GpuNoteText}"
+                         Classes="CkanCaption"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                         TextWrapping="Wrap" />
+              <ItemsControl ItemsSource="{Binding GpuBracketRows}" ItemTemplate="{StaticResource PerfKeyValueTemplate}" />
+            </StackPanel>
+          </Border>
+
+          <!-- 热点榜 -->
+          <Border Classes="perf-card">
+            <StackPanel Spacing="8">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="热点榜" Classes="CkanSectionTitle" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding HotspotHeaderText}"
+                           Classes="CkanCaption"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding HotspotTabs}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Button Classes="perf-tab"
+                            Classes.selected="{Binding IsSelected}"
+                            Command="{Binding $parent[UserControl].DataContext.SelectHotspotCommand}"
+                            CommandParameter="{Binding Key}"
+                            Margin="0,0,6,4">
+                      <TextBlock Text="{Binding Label}"
+                                 Classes="CkanCaption"
+                                 Foreground="{Binding $parent[Button].Foreground}" />
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Grid ColumnDefinitions="*,150,72,58,150">
+                <TextBlock Grid.Column="0" Text="名称" Classes="perf-th" />
+                <TextBlock Grid.Column="1" Text="程序集" Classes="perf-th" />
+                <TextBlock Grid.Column="2" Text="毫秒" Classes="perf-th" HorizontalAlignment="Right" />
+                <TextBlock Grid.Column="3" Text="占比" Classes="perf-th" HorizontalAlignment="Right" />
+                <TextBlock Grid.Column="4" Text="附加" Classes="perf-th" Margin="10,0,0,0" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding HotspotRows}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="*,150,72,58,150" Margin="0,2">
+                      <TextBlock Grid.Column="0"
+                                 Text="{Binding Name}"
+                                 Classes="CkanCaption"
+                                 Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="1"
+                                 Text="{Binding Assembly}"
+                                 Classes="CkanCaption"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="2"
+                                 Text="{Binding MsText}"
+                                 Classes="CkanNumeric"
+                                 HorizontalAlignment="Right"
+                                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                      <TextBlock Grid.Column="3"
+                                 Text="{Binding PctText}"
+                                 Classes="CkanNumeric"
+                                 HorizontalAlignment="Right"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                      <TextBlock Grid.Column="4"
+                                 Text="{Binding Extra}"
+                                 Classes="CkanCaption"
+                                 Margin="10,0,0,0"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                 TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="{Binding HotspotEmptyText}"
+                         Classes="CkanCaption"
+                         IsVisible="{Binding !HasHotspotRows}"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <!-- 诊断卡 -->
+          <Border Classes="perf-card"
+                  Classes.ok="{Binding SeverityOk}"
+                  Classes.warn="{Binding SeverityWarn}"
+                  Classes.critical="{Binding SeverityCritical}">
+            <StackPanel Spacing="6">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="诊断" Classes="CkanSectionTitle" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding DiagnosticSeverity}"
+                           Classes="CkanCaption"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              </Grid>
+              <TextBlock Text="{Binding DiagnosticTitle}"
+                         FontWeight="SemiBold"
+                         Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="{Binding DiagnosticDescription}"
+                         Classes="CkanCaption"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="{Binding DiagnosticAdvice}"
+                         Classes="CkanCaption"
+                         Foreground="{DynamicResource CkanAccentBrush}"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="可疑对象" Classes="perf-th" Margin="0,4,0,0" />
+              <ItemsControl ItemsSource="{Binding DiagnosticCulprits}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="120,*,80,60" Margin="0,1">
+                      <TextBlock Grid.Column="0"
+                                 Text="{Binding Source}"
+                                 Classes="CkanCaption"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="1"
+                                 Text="{Binding Name}"
+                                 Classes="CkanCaption"
+                                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="2"
+                                 Text="{Binding MsText}"
+                                 Classes="CkanNumeric"
+                                 HorizontalAlignment="Right"
+                                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                      <TextBlock Grid.Column="3"
+                                 Text="{Binding PctText}"
+                                 Classes="CkanNumeric"
+                                 HorizontalAlignment="Right"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="检查项" Classes="perf-th" Margin="0,4,0,0" />
+              <ItemsControl ItemsSource="{Binding DiagnosticChecks}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="160,*,72" Margin="0,1">
+                      <TextBlock Grid.Column="0"
+                                 Text="{Binding Label}"
+                                 Classes="CkanCaption"
+                                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="1"
+                                 Text="{Binding ValueText}"
+                                 Classes="CkanCaption"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                 TextTrimming="CharacterEllipsis" />
+                      <Border Grid.Column="2"
+                              Classes="perf-pill"
+                              Classes.ok="{Binding IsOk}"
+                              Classes.warn="{Binding IsWarn}"
+                              Classes.critical="{Binding IsCritical}"
+                              HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding State}" />
+                      </Border>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="本快照没有诊断卡（KPP 未提供 diagnostics 字段）。"
+                         Classes="CkanCaption"
+                         IsVisible="{Binding !HasDiagnostics}"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <!-- 内存 -->
+          <Border Classes="perf-card">
+            <StackPanel Spacing="8">
+              <TextBlock Text="内存" Classes="CkanSectionTitle" />
+              <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                <StackPanel Grid.Column="0" Spacing="6">
+                  <ItemsControl ItemsSource="{Binding MemoryRows}" ItemTemplate="{StaticResource PerfKeyValueTemplate}" />
+                  <TextBlock Text="内存垫高" Classes="perf-th" Margin="0,4,0,0" />
+                  <ItemsControl ItemsSource="{Binding PadderRows}" ItemTemplate="{StaticResource PerfKeyValueTemplate}" />
+                  <TextBlock Text="{Binding PadderStateText}"
+                             Classes="CkanCaption"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                             TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding ProbeText}"
+                             Classes="CkanCaption"
+                             Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="6">
+                  <TextBlock Text="Top 分配器（字节/帧）" Classes="perf-th" />
+                  <ItemsControl ItemsSource="{Binding AllocatorRows}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Grid ColumnDefinitions="*,110,96" Margin="0,1">
+                          <TextBlock Grid.Column="0"
+                                     Text="{Binding Name}"
+                                     Classes="CkanCaption"
+                                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                     TextTrimming="CharacterEllipsis" />
+                          <TextBlock Grid.Column="1"
+                                     Text="{Binding Assembly}"
+                                     Classes="CkanCaption"
+                                     Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                     TextTrimming="CharacterEllipsis" />
+                          <TextBlock Grid.Column="2"
+                                     Text="{Binding BytesText}"
+                                     Classes="CkanNumeric"
+                                     HorizontalAlignment="Right"
+                                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- 掉帧尖峰 -->
+          <Border Classes="perf-card">
+            <StackPanel Spacing="6">
+              <TextBlock Text="{Binding SpikeHeaderText}" Classes="CkanSectionTitle" />
+              <Grid ColumnDefinitions="90,90,*,200">
+                <TextBlock Grid.Column="0" Text="帧号" Classes="perf-th" />
+                <TextBlock Grid.Column="1" Text="帧耗时" Classes="perf-th" HorizontalAlignment="Right" />
+                <TextBlock Grid.Column="2" Text="原因" Classes="perf-th" Margin="10,0,0,0" />
+                <TextBlock Grid.Column="3" Text="可疑对象" Classes="perf-th" Margin="10,0,0,0" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding SpikeRows}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="90,90,*,200" Margin="0,1">
+                      <TextBlock Grid.Column="0"
+                                 Text="{Binding FrameText}"
+                                 Classes="CkanNumeric"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                      <TextBlock Grid.Column="1"
+                                 Text="{Binding MsText}"
+                                 Classes="CkanNumeric"
+                                 HorizontalAlignment="Right"
+                                 Foreground="{DynamicResource CkanWarningBrush}" />
+                      <TextBlock Grid.Column="2"
+                                 Text="{Binding Reason}"
+                                 Classes="CkanCaption"
+                                 Margin="10,0,0,0"
+                                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="3"
+                                 Text="{Binding CulpritText}"
+                                 Classes="CkanCaption"
+                                 Margin="10,0,0,0"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                 TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
+          <!-- 桥健康度 -->
+          <Border Classes="perf-card">
+            <StackPanel Spacing="6">
+              <TextBlock Text="桥健康度（status.json）" Classes="CkanSectionTitle" />
+              <ItemsControl ItemsSource="{Binding StatusRows}" ItemTemplate="{StaticResource PerfKeyValueTemplate}" />
+            </StackPanel>
+          </Border>
+
+        </StackPanel>
+      </ScrollViewer>
+
+      <Border Classes="CkanEmptyStateCard" IsVisible="{Binding ShowEmptyState}" VerticalAlignment="Top">
+        <StackPanel Spacing="6" Margin="8">
+          <TextBlock Text="{Binding EmptyTitle}" Classes="CkanSectionTitle" />
+          <TextBlock Text="{Binding EmptyDetail}"
+                     Classes="CkanCaption"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="{Binding TelemetryDirectoryText}"
+                     Classes="CkanCaption"
+                     Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

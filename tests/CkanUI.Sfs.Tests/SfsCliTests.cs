@@ -248,4 +248,235 @@ public sealed class SfsCliTests
 
         Assert.That(result.ExitCode, Is.EqualTo(2));
     }
+
+    [Test]
+    public void Outline_PrintsCareerSummary()
+    {
+        using var workspace = new TempWorkspace("sfs-cli-outline");
+        var path = workspace.Combine("career.sfs");
+        SfsSamples.WriteFile(path, SfsWorkbenchSamples.Career);
+
+        var result = Run("outline", path);
+
+        Assert.That(result.ExitCode, Is.EqualTo(0), result.Error);
+        Assert.That(result.Output, Does.Contain("资金"));
+        Assert.That(result.Output, Does.Contain("1234.5"));
+        Assert.That(result.Output, Does.Contain("[存档信息]"));
+        Assert.That(result.Output, Does.Contain("[飞行器]"));
+    }
+
+    [Test]
+    public void Outline_JsonExposesSnapshotAndSections()
+    {
+        using var workspace = new TempWorkspace("sfs-cli-outline-json");
+        var path = workspace.Combine("career.sfs");
+        SfsSamples.WriteFile(path, SfsWorkbenchSamples.Career);
+
+        var result = Run("outline", path, "--json");
+
+        Assert.That(result.ExitCode, Is.EqualTo(0), result.Error);
+        using var json = System.Text.Json.JsonDocument.Parse(result.Output);
+        var snapshot = json.RootElement.GetProperty("snapshot");
+        Assert.That(snapshot.GetProperty("Funds").GetProperty("Value").GetString(), Is.EqualTo("1234.5"));
+        Assert.That(snapshot.GetProperty("Science").GetProperty("Value").GetString(), Is.EqualTo("42"));
+        Assert.That(json.RootElement.GetProperty("sections").GetArrayLength(), Is.GreaterThan(2));
+    }
+
+    [Test]
+    public void Search_FindsFieldByValueAndByLabel()
+    {
+        using var workspace = new TempWorkspace("sfs-cli-search");
+        var path = workspace.Combine("career.sfs");
+        SfsSamples.WriteFile(path, SfsWorkbenchSamples.Career);
+
+        var byValue = Run("search", path, "1234.5");
+        Assert.That(byValue.ExitCode, Is.EqualTo(0), byValue.Error);
+        Assert.That(byValue.Output, Does.Contain("funds"));
+
+        var byLabel = Run("search", path, "资金");
+        Assert.That(byLabel.Output, Does.Contain("funds"));
+    }
+
+    [Test]
+    public void Search_NoMatch_ExitsZeroWithMessage()
+    {
+        using var workspace = new TempWorkspace("sfs-cli-search-none");
+        var path = workspace.Combine("career.sfs");
+        SfsSamples.WriteFile(path, SfsWorkbenchSamples.Career);
+
+        var result = Run("search", path, "no-such-key");
+
+        Assert.That(result.ExitCode, Is.EqualTo(0), result.Error);
+        Assert.That(result.Output, Does.Contain("没有匹配"));
+    }
+
+    [Test]
+    public void Set_WithoutWriteKeepsFileUntouched()
+    {
+        using var workspace = new TempWorkspace("sfs-cli-set-dry");
+        var path = workspace.Combine("career.sfs");
+        SfsSamples.WriteFile(path, SfsWorkbenchSamples.Career);
+        var before = File.ReadAllText(path);
+        var line = SfsWorkbenchSamples.LineOf(before, "funds");
+
+        var result = Run("set", path, line.ToString(System.Globalization.CultureInfo.InvariantCulture), "999");
+
+        Assert.That(result.ExitCode, Is.EqualTo(0), result.Error);
+        Assert.That(File.ReadAllText(path), Is.EqualTo(before));
+        Assert.That(result.Error, Does.Contain("未写盘"));
+    }
+
+    [Test]
+    public void Set_WritesOnlyTheTargetLine()
+    {
+        using var workspace = new TempWorkspace("sfs-cli-set");
+        var path = workspace.Combine("career.sfs");
+        SfsSamples.WriteFile(path, SfsWorkbenchSamples.Career);
+        var before = File.ReadAllText(path);
+        var lines = before.Split("\r\n");
+        var line = SfsWorkbenchSamples.LineOf(before, "funds");
+
+        var result = Run("set", path, line.ToString(System.Globalization.CultureInfo.InvariantCulture), "999", "--write");
+
+        Assert.That(result.ExitCode, Is.EqualTo(0), result.Error);
+        var after = File.ReadAllText(path).Split("\r\n");
+        Assert.That(after.Length, Is.EqualTo(lines.Length));
+        Assert.That(after[line - 1], Does.Contain("999"));
+        for (var index = 0; index < lines.Length; index++)
+        {
+            if (index == line - 1)
+            {
+                continue;
+            }
+
+            Assert.That(after[index], Is.EqualTo(lines[index]), $"第 {index + 1} 行被意外改动");
+        }
+    }
+
+    [Test]
+    public void Set_WithOutWritesCopyAndLeavesSource()
+    {
+        using var workspace = new TempWorkspace("sfs-cli-set-out");
+        var path = workspace.Combine("career.sfs");
+        var outPath = workspace.Combine("edited.sfs");
+        SfsSamples.WriteFile(path, SfsWorkbenchSamples.Career);
+        var before = File.ReadAllText(path);
+        var line = SfsWorkbenchSamples.LineOf(before, "funds");
+
+        var result = Run("set", path, line.ToString(System.Globalization.CultureInfo.InvariantCulture), "777", "--out", outPath);
+
+        Assert.That(result.ExitCode, Is.EqualTo(0), result.Error);
+        Assert.That(File.Exists(outPath), Is.True);
+        Assert.That(File.ReadAllText(path), Is.EqualTo(before));
+        Assert.That(File.ReadAllText(outPath), Does.Contain("777"));
+    }
+
+    [Test]
+    public void Set_RejectsNewlineValueWithoutWriting()
+    {
+        using var workspace = new TempWorkspace("sfs-cli-set-newline");
+        var path = workspace.Combine("career.sfs");
+        SfsSamples.WriteFile(path, SfsWorkbenchSamples.Career);
+        var before = File.ReadAllText(path);
+        var line = SfsWorkbenchSamples.LineOf(before, "funds");
+
+        var result = Run("set", path, line.ToString(System.Globalization.CultureInfo.InvariantCulture), "a\nb", "--write");
+
+        Assert.That(result.ExitCode, Is.EqualTo(1));
+        Assert.That(File.ReadAllText(path), Is.EqualTo(before));
+    }
+
+    [Test]
+    public void Set_OnBlockLineIsRejected()
+    {
+        using var workspace = new TempWorkspace("sfs-cli-set-block");
+        var path = workspace.Combine("career.sfs");
+        SfsSamples.WriteFile(path, SfsWorkbenchSamples.Career);
+        var before = File.ReadAllText(path);
+        var line = SfsWorkbenchSamples.LineOf(before, "FLIGHTSTATE");
+
+        var result = Run("set", path, line.ToString(System.Globalization.CultureInfo.InvariantCulture), "1", "--write");
+
+        Assert.That(result.ExitCode, Is.EqualTo(1));
+        Assert.That(File.ReadAllText(path), Is.EqualTo(before));
+    }
+
+    [Test]
+    public void Duplicate_WriteLeavesSnapshotAndVerifies()
+    {
+        using var workspace = new TempWorkspace("sfs-cli-dup");
+        var path = workspace.Combine("career.sfs");
+        SfsSamples.WriteFile(path, SfsWorkbenchSamples.Career);
+        var before = File.ReadAllText(path);
+        var line = SfsWorkbenchSamples.LineOf(before, "MODULE");
+
+        var result = Run("duplicate", path, line.ToString(System.Globalization.CultureInfo.InvariantCulture), "--write");
+
+        Assert.That(result.ExitCode, Is.EqualTo(0), result.Error);
+        Assert.That(File.Exists(path + ".sfsbak"), Is.True);
+        var after = File.ReadAllText(path);
+        Assert.That(after.Length, Is.GreaterThan(before.Length));
+        Assert.That(Count(after, "ModuleCommand"), Is.EqualTo(2));
+    }
+
+    [Test]
+    public void Delete_RemovesWholeBlockAndKeepsRest()
+    {
+        using var workspace = new TempWorkspace("sfs-cli-del");
+        var path = workspace.Combine("career.sfs");
+        SfsSamples.WriteFile(path, SfsWorkbenchSamples.Career);
+        var before = File.ReadAllText(path);
+        var line = SfsWorkbenchSamples.LineOf(before, "MODULE");
+
+        var result = Run("delete", path, line.ToString(System.Globalization.CultureInfo.InvariantCulture), "--write");
+
+        Assert.That(result.ExitCode, Is.EqualTo(0), result.Error);
+        var after = File.ReadAllText(path);
+        Assert.That(after, Does.Not.Contain("ModuleCommand"));
+        Assert.That(after, Does.Contain("mk1pod"));
+        Assert.That(after, Does.Contain("Jebediah Kerman"));
+    }
+
+    [Test]
+    public void Insert_AddsIndentedKeyToBlock()
+    {
+        using var workspace = new TempWorkspace("sfs-cli-insert");
+        var path = workspace.Combine("career.sfs");
+        SfsSamples.WriteFile(path, SfsWorkbenchSamples.Career);
+        var line = SfsWorkbenchSamples.LineOf(SfsWorkbenchSamples.Career, "FLIGHTSTATE");
+
+        var result = Run("insert", path, line.ToString(System.Globalization.CultureInfo.InvariantCulture), "customTag", "hello", "--write");
+
+        Assert.That(result.ExitCode, Is.EqualTo(0), result.Error);
+        var after = File.ReadAllText(path);
+        Assert.That(after, Does.Contain("customTag = hello"));
+        Assert.That(after, Does.Contain("vesselCount = 1"));
+    }
+
+    [Test]
+    public void Edit_RejectsFileWithParseErrors()
+    {
+        using var workspace = new TempWorkspace("sfs-cli-edit-broken");
+        var path = workspace.Combine("broken.sfs");
+        const string broken = "GAME\r\n{\r\n\tversion = 1.0\r\n";
+        SfsSamples.WriteFile(path, broken);
+
+        var result = Run("set", path, "2", "2.0", "--write");
+
+        Assert.That(result.ExitCode, Is.EqualTo(1));
+        Assert.That(File.ReadAllText(path), Is.EqualTo(broken));
+    }
+
+    private static int Count(string text, string token)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = text.IndexOf(token, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += token.Length;
+        }
+
+        return count;
+    }
 }

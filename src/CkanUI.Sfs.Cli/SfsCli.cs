@@ -1,4 +1,7 @@
+using System.Globalization;
 using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 
 namespace CkanUI.Sfs.Cli;
 
@@ -16,11 +19,20 @@ public static class SfsCli
                         [--indent=tab|2|4] [--blank=keep|collapse|strip]
                         [--diff] [--strip-bom] [--no-verify]
   ckanui-sfs validate <file>
+  ckanui-sfs outline <file> [--json] [--limit <n>]
+  ckanui-sfs search <file> <查询词> [--json] [--limit <n>]
+  ckanui-sfs set <file> <行号> <新值> [--write | --out <path>] [--print]
+  ckanui-sfs delete <file> <行号> [--write | --out <path>]
+  ckanui-sfs duplicate <file> <行号> [--write | --out <path>]
+  ckanui-sfs insert <file> <块所在行号> <键> <值> [--write | --out <path>]
 
 说明:
   format 默认只把规范形式打到 stdout，不改盘；--write 原子写回（保留原修改时间，先留 .sfsbak 快照）；
          --check 只判断，有差异退出码 1；--out 写到另一个文件。
   validate 输出带行号/列号/严重级别的诊断，无错误且无警告退出 0，否则 1。
+  outline / search 只读：outline 给分区大纲（常用内容在前，未知键原样保留），search 按路径/键/标签/值匹配。
+  set/delete/duplicate/insert 是行级结构化编辑：只改目标行，写盘前自校验块数/键值数/键值多重集增量；
+         默认不写盘，--write 原子写回（先留 .sfsbak），--out 另存；自校验不通过拒绝写盘（退出码 1）。
 
 退出码: 0 成功/无问题  1 发现问题  2 用法错误
 """;
@@ -42,6 +54,9 @@ public static class SfsCli
         {
             "format" => RunFormat(args, output, error),
             "validate" => RunValidate(args, output, error),
+            "outline" => RunOutline(args, output, error),
+            "search" => RunSearch(args, output, error),
+            "set" or "delete" or "duplicate" or "insert" => RunEdit(args[0], args, output, error),
             "help" or "--help" or "-h" => PrintUsage(output),
             "--version" => PrintVersion(output),
             _ => Unknown(args[0], error),
@@ -56,7 +71,7 @@ public static class SfsCli
 
     private static int PrintVersion(TextWriter output)
     {
-        output.WriteLine("ckanui-sfs 0.1.0 (SFS-01/02/03)");
+        output.WriteLine("ckanui-sfs 0.2.0 (SFS-01/02/03 + outline/search/edit)");
         return 0;
     }
 
@@ -201,6 +216,380 @@ public static class SfsCli
         output.WriteLine($"已写回 {command.FilePath}");
         return 0;
     }
+
+    private static int RunOutline(string[] args, TextWriter output, TextWriter error)
+    {
+        var command = SfsCliArguments.ParseOutline(args, 1, out var argumentError);
+        if (command is null)
+        {
+            error.WriteLine(argumentError);
+            error.WriteLine(Usage);
+            return 2;
+        }
+
+        var document = Load(command.FilePath, error, out var exitCode);
+        if (document is null)
+        {
+            return exitCode;
+        }
+
+        var hasErrors = ReportParseErrors(document, error);
+        var outline = SfsOutline.Build(document);
+        if (command.Json)
+        {
+            WriteJson(output, new
+            {
+                file = Path.GetFullPath(command.FilePath),
+                snapshot = outline.Snapshot,
+                sections = outline.Sections.Select(section => new
+                {
+                    section.Id,
+                    section.Title,
+                    section.Subtitle,
+                    kind = section.Kind.ToString(),
+                    section.Rank,
+                    section.Truncated,
+                    section.TotalPairCount,
+                    section.TotalNodeCount,
+                    fields = section.Fields.Take(command.Limit).Select(field => new
+                    {
+                        field.Line,
+                        field.Key,
+                        field.Label,
+                        field.Value,
+                        kind = field.Kind.ToString(),
+                        field.Priority,
+                        field.IsKnown,
+                        field.Path,
+                    }),
+                    nodes = section.Nodes.Take(command.Limit).Select(node => new
+                    {
+                        node.Line,
+                        node.Name,
+                        node.Label,
+                        node.Path,
+                        node.PairCount,
+                        node.NodeCount,
+                        node.Summary,
+                    }),
+                }),
+            });
+        }
+        else
+        {
+            WriteOutline(outline, command.Limit, output);
+        }
+
+        return hasErrors ? 1 : 0;
+    }
+
+    private static int RunSearch(string[] args, TextWriter output, TextWriter error)
+    {
+        var command = SfsCliArguments.ParseSearch(args, 1, out var argumentError);
+        if (command is null)
+        {
+            error.WriteLine(argumentError);
+            error.WriteLine(Usage);
+            return 2;
+        }
+
+        var document = Load(command.FilePath, error, out var exitCode);
+        if (document is null)
+        {
+            return exitCode;
+        }
+
+        var hasErrors = ReportParseErrors(document, error);
+        var outline = SfsOutline.Build(document);
+        var result = outline.Search(command.Query, command.Limit);
+        if (command.Json)
+        {
+            WriteJson(output, new
+            {
+                query = command.Query,
+                total = result.Total,
+                fields = result.Fields.Select(field => new
+                {
+                    field.Line,
+                    field.Key,
+                    field.Label,
+                    field.Value,
+                    field.Path,
+                    sectionId = field.SectionId,
+                }),
+                nodes = result.Nodes.Select(node => new
+                {
+                    node.Line,
+                    node.Name,
+                    node.Label,
+                    node.Path,
+                    node.Summary,
+                }),
+            });
+        }
+        else if (result.Total == 0)
+        {
+            output.WriteLine($"没有匹配 “{command.Query}” 的键或块");
+        }
+        else
+        {
+            foreach (var field in result.Fields)
+            {
+                output.WriteLine($"第 {field.Line} 行  {KeyText(field.Label, field.Key)} = {field.Value}   [{field.Path}]");
+            }
+
+            foreach (var node in result.Nodes)
+            {
+                output.WriteLine($"第 {node.Line} 行  块 {node.Name}（{node.Label}）   [{node.Path}]");
+            }
+
+            output.WriteLine($"共 {result.Total} 条");
+        }
+
+        return hasErrors ? 1 : 0;
+    }
+
+    private static int RunEdit(string commandName, string[] args, TextWriter output, TextWriter error)
+    {
+        var command = SfsCliArguments.ParseEdit(commandName, args, 1, out var argumentError);
+        if (command is null)
+        {
+            error.WriteLine(argumentError);
+            error.WriteLine(Usage);
+            return 2;
+        }
+
+        DateTime lastWriteUtc;
+        SfsDocument? document;
+        try
+        {
+            lastWriteUtc = File.GetLastWriteTimeUtc(command.FilePath);
+            var parsed = SfsParser.ParseFile(command.FilePath);
+            document = parsed.Document;
+            if (document is null)
+            {
+                error.WriteLine("解析失败：");
+                foreach (var diagnostic in parsed.Diagnostics)
+                {
+                    error.WriteLine(diagnostic.ToString());
+                }
+
+                return 1;
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            error.WriteLine($"读取失败：{exception.Message}");
+            return 2;
+        }
+
+        if (ReportParseErrors(document, error))
+        {
+            error.WriteLine("源文件有解析错误，拒绝编辑");
+            return 1;
+        }
+
+        var result = command.Kind switch
+        {
+            SfsEditKind.Set => SfsEditor.SetValue(document, command.Line, command.Value!),
+            SfsEditKind.Delete => SfsEditor.DeleteElement(document, command.Line),
+            SfsEditKind.Duplicate => SfsEditor.DuplicateElement(document, command.Line),
+            SfsEditKind.Insert => SfsEditor.InsertPair(document, command.Line, command.Key!, command.Value!),
+            _ => throw new InvalidOperationException($"未知编辑类型：{command.Kind}"),
+        };
+
+        error.WriteLine(result.Summary);
+        foreach (var issue in result.Issues)
+        {
+            error.WriteLine($"  ! {issue}");
+        }
+
+        if (!result.Changed)
+        {
+            return 1;
+        }
+
+        if (!result.Verified)
+        {
+            error.WriteLine("自校验未通过，拒绝写盘（原文件未改动）");
+            return 1;
+        }
+
+        if (command.Print)
+        {
+            output.Write(result.Text);
+            return 0;
+        }
+
+        if (command.OutPath is { } outPath)
+        {
+            try
+            {
+                WriteTextAtomic(outPath, result.Text, preserveTimesOf: null);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                error.WriteLine($"写入失败：{exception.Message}");
+                return 2;
+            }
+
+            output.WriteLine($"已写入 {outPath}");
+            return 0;
+        }
+
+        if (!command.Write)
+        {
+            error.WriteLine("未写盘（加 --write 或 --out <路径>，或 --print 输出全文）");
+            return 0;
+        }
+
+        try
+        {
+            var snapshot = CreateSnapshot(command.FilePath);
+            if (snapshot is not null)
+            {
+                error.WriteLine($"已保存快照：{snapshot}");
+            }
+
+            WriteTextAtomic(command.FilePath, result.Text, lastWriteUtc);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            error.WriteLine($"写入失败：{exception.Message}");
+            return 2;
+        }
+
+        output.WriteLine($"已写回 {command.FilePath}");
+        return 0;
+    }
+
+    private static SfsDocument? Load(string path, TextWriter error, out int exitCode)
+    {
+        exitCode = 0;
+        if (!File.Exists(path))
+        {
+            error.WriteLine($"找不到文件：{path}");
+            exitCode = 2;
+            return null;
+        }
+
+        try
+        {
+            var parsed = SfsParser.ParseFile(path);
+            if (parsed.Document is null)
+            {
+                error.WriteLine("解析失败：");
+                foreach (var diagnostic in parsed.Diagnostics)
+                {
+                    error.WriteLine(diagnostic.ToString());
+                }
+
+                exitCode = 1;
+                return null;
+            }
+
+            return parsed.Document;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            error.WriteLine($"读取失败：{exception.Message}");
+            exitCode = 2;
+            return null;
+        }
+    }
+
+    private static bool ReportParseErrors(SfsDocument document, TextWriter error)
+    {
+        var hasErrors = false;
+        foreach (var diagnostic in document.ParseDiagnostics)
+        {
+            if (diagnostic.Severity != SfsSeverity.Error)
+            {
+                continue;
+            }
+
+            hasErrors = true;
+            error.WriteLine(diagnostic.ToString());
+        }
+
+        return hasErrors;
+    }
+
+    private static void WriteOutline(SfsOutline outline, int limit, TextWriter output)
+    {
+        var snapshot = outline.Snapshot;
+        output.WriteLine(
+            $"存档 {snapshot.SaveName ?? "（未命名）"} · 版本 {snapshot.Version ?? "?"} · 模式 {snapshot.Mode ?? "?"}");
+        output.WriteLine(
+            $"资金 {FieldText(snapshot.Funds)} · 科技 {FieldText(snapshot.Science)} · 声望 {FieldText(snapshot.Reputation)}"
+            + $" · 游戏时间 {FieldText(snapshot.GameTime)}");
+        output.WriteLine(
+            $"规模：飞行器 {snapshot.VesselCount} · 部件 {snapshot.PartCount} · 场景 {snapshot.ScenarioCount}"
+            + $" · 乘员 {snapshot.CrewCount} · 键值 {snapshot.PairCount} · 块 {snapshot.NodeCount} · 行 {snapshot.LineCount}"
+            + (snapshot.Truncated ? "（已截断）" : string.Empty));
+        output.WriteLine();
+
+        foreach (var section in outline.Sections)
+        {
+            var subtitle = string.IsNullOrEmpty(section.Subtitle) || section.Subtitle == section.Title
+                ? string.Empty
+                : $"（{section.Subtitle}）";
+            output.WriteLine($"[{section.Title}]{subtitle}  键值 {section.TotalPairCount} · 块 {section.TotalNodeCount}");
+
+            var printed = 0;
+            foreach (var field in section.Fields)
+            {
+                if (printed >= limit)
+                {
+                    output.WriteLine($"  … 还有 {section.Fields.Count - printed} 项（--limit 调整）");
+                    break;
+                }
+
+                output.WriteLine($"  {field.Line,6}  {KeyText(field.Label, field.Key)} = {field.Value}");
+                printed++;
+            }
+
+            printed = 0;
+            foreach (var node in section.Nodes)
+            {
+                if (printed >= limit)
+                {
+                    output.WriteLine($"  … 还有 {section.Nodes.Count - printed} 个块（--limit 调整）");
+                    break;
+                }
+
+                var summary = string.IsNullOrEmpty(node.Summary) ? string.Empty : $" · {node.Summary}";
+                output.WriteLine($"  {node.Line,6}  ▸ {node.Name}（{node.Label}）{summary}");
+                printed++;
+            }
+
+            if (section.Truncated)
+            {
+                output.WriteLine("  （该分区超出预算，已截断）");
+            }
+
+            output.WriteLine();
+        }
+    }
+
+    private static string FieldText(SfsOutlineField? field)
+        => field is null
+            ? "–"
+            : field.Unit == "√"
+                ? $"√{field.Value}"
+                : field.Value + (string.IsNullOrEmpty(field.Unit) ? string.Empty : field.Unit);
+
+    private static string KeyText(string label, string key)
+        => string.Equals(label, key, StringComparison.Ordinal) ? key : $"{label}（{key}）";
+
+    private static void WriteJson(TextWriter output, object payload)
+        => output.WriteLine(JsonSerializer.Serialize(payload, JsonOptions));
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
 
     private static int RunValidate(string[] args, TextWriter output, TextWriter error)
     {

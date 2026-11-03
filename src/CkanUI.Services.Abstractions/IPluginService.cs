@@ -18,6 +18,19 @@ public interface IPluginService
     /// <summary>插件目录（默认 <c>%LocalAppData%/CKAN/plugins</c>）。新增插件会复制到这里。</summary>
     string PluginsDirectory { get; }
 
+    /// <summary>
+    /// 宿主随包携带的内置（首方）插件目录（默认 <c>AppContext.BaseDirectory/plugins</c>）。
+    /// </summary>
+    /// <remarks>
+    /// 与 <see cref="PluginsDirectory"/> 的职责分界：这里是安装目录，由发布包写入、用户不该往里放东西；
+    /// 那边是用户数据目录，<c>AddFromPathAsync</c> 只往那边拷。默认实现返回空串，表示「本实现没有内置目录」——
+    /// 既有替身因此不必跟着改（工程约定 §12 第 9 条）。
+    /// </remarks>
+    string BundledDirectory => string.Empty;
+
+    /// <summary>已加载的内置插件（<see cref="PluginInfo.IsBundled"/> 为 <c>true</c>，按显示名排序）。默认空列表。</summary>
+    IReadOnlyList<PluginInfo> Bundled => PluginInfo.Empty;
+
     /// <summary>当前已激活的插件（按显示名排序）。</summary>
     IReadOnlyList<PluginInfo> Active { get; }
 
@@ -38,6 +51,25 @@ public interface IPluginService
     /// 返回当前已知的全部插件；扫描中失败的 dll 不进列表，但会在结果消息里逐个点名。
     /// </summary>
     Task<OperationResult<IReadOnlyList<PluginInfo>>> DiscoverAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// 扫描插件目录，并允许提供方显式激活内置插件。
+    /// </summary>
+    /// <param name="activateBundled">
+    /// <c>true</c> = 内置插件加载后立即激活（只有宿主自己才有资格为随包携带的首方插件背书）；
+    /// <c>false</c> = 与 <see cref="DiscoverAsync(CancellationToken)"/> 完全一致：内置插件同样进 Dormant，
+    /// 除非用户之前显式激活过它（读持久化状态）。
+    /// </param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>当前已知的全部插件（内置在前、用户目录在后）。</returns>
+    /// <remarks>
+    /// <para>为什么是新重载而不是给原方法加参数：<see cref="DiscoverAsync(CancellationToken)"/> 的第一个位置参数是
+    /// <c>CancellationToken</c>，在前面插一个 <c>bool</c> 会把所有 <c>DiscoverAsync(ct)</c> 的调用点一起改坏
+    /// （工程约定 §12 第 9 条）。重载带默认实现，既有替身不必跟着改。</para>
+    /// <para>安全口径不变：这个参数只影响内置目录；用户目录里的插件永远默认 Dormant。</para>
+    /// </remarks>
+    Task<OperationResult<IReadOnlyList<PluginInfo>>> DiscoverAsync(bool activateBundled, CancellationToken ct = default) =>
+        DiscoverAsync(ct);
 
     /// <summary>
     /// 加载指定 dll。<paramref name="activate"/> 为 <c>false</c> 时只进 Dormant（原版 <c>LoadAssembly(dll, activate:false)</c>）。

@@ -720,6 +720,14 @@
     <Setter Property="Transitions">
       <Transitions>
         <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <!-- 与 ListBoxItem 同理：位移下沉到模板内，行包围盒不动，避免指针停在行左缘时悬停态自激闪烁。 -->
+  <Style Selector="DataGridRow /template/ ContentPresenter">
+    <Setter Property="Transitions">
+      <Transitions>
         <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
           <TransformOperationsTransition.Easing>
             <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
@@ -730,8 +738,11 @@
   </Style>
 
   <Style Selector="DataGridRow:pointerover">
-    <Setter Property="RenderTransform" Value="translate(2px, 0px)" />
     <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="DataGridRow:pointerover /template/ ContentPresenter">
+    <Setter Property="RenderTransform" Value="translate(2px, 0px)" />
   </Style>
 
   <Style Selector="DataGridRow:selected">
@@ -748,6 +759,19 @@
     <Setter Property="Transitions">
       <Transitions>
         <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <!--
+    悬停的位移挂在模板内的 ContentPresenter 上，不挂在 ListBoxItem 自己身上：
+    RenderTransform 会参与命中测试，行整体右移 2px 后，指针若停在行的左缘就会掉出行的包围盒，
+    悬停态立刻消失、行弹回原位、指针又落回行内 —— 每一帧来回切换，界面上就是「选中/未选中」疯狂闪烁。
+    把位移下沉一层，行的包围盒原地不动，悬停只影响它内部的呈现。
+  -->
+  <Style Selector="ListBoxItem /template/ ContentPresenter">
+    <Setter Property="Transitions">
+      <Transitions>
         <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource CkanMotionDurationSpringSoft}">
           <TransformOperationsTransition.Easing>
             <SpringEasing Mass="1" Stiffness="180" Damping="26" InitialVelocity="0" />
@@ -758,8 +782,11 @@
   </Style>
 
   <Style Selector="ListBoxItem:pointerover">
-    <Setter Property="RenderTransform" Value="translate(2px, 0px)" />
     <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+    <Setter Property="RenderTransform" Value="translate(2px, 0px)" />
   </Style>
 
   <Style Selector="ListBoxItem:selected">
@@ -928,10 +955,10 @@
       </Transitions>
     </Setter>
   </Style>
+  <!-- 同上：靠底色与描边做悬停反馈，不做整卡位移，避免指针压边时的悬停抖动。 -->
   <Style Selector="Border.CkanGuideCard:pointerover">
     <Setter Property="Background" Value="{DynamicResource CkanElevatedCardHoverBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
-    <Setter Property="RenderTransform" Value="translateY(-2px)" />
   </Style>
   <Style Selector="Border.CkanGuideCard:pressed">
     <Setter Property="RenderTransform" Value="scale(0.985)" />
@@ -958,7 +985,6 @@
   <Style Selector="Button.CkanGuide:pointerover">
     <Setter Property="Background" Value="{DynamicResource CkanElevatedCardHoverBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
-    <Setter Property="RenderTransform" Value="translateY(-2px)" />
   </Style>
   <Style Selector="Button.CkanGuide:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource CkanElevatedCardHoverBrush}" />
@@ -1499,10 +1525,11 @@
   </Style>
 
   <Style Selector="Border.CkanCardInteractive:pointerover">
-    <!-- 悬停只提亮表面 + 阴影加深，不再把描边刷成强调色（降噪：全屏蓝框比不动更吵）。 -->
+    <!-- 悬停只提亮表面 + 阴影加深，不再把描边刷成强调色（降噪：全屏蓝框比不动更吵）。
+         也不再整体上浮 2px：位移参与命中测试，指针压在卡片下缘时卡片一移开就掉出包围盒，
+         悬停反复进出就是抖动；抬升感交给阴影。 -->
     <Setter Property="Background" Value="{DynamicResource CkanElevatedCardHoverBrush}" />
     <Setter Property="BoxShadow" Value="{DynamicResource CkanElevationMedium}" />
-    <Setter Property="RenderTransform" Value="translateY(-2px)" />
   </Style>
 
   <Style Selector="Border.CkanCardInteractive:pressed">
@@ -1847,35 +1874,53 @@
   </Style>
 
   <!-- ========================================== -->
-  <!-- 滚动条：悬浮细条，指针不在滚动条上时完全隐藏。 -->
-  <!-- 原生 AllowAutoHide 只收起两端按钮，主题仍保留  -->
-  <!-- 14px 常驻轨道，因此这里用 Opacity 做悬浮显隐。 -->
+  <!-- 滚动条：常驻可见，指针上去再加亮。            -->
+  <!-- 以前用 Opacity=0 做「悬浮才出现」，结果整片  -->
+  <!-- 列表看不出哪里能拖、也没有任何提示；现在默认 -->
+  <!-- 留 0.7 的不透明度，thumb 也不再缩成细线。     -->
   <!-- ========================================== -->
+  <Style Selector="ScrollBar">
+    <Setter Property="ToolTip.Tip" Value="{DynamicResource Ui_Common_ScrollBar_Tip}" />
+  </Style>
   <Style Selector="ScrollBar:vertical">
-    <Setter Property="Width" Value="8" />
-    <Setter Property="MinWidth" Value="8" />
-    <Setter Property="Opacity" Value="0" />
+    <Setter Property="Width" Value="10" />
+    <Setter Property="MinWidth" Value="10" />
+    <Setter Property="Opacity" Value="0.7" />
     <Setter Property="Transitions">
       <Transitions>
-        <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+        <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
       </Transitions>
     </Setter>
   </Style>
   <Style Selector="ScrollBar:horizontal">
-    <Setter Property="Height" Value="8" />
-    <Setter Property="MinHeight" Value="8" />
-    <Setter Property="Opacity" Value="0" />
+    <Setter Property="Height" Value="10" />
+    <Setter Property="MinHeight" Value="10" />
+    <Setter Property="Opacity" Value="0.7" />
     <Setter Property="Transitions">
       <Transitions>
-        <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+        <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
       </Transitions>
     </Setter>
   </Style>
   <Style Selector="ScrollBar:pointerover">
     <Setter Property="Opacity" Value="1" />
   </Style>
+  <Style Selector="ScrollBar:pointerover Thumb">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentBrush}" />
+  </Style>
   <Style Selector="ScrollBar Thumb">
-    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="MinHeight" Value="28" />
+    <Setter Property="MinWidth" Value="28" />
+    <Setter Property="Background" Value="{DynamicResource CkanTextSecondaryBrush}" />
+  </Style>
+  <!-- FluentAvalonia 的模板在「收起」态给 thumb 挂 scaleX(0.35) translateX(-2px)，
+       8px 宽的拇指被压成 2.8px 的一条线，等于没有可拖提示。这里把收缩取消。 -->
+  <Style Selector="ScrollBar:vertical /template/ Thumb">
+    <Setter Property="RenderTransform" Value="none" />
+  </Style>
+  <Style Selector="ScrollBar:horizontal /template/ Thumb">
+    <Setter Property="RenderTransform" Value="none" />
   </Style>
 
   <!-- ========================================== -->

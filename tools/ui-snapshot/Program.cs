@@ -10,6 +10,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CkanUI.App;
+using CkanUI.App.Controls.Backgrounds;
 using CkanUI.App.Localization;
 using CkanUI.App.Theming;
 using CkanUI.Localization;
@@ -67,7 +68,14 @@ public static class Program
         Directory.CreateDirectory(tempSettingsDir);
         var snapshotSettingsFile = Path.Combine(tempSettingsDir, "ckan-ui.json");
         var snapshotStore = new CkanUI.Services.Settings.UiSettingsStore(snapshotSettingsFile);
-        snapshotStore.Save(new CkanUI.Services.Abstractions.UiSettings { MotionIntensity = "none" });
+        // 场景 QA 入口：CKANUI_SNAP_SCENE=orbital|lunar|probe|lens|none，CKANUI_SNAP_MOTION=full 可看到动态帧。
+        var snapshotScene = BackgroundSceneKinds.Normalize(Environment.GetEnvironmentVariable("CKANUI_SNAP_SCENE"));
+        var snapshotMotion = Environment.GetEnvironmentVariable("CKANUI_SNAP_MOTION") ?? "none";
+        snapshotStore.Save(new CkanUI.Services.Abstractions.UiSettings
+        {
+            MotionIntensity = snapshotMotion,
+            BackgroundScene = snapshotScene,
+        });
 
         var services = ServiceRegistration.Build(() => mainWindow, sc =>
         {
@@ -134,14 +142,45 @@ public static class Program
         mainWindow.Arrange(new Rect(0, 0, 1280, 800));
         Dispatcher.UIThread.RunJobs();
 
-        var outDir = Path.GetFullPath("artifacts/snapshots");
-        Directory.CreateDirectory(outDir);
+        // CKANUI_SNAP_POINTER=900,320 让 QA 截图带上光标交互态。
+        if (Environment.GetEnvironmentVariable("CKANUI_SNAP_POINTER")?.Split(',') is { Length: 2 } pointerParts
+            && double.TryParse(pointerParts[0], out var pointerX)
+            && double.TryParse(pointerParts[1], out var pointerY))
+        {
+            mainWindow.FindControl<BackgroundSceneCanvas>("BackgroundSceneCanvas")?.TrackPointer(new Point(pointerX, pointerY));
+            Dispatcher.UIThread.RunJobs();
+        }
 
-        Console.WriteLine($"找到导航项 {shell.NavItems.Count} 个，开始逐页无感渲染...");
+        var outDir = Path.GetFullPath(
+            Environment.GetEnvironmentVariable("CKANUI_SNAP_OUT") ?? "artifacts/snapshots");
+        Directory.CreateDirectory(outDir);
+        var maxPages = int.TryParse(Environment.GetEnvironmentVariable("CKANUI_SNAP_LIMIT"), out var limit)
+            ? Math.Max(1, limit)
+            : int.MaxValue;
+        var onlyPage = Environment.GetEnvironmentVariable("CKANUI_SNAP_PAGE");
+        var settleMs = int.TryParse(Environment.GetEnvironmentVariable("CKANUI_SNAP_SETTLE_MS"), out var settle)
+            ? Math.Max(100, settle)
+            : 900;
+        var scrollY = double.TryParse(Environment.GetEnvironmentVariable("CKANUI_SNAP_SCROLL"), out var scroll)
+            ? Math.Max(0, scroll)
+            : 0;
+
+        Console.WriteLine($"场景 {snapshotScene} / 动效 {snapshotMotion}；找到导航项 {shell.NavItems.Count} 个，开始逐页无感渲染...");
 
         int count = 0;
         foreach (var item in shell.NavItems)
         {
+            if (count >= maxPages)
+            {
+                break;
+            }
+
+            if (!string.IsNullOrWhiteSpace(onlyPage)
+                && !string.Equals(item.Key, onlyPage, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             count++;
             Console.WriteLine($"[{count}/{shell.NavItems.Count}] 正在渲染: {item.Title} ({item.Key})...");
             shell.NavigateCommand.Execute(item.Key);
@@ -150,14 +189,26 @@ public static class Program
             mainWindow.Arrange(new Rect(0, 0, 1280, 800));
             Dispatcher.UIThread.RunJobs();
 
+            // CKANUI_SNAP_SCROLL=1400 把当前页滚到指定纵向偏移，方便核对设置页靠下的行。
+            if (scrollY > 0
+                && mainWindow.FindControl<Control>("PageStage") is { } stage
+                && stage.GetVisualDescendants().OfType<ScrollViewer>()
+                    .FirstOrDefault(candidate => candidate.ScrollBarMaximum.Y > 0) is { } pageScroll)
+            {
+                pageScroll.Offset = new Vector(0, Math.Min(scrollY, pageScroll.ScrollBarMaximum.Y));
+                mainWindow.Measure(new Size(1280, 800));
+                mainWindow.Arrange(new Rect(0, 0, 1280, 800));
+                Dispatcher.UIThread.RunJobs();
+            }
+
             // 让导航指示条淡出、滚动条自动隐藏等过渡动画收敛后再截图，
             // 否则离屏渲染会捕捉到 0.6s 过渡的中间帧。
             // 注意：每 tick 必须推进足够的动画时间（16ms ≈ 一帧），
             // 只推进 1ms 时 60 次累计才 60ms，view-layer 的 0.3-0.6s 交叉淡入会停在半透明中间帧上。
             // Avalonia 的过渡动画走真实时间（Stopwatch），空转 RunJobs 不会让它们推进，
             // 所以这里既推进渲染帧，也真的等一会儿，否则 view-layer 的交叉淡入会停在中间帧。
-            var settle = System.Diagnostics.Stopwatch.StartNew();
-            while (settle.ElapsedMilliseconds < 900)
+            var settleWatch = System.Diagnostics.Stopwatch.StartNew();
+            while (settleWatch.ElapsedMilliseconds < settleMs)
             {
                 AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
                 Dispatcher.UIThread.RunJobs();

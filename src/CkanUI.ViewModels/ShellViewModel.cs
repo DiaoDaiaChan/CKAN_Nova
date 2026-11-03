@@ -193,7 +193,8 @@ public sealed partial class ShellViewModel : ObservableObject
             new("ships", _translate("Ui_NavRail_Ships"), "Rocket"),
             new("flags", _translate("Ui_NavRail_Flags"), "Flag"),
             new("loadingimages", _translate("Ui_NavRail_LoadingScreens"), "Image"),
-            new("home", _translate("Ui_NavRail_Home"), "Home")
+            new("home", _translate("Ui_NavRail_Home"), "Home"),
+            new("kspconfig", _translate("Ui_NavRail_KspConfig"), "Settings")
         };
         NavItems = new ObservableCollection<NavItem>(_baseNavItems);
         Sections = BuildSections();
@@ -453,6 +454,10 @@ public sealed partial class ShellViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanZoomOut))]
     private double _pageZoom = DefaultPageZoom;
 
+    // 拖动滑块是连续动作：手势期间不落盘，结束后补一次。
+    private bool _pageZoomGestureActive;
+    private bool _pageZoomPersistPending;
+
     /// <summary>滑块绑定的百分比数值（75–150），与 <see cref="PageZoom"/> 同源、双向。</summary>
     public double PageZoomPercent
     {
@@ -487,6 +492,29 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     private void ResetPageZoom() => PageZoom = DefaultPageZoom;
 
+    /// <summary>
+    /// 进入「按住不放」的连续缩放：拖动滑块期间每格都只改内存，不落盘。
+    /// 一次拖动 15 格 = 15 次 fsync + 15 次 Changed 广播，界面直接卡成幻灯片，
+    /// 写失败时还会一格一条错误日志刷满抽屉。拖动结束由 <see cref="EndPageZoomGesture"/> 合并写一次。
+    /// </summary>
+    public void BeginPageZoomGesture() => _pageZoomGestureActive = true;
+
+    /// <summary>结束连续缩放：把手势期间攒下的最后一次值落盘（没有变动就不写）。</summary>
+    public void EndPageZoomGesture()
+    {
+        if (!_pageZoomGestureActive)
+        {
+            return;
+        }
+
+        _pageZoomGestureActive = false;
+        if (_pageZoomPersistPending)
+        {
+            _pageZoomPersistPending = false;
+            PersistPageZoom(PageZoom);
+        }
+    }
+
     /// <summary>Ctrl+滚轮入口：<paramref name="steps"/> 为正放大、为负缩小，一次一格。</summary>
     public void NudgePageZoom(int steps)
     {
@@ -509,7 +537,20 @@ public sealed partial class ShellViewModel : ObservableObject
         ZoomInCommand.NotifyCanExecuteChanged();
         ZoomOutCommand.NotifyCanExecuteChanged();
 
-        // 与 NavHoverMode 同一套持久化口径：改一次落一次，设置文件小、写盘原子，不做额外去抖。
+        if (_pageZoomGestureActive)
+        {
+            // 拖动中：只记账，等手势结束再写一次（见 BeginPageZoomGesture）。
+            _pageZoomPersistPending = true;
+            return;
+        }
+
+        PersistPageZoom(value);
+    }
+
+    private void PersistPageZoom(double value)
+    {
+        // 与 NavHoverMode 同一套持久化口径：单次改动落一次，设置文件小、写盘原子。
+        // 唯一的例外是滑块拖动——那是连续改动，由 Begin/EndPageZoomGesture 合并成一次。
         _settingsStore?.Save(_settingsStore.Current with { PageZoom = value });
     }
 
@@ -803,8 +844,8 @@ public sealed partial class ShellViewModel : ObservableObject
         // 模组翻译：独立侧栏入口（原为「模组」的第 6 个页签）。词条检索与人工覆盖是独立工作面，
         // 挂在「模组」里既挤爆那排页签，也让「我在看哪个 mod」和「我在改哪条译文」混成一件事。
         ("modtext", null, ["modtext"]),
-        // 实例：一份安装本身 + 它衍生的存档、磁盘垃圾、历史与时长。
-        ("instances", null, ["instances", "saves", "ships", "flags", "loadingimages", "unmanaged", "installhistory", "playtime"]),
+        // 实例：一份安装本身 + 它衍生的存档、磁盘垃圾、历史与时长 + KSP 原生设置。
+        ("instances", null, ["instances", "saves", "ships", "flags", "loadingimages", "kspconfig", "unmanaged", "installhistory", "playtime"]),
         // 整合包：导入导出与直接编辑 .ckan。
         ("modpacks", null, ["modpacks", "modpack-editor"]),
         // 数据：本地缓存、下载统计、跨实例去重——都是「盘上的东西」，与模组列表无关。
@@ -947,6 +988,7 @@ public sealed partial class ShellViewModel : ObservableObject
         ["Ui_NavRail_Settings"] = "设置",
         ["Ui_NavRail_ModConfig"] = "Mod 配置",
         ["Ui_NavRail_Home"] = "主页",
+        ["Ui_NavRail_KspConfig"] = "KSP 游戏设置",
         ["Ui_NavRail_Data"] = "数据",
         ["Ui_NavRail_Tools"] = "工具",
         ["Ui_NavRail_Collapse"] = "收起侧栏",

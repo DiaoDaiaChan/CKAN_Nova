@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>CKAN UI Background Studies</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #07090d; color: #e8ecf2; }
+  body { width: 2000px; height: 1540px; font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif; overflow: hidden; }
+  .wrap { padding: 54px 58px 46px; }
+  header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 30px; }
+  h1 { margin: 0; font-size: 40px; font-weight: 300; letter-spacing: 0.06em; }
+  h1 span { color: #72a7ff; }
+  .sub { margin-top: 10px; color: #7f8b9e; font-size: 17px; letter-spacing: 0.04em; }
+  .note { color: #5f6b7d; font-size: 14px; text-align: right; line-height: 1.8; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+  .study { border: 1px solid rgba(114,167,255,.16); border-radius: 16px; overflow: hidden; background: #0b0e14; }
+  .head { height: 72px; display: flex; align-items: center; gap: 16px; padding: 0 24px; border-bottom: 1px solid rgba(255,255,255,.05); }
+  .num { width: 34px; height: 34px; border: 1px solid rgba(114,167,255,.3); border-radius: 50%; display: grid; place-items: center; color: #72a7ff; font-size: 14px; letter-spacing: .04em; }
+  .name { font-size: 23px; font-weight: 400; letter-spacing: .04em; }
+  .en { color: #5f6b7d; font-size: 12px; letter-spacing: .18em; text-transform: uppercase; margin-top: 4px; }
+  .tag { margin-left: auto; color: #72a7ff; border: 1px solid rgba(114,167,255,.24); border-radius: 999px; padding: 5px 12px; font-size: 12px; letter-spacing: .06em; opacity: .9; }
+  .scene { position: relative; width: 100%; height: 470px; background: #0b0e14; overflow: hidden; }
+  .scene svg { position: absolute; inset: 0; width: 100%; height: 100%; filter: brightness(2.05); }
+  .scene.orbital svg { filter: brightness(2.95); }
+  .scene.lunar svg { filter: brightness(3.35); }
+  .scene.probe svg { filter: brightness(2.25); }
+  .scene.lens svg { filter: brightness(2.15); }
+  .ui { position: absolute; inset: 0; display: flex; }
+  .side { width: 112px; border-right: 1px solid rgba(255,255,255,.05); background: rgba(11,14,20,.20); padding: 16px 14px; display: flex; flex-direction: column; }
+  .brand { width: 30px; height: 30px; border-radius: 9px; border: 1px solid rgba(114,167,255,.28); margin-bottom: 34px; }
+  .nav { height: 8px; border-radius: 4px; background: rgba(255,255,255,.075); margin-bottom: 16px; }
+  .nav.on { background: rgba(114,167,255,.26); width: 82%; }
+  .nav.s { width: 60%; }
+  .side .foot { margin-top: auto; width: 24px; height: 24px; border-radius: 50%; background: rgba(255,255,255,.07); }
+  .main { flex: 1; display: flex; flex-direction: column; }
+  .top { height: 48px; display: flex; align-items: center; gap: 16px; padding: 0 24px; border-bottom: 1px solid rgba(255,255,255,.045); }
+  .crumb { width: 130px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.08); }
+  .search { margin-left: auto; width: 190px; height: 26px; border-radius: 7px; border: 1px solid rgba(255,255,255,.075); background: rgba(255,255,255,.028); }
+  .content { padding: 20px 24px; }
+  .h1 { width: 240px; height: 14px; border-radius: 5px; background: rgba(255,255,255,.14); margin-bottom: 10px; }
+  .h2 { width: 320px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.055); margin-bottom: 18px; }
+  .row { display: flex; gap: 12px; margin-bottom: 12px; }
+  .card { flex: 1; height: 76px; border: 1px solid rgba(255,255,255,.055); background: rgba(11,14,20,.20); border-radius: 10px; }
+  .card.tall { height: 96px; }
+  .card.wide { flex: 1.6; }
+  .card.accent { border-color: rgba(114,167,255,.18); background: rgba(114,167,255,.035); }
+  .meta { display: flex; gap: 10px; padding: 14px 22px 15px; border-top: 1px solid rgba(255,255,255,.05); }
+  .chip { color: #8b96a8; border: 1px solid rgba(255,255,255,.07); border-radius: 999px; padding: 5px 11px; font-size: 12px; letter-spacing: .03em; }
+  .chip b { color: #b9c5d6; font-weight: 400; }
+  .footline { margin-top: 28px; display: flex; justify-content: space-between; color: #4f5b6d; font-size: 12px; letter-spacing: .08em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>背景设计研究 <span>/ 四种元素组合</span></h1>
+      <div class="sub">沿用星空背景的低透明度线稿语言 · 只从卡片缝隙露出 · 全部颜色取自主题</div>
+    </div>
+    <div class="note">VISUAL STUDIES 01—04<br>928 × 470 preview / dark theme</div>
+  </header>
+
+  <div class="grid">
+
+    <!-- 01 ORBITAL -->
+    <section class="study">
+      <div class="head">
+        <div class="num">01</div>
+        <div><div class="name">轨道蓝图</div><div class="en">Orbital blueprint</div></div>
+        <div class="tag">技术 / 几何</div>
+      </div>
+      <div class="scene orbital">
+        <svg viewBox="0 0 928 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <g stroke="#72a7ff">
+            <circle cx="-66" cy="566" r="442" fill="#72a7ff" fill-opacity=".035" stroke="none"/>
+            <circle cx="-66" cy="566" r="442" opacity=".28"/>
+            <circle cx="-66" cy="566" r="456" opacity=".09"/>
+            <path d="M-6 506 A442 442 0 0 1 132 176" opacity=".12"/>
+            <path d="M48 520 A442 442 0 0 1 198 206" opacity=".07" stroke-dasharray="2 13"/>
+            <g transform="rotate(-17 1010 54)" opacity=".11">
+              <ellipse cx="1010" cy="54" rx="708" ry="298"/>
+              <ellipse cx="1010" cy="54" rx="566" ry="238" opacity=".58"/>
+              <ellipse cx="1010" cy="54" rx="424" ry="178" opacity=".34"/>
+            </g>
+            <g transform="rotate(-17 1010 54)" opacity=".2">
+              <ellipse cx="1010" cy="54" rx="708" ry="298" stroke-dasharray="1 24"/>
+            </g>
+            <g opacity=".72">
+              <path d="M424 204 l0 -14 M424 204 l0 14 M424 204 l-14 0 M424 204 l14 0" stroke-width="1.1"/>
+              <circle cx="424" cy="204" r="2.6" fill="#72a7ff" stroke="none"/>
+              <path d="M424 204 l-24 16" opacity=".55" stroke-dasharray="2 4"/>
+            </g>
+            <g opacity=".5">
+              <circle cx="682" cy="96" r="2" fill="#72a7ff" stroke="none"/>
+              <path d="M682 96 l0 -9 M682 96 l0 9 M682 96 l-9 0 M682 96 l9 0" stroke-width=".8"/>
+            </g>
+            <g opacity=".32">
+              <circle cx="236" cy="348" r="1.6" fill="#72a7ff" stroke="none"/>
+              <path d="M236 348 l0 -7 M236 348 l0 7 M236 348 l-7 0 M236 348 l7 0" stroke-width=".7"/>
+            </g>
+            <g opacity=".08" stroke-width=".8">
+              <path d="M58 74 h34 M75 57 v34"/>
+              <path d="M806 418 h28 M820 404 v28"/>
+              <path d="M58 418 h20 M68 408 v20"/>
+            </g>
+          </g>
+        </svg>
+        <div class="ui">
+          <aside class="side"><div class="brand"></div><div class="nav on"></div><div class="nav"></div><div class="nav s"></div><div class="nav"></div><div class="foot"></div></aside>
+          <div class="main"><div class="top"><div class="crumb"></div><div class="search"></div></div>
+            <div class="content"><div class="h1"></div><div class="h2"></div><div class="row"><div class="card tall wide"></div><div class="card tall"></div></div><div class="row"><div class="card"></div><div class="card"></div><div class="card accent"></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="meta"><div class="chip"><b>元素</b> 行星弧 · 轨道椭圆 · 卫星标记</div><div class="chip"><b>运动</b> 轨道缓移 / 星下点漂移</div></div>
+    </section>
+
+    <!-- 02 LUNAR -->
+    <section class="study">
+      <div class="head">
+        <div class="num">02</div>
+        <div><div class="name">月面晨昏线</div><div class="en">Lunar terminator</div></div>
+        <div class="tag">静谧 / 宏大</div>
+      </div>
+      <div class="scene lunar">
+        <svg viewBox="0 0 928 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <mask id="crescentMask" maskUnits="userSpaceOnUse" x="820" y="32" width="96" height="96">
+              <rect x="820" y="32" width="96" height="96" fill="black"/>
+              <circle cx="866" cy="76" r="34" fill="white"/>
+              <circle cx="853" cy="69" r="33" fill="black"/>
+            </mask>
+          </defs>
+          <g stroke="#e8ecf2">
+            <circle cx="70" cy="930" r="640" fill="#e8ecf2" fill-opacity=".022" stroke="none"/>
+            <circle cx="70" cy="930" r="640" opacity=".36"/>
+            <circle cx="70" cy="930" r="652" opacity=".12"/>
+            <path d="M-22 470 A640 640 0 0 1 258 330" opacity=".20" stroke-dasharray="2 11"/>
+            <g opacity=".26">
+              <ellipse cx="268" cy="392" rx="46" ry="15" transform="rotate(-17 268 392)"/>
+              <ellipse cx="268" cy="392" rx="31" ry="8" transform="rotate(-17 268 392)" opacity=".7"/>
+              <ellipse cx="402" cy="430" rx="60" ry="17" transform="rotate(-13 402 430)"/>
+              <ellipse cx="402" cy="430" rx="39" ry="9" transform="rotate(-13 402 430)" opacity=".6"/>
+              <ellipse cx="168" cy="446" rx="30" ry="9" transform="rotate(-20 168 446)"/>
+            </g>
+            <g opacity=".14" stroke-width=".8">
+              <path d="M210 402 l-12 9 M230 397 l-13 9 M250 394 l-13 9 M272 393 l-13 9 M294 395 l-12 9 M316 400 l-12 9"/>
+              <path d="M346 438 l-13 8 M368 435 l-13 8 M390 434 l-13 8 M412 435 l-12 8 M434 438 l-12 8"/>
+            </g>
+            <path d="M10 464 C150 406 300 386 470 414" opacity=".06"/>
+            <g>
+              <circle cx="866" cy="76" r="34" fill="#72a7ff" stroke="none" opacity=".55" mask="url(#crescentMask)"/>
+              <circle cx="866" cy="76" r="40" opacity=".5" stroke-dasharray="1 9"/>
+            </g>
+            <g fill="#e8ecf2" stroke="none" opacity=".18">
+              <circle cx="656" cy="196" r="1.2"/><circle cx="700" cy="250" r="1"/><circle cx="744" cy="174" r="1.3"/>
+              <circle cx="840" cy="220" r="1"/><circle cx="884" cy="150" r="1.2"/><circle cx="608" cy="132" r=".9"/>
+              <circle cx="870" cy="318" r="1.1"/><circle cx="620" cy="330" r=".8"/>
+            </g>
+          </g>
+        </svg>
+        <div class="ui">
+          <aside class="side"><div class="brand"></div><div class="nav on"></div><div class="nav"></div><div class="nav s"></div><div class="nav"></div><div class="foot"></div></aside>
+          <div class="main"><div class="top"><div class="crumb"></div><div class="search"></div></div>
+            <div class="content"><div class="h1"></div><div class="h2"></div><div class="row"><div class="card tall wide"></div><div class="card tall"></div></div><div class="row"><div class="card"></div><div class="card"></div><div class="card accent"></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="meta"><div class="chip"><b>元素</b> 月缘 · 环形山等高线 · 地牙</div><div class="chip"><b>运动</b> 晨昏线极缓推移</div></div>
+    </section>
+
+    <!-- 03 PROBE -->
+    <section class="study">
+      <div class="head">
+        <div class="num">03</div>
+        <div><div class="name">深空探测器</div><div class="en">Deep-space probe</div></div>
+        <div class="tag">叙事 / 焦点</div>
+      </div>
+      <div class="scene probe">
+        <svg viewBox="0 0 928 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <g stroke="#72a7ff">
+            <path d="M92 430 C260 300 470 214 704 148" opacity=".14" stroke-dasharray="3 9"/>
+            <path d="M92 430 C300 320 500 244 704 190" opacity=".04"/>
+            <path d="M704 184 L280 478 M704 232 L384 496" opacity=".085" stroke-dasharray="4 10"/>
+            <g opacity=".07">
+              <path d="M642 246 A92 92 0 0 0 596 330"/>
+              <path d="M606 218 A142 142 0 0 0 548 336"/>
+              <path d="M570 190 A194 194 0 0 0 500 342"/>
+            </g>
+            <g transform="translate(700 150) rotate(18)" opacity=".8">
+              <rect x="-16" y="-12" width="32" height="24" rx="2" stroke-width="1.2"/>
+              <path d="M-16 -4 h32 M-10 -12 v24" opacity=".55"/>
+              <rect x="-70" y="-9" width="46" height="18" stroke-width="1"/>
+              <rect x="24" y="-9" width="46" height="18" stroke-width="1"/>
+              <path d="M-70 -3 h46 M-70 3 h46 M24 -3 h46 M24 3 h46" opacity=".45"/>
+              <path d="M-24 0 h8 M16 0 h8" opacity=".8"/>
+              <path d="M0 -12 v-18 M-10 -30 h20" stroke-width="1"/>
+              <rect x="-12" y="-38" width="24" height="8" stroke-width="1" opacity=".8"/>
+              <path d="M-6 12 v14 M6 12 v14 M-10 26 h20" opacity=".65"/>
+              <circle cx="0" cy="0" r="3" fill="#72a7ff" stroke="none" opacity=".65"/>
+            </g>
+            <g opacity=".45">
+              <path d="M748 118 l0 -12 M748 118 l0 12 M748 118 l-12 0 M748 118 l12 0" stroke-width=".8"/>
+              <circle cx="748" cy="118" r="1.8" fill="#72a7ff" stroke="none"/>
+            </g>
+            <g fill="#72a7ff" stroke="none" opacity=".25">
+              <circle cx="132" cy="140" r="1.2"/><circle cx="204" cy="96" r="1"/><circle cx="836" cy="86" r="1.3"/>
+              <circle cx="864" cy="382" r="1"/><circle cx="532" cy="102" r=".9"/><circle cx="92" cy="288" r="1.1"/>
+            </g>
+          </g>
+        </svg>
+        <div class="ui">
+          <aside class="side"><div class="brand"></div><div class="nav on"></div><div class="nav"></div><div class="nav s"></div><div class="nav"></div><div class="foot"></div></aside>
+          <div class="main"><div class="top"><div class="crumb"></div><div class="search"></div></div>
+            <div class="content"><div class="h1"></div><div class="h2"></div><div class="row"><div class="card tall wide"></div><div class="card tall"></div></div><div class="row"><div class="card"></div><div class="card"></div><div class="card accent"></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="meta"><div class="chip"><b>元素</b> 探测器线稿 · 太阳翼 · 下行链路</div><div class="chip"><b>运动</b> 姿态微漂 / 脉冲下传</div></div>
+    </section>
+
+    <!-- 04 LENS -->
+    <section class="study">
+      <div class="head">
+        <div class="num">04</div>
+        <div><div class="name">引力透镜</div><div class="en">Gravitational lens</div></div>
+        <div class="tag">抽象 / 极简</div>
+      </div>
+      <div class="scene lens">
+        <svg viewBox="0 0 928 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <g stroke="#72a7ff">
+            <g opacity=".11" stroke-width=".8">
+              <path d="M74 0 C74 170 86 250 120 500"/>
+              <path d="M214 0 C214 176 230 258 270 500"/>
+              <path d="M354 0 C354 184 376 270 424 500"/>
+              <path d="M494 0 C494 190 522 286 578 500"/>
+              <path d="M634 0 C634 194 668 300 732 500"/>
+              <path d="M0 92 C210 92 360 104 928 128"/>
+              <path d="M0 208 C230 208 420 226 928 258"/>
+              <path d="M0 324 C250 324 470 350 928 390"/>
+              <path d="M0 440 C280 440 520 474 928 500"/>
+            </g>
+            <g opacity=".12">
+              <circle cx="920" cy="214" r="118"/>
+              <circle cx="920" cy="214" r="186" opacity=".8"/>
+              <circle cx="920" cy="214" r="260" opacity=".6"/>
+              <circle cx="920" cy="214" r="344" opacity=".42"/>
+              <circle cx="920" cy="214" r="438" opacity=".28"/>
+            </g>
+            <g opacity=".19">
+              <circle cx="920" cy="214" r="302" stroke-width="1.4" stroke-dasharray="84 18 152 26 46 22"/>
+              <circle cx="920" cy="214" r="394" stroke-width="1.2" stroke-dasharray="40 18 220 30 112 26"/>
+            </g>
+            <g opacity=".2" stroke-width="1.6">
+              <path d="M650 96 A302 302 0 0 0 630 344"/>
+              <path d="M544 162 A394 394 0 0 0 538 372" opacity=".55"/>
+            </g>
+            <g fill="#72a7ff" stroke="none" opacity=".24">
+              <circle cx="860" cy="88" r="1.3"/><circle cx="834" cy="338" r="1.1"/><circle cx="726" cy="248" r="1"/>
+              <circle cx="600" cy="94" r=".9"/><circle cx="520" cy="410" r="1.1"/><circle cx="904" cy="424" r=".8"/>
+            </g>
+          </g>
+        </svg>
+        <div class="ui">
+          <aside class="side"><div class="brand"></div><div class="nav on"></div><div class="nav"></div><div class="nav s"></div><div class="nav"></div><div class="foot"></div></aside>
+          <div class="main"><div class="top"><div class="crumb"></div><div class="search"></div></div>
+            <div class="content"><div class="h1"></div><div class="h2"></div><div class="row"><div class="card tall wide"></div><div class="card tall"></div></div><div class="row"><div class="card"></div><div class="card"></div><div class="card accent"></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="meta"><div class="chip"><b>元素</b> 爱因斯坦环 · 扭曲网格 · 透镜星弧</div><div class="chip"><b>运动</b> 环面缓慢进动 / 指针弯折</div></div>
+    </section>
+
+  </div>
+  <div class="footline"><span>PREVIEW BOOSTED 2× FOR LEGIBILITY · LANGUAGE: 1px wireframe · alpha 0.04—0.15 · accent #72A7FF · dark canvas #0B0E14</span><span>NOT FOR IMPLEMENTATION YET</span></div>
+</div>
+</body>
+</html>

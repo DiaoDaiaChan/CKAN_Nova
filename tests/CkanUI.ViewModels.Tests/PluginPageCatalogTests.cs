@@ -106,7 +106,7 @@ public sealed class PluginPageCatalogTests
         plugins.ActiveItems.Add(Plugin("Hello", Page("hello-page", "Hello 页")));
         var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key, plugins: plugins);
 
-        Assert.That(shell.NavItems, Has.Count.EqualTo(24));
+        Assert.That(shell.NavItems, Has.Count.EqualTo(25));
         Assert.That(shell.NavItems[14].Key, Is.EqualTo("plugins"));
         Assert.That(shell.NavItems[15].Key, Is.EqualTo("hello-page"));
         Assert.That(shell.NavItems[15].Title, Is.EqualTo("Hello 页"));
@@ -118,6 +118,7 @@ public sealed class PluginPageCatalogTests
         Assert.That(shell.NavItems[21].Key, Is.EqualTo("flags"));
         Assert.That(shell.NavItems[22].Key, Is.EqualTo("loadingimages"));
         Assert.That(shell.NavItems[23].Key, Is.EqualTo("home"));
+        Assert.That(shell.NavItems[24].Key, Is.EqualTo("kspconfig"));
     }
 
     [Test]
@@ -131,7 +132,7 @@ public sealed class PluginPageCatalogTests
         plugins.ActiveItems.Clear();
         plugins.RaiseChanged();
 
-        Assert.That(shell.NavItems, Has.Count.EqualTo(23));
+        Assert.That(shell.NavItems, Has.Count.EqualTo(24));
         Assert.That(shell.NavItems.Any(item => item.Key == "hello-page"), Is.False);
         Assert.That(shell.NavItems.Single(item => item.Key == "settings"), Is.SameAs(settingsItem));
     }
@@ -171,6 +172,6 @@ public sealed class PluginPageCatalogTests
     {
         var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key);
 
-        Assert.That(shell.NavItems, Has.Count.EqualTo(23));
+        Assert.That(shell.NavItems, Has.Count.EqualTo(24));
     }
 }

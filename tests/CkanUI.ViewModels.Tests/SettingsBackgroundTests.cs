@@ -7,7 +7,7 @@ using NUnit.Framework;
 namespace CkanUI.ViewModels.Tests;
 
 /// <summary>
-/// 背景外观（20 篇 P-06 / THM-05）：设置页那十一行怎么读、怎么写、什么时候被拦。
+/// 背景外观（20 篇 P-06 / THM-05）：设置页那十二行怎么读、怎么写、什么时候被拦。
 /// </summary>
 /// <remarks>
 /// 只锁 VM 层的写入规则与作用范围解析；浏览器（<c>BackgroundHost</c>）与画笔工厂在
@@ -22,6 +22,7 @@ public sealed class SettingsBackgroundTests
         var page = NewPage(out _, out _);
         await page.LoadAsync();
 
+        Assert.That(Choice(page, SettingsKeyNames.BackgroundScene)?.Value, Is.EqualTo(BackgroundSceneKinds.Starfield));
         Assert.That(Choice(page, SettingsKeyNames.BackgroundKind)?.Value, Is.EqualTo("none"));
         Assert.That(Item(page, SettingsKeyNames.BackgroundColor).EditValue, Is.EqualTo("#1B1F27"));
         Assert.That(Item(page, SettingsKeyNames.BackgroundGradientStart).EditValue, Is.EqualTo("#1B1F27"));
@@ -32,6 +33,36 @@ public sealed class SettingsBackgroundTests
         Assert.That(Item(page, SettingsKeyNames.BackgroundOpacity).EditValue, Is.EqualTo("100"));
         Assert.That(Choice(page, SettingsKeyNames.BackgroundFill)?.Value, Is.EqualTo("fill"));
         Assert.That(Choice(page, SettingsKeyNames.BackgroundScope)?.Value, Is.EqualTo("global"));
+    }
+
+    [Test]
+    public async Task Page_SaveScene_WritesOnlyTheSceneField()
+    {
+        var page = NewPage(out var store, out _);
+        await page.LoadAsync();
+        var scene = Item(page, SettingsKeyNames.BackgroundScene);
+        scene.SelectedChoice = scene.Choices!.Single(choice => choice.Value == BackgroundSceneKinds.Lunar);
+
+        await page.SaveItemAsync(scene);
+
+        Assert.That(store.Saved, Has.Count.EqualTo(1));
+        Assert.That(store.Saved[0].BackgroundScene, Is.EqualTo(BackgroundSceneKinds.Lunar));
+        Assert.That(store.Saved[0].Background, Is.Null, "场景与自定义背景是两份独立设置");
+        Assert.That(page.StatusText, Is.EqualTo("装饰场景：已保存"));
+    }
+
+    [Test]
+    public async Task Page_LoadUnknownScene_FallsBackToStarfield()
+    {
+        var store = new FakeUiSettingsStore().With(new UiSettings
+        {
+            BackgroundScene = "not-a-scene",
+        });
+        var page = new SettingsPageViewModel(new FakeSettingsService(), store);
+
+        await page.LoadAsync();
+
+        Assert.That(Choice(page, SettingsKeyNames.BackgroundScene)?.Value, Is.EqualTo(BackgroundSceneKinds.Starfield));
     }
 
     [Test]
@@ -242,6 +273,7 @@ public sealed class SettingsBackgroundTests
         page.HighContrastProbe = () => true;
         await page.LoadAsync();
 
+        Assert.That(Item(page, SettingsKeyNames.BackgroundScene).IsEnabled, Is.False);
         Assert.That(Item(page, SettingsKeyNames.BackgroundKind).IsEnabled, Is.False);
         Assert.That(Item(page, SettingsKeyNames.BackgroundOpacity).IsEnabled, Is.False);
         Assert.That(Item(page, SettingsKeyNames.Density).IsEnabled, Is.True, "非外观行照旧可改");

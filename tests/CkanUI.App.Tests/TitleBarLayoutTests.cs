@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
@@ -127,16 +129,16 @@ public sealed class TitleBarLayoutTests
 
             var host = window.FindControl<LayoutTransformControl>("PageZoomHost");
             Assert.That(host, Is.Not.Null, "页面承载区必须被 LayoutTransformControl 包住，缩放才会重排而不是位图拉伸");
-            Assert.That(host!.LayoutTransform, Is.InstanceOf<ScaleTransform>());
+            Assert.That(
+                host!.LayoutTransform,
+                Is.Null,
+                "100% 时不能挂恒等变换：那会把整页变成合成层，快速滚动时合成层来不及失效会留下残影行");
 
             var hostWidth = host.Bounds.Width;
             var pageHost = window.FindControl<Control>("PageHost");
             Assert.That(pageHost, Is.Not.Null);
             var pageWidthAt100 = pageHost!.Bounds.Width;
             Assert.That(pageWidthAt100, Is.EqualTo(hostWidth).Within(1d), "100% 时页面宿主应当铺满承载区");
-
-            var scale = (ScaleTransform)host.LayoutTransform!;
-            Assert.That(scale.ScaleX, Is.EqualTo(1d).Within(1e-6), "接管外壳时直接落位，不该看见整页从别的比例弹过来");
 
             vm.PageZoom = 1.25d;
 
@@ -151,6 +153,7 @@ public sealed class TitleBarLayoutTests
 
             HeadlessAppHost.PumpJobs();
 
+            var scale = (ScaleTransform)host.LayoutTransform!;
             Assert.That(scale.ScaleX, Is.EqualTo(1.25d).Within(0.002d), "补间结束必须精确落在目标比例上（静止阈值不能停在半路）");
             Assert.That(scale.ScaleY, Is.EqualTo(1.25d).Within(0.002d));
 
@@ -160,6 +163,112 @@ public sealed class TitleBarLayoutTests
                 pageHost.Bounds.Width,
                 Is.EqualTo(pageWidthAt100 / 1.25d).Within(2d),
                 "页面内容要按「视口 / scale」重新测量（重排），不是把 100% 的位图拉大");
+
+            // 回到 100%：变换必须被摘掉，页面回到无合成层的直绘状态。
+            vm.PageZoom = 1d;
+            for (var i = 0; i < 50; i++)
+            {
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                Dispatcher.UIThread.RunJobs();
+                Thread.Sleep(10);
+            }
+
+            Assert.That(host.LayoutTransform, Is.Null, "回到 100% 后必须摘掉变换，否则残影源还在");
+            Assert.That(pageHost.Bounds.Width, Is.EqualTo(pageWidthAt100).Within(2d), "100% 时页面宿主应当重新铺满承载区");
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    [Test]
+    public void PageZoom_MatrixLandsOnTheSurfacePanel_SoTextAndIconsActuallyGrow()
+    {
+        var vm = new ShellViewModel();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        try
+        {
+            HeadlessAppHost.PumpJobs();
+
+            var surface = window.FindControl<Panel>("PageZoomSurface");
+            Assert.That(
+                surface,
+                Is.Not.Null,
+                "缩放矩阵得落在专属面板上：直接压在 PageHost 上会被页面动效（TransformSpring）顶成 identity");
+            var pageHost = window.FindControl<Control>("PageHost")!;
+            var host = window.FindControl<LayoutTransformControl>("PageZoomHost")!;
+
+            vm.PageZoom = 1.5d;
+            for (var i = 0; i < 50; i++)
+            {
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                Dispatcher.UIThread.RunJobs();
+                Thread.Sleep(10);
+            }
+
+            HeadlessAppHost.PumpJobs();
+
+            // 唯一能区分「真缩放」与「版面变窄、字还是原样」的判据：放大矩阵在谁身上，谁才真的被画大。
+            var matrix = (surface!.RenderTransform as MatrixTransform)?.Matrix ?? Matrix.Identity;
+            Assert.That(
+                matrix.M11,
+                Is.EqualTo(1.5d).Within(0.002d),
+                "缩放矩阵没落到缩放面：页面会变成「卡片变窄、文字原尺寸」——正是用户报的那条 bug");
+            Assert.That(matrix.M22, Is.EqualTo(1.5d).Within(0.002d));
+
+            // 缩放面先按「视口 / 1.5」重新测量（1227 → 818），页面宿主铺满它，再由矩阵放大 1.5 倍画回去：
+            // 「重排 + 矩阵」叠起来才是视觉上的 1.5 倍，这一步保证不是把 100% 的位图拉大。
+            Assert.That(pageHost.Bounds.Width, Is.EqualTo(surface.Bounds.Width).Within(2d));
+            Assert.That(surface.Bounds.Width, Is.EqualTo(host.Bounds.Width / 1.5d).Within(2d));
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    [Test]
+    public void PageZoom_DraggingUpFromIdentity_KeepsScalingInsteadOfSilentlyDroppingTheTransform()
+    {
+        var vm = new ShellViewModel();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        try
+        {
+            HeadlessAppHost.PumpJobs();
+            var host = window.FindControl<LayoutTransformControl>("PageZoomHost")!;
+            Assert.That(host.LayoutTransform, Is.Null);
+
+            // 滑块一档 5%：逐档往上拖，每档之间把帧推到位——用户真实轨迹。
+            for (var step = 1; step <= 10; step++)
+            {
+                vm.PageZoom = 1d + (step * ShellViewModel.PageZoomStep);
+                for (var i = 0; i < 6; i++)
+                {
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    Dispatcher.UIThread.RunJobs();
+                    Thread.Sleep(10);
+                }
+
+                Assert.That(
+                    host.LayoutTransform,
+                    Is.Not.Null,
+                    $"拖到 {vm.PageZoomPercentText} 时变换被提前摘掉了：滑块读数会涨、页面却停在 100%");
+            }
+
+            for (var i = 0; i < 50; i++)
+            {
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                Dispatcher.UIThread.RunJobs();
+                Thread.Sleep(10);
+            }
+
+            var scale = (ScaleTransform)host.LayoutTransform!;
+            Assert.That(scale.ScaleX, Is.EqualTo(1.5d).Within(0.002d), "拖到 150% 必须真的放大到 1.5 倍");
         }
         finally
         {
@@ -242,6 +351,148 @@ public sealed class TitleBarLayoutTests
             DynamicRefreshRateController.Instance.NotifyUserActivity();
             window.Close();
             HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    /// <summary>
+    /// 状态栏缩放控件必须共用一条水平中线：−/滑块/+/读数任何一方掉队，看起来就像控件碎了一地。
+    /// 同时 thumb 必须完整落在 28px 状态栏内——FluentAvalonia 的 Slider 模板默认 32px 高（上下各留 14px 刻度行），
+    /// 直接压进状态栏会把轨道挤到底、thumb 被窗口底边裁掉，所以这里把它当回归判据钉死。
+    /// </summary>
+    [Test]
+    public void PageZoomCluster_SharesOneCentreLine_AndKeepsTheThumbInsideTheStatusBar()
+    {
+        var window = new MainWindow { DataContext = new ShellViewModel() };
+        window.Show();
+        try
+        {
+            HeadlessAppHost.PumpJobs();
+
+            var bar = window.FindControl<Border>("StatusBarSurface");
+            var minus = window.FindControl<Button>("PageZoomOutButton");
+            var slider = window.FindControl<Slider>("PageZoomSlider");
+            var plus = window.FindControl<Button>("PageZoomInButton");
+            var value = window.FindControl<TextBlock>("PageZoomValueText");
+            Assert.That(bar, Is.Not.Null, "状态栏容器必须可定位");
+            Assert.That(minus, Is.Not.Null, "缩小按钮必须存在");
+            Assert.That(slider, Is.Not.Null, "缩放滑块必须存在");
+            Assert.That(plus, Is.Not.Null, "放大按钮必须存在");
+            Assert.That(value, Is.Not.Null, "缩放读数必须存在");
+
+            static double CentreY(Visual visual, Visual root) =>
+                visual.TranslatePoint(new Point(0, visual.Bounds.Height / 2), root)!.Value.Y;
+            static double LeftX(Visual visual, Visual root) =>
+                visual.TranslatePoint(new Point(0, 0), root)!.Value.X;
+            static double RightX(Visual visual, Visual root) =>
+                visual.TranslatePoint(new Point(visual.Bounds.Width, 0), root)!.Value.X;
+
+            var sliderCentre = CentreY(slider!, window);
+            foreach (var (name, control) in new (string, Control)[]
+                     {
+                         ("缩小按钮", minus!), ("放大按钮", plus!), ("缩放读数", value!)
+                     })
+            {
+                Assert.That(
+                    CentreY(control, window),
+                    Is.EqualTo(sliderCentre).Within(1d),
+                    $"{name}必须与滑轨同一条水平中线，否则这条控件看着就是歪的");
+            }
+
+            // thumb 的几何体被模板包在 Track 里，只能从视觉树取；它完整落在状态栏内才算没被裁。
+            var thumb = slider!.GetVisualDescendants().OfType<Thumb>().Single();
+            Assert.That(thumb.Bounds.Height, Is.LessThanOrEqualTo(14d), "thumb 必须收小，否则 28px 状态栏装不下");
+
+            var barTop = bar!.TranslatePoint(new Point(0, 0), window)!.Value.Y;
+            var barBottom = barTop + bar!.Bounds.Height;
+            var thumbTop = thumb.TranslatePoint(new Point(0, 0), window)!.Value.Y;
+            Assert.That(thumbTop, Is.GreaterThanOrEqualTo(barTop - 0.5d), "thumb 顶部不能被状态栏裁掉");
+            Assert.That(
+                thumbTop + thumb.Bounds.Height,
+                Is.LessThanOrEqualTo(barBottom + 0.5d),
+                "thumb 底部不能被窗口底边裁掉——旧模板 18px thumb 就是这么缺一角的");
+            Assert.That(
+                CentreY(thumb, window),
+                Is.EqualTo(barTop + bar!.Bounds.Height / 2d).Within(1.5d),
+                "thumb 必须落在状态栏竖直中线上");
+
+            // 左右留白对称：− 到滑轨的间距要和滑轨到 + 的一致，否则控件组看着左重右轻。
+            var gapBeforeSlider = LeftX(slider!, window) - RightX(minus!, window);
+            var gapAfterSlider = LeftX(plus!, window) - RightX(slider!, window);
+            Assert.That(gapBeforeSlider, Is.EqualTo(gapAfterSlider).Within(0.5d), "滑轨两侧间距必须对称");
+
+            Assert.That(slider!.Bounds.Height, Is.EqualTo(12d).Within(0.5d), "状态栏滑块要保持 12px 紧凑高度");
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    /// <summary>
+    /// 拖动滑块必须整段拖动只落盘一次：一格一次 Save 会把 UI 线程按在 fsync 上（每次 3–8ms），
+    /// 写失败时还会一格一条「保存 UI 设置失败」把日志抽屉刷满——用户看到的就是「滑块调节有 bug」。
+    /// </summary>
+    [Test]
+    public void PageZoomSlider_DraggingWritesSettingsOnceOnRelease()
+    {
+        var store = new RecordingSettingsStore();
+        var shell = new ShellViewModel(
+            new CkanUI.ViewModels.Navigation.NavigationService(_ => null),
+            settingsStore: store);
+        var window = new MainWindow { DataContext = shell, Width = 1280, Height = 800 };
+        window.Show();
+        try
+        {
+            HeadlessAppHost.PumpJobs();
+
+            var slider = window.FindControl<Slider>("PageZoomSlider")!;
+            var origin = slider.TranslatePoint(new Point(0, 0), window)!.Value;
+            var y = origin.Y + (slider.Bounds.Height / 2d);
+            var x = origin.X + (slider.Bounds.Width / 2d);
+
+            window.MouseDown(new Point(x, y), MouseButton.Left);
+            for (var step = 1; step <= 6; step++)
+            {
+                window.MouseMove(new Point(x + (step * 4), y));
+                Dispatcher.UIThread.RunJobs();
+            }
+
+            Assert.That(store.Saved, Is.Empty, "拖动过程中不该写盘");
+            window.MouseUp(new Point(x + 24, y), MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.That(shell.PageZoom, Is.GreaterThan(1d), "拖动应当改变缩放比例");
+            Assert.That(store.Saved, Has.Count.EqualTo(1), "整段拖动只落盘一次");
+            Assert.That(store.Saved[0].PageZoom, Is.EqualTo(shell.PageZoom).Within(1e-9));
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    private sealed class RecordingSettingsStore : CkanUI.Services.Abstractions.IUiSettingsStore
+    {
+        public List<CkanUI.Services.Abstractions.UiSettings> Saved { get; } = [];
+
+        public CkanUI.Services.Abstractions.UiSettings Current { get; set; } = new();
+
+        public CkanUI.Services.Abstractions.UiSettings Load() => Current;
+
+        public event Action<CkanUI.Services.Abstractions.UiSettings>? Changed
+        {
+            add { }
+            remove { }
+        }
+
+        public CkanUI.Services.Abstractions.OperationResult<bool> Save(
+            CkanUI.Services.Abstractions.UiSettings settings)
+        {
+            Current = settings;
+            Saved.Add(settings);
+            return CkanUI.Services.Abstractions.OperationResult<bool>.Ok(true);
         }
     }
 }

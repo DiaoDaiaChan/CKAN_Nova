@@ -18,6 +18,11 @@ internal sealed class InstallerWizard
     private const int ID_CHK_APPPATH = 2004;
     private const int ID_CHK_LAUNCH = 2005;
 
+    private const int WindowWidth = 560;
+    private const int WindowHeight = 440;
+    private const int HeaderHeight = 72;
+    private const int FooterTop = 372;
+
     private const int ID_PROGRESS = 3001;
     private const int ID_STATIC_STATUS = 3002;
     private const int ID_STATIC_DETAIL = 3003;
@@ -29,10 +34,6 @@ internal sealed class InstallerWizard
     private readonly InstallerOptions _options;
     private IntPtr _hWnd;
     private IntPtr _hFontTitle;
-    private IntPtr _hFontNormal;
-    private IntPtr _hFontBold;
-    private IntPtr _hBrushHeader;
-    private IntPtr _hBrushBody;
 
     private int _currentStep; // 0: Welcome, 1: Directory, 2: Options, 3: Installing, 4: Finished
 
@@ -70,6 +71,8 @@ internal sealed class InstallerWizard
     private string _installedAppExe = string.Empty;
     private int _exitCode;
     private string? _installError;
+    private InstallerOptions? _installOptions;
+    private IntPtr _hStaticFinished;
 
     public InstallerWizard(InstallerOptions options)
     {
@@ -84,6 +87,7 @@ internal sealed class InstallerWizard
             dwICC = NativeMethods.ICC_PROGRESS_CLASS | NativeMethods.ICC_STANDARD_CLASSES
         };
         NativeMethods.InitCommonControlsEx(ref icc);
+        InstallerTheme.Init();
 
         var wizard = new InstallerWizard(options);
         _current = wizard;
@@ -105,7 +109,8 @@ internal sealed class InstallerWizard
             hInstance = hInstance,
             hIcon = IntPtr.Zero,
             hCursor = NativeMethods.LoadCursorW(IntPtr.Zero, (IntPtr)NativeMethods.IDC_ARROW),
-            hbrBackground = (IntPtr)(NativeMethods.COLOR_BTNFACE + 1),
+            // 背景由 WM_ERASEBKGND 用主题画布色填充，不走系统刷子。
+            hbrBackground = IntPtr.Zero,
             lpszMenuName = null,
             lpszClassName = className,
             hIconSm = IntPtr.Zero
@@ -113,17 +118,17 @@ internal sealed class InstallerWizard
 
         NativeMethods.RegisterClassEx(ref wndClass);
 
-        _hFontTitle = NativeMethods.CreateFont(-16, 0, 0, 0, 700, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI");
-        _hFontBold = NativeMethods.CreateFont(-12, 0, 0, 0, 700, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI");
-        _hFontNormal = NativeMethods.CreateFont(-12, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI");
-
-        _hBrushHeader = NativeMethods.CreateSolidBrush(0x00FFFFFF); // White
-        _hBrushBody = NativeMethods.GetStockObject(NativeMethods.COLOR_BTNFACE);
+        _hFontTitle = InstallerTheme.FontTitle;
 
         var screenW = NativeMethods.GetSystemMetrics(NativeMethods.SM_CXSCREEN);
         var screenH = NativeMethods.GetSystemMetrics(NativeMethods.SM_CYSCREEN);
-        var winW = 550;
-        var winH = 430;
+        // 窗口尺寸按“客户区”算：直接拿 440 当窗口高会被标题栏吃掉 30 多像素，页脚按钮就被裁掉。
+        var style = NativeMethods.WS_OVERLAPPED | NativeMethods.WS_CAPTION | NativeMethods.WS_SYSMENU
+            | NativeMethods.WS_MINIMIZEBOX | NativeMethods.WS_CLIPCHILDREN;
+        var frame = new NativeMethods.RECT { Left = 0, Top = 0, Right = WindowWidth, Bottom = WindowHeight };
+        NativeMethods.AdjustWindowRectEx(ref frame, style, false, 0);
+        var winW = frame.Right - frame.Left;
+        var winH = frame.Bottom - frame.Top;
         var posX = (screenW - winW) / 2;
         var posY = (screenH - winH) / 2;
 
@@ -135,7 +140,7 @@ internal sealed class InstallerWizard
             0,
             className,
             "CKAN UI 安装程序",
-            NativeMethods.WS_OVERLAPPED | NativeMethods.WS_CAPTION | NativeMethods.WS_SYSMENU | NativeMethods.WS_MINIMIZEBOX,
+            style,
             posX,
             posY,
             winW,
@@ -144,6 +149,8 @@ internal sealed class InstallerWizard
             IntPtr.Zero,
             hInstance,
             IntPtr.Zero);
+
+        InstallerTheme.ApplyChrome(_hWnd);
 
         CreateWizardControls();
         UpdateStepView();
@@ -163,102 +170,117 @@ internal sealed class InstallerWizard
 
     private void Cleanup()
     {
-        if (_hFontTitle != IntPtr.Zero) NativeMethods.DeleteObject(_hFontTitle);
-        if (_hFontBold != IntPtr.Zero) NativeMethods.DeleteObject(_hFontBold);
-        if (_hFontNormal != IntPtr.Zero) NativeMethods.DeleteObject(_hFontNormal);
-        if (_hBrushHeader != IntPtr.Zero) NativeMethods.DeleteObject(_hBrushHeader);
+        // 字体/画刷归 InstallerTheme 所有，这里统一释放，避免重复 DeleteObject。
+        InstallerTheme.Dispose();
     }
 
     private void CreateWizardControls()
     {
-        var hInst = NativeMethods.GetModuleHandle(null);
+        // 页脚按钮：主操作(下一步/安装)=强调色实心，其余=卡片底 + 发丝边。全部自绘，
+        // 否则 Win32 原生按钮会是浅色 Aero 风，跟主程序的 Fluent 深色对不上。
+        var btnStyle = NativeMethods.WS_CHILD | NativeMethods.WS_VISIBLE | NativeMethods.BS_OWNERDRAW | NativeMethods.WS_TABSTOP;
 
-        // Bottom separator
-        CreateWindowControl("STATIC", "", NativeMethods.WS_CHILD | NativeMethods.WS_VISIBLE | NativeMethods.SS_ETCHEDHORZ, 0, 335, 550, 2, 0);
+        _hBtnCancel = CreateWindowControl("BUTTON", "取消", btnStyle, 24, 392, 84, 32, ID_BTN_CANCEL);
+        _hBtnBack = CreateWindowControl("BUTTON", "上一步", btnStyle, 300, 392, 92, 32, ID_BTN_BACK);
+        _hBtnNext = CreateWindowControl("BUTTON", "下一步", btnStyle, 404, 392, 132, 32, ID_BTN_NEXT);
 
-        // Bottom Buttons
-        _hBtnBack = CreateWindowControl("BUTTON", "< 上一步", NativeMethods.WS_CHILD | NativeMethods.WS_VISIBLE | NativeMethods.BS_PUSHBUTTON | NativeMethods.WS_TABSTOP, 275, 348, 80, 28, ID_BTN_BACK);
-        _hBtnNext = CreateWindowControl("BUTTON", "下一步 >", NativeMethods.WS_CHILD | NativeMethods.WS_VISIBLE | NativeMethods.BS_DEFPUSHBUTTON | NativeMethods.WS_TABSTOP, 360, 348, 80, 28, ID_BTN_NEXT);
-        _hBtnCancel = CreateWindowControl("BUTTON", "取消", NativeMethods.WS_CHILD | NativeMethods.WS_VISIBLE | NativeMethods.BS_PUSHBUTTON | NativeMethods.WS_TABSTOP, 445, 348, 80, 28, ID_BTN_CANCEL);
+        InstallerTheme.StyleButton(_hBtnCancel, primary: false);
+        InstallerTheme.StyleButton(_hBtnBack, primary: false);
+        InstallerTheme.StyleButton(_hBtnNext, primary: true);
 
-        SetFont(_hBtnBack, _hFontNormal);
-        SetFont(_hBtnNext, _hFontNormal);
-        SetFont(_hBtnCancel, _hFontNormal);
-
-        // --- Step 0: Welcome Controls ---
+        // --- 第 0 步：欢迎 ---
         var w1 = CreateWindowControl("STATIC",
-            "欢迎使用 CKAN UI 安装向导！\r\n\r\n" +
             "CKAN UI 是专为 Kerbal Space Program (KSP) 打造的下一代现代化模组管理器。\r\n\r\n" +
-            "  • 全新 Fluent UI 现代设计，支持深色/浅色主题与平滑动效\r\n" +
-            "  • 内置完整 CKAN 模组检索、自动依赖解析与版本兼容检查\r\n" +
-            "  • 原生双语言支持（简体中文 / English）与离线归档能力\r\n" +
-            "  • 单文件绿色免外部运行时依赖，快速无感冷启动\r\n\r\n" +
-            "推荐在继续前关闭正在运行的 CKAN 或 KSP 相关程序。\r\n\r\n" +
-            "点击「下一步」继续，或点击「取消」退出安装向导。",
-            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 30, 80, 480, 240, 0);
-        SetFont(w1, _hFontNormal);
+            "  • Fluent 现代界面，深色/浅色主题与平滑动效\r\n" +
+            "  • 内置 CKAN 模组检索、依赖解析与版本兼容检查\r\n" +
+            "  • 简体中文 / English 双语与离线归档\r\n" +
+            "  • 单文件绿色、无外部运行时依赖\r\n\r\n" +
+            "继续前建议关闭正在运行的 CKAN 或 KSP。\r\n\r\n" +
+            "点击「下一步」继续，或点击「取消」退出向导。",
+            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 24, 96, 512, 258, 0);
+        SetFont(w1, InstallerTheme.FontBody);
         _step0Controls.Add(w1);
 
-        // --- Step 1: Directory Selection Controls ---
-        var d1 = CreateWindowControl("STATIC", "程序将安装到以下文件夹。若要选择其他文件夹，请点击「浏览」。", NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 30, 80, 480, 20, 0);
-        var d2 = CreateWindowControl("STATIC", "目标文件夹(&D)：", NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 30, 115, 480, 18, 0);
-        _hEditPath = CreateWindowControl("EDIT", _targetDir, NativeMethods.WS_CHILD | NativeMethods.WS_BORDER | NativeMethods.ES_AUTOHSCROLL | NativeMethods.WS_TABSTOP, 30, 135, 380, 24, ID_EDIT_PATH);
-        _hBtnBrowse = CreateWindowControl("BUTTON", "浏览(&B)...", NativeMethods.WS_CHILD | NativeMethods.BS_PUSHBUTTON | NativeMethods.WS_TABSTOP, 420, 134, 85, 26, ID_BTN_BROWSE);
+        // --- 第 1 步：目录 ---
+        var d1 = CreateWindowControl("STATIC", "程序将安装到以下文件夹。若要选择其他文件夹，请点击「浏览」。",
+            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 24, 92, 512, 20, 0);
+        var d2 = CreateWindowControl("STATIC", "目标文件夹",
+            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 24, 126, 512, 18, 0);
+        _hEditPath = CreateWindowControl("EDIT", _targetDir,
+            NativeMethods.WS_CHILD | NativeMethods.WS_BORDER | NativeMethods.ES_AUTOHSCROLL | NativeMethods.WS_TABSTOP,
+            24, 146, 412, 30, ID_EDIT_PATH);
+        _hBtnBrowse = CreateWindowControl("BUTTON", "浏览…",
+            btnStyle, 446, 146, 90, 30, ID_BTN_BROWSE);
 
-        _hStaticSpaceReq = CreateWindowControl("STATIC", "所需磁盘空间: 约 110 MB", NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 30, 190, 480, 18, ID_STATIC_SPACE_REQ);
-        _hStaticSpaceAvail = CreateWindowControl("STATIC", "可用磁盘空间: 计算中...", NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 30, 215, 480, 18, ID_STATIC_SPACE_AVAIL);
+        _hStaticSpaceReq = CreateWindowControl("STATIC", "所需磁盘空间: 约 110 MB",
+            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 24, 200, 512, 18, ID_STATIC_SPACE_REQ);
+        _hStaticSpaceAvail = CreateWindowControl("STATIC", "可用磁盘空间: 计算中...",
+            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 24, 222, 512, 18, ID_STATIC_SPACE_AVAIL);
 
-        SetFont(d1, _hFontNormal);
-        SetFont(d2, _hFontNormal);
-        SetFont(_hEditPath, _hFontNormal);
-        SetFont(_hBtnBrowse, _hFontNormal);
-        SetFont(_hStaticSpaceReq, _hFontNormal);
-        SetFont(_hStaticSpaceAvail, _hFontNormal);
+        SetFont(d1, InstallerTheme.FontBody);
+        SetFont(d2, InstallerTheme.FontBody);
+        SetFont(_hStaticSpaceReq, InstallerTheme.FontSmall);
+        SetFont(_hStaticSpaceAvail, InstallerTheme.FontSmall);
+
+        InstallerTheme.StyleEdit(_hEditPath);
+        InstallerTheme.StyleButton(_hBtnBrowse, primary: false);
 
         _step1Controls.AddRange([d1, d2, _hEditPath, _hBtnBrowse, _hStaticSpaceReq, _hStaticSpaceAvail]);
 
-        // --- Step 2: Options Controls ---
-        var o1 = CreateWindowControl("STATIC", "选择您希望在安装过程中创建的快捷方式与系统配置：", NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 30, 80, 480, 20, 0);
-        _hChkDesktop = CreateWindowControl("BUTTON", "创建桌面快捷方式 (&Desktop)", NativeMethods.WS_CHILD | NativeMethods.BS_AUTOCHECKBOX | NativeMethods.WS_TABSTOP, 30, 115, 400, 22, ID_CHK_DESKTOP);
-        _hChkStartMenu = CreateWindowControl("BUTTON", "创建「开始」菜单快捷方式 (&Start Menu)", NativeMethods.WS_CHILD | NativeMethods.BS_AUTOCHECKBOX | NativeMethods.WS_TABSTOP, 30, 145, 400, 22, ID_CHK_STARTMENU);
-        _hChkAppPath = CreateWindowControl("BUTTON", "注册至 Windows App Paths (运行/CMD中输入 CkanUI 启动)", NativeMethods.WS_CHILD | NativeMethods.BS_AUTOCHECKBOX | NativeMethods.WS_TABSTOP, 30, 175, 450, 22, ID_CHK_APPPATH);
+        // --- 第 2 步：选项 ---
+        var o1 = CreateWindowControl("STATIC", "选择安装过程中要创建的快捷方式与系统集成项：",
+            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 24, 92, 512, 20, 0);
+        _hChkDesktop = CreateWindowControl("BUTTON", "在桌面创建快捷方式",
+            NativeMethods.WS_CHILD | NativeMethods.BS_AUTOCHECKBOX | NativeMethods.WS_TABSTOP, 24, 128, 500, 24, ID_CHK_DESKTOP);
+        _hChkStartMenu = CreateWindowControl("BUTTON", "在「开始」菜单创建快捷方式",
+            NativeMethods.WS_CHILD | NativeMethods.BS_AUTOCHECKBOX | NativeMethods.WS_TABSTOP, 24, 160, 500, 24, ID_CHK_STARTMENU);
+        _hChkAppPath = CreateWindowControl("BUTTON", "注册到 App Paths（在「运行」或 CMD 中直接输入 CkanUI 启动）",
+            NativeMethods.WS_CHILD | NativeMethods.BS_AUTOCHECKBOX | NativeMethods.WS_TABSTOP, 24, 192, 500, 24, ID_CHK_APPPATH);
 
         NativeMethods.SendMessage(_hChkDesktop, NativeMethods.BM_SETCHECK, NativeMethods.BST_CHECKED, IntPtr.Zero);
         NativeMethods.SendMessage(_hChkStartMenu, NativeMethods.BM_SETCHECK, NativeMethods.BST_CHECKED, IntPtr.Zero);
         NativeMethods.SendMessage(_hChkAppPath, NativeMethods.BM_SETCHECK, NativeMethods.BST_CHECKED, IntPtr.Zero);
 
-        SetFont(o1, _hFontNormal);
-        SetFont(_hChkDesktop, _hFontNormal);
-        SetFont(_hChkStartMenu, _hFontNormal);
-        SetFont(_hChkAppPath, _hFontNormal);
+        SetFont(o1, InstallerTheme.FontBody);
+        InstallerTheme.StyleCheckBox(_hChkDesktop);
+        InstallerTheme.StyleCheckBox(_hChkStartMenu);
+        InstallerTheme.StyleCheckBox(_hChkAppPath);
 
         _step2Controls.AddRange([o1, _hChkDesktop, _hChkStartMenu, _hChkAppPath]);
 
-        // --- Step 3: Installing Progress Controls ---
-        _hStaticStatus = CreateWindowControl("STATIC", "准备开始安装...", NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 30, 100, 480, 20, ID_STATIC_STATUS);
-        _hProgress = CreateWindowControl("msctls_progress32", "", NativeMethods.WS_CHILD | NativeMethods.WS_BORDER, 30, 130, 475, 22, ID_PROGRESS);
-        _hStaticDetail = CreateWindowControl("STATIC", "", NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 30, 160, 480, 40, ID_STATIC_DETAIL);
+        // --- 第 3 步：安装中 ---
+        _hStaticStatus = CreateWindowControl("STATIC", "准备开始安装...",
+            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 24, 108, 512, 22, ID_STATIC_STATUS);
+        _hProgress = CreateWindowControl("msctls_progress32", "",
+            NativeMethods.WS_CHILD, 24, 140, 512, 10, ID_PROGRESS);
+        _hStaticDetail = CreateWindowControl("STATIC", "",
+            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 24, 166, 512, 60, ID_STATIC_DETAIL);
 
         NativeMethods.SendMessage(_hProgress, NativeMethods.PBM_SETRANGE32, IntPtr.Zero, (IntPtr)100);
+        InstallerTheme.StyleProgress(_hProgress);
 
-        SetFont(_hStaticStatus, _hFontBold);
-        SetFont(_hStaticDetail, _hFontNormal);
+        SetFont(_hStaticStatus, InstallerTheme.FontStrong);
+        SetFont(_hStaticDetail, InstallerTheme.FontSmall);
 
         _step3Controls.AddRange([_hStaticStatus, _hProgress, _hStaticDetail]);
 
-        // --- Step 4: Finished Controls ---
+        // --- 第 4 步：完成 ---
         var f1 = CreateWindowControl("STATIC",
             "向导已完成 CKAN UI 的安装与桌面环境配置。\r\n\r\n" +
             "安装位置: " + _targetDir + "\r\n\r\n" +
-            "若以后需要卸载，可在 Windows「设置 -> 应用」或控制面板中卸载，\r\n" +
-            "也可直接运行安装目录下的 CkanUISetup.exe -Uninstall。\r\n\r\n" +
-            "感谢您使用 CKAN UI！点击「完成」退出安装程序。",
-            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 30, 80, 480, 170, 0);
-        _hChkLaunch = CreateWindowControl("BUTTON", "立即启动 CKAN UI (&Launch)", NativeMethods.WS_CHILD | NativeMethods.BS_AUTOCHECKBOX | NativeMethods.WS_TABSTOP, 30, 260, 400, 22, ID_CHK_LAUNCH);
+            "开始菜单与桌面快捷方式已创建（若你在上一步取消了勾选，则跳过）。\r\n" +
+            "以后需要卸载时，可在 Windows「设置 → 应用」中卸载，\r\n" +
+            "也可运行安装目录下的 CkanUISetup.exe -Uninstall。\r\n\r\n" +
+            "感谢使用 CKAN UI！点击「完成」退出。",
+            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 24, 96, 512, 238, 0);
+        _hChkLaunch = CreateWindowControl("BUTTON", "安装完成后立即启动 CKAN UI",
+            NativeMethods.WS_CHILD | NativeMethods.BS_AUTOCHECKBOX | NativeMethods.WS_TABSTOP, 24, 340, 400, 24, ID_CHK_LAUNCH);
         NativeMethods.SendMessage(_hChkLaunch, NativeMethods.BM_SETCHECK, NativeMethods.BST_CHECKED, IntPtr.Zero);
 
-        SetFont(f1, _hFontNormal);
-        SetFont(_hChkLaunch, _hFontNormal);
+        SetFont(f1, InstallerTheme.FontBody);
+        InstallerTheme.StyleCheckBox(_hChkLaunch);
+
+        _hStaticFinished = f1;
 
         _step4Controls.AddRange([f1, _hChkLaunch]);
     }
@@ -287,14 +309,14 @@ internal sealed class InstallerWizard
             case 0:
                 NativeMethods.EnableWindow(_hBtnBack, false);
                 NativeMethods.EnableWindow(_hBtnNext, true);
-                NativeMethods.SetWindowText(_hBtnNext, "下一步 >");
+                NativeMethods.SetWindowText(_hBtnNext, "下一步");
                 NativeMethods.EnableWindow(_hBtnCancel, true);
                 break;
 
             case 1:
                 NativeMethods.EnableWindow(_hBtnBack, true);
                 NativeMethods.EnableWindow(_hBtnNext, true);
-                NativeMethods.SetWindowText(_hBtnNext, "下一步 >");
+                NativeMethods.SetWindowText(_hBtnNext, "下一步");
                 NativeMethods.EnableWindow(_hBtnCancel, true);
                 UpdateSpaceInfo();
                 break;
@@ -302,7 +324,7 @@ internal sealed class InstallerWizard
             case 2:
                 NativeMethods.EnableWindow(_hBtnBack, true);
                 NativeMethods.EnableWindow(_hBtnNext, true);
-                NativeMethods.SetWindowText(_hBtnNext, "安装 (&Install)");
+                NativeMethods.SetWindowText(_hBtnNext, "安装");
                 NativeMethods.EnableWindow(_hBtnCancel, true);
                 break;
 
@@ -316,13 +338,12 @@ internal sealed class InstallerWizard
                 NativeMethods.ShowWindow(_hBtnBack, NativeMethods.SW_HIDE);
                 NativeMethods.ShowWindow(_hBtnCancel, NativeMethods.SW_HIDE);
                 NativeMethods.EnableWindow(_hBtnNext, true);
-                NativeMethods.SetWindowText(_hBtnNext, "完成 (&Finish)");
+                NativeMethods.SetWindowText(_hBtnNext, "完成");
                 break;
         }
 
-        // Trigger header redraw
-        var rect = new NativeMethods.RECT { Left = 0, Top = 0, Right = 550, Bottom = 65 };
-        NativeMethods.FillRect(IntPtr.Zero, ref rect, IntPtr.Zero);
+        // 标题/步骤指示器跟着步骤走，必须整窗重绘（以前这里是对屏幕 DC 刷了个空刷子，等于没画）。
+        NativeMethods.InvalidateRect(_hWnd, IntPtr.Zero, true);
         NativeMethods.UpdateWindow(_hWnd);
     }
 
@@ -453,15 +474,42 @@ internal sealed class InstallerWizard
         }
     }
 
+    private static string GetFinishedText(InstallerWizard wizard)
+    {
+        // 有降级告警时不能再写"已创建"——那句话会变成假话，用户的开始菜单里可能空空如也。
+        var hasWarnings = wizard._installOptions?.Warnings is { Count: > 0 };
+        var shortcutLine = hasWarnings
+            ? "快捷方式或系统集成项存在未完成项，详见下方提示。\r\n"
+            : "开始菜单与桌面快捷方式已按你的选择创建。\r\n";
+
+        return "向导已完成 CKAN UI 的安装与桌面环境配置。\r\n\r\n" +
+               "安装位置: " + wizard._targetDir + "\r\n\r\n" +
+               shortcutLine +
+               "以后需要卸载时，可在 Windows「设置 → 应用」中卸载，\r\n" +
+               "也可运行安装目录下的 CkanUISetup.exe -Uninstall。" +
+               (hasWarnings ? "" : "\r\n\r\n感谢使用 CKAN UI！点击「完成」退出。");
+    }
+
     private void StartInstallation()
     {
         var opt = new InstallerOptions
         {
             InstallDir = _targetDir,
-            NoShortcuts = !_createDesktop && !_createStartMenu,
+            // 逐项传：以前只传 NoShortcuts，导致只勾一个目标时两个快捷方式都会被建出来。
+            NoDesktopShortcut = !_createDesktop,
+            NoStartMenuShortcut = !_createStartMenu,
+            NoAppPath = !_registerAppPath,
+            NoRegistry = _options.NoRegistry,
+            ShortcutRoot = _options.ShortcutRoot,
+            // 关掉引擎自带的"装完就启动"：向导自己会在「完成」时按勾选启动，
+            // 两边都启动会弹两次 SmartScreen，还会把进度页卡在 100% 等它返回。
+            NoLaunch = true,
             Quiet = true, // 核心逻辑执行静默操作
             SourceDir = _options.SourceDir
         };
+
+        // 降级失败的提示要能回到完成页，否则"装好了但开始菜单没图标"这种事用户永远查不出来。
+        _installOptions = opt;
 
         Task.Run(() =>
         {
@@ -520,6 +568,24 @@ internal sealed class InstallerWizard
                 {
                     inst._currentStep = 4;
                     inst.UpdateStepView();
+
+                    var warnings = inst._installOptions?.Warnings;
+                    if (warnings is { Count: > 0 } && inst._hStaticFinished != IntPtr.Zero)
+                    {
+                        var extra = new System.Text.StringBuilder();
+                        extra.Append("\r\n\r\n注意：部分系统集成项未能完成（程序本身已可用）：\r\n");
+                        foreach (var w in warnings.Take(4))
+                        {
+                            extra.Append("  · ").Append(w).Append("\r\n");
+                        }
+
+                        if (warnings.Count > 4)
+                        {
+                            extra.Append("  · 另有 ").Append(warnings.Count - 4).Append(" 项，详见安装日志\r\n");
+                        }
+
+                        NativeMethods.SetWindowText(inst._hStaticFinished, GetFinishedText(inst) + extra);
+                    }
                 }
                 else
                 {
@@ -531,19 +597,50 @@ internal sealed class InstallerWizard
                 break;
             }
 
+            case NativeMethods.WM_ERASEBKGND:
+            {
+                var rect = new NativeMethods.RECT { Left = 0, Top = 0, Right = WindowWidth, Bottom = WindowHeight };
+                NativeMethods.FillRect(wParam, ref rect, InstallerTheme.BrushCanvas);
+                return (IntPtr)1;
+            }
+
             case NativeMethods.WM_PAINT:
             {
                 var hdc = NativeMethods.BeginPaint(hWnd, out var ps);
-                inst.DrawHeader(hdc);
+                inst.Paint(hdc);
                 NativeMethods.EndPaint(hWnd, ref ps);
                 return IntPtr.Zero;
             }
 
+            case NativeMethods.WM_DRAWITEM:
+            {
+                // 自绘按钮：主操作强调色实心，其余卡片底 + 发丝边。
+                var dis = Marshal.PtrToStructure<NativeMethods.DRAWITEMSTRUCT>(lParam);
+                InstallerTheme.DrawButton(in dis, dis.hwndItem == inst._hBtnNext);
+                return (IntPtr)1;
+            }
+
             case NativeMethods.WM_CTLCOLORSTATIC:
+            case NativeMethods.WM_CTLCOLORBTN:
             {
                 var hdc = wParam;
+                var control = lParam;
                 NativeMethods.SetBkMode(hdc, NativeMethods.TRANSPARENT);
-                return inst._hBrushBody;
+                var secondary = control == inst._hStaticDetail
+                    || control == inst._hStaticSpaceAvail
+                    || control == inst._hStaticSpaceReq;
+                NativeMethods.SetTextColor(hdc, secondary ? InstallerTheme.TextSecondary : InstallerTheme.TextPrimary);
+                return InstallerTheme.BrushCanvas;
+            }
+
+            case NativeMethods.WM_CTLCOLOREDIT:
+            {
+                // 输入框是"凹陷"的：比画布更暗的底，配合 DarkMode_CFD 的边框。
+                var hdc = wParam;
+                NativeMethods.SetBkMode(hdc, NativeMethods.OPAQUE);
+                NativeMethods.SetBkColor(hdc, InstallerTheme.Recessed);
+                NativeMethods.SetTextColor(hdc, InstallerTheme.TextPrimary);
+                return InstallerTheme.BrushRecessed;
             }
 
             case NativeMethods.WM_CLOSE:
@@ -558,39 +655,94 @@ internal sealed class InstallerWizard
         return NativeMethods.DefWindowProc(hWnd, msg, wParam, lParam);
     }
 
+    private void Paint(IntPtr hdc)
+    {
+        var client = new NativeMethods.RECT { Left = 0, Top = 0, Right = WindowWidth, Bottom = WindowHeight };
+        NativeMethods.FillRect(hdc, ref client, InstallerTheme.BrushCanvas);
+        DrawHeader(hdc);
+        DrawFooter(hdc);
+    }
+
     private void DrawHeader(IntPtr hdc)
     {
-        // Draw white header rectangle
-        var headerRect = new NativeMethods.RECT { Left = 0, Top = 0, Right = 550, Bottom = 65 };
-        NativeMethods.FillRect(hdc, ref headerRect, _hBrushHeader);
+        var headerRect = new NativeMethods.RECT { Left = 0, Top = 0, Right = WindowWidth, Bottom = HeaderHeight + 1 };
+        NativeMethods.FillRect(hdc, ref headerRect, InstallerTheme.BrushSurface);
 
-        // Header separator line
-        var lineRect = new NativeMethods.RECT { Left = 0, Top = 64, Right = 550, Bottom = 65 };
-        var hbrLine = NativeMethods.CreateSolidBrush(0x00D0D0D0);
-        NativeMethods.FillRect(hdc, ref lineRect, hbrLine);
-        NativeMethods.DeleteObject(hbrLine);
+        // 顶部 3px 强调色：主程序窗口的同一处也有这条线，视觉锚点对齐。
+        var accentBrush = NativeMethods.CreateSolidBrush(InstallerTheme.Accent);
+        var accentRect = new NativeMethods.RECT { Left = 0, Top = 0, Right = WindowWidth, Bottom = 3 };
+        NativeMethods.FillRect(hdc, ref accentRect, accentBrush);
+        NativeMethods.DeleteObject(accentBrush);
 
-        NativeMethods.SetBkMode(hdc, NativeMethods.TRANSPARENT);
+        var lineBrush = NativeMethods.CreateSolidBrush(InstallerTheme.Border);
+        var lineRect = new NativeMethods.RECT { Left = 0, Top = HeaderHeight, Right = WindowWidth, Bottom = HeaderHeight + 1 };
+        NativeMethods.FillRect(hdc, ref lineRect, lineBrush);
+        NativeMethods.DeleteObject(lineBrush);
 
         var (title, subtitle) = _currentStep switch
         {
-            0 => ("欢迎使用 CKAN UI 安装向导", "此向导将指引您在本地计算机上安装 CKAN UI。"),
-            1 => ("选择目标安装目录", "请选择 CKAN UI 核心文件与资源的存放位置。"),
-            2 => ("选择附加安装选项", "自定义快捷方式创建与 Windows 环境集成设置。"),
-            3 => ("正在安装 CKAN UI", "向导正在解压程序文件并登记桌面环境配置，请稍候..."),
-            4 => ("安装完成", "CKAN UI 已成功安装至您的计算机。"),
+            0 => ("欢迎使用 CKAN UI", "此向导将指引你在本机安装 CKAN UI。"),
+            1 => ("选择安装位置", "CKAN UI 的核心文件与资源将存放在这里。"),
+            2 => ("选择附加选项", "自定义快捷方式与 Windows 集成。"),
+            3 => ("正在安装", "正在解压程序文件并配置桌面环境，请稍候。"),
+            4 => ("安装完成", "CKAN UI 已安装到你的计算机。"),
             _ => ("CKAN UI 安装程序", "")
         };
 
-        // Title
-        NativeMethods.SelectObject(hdc, _hFontTitle);
-        NativeMethods.SetTextColor(hdc, 0x00202020);
-        TextOut(hdc, 24, 12, title);
+        NativeMethods.SetBkMode(hdc, NativeMethods.TRANSPARENT);
 
-        // Subtitle
-        NativeMethods.SelectObject(hdc, _hFontNormal);
-        NativeMethods.SetTextColor(hdc, 0x00555555);
-        TextOut(hdc, 36, 36, subtitle);
+        NativeMethods.SelectObject(hdc, _hFontTitle);
+        NativeMethods.SetTextColor(hdc, InstallerTheme.TextPrimary);
+        TextOut(hdc, 24, 20, title);
+
+        NativeMethods.SelectObject(hdc, InstallerTheme.FontSubtitle);
+        NativeMethods.SetTextColor(hdc, InstallerTheme.TextSecondary);
+        TextOut(hdc, 24, 48, subtitle);
+
+        if (_currentStep <= 2)
+        {
+            DrawStepDots(hdc);
+        }
+    }
+
+    /// <summary>右上角三步指示器：当前步强调色，其余为抬升面。</summary>
+    private void DrawStepDots(IntPtr hdc)
+    {
+        const int dot = 8;
+        const int gap = 10;
+        const int steps = 3;
+
+        var x = WindowWidth - 24 - (steps * dot + (steps - 1) * gap);
+        const int y = 32;
+
+        for (var i = 0; i < steps; i++)
+        {
+            var active = i == _currentStep;
+            var brush = NativeMethods.CreateSolidBrush(active ? InstallerTheme.Accent : InstallerTheme.Elevated);
+            var pen = NativeMethods.CreatePen(NativeMethods.PS_SOLID, 1, active ? InstallerTheme.Accent : InstallerTheme.Border);
+            var oldBrush = NativeMethods.SelectObject(hdc, brush);
+            var oldPen = NativeMethods.SelectObject(hdc, pen);
+
+            NativeMethods.RoundRect(hdc, x, y, x + dot, y + dot, dot, dot);
+
+            NativeMethods.SelectObject(hdc, oldBrush);
+            NativeMethods.SelectObject(hdc, oldPen);
+            NativeMethods.DeleteObject(brush);
+            NativeMethods.DeleteObject(pen);
+
+            x += dot + gap;
+        }
+    }
+
+    private static void DrawFooter(IntPtr hdc)
+    {
+        var footerRect = new NativeMethods.RECT { Left = 0, Top = FooterTop, Right = WindowWidth, Bottom = WindowHeight };
+        NativeMethods.FillRect(hdc, ref footerRect, InstallerTheme.BrushSurface);
+
+        var lineBrush = NativeMethods.CreateSolidBrush(InstallerTheme.Border);
+        var lineRect = new NativeMethods.RECT { Left = 0, Top = FooterTop, Right = WindowWidth, Bottom = FooterTop + 1 };
+        NativeMethods.FillRect(hdc, ref lineRect, lineBrush);
+        NativeMethods.DeleteObject(lineBrush);
     }
 
     private static void TextOut(IntPtr hdc, int x, int y, string str)

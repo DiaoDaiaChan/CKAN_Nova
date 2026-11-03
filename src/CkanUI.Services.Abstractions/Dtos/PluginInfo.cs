@@ -34,6 +34,16 @@ public sealed record PluginInfo(
     /// <summary>插件声明的工具项（挂到宿主既有页面工具条上的按钮）；默认空列表。</summary>
     public IReadOnlyList<PluginToolItemDescriptor> ToolItems { get; init; } = Array.Empty<PluginToolItemDescriptor>();
 
+    /// <summary>
+    /// 是否来自宿主随包携带的内置（首方）插件目录（<c>AppContext.BaseDirectory/plugins</c>）。
+    /// </summary>
+    /// <remarks>
+    /// <para>默认 <c>false</c>：既有构造点（用户目录加载的插件、失败留痕条目）不必跟着改，
+    /// 语义上也正确——「不是内置的」才是安全默认。</para>
+    /// <para>用途：插件页可以把它标成「内置」并说明「随宿主提供」，排障时也能一眼看出这个插件是谁装的。</para>
+    /// </remarks>
+    public bool IsBundled { get; init; }
+
     /// <summary>是否已激活。</summary>
     public bool IsActive => State == PluginState.Active;
 

@@ -14,7 +14,7 @@ public sealed class DefaultCommandsTests
     {
         "mods", "content", "changes", "repos", "modpacks", "modpack-editor", "instances",
         "playtime", "saves", "unmanaged", "cache", "downloadstats", "dedup",
-        "installhistory", "plugins", "modtext", "logs", "settings", "modconfig",
+        "installhistory", "plugins", "modtext", "logs", "settings", "modconfig", "kspconfig",
     };
 
     [Test]
@@ -35,7 +35,7 @@ public sealed class DefaultCommandsTests
         var commands = DefaultCommands.CreateNavigation();
 
         Assert.That(commands[0].Title, Is.EqualTo("管理模组"), "没注入翻译时用中文兜底");
-        Assert.That(commands[^1].Title, Is.EqualTo("Mod 配置"));
+        Assert.That(commands[^1].Title, Is.EqualTo("KSP 游戏设置"));
         Assert.That(commands[0].Category, Is.EqualTo("导航"));
         Assert.That(
             commands.All(command => !command.Title.StartsWith("Ui_", StringComparison.Ordinal)),
@@ -123,10 +123,10 @@ public sealed class DefaultCommandsTests
     {
         var commands = DefaultCommands.CreateAll();
 
-        Assert.That(commands.Count, Is.EqualTo(30));
+        Assert.That(commands.Count, Is.EqualTo(31));
         Assert.That(
             commands.Select(command => command.Id).Distinct(StringComparer.Ordinal).Count(),
-            Is.EqualTo(30),
+            Is.EqualTo(31),
             "Id 必须全目录唯一，否则批量注册会被 all-or-nothing 拒绝");
     }
 

@@ -19,16 +19,38 @@ public sealed class ModTextLayerTests
 
     private static string Line(string text, string translation, string? src = null, string? ctx = Identifier, string? mod = "CKANMeta")
     {
+        return Line(text, translation, src, ctx, mod, key: null, normalized: null);
+    }
+
+    /// <summary>
+    /// 构造一行 JSONL。<paramref name="key"/> 写 v1.4 的可选稳定键 <c>k</c>（null = 不写该字段，模拟旧包）；
+    /// <paramref name="normalized"/> 覆盖 <c>n</c>，默认是本仓早期人工覆盖的 <c>ckan:&lt;identifier&gt;:&lt;field&gt;</c>，
+    /// 传文本则模拟上游管线落盘的「n = 归一化原文」形状。
+    /// </summary>
+    private static string Line(
+        string text,
+        string translation,
+        string? src,
+        string? ctx,
+        string? mod,
+        string? key,
+        string? normalized)
+    {
         var entry = new Dictionary<string, string?>
         {
             ["h"] = Fnv1a.Hash(text).ToString("x16"),
-            ["n"] = "ckan:" + Identifier + ":" + Field,
+            ["n"] = normalized ?? ("ckan:" + Identifier + ":" + Field),
             ["s"] = text,
             ["t"] = translation,
             ["ctx"] = ctx,
             ["mod"] = mod,
             ["src"] = src,
         };
+
+        if (key is not null)
+        {
+            entry["k"] = key;
+        }
 
         return JsonSerializer.Serialize(entry);
     }
@@ -146,6 +168,123 @@ public sealed class ModTextLayerTests
         var found = loose.Find(Identifier, Field, newText);
         Assert.That(found, Is.Not.Null);
         Assert.That(found!.Text, Is.EqualTo("机翻旧译文"));
+        Assert.That(found.Stale, Is.True);
+    }
+
+    [Test]
+    public void Find_reports_stale_via_stable_key_when_upstream_n_is_plain_text()
+    {
+        const string oldText = "Automated pilot (v2)";
+        const string newText = "Automated pilot (v3)";
+
+        // 上游管线落盘的形状：n 是归一化原文，键只在 k 里。
+        // 旧实现只认 n 前缀，这种条目压根进不了索引，过期判定结构性失效（设计文档关键决策 9 的缺口）。
+        string packLine = Line(oldText, "旧译文", "human", Identifier, "CKANMeta", "ckan:" + Identifier + ":" + Field, oldText);
+        var provider = ModTextProvider.FromJsonLines([], [packLine]);
+
+        var found = provider.Find(Identifier, Field, newText);
+
+        Assert.That(found, Is.Not.Null, "k 是本字段的稳定键，文本变了也该认出这是同一个字段的旧译文。");
+        Assert.That(found!.Text, Is.EqualTo("旧译文"));
+        Assert.That(found.Stale, Is.True);
+        Assert.That(found.Source, Is.EqualTo(ModTextSource.Human));
+    }
+
+    [Test]
+    public void StableKey_wins_over_normalized_text_when_both_present()
+    {
+        // 两条条目 n 完全相同（同一句原文同时出现在 abstract 与 description），只有 k 能区分它们。
+        const string shared = "Automated pilot for launch";
+        string abstractLine = Line("Automated pilot for launch (old)", "摘要旧译文", "human", Identifier, "CKANMeta",
+            "ckan:" + Identifier + ":abstract", shared);
+        string descriptionLine = Line("Automated pilot for launch (old)", "描述旧译文", "human", Identifier, "CKANMeta",
+            "ckan:" + Identifier + ":description", shared);
+
+        var provider = ModTextProvider.FromJsonLines([], [abstractLine, descriptionLine]);
+
+        // 原文都改过了，精确查找必然落空，此时只能靠 k 找到"自己字段"的旧条目。
+        var byAbstract = provider.Find(Identifier, "abstract", "Automated pilot for launch (new)");
+        var byDescription = provider.Find(Identifier, "description", "Automated pilot for launch (new)");
+
+        Assert.That(byAbstract?.Text, Is.EqualTo("摘要旧译文"), "k=...:abstract 的条目必须命中 abstract，不能串到 description。");
+        Assert.That(byAbstract!.Stale, Is.True);
+        Assert.That(byDescription?.Text, Is.EqualTo("描述旧译文"), "k=...:description 的条目必须命中 description。");
+        Assert.That(byDescription!.Stale, Is.True);
+    }
+
+    [Test]
+    public void Legacy_pack_without_stable_key_still_reports_stale()
+    {
+        // 旧包兼容回归：没有 k、n 就是 ckan:<identifier>:<field> 的人工覆盖，行为必须与之前一致。
+        const string oldText = "Telemetry readout (v1)";
+        const string newText = "Telemetry readout (v2)";
+        var provider = ModTextProvider.FromJsonLines([], [Line(oldText, "旧译文", "human")]);
+
+        var found = provider.Find(Identifier, Field, newText);
+
+        Assert.That(found, Is.Not.Null);
+        Assert.That(found!.Text, Is.EqualTo("旧译文"));
+        Assert.That(found.Stale, Is.True);
+    }
+
+    [Test]
+    public void Stable_key_does_not_leak_across_fields_when_absent()
+    {
+        // 回归：n 是普通原文、又没有 k 的条目仍然不建索引——不能因为这次改动把它们当成键。
+        const string oldText = "Plain upstream text (v1)";
+        string plainLine = Line(oldText, "旧译文", "human", Identifier, "CKANMeta", key: null, normalized: oldText);
+
+        var provider = ModTextProvider.FromJsonLines([], [plainLine]);
+
+        Assert.That(provider.Find(Identifier, Field, "Plain upstream text (v2)"), Is.Null,
+            "n 是原文且没有 k 时无法定位字段，宁可漏报过期也不能错报。");
+    }
+
+    [Test]
+    public void Duplicate_stable_key_keeps_human_over_machine()
+    {
+        // 上游原文改版：同一个 (identifier, field) 在包里留下多条历史译文。
+        // CKAN repo.json 的 module_version 各带一份 abstract，实测 72 行 / 61 个键就是这样来的，
+        // 所以「同 k 多行」是合法数据，读取侧必须自己定取舍规则。
+        const string machineOld = "Automated pilot (v1)";
+        const string humanOld = "Automated pilot (v1, hotfix)";
+        const string current = "Automated pilot (v2)";
+        string key = "ckan:" + Identifier + ":" + Field;
+
+        string machineLine = Line(machineOld, "机翻旧译文", "machine", Identifier, "CKANMeta", key, machineOld);
+        string humanLine = Line(humanOld, "人工旧译文", "human", Identifier, "CKANMeta", key, humanOld);
+
+        // 两种载入顺序都要压过机翻：人工 > 机翻与「谁后写」无关。
+        foreach (var lines in new[] { new[] { machineLine, humanLine }, new[] { humanLine, machineLine } })
+        {
+            var provider = ModTextProvider.FromJsonLines([], lines);
+
+            var found = provider.Find(Identifier, Field, current);
+
+            Assert.That(found, Is.Not.Null);
+            Assert.That(found!.Text, Is.EqualTo("人工旧译文"));
+            Assert.That(found.Source, Is.EqualTo(ModTextSource.Human));
+            Assert.That(found.Stale, Is.True);
+        }
+    }
+
+    [Test]
+    public void Duplicate_stable_key_later_same_class_wins()
+    {
+        // 同类相撞（都是人工）时后载入的胜：文件按追加顺序载入，后写的是作者最近的意图。
+        const string earlier = "Automated pilot (v1)";
+        const string later = "Automated pilot (v1.1)";
+        string key = "ckan:" + Identifier + ":" + Field;
+
+        string earlierLine = Line(earlier, "较早的人工译文", "human", Identifier, "CKANMeta", key, earlier);
+        string laterLine = Line(later, "较晚的人工译文", "human", Identifier, "CKANMeta", key, later);
+
+        var provider = ModTextProvider.FromJsonLines([], [earlierLine, laterLine]);
+
+        var found = provider.Find(Identifier, Field, "Automated pilot (v2)");
+
+        Assert.That(found, Is.Not.Null);
+        Assert.That(found!.Text, Is.EqualTo("较晚的人工译文"));
         Assert.That(found.Stale, Is.True);
     }
 

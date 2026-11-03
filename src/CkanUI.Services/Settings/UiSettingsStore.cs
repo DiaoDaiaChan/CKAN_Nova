@@ -34,6 +34,7 @@ public sealed class UiSettingsStore : IUiSettingsStore
     private UiSettings? _cachedRead;
     private long _cachedLength = -1;
     private DateTime _cachedWriteUtc;
+    private DateTime _lastFailureLogUtc = DateTime.MinValue;
 
     /// <summary>使用默认路径（Core 的 AppDataPath，即 %LocalAppData%/CKAN）。</summary>
     public UiSettingsStore()
@@ -84,32 +85,7 @@ public sealed class UiSettingsStore : IUiSettingsStore
         // 进程内串行；临时文件名带 Guid，跨进程同时写也不会互相覆盖临时文件。
         lock (_gate)
         {
-            var directory = Path.GetDirectoryName(FilePath)!;
-            var temp = Path.Combine(directory, $"{Path.GetFileName(FilePath)}.{Guid.NewGuid():N}.tmp");
-            try
-            {
-                Directory.CreateDirectory(directory);
-                var bytes = JsonSerializer.SerializeToUtf8Bytes(settings, JsonOptions);
-                using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
-                {
-                    stream.Write(bytes);
-                    stream.Flush(flushToDisk: true);
-                }
-
-                MoveWithRetry(temp, FilePath);
-                _current = settings;
-                RememberWritten(settings);
-                result = OperationResult<bool>.Ok(true);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
-            {
-                Log.Warn($"保存 UI 设置失败：{FilePath}", ex);
-                result = OperationResult<bool>.Fail("无法保存界面设置", ex.Message, retryable: true);
-            }
-            finally
-            {
-                TryDelete(temp);
-            }
+            result = WriteCore(settings);
         }
 
         // 变更通知在锁外触发：订阅方（主题宿主）会同步回读 Current，持锁回调容易把锁序搞乱。
@@ -119,6 +95,67 @@ public sealed class UiSettingsStore : IUiSettingsStore
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// 真正落盘：临时文件 + 替换。瞬时占用（杀软扫描刚建出来的临时文件、另一进程正好在替换目标）
+    /// 会以 UnauthorizedAccessException 冒出来，重试一次即可；仍然失败才报错。
+    /// </summary>
+    private OperationResult<bool> WriteCore(UiSettings settings)
+    {
+        var directory = Path.GetDirectoryName(FilePath)!;
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(settings, JsonOptions);
+        Exception? failure = null;
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var temp = Path.Combine(directory, $"{Path.GetFileName(FilePath)}.{Guid.NewGuid():N}.tmp");
+            try
+            {
+                Directory.CreateDirectory(directory);
+                using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+                {
+                    stream.Write(bytes);
+                    stream.Flush(flushToDisk: true);
+                }
+
+                MoveWithRetry(temp, FilePath);
+                _current = settings;
+                RememberWritten(settings);
+                return OperationResult<bool>.Ok(true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                failure = ex;
+                if (attempt == 0 && ex is UnauthorizedAccessException)
+                {
+                    Thread.Sleep(60);
+                    continue;
+                }
+
+                break;
+            }
+            finally
+            {
+                TryDelete(temp);
+            }
+        }
+
+        LogSaveFailure(failure!);
+        return OperationResult<bool>.Fail("无法保存界面设置", failure!.Message, retryable: true);
+    }
+
+    /// <summary>同一类失败 30 秒内只留一条：连续拖动每格写一次时，日志抽屉不能被同一条错误刷满。</summary>
+    private void LogSaveFailure(Exception ex)
+    {
+        var now = DateTime.UtcNow;
+        if (now - _lastFailureLogUtc < TimeSpan.FromSeconds(30))
+        {
+            return;
+        }
+
+        _lastFailureLogUtc = now;
+        Log.Warn($"保存 UI 设置失败：{FilePath}", ex);
     }
 
     /// <summary>写完立刻把缓存指向刚写入的内容，避免下一次 Load 再解析一遍。</summary>
@@ -210,7 +247,7 @@ public sealed class UiSettingsStore : IUiSettingsStore
                 return null;
             }
 
-            var settings = JsonSerializer.Deserialize<UiSettings>(File.ReadAllBytes(FilePath), JsonOptions);
+            var settings = JsonSerializer.Deserialize<UiSettings>(StripUtf8Bom(File.ReadAllBytes(FilePath)), JsonOptions);
             // 显式写成 null 的字典会让 VM 层 NRE，这里补回默认。
             return settings is null ? null : settings with { ColumnWidths = settings.ColumnWidths ?? new Dictionary<string, double>() };
         }
@@ -220,6 +257,12 @@ public sealed class UiSettingsStore : IUiSettingsStore
             return null;
         }
     }
+
+    /// <summary>去掉 UTF-8 BOM：JsonSerializer 按字节解析时会把 0xEF 当成非法起始字符，整个文件回落默认值。</summary>
+    private static ReadOnlySpan<byte> StripUtf8Bom(byte[] bytes)
+        => bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF
+            ? bytes.AsSpan(3)
+            : bytes;
 
     // Windows 上目标文件正被读取（杀毒、另一个读者）时替换会短暂失败，退避重试几次。
     private static void MoveWithRetry(string source, string destination)

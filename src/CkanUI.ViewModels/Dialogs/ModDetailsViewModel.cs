@@ -24,6 +24,9 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
     private readonly IChangeRequestSink? _changeSink;
     private readonly INavigationService? _navigation;
     private readonly ISpacedockImageService? _spacedockImageService;
+    private readonly CkanUI.ModText.IModTextService? _modText;
+    private CkanUI.ModText.IModTextProvider? _textProvider;
+    private bool _textProviderOverridden;
     private string? _identifier;
     private ModRowData? _row;
     private InstalledModuleInfo? _installed;
@@ -40,13 +43,18 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
     /// <param name="changeSink">变更集页落点（可选）：算好预览后把请求灌给它，由变更集页确认安装。</param>
     /// <param name="navigation">页面导航服务（可选）：页签四跳转全局 ZIP 内容预览页（F-29）。</param>
     /// <param name="spacedockImageService">SpaceDock 截图抓取服务（可选）：按需懒加载模组截图与背景预览。</param>
+    /// <param name="modText">
+    /// 模组元数据本地化服务（可选，DI 已注册）：只取它的 <see cref="CkanUI.ModText.IModTextService.Provider"/> 做译文查找，
+    /// 缺省时摘要/描述逐字节等于改动前的英文原文行为（headless 测试与未接线宿主零影响）。
+    /// </param>
     public ModDetailsViewModel(
         IRepositoryService repository,
         IRegistryService registry,
         IChangeSetService? changeSets = null,
         IChangeRequestSink? changeSink = null,
         INavigationService? navigation = null,
-        ISpacedockImageService? spacedockImageService = null)
+        ISpacedockImageService? spacedockImageService = null,
+        CkanUI.ModText.IModTextService? modText = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(registry);
@@ -57,6 +65,7 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
         _changeSink = changeSink;
         _navigation = navigation;
         _spacedockImageService = spacedockImageService;
+        _modText = modText;
     }
 
     private bool _isUpdatingTolerance;
@@ -67,6 +76,23 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
     /// 为 null 时详情面板只显示快照里已有的字段。用属性而不是构造参数，避免要求容器注册新契约。
     /// </summary>
     public Func<string, ModDetailsSnapshot?>? DetailsProvider { get; set; }
+
+    /// <summary>
+    /// 译文查找器（属性注入，App 手动接线与测试用）。getter 返回构造注入的
+    /// <see cref="CkanUI.ModText.IModTextService.Provider"/>（服务未注入时为 null）；
+    /// setter 覆盖该结果——显式 set null 表示关闭译文查找，不回退到注入的服务——并立刻刷新派生属性，
+    /// 否则换绑后 UI 还挂着上一份 provider 的译文。
+    /// </summary>
+    public CkanUI.ModText.IModTextProvider? TextProvider
+    {
+        get => _textProviderOverridden ? _textProvider : _modText?.Provider;
+        set
+        {
+            _textProvider = value;
+            _textProviderOverridden = true;
+            Refresh();
+        }
+    }
 
     /// <summary>
     /// 模组详情面板外壳启动器（打开浏览器等）。由视图在 DataContext 变化时注入。
@@ -165,15 +191,94 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
     /// <summary>作者（缺失时显示占位）。</summary>
     public string AuthorText => FirstNonEmpty(_details?.Author, _row?.Author) ?? "未知作者";
 
-    /// <summary>一句话摘要（Core 的 abstract）。</summary>
-    public string AbstractText => _details?.Abstract ?? string.Empty;
+    /// <summary>摘要字段在翻译包里的键（与 i18n 侧约定一致，别改）。</summary>
+    private const string AbstractField = "abstract";
 
-    /// <summary>是否有摘要。</summary>
+    /// <summary>描述字段在翻译包里的键（与 i18n 侧约定一致，别改）。</summary>
+    private const string DescriptionField = "description";
+
+    /// <summary>
+    /// 一句话摘要（Core 的 abstract）。
+    /// 取值语义（别改回去）：原始英文 → <c>TextProvider.Find(Identifier, "abstract", 原始英文)</c> →
+    /// 命中且译文非空白时用 <see cref="CkanUI.ModText.ModText.Text"/>，否则回落原始英文。
+    /// <see cref="Identifier"/> 或 <see cref="TextProvider"/> 为 null 时取到的字符串与接入译文前逐字节一致，
+    /// 这样 headless 测试与未接线宿主看到的仍是纯英文快照。
+    /// </summary>
+    public string AbstractText
+    {
+        get
+        {
+            var original = _details?.Abstract ?? string.Empty;
+            return FindTranslation(original, AbstractField)?.Text ?? original;
+        }
+    }
+
+    /// <summary>是否有摘要（按最终显示文本判断，与 <see cref="AbstractText"/> 口径一致）。</summary>
     public bool HasAbstract => !string.IsNullOrWhiteSpace(AbstractText);
 
-    /// <summary>描述（Markdown 原文，渲染交给视图；缺失时占位）。</summary>
-    public string DescriptionText =>
-        string.IsNullOrWhiteSpace(_details?.Description) ? "暂无描述" : _details!.Description!;
+    /// <summary>
+    /// 描述（Markdown 原文，渲染交给视图；缺失时占位）。
+    /// 取值语义与 <see cref="AbstractText"/> 同构，只是字段名换成 <c>description</c>：
+    /// 命中译文用译文，未命中回落原文，原文为空才显示「暂无描述」。
+    /// </summary>
+    public string DescriptionText
+    {
+        get
+        {
+            var original = _details?.Description;
+            var translated = FindTranslation(original, DescriptionField);
+            if (translated is not null)
+            {
+                return translated.Text;
+            }
+
+            return string.IsNullOrWhiteSpace(original) ? "暂无描述" : original!;
+        }
+    }
+
+    /// <summary>摘要是否命中译文（命中才显示「已译」徽标）。</summary>
+    public bool IsAbstractTranslated => FindTranslation(_details?.Abstract, AbstractField) is not null;
+
+    /// <summary>描述是否命中译文（命中才显示「已译」徽标）。</summary>
+    public bool IsDescriptionTranslated => FindTranslation(_details?.Description, DescriptionField) is not null;
+
+    /// <summary>摘要译文是否已过期（原文更新过，译文对应旧版）。</summary>
+    public bool IsAbstractStale => FindTranslation(_details?.Abstract, AbstractField)?.Stale == true;
+
+    /// <summary>描述译文是否已过期（原文更新过，译文对应旧版）。</summary>
+    public bool IsDescriptionStale => FindTranslation(_details?.Description, DescriptionField)?.Stale == true;
+
+    /// <summary>是否存在任一带过期标记的译文。</summary>
+    public bool HasStaleTranslation => IsAbstractStale || IsDescriptionStale;
+
+    /// <summary>过期译文提示文案（无过期译文时为空串，视图按 <see cref="HasStaleTranslation"/> 显隐）。</summary>
+    public string StaleTranslationNotice => HasStaleTranslation ? "译文对应的是旧版原文，英文内容已更新" : string.Empty;
+
+    /// <summary>译文徽标文案（摘要与描述共用，XAML 不写死中文）。</summary>
+    public string TranslationBadgeText => "已译";
+
+    /// <summary>
+    /// 按当前 Identifier 查译文：Identifier 为空、原文为空、无 provider 都直接返回 null（即回落原文）。
+    /// provider 约定为纯函数无 IO，所以每次取值现查，不做缓存——缓存一旦失效就会显示过期译文。
+    /// </summary>
+    private CkanUI.ModText.ModText? FindTranslation(string? sourceText, string field)
+    {
+        if (_identifier is null || string.IsNullOrWhiteSpace(sourceText))
+        {
+            return null;
+        }
+
+        var provider = TextProvider;
+        if (provider is null)
+        {
+            return null;
+        }
+
+        var hit = provider.Find(_identifier, field, sourceText);
+
+        // 空译文等同未命中：宁可显示英文原文，也不能把有内容的字段翻成空白。
+        return string.IsNullOrWhiteSpace(hit?.Text) ? null : hit;
+    }
 
     /// <summary>已安装版本（未安装时显示"未安装"）。</summary>
     public string InstalledVersionText =>

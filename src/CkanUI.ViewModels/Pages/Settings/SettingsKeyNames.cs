@@ -68,6 +68,9 @@ public static class SettingsKeyNames
     /// <summary>ckan-ui.json：字号缩放（20 篇 P-09，百分比字符串）。</summary>
     public const string FontScale = "FontScale";
 
+    /// <summary>设置页的「装饰场景」行；落盘写 <c>BackgroundScene</c>，与自定义背景互斥。</summary>
+    public const string BackgroundScene = "BackgroundScene";
+
     /// <summary>设置页的「背景来源」行（20 篇 P-06）；落盘写 <c>Background.Kind</c>。</summary>
     public const string BackgroundKind = "BackgroundKind";
 

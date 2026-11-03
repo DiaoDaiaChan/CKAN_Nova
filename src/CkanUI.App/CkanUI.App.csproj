@@ -37,6 +37,14 @@
     <ProjectReference Include="../CkanUI.Core/CkanUI.Core.csproj" />
     <ProjectReference Include="../CkanUI.Localization/CkanUI.Localization.csproj" />
     <ProjectReference Include="../CkanUI.ModText/CkanUI.ModText.csproj" />
+    <!-- 02/16 篇插件试点：内置插件只参与构建，不作为程序集引用（ReferenceOutputAssembly=false）
+         —— 宿主不该在编译期看见插件类型，插件也不该被钉死在宿主的加载顺序里；
+         运行期由下面 CopyBundledPlugins 把 dll 拷进 $(OutDir)plugins\，交给 PluginService 自带的
+         BundledDirectory（AppContext.BaseDirectory/plugins）去发现。 -->
+    <ProjectReference Include="../CkanUI.Plugin.Performance/CkanUI.Plugin.Performance.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -49,5 +57,35 @@
          取决于 SDK 的默认继承规则，显式声明才不受 SDK 行为变化影响。 -->
     <Content Include="Assets/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!-- 内置插件（随包首方插件）落盘：走 GetTargetPath 问被引用工程要真实产物路径，
+       不手拼 bin\$(Configuration)\$(TargetFramework) —— 插件工程的 TFM 一改，手拼路径就会静默拷不到东西，
+       而"插件不见了"在运行期只表现为插件页少一个页签，很难追。
+       只拷 dll 与同名 pdb：Avalonia 与插件契约由宿主提供，插件目录里再放一份就是两个 ALC 各持一份类型。 -->
+  <Target Name="CopyBundledPlugins" AfterTargets="Build" DependsOnTargets="_CollectBundledPlugins" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Copy SourceFiles="@(_BundledPluginFile)" DestinationFolder="$(OutDir)plugins" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- 出包（docs/ops/release.md 用 dotnet publish 自包含）走的是 PublishDir 而不是 OutDir，
+       所以 publish 之后再补一份；两条路都拷，缺哪条都表现为"发布出去的包里没有性能页签"。 -->
+  <Target Name="CopyBundledPluginsOnPublish" AfterTargets="Publish" DependsOnTargets="_CollectBundledPlugins" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Copy SourceFiles="@(_BundledPluginFile)" DestinationFolder="$(PublishDir)plugins" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- 注意：这两个目标必须用 DependsOnTargets 调用本目标，不能用 <CallTarget>。
+       CallTarget 会给被调目标开一个新的属性/项作用域，里面产出的 @(_BundledPluginFile) 回到调用方就是空集，
+       Copy 于是拷 0 个文件、构建还照样成功——"插件目录永远是空的"这种坑只在运行期表现为少一个页签。 -->
+  <Target Name="_CollectBundledPlugins">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.Performance/CkanUI.Plugin.Performance.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
+    </MSBuild>
+    <ItemGroup>
+      <_BundledPluginFile Include="@(_BundledPluginAssembly)" />
+      <_BundledPluginFile Include="@(_BundledPluginAssembly->'%(RootDir)%(Directory)%(Filename).pdb')"
+                          Condition="Exists('%(RootDir)%(Directory)%(Filename).pdb')" />
+    </ItemGroup>
+  </Target>
 
 </Project>

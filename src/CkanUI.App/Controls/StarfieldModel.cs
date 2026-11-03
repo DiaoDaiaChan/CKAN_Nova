@@ -195,6 +195,14 @@ public sealed class StarfieldModel
 
     private const int FigureGridRows = 3;
 
+    // 右下角测控站的保守避让区（归一化）：锅盖 + 馈源 + 支腿的视觉包围盒。
+    // 只用于移动整组星座，不裁线——避免连线从盘面中间穿过，也避免出现断头线。
+    private const double TrackingStationZoneMinX = 0.66;
+    private const double TrackingStationZoneMinY = 0.58;
+    private const double TrackingStationZoneMaxX = 1.12;
+    private const double TrackingStationZoneMaxY = 1.12;
+    private const double TrackingStationZoneMargin = 0.015;
+
     private const double FigureMargin = 0.13;
 
     private const double FigureSpread = 0.74;
@@ -649,8 +657,7 @@ public sealed class StarfieldModel
 
                 // 彻底避让左上角星轨覆盖区：星轨最外层半径达 0.72，留足 0.82 安全距离，且扇区 (x < 0.55 且 y < 0.55) 均排除
                 var inCornerTrailFan = cellCenterX < 0.55 && cellCenterY < 0.55 && distToCornerOrigin < 0.82;
-                // 同时避让右下角大型追踪站天线区域
-                var inTrackingStationZone = cellCenterX > 0.68 && cellCenterY > 0.52;
+                var inTrackingStationZone = cellCenterX > TrackingStationZoneMinX && cellCenterY > TrackingStationZoneMinY;
 
                 if (!inCornerTrailFan && !inTrackingStationZone)
                 {
@@ -684,6 +691,7 @@ public sealed class StarfieldModel
 
             var archetype = ConstellationArchetypes[(int)(rng.NextDouble() * ConstellationArchetypes.Length) % ConstellationArchetypes.Length];
             var nodes = new List<int>(NodesPerFigure);
+            var nodeStart = _stars.Count;
 
             for (var i = 0; i < NodesPerFigure; i++)
             {
@@ -709,11 +717,91 @@ public sealed class StarfieldModel
                     rng.NextDouble() * 0.45));
             }
 
+            // 整组星座平移出测控站避让区：连线引用不变，形态不会被裁断。
+            KeepFigureClearOfTrackingStation(nodeStart);
+
+            // 星座最低节点留出 10% 底部安全线：状态栏是半透明的，星座折线贴到窗口底边会像穿帮。
+            // 只平移这颗星座自己的节点，连线引用不变，形态不会被拉坏。
+            var lowestY = -1.0;
+            for (var i = nodeStart; i < _stars.Count; i++)
+            {
+                lowestY = Math.Max(lowestY, _stars[i].NormalizedY);
+            }
+
+            var bottomOverflow = lowestY - 0.90;
+            if (bottomOverflow > 0)
+            {
+                for (var i = nodeStart; i < _stars.Count; i++)
+                {
+                    var node = _stars[i];
+                    _stars[i] = node with { NormalizedY = Math.Max(-0.12, node.NormalizedY - bottomOverflow) };
+                }
+            }
+
             _figures.Add(new ConstellationFigure(
                 nodes,
                 archetype.Edges,
                 rng.NextDouble() * Math.Tau,
                 8.5 + (3 * rng.NextDouble())));
+        }
+    }
+
+    /// <summary>
+    /// 把一组星座整体平移出右下角测控站的避让区。只移动这颗星座自己的节点，
+    /// 连线仍引用原来的下标，所以星座形态不会被裁断或拉坏。
+    /// </summary>
+    /// <param name="nodeStart">该星座第一个节点在 <see cref="_stars"/> 中的下标。</param>
+    private void KeepFigureClearOfTrackingStation(int nodeStart)
+    {
+        var minX = double.PositiveInfinity;
+        var minY = double.PositiveInfinity;
+        var maxX = double.NegativeInfinity;
+        var maxY = double.NegativeInfinity;
+
+        for (var i = nodeStart; i < _stars.Count; i++)
+        {
+            var node = _stars[i];
+            minX = Math.Min(minX, node.NormalizedX);
+            minY = Math.Min(minY, node.NormalizedY);
+            maxX = Math.Max(maxX, node.NormalizedX);
+            maxY = Math.Max(maxY, node.NormalizedY);
+        }
+
+        // 包围盒不碰避让区时，任何一条连线都不可能穿进去。
+        if (maxX <= TrackingStationZoneMinX || minX >= TrackingStationZoneMaxX ||
+            maxY <= TrackingStationZoneMinY || minY >= TrackingStationZoneMaxY)
+        {
+            return;
+        }
+
+        // 左移或上移取位移更小的一侧：尽量不把星座推离原本的构图位置。
+        var shiftLeft = (maxX - TrackingStationZoneMinX) + TrackingStationZoneMargin;
+        var shiftUp = (maxY - TrackingStationZoneMinY) + TrackingStationZoneMargin;
+
+        if (shiftLeft <= shiftUp)
+        {
+            TranslateFigure(nodeStart, -shiftLeft, 0);
+        }
+        else
+        {
+            TranslateFigure(nodeStart, 0, -shiftUp);
+        }
+    }
+
+    /// <summary>整组平移星座节点，并把越界坐标夹回允许的绘制范围。</summary>
+    /// <param name="nodeStart">该星座第一个节点的下标。</param>
+    /// <param name="dx">水平位移（归一化）。</param>
+    /// <param name="dy">垂直位移（归一化）。</param>
+    private void TranslateFigure(int nodeStart, double dx, double dy)
+    {
+        for (var i = nodeStart; i < _stars.Count; i++)
+        {
+            var node = _stars[i];
+            _stars[i] = node with
+            {
+                NormalizedX = Clamp(node.NormalizedX + dx, -0.12, 1.12),
+                NormalizedY = Clamp(node.NormalizedY + dy, -0.12, 1.12),
+            };
         }
     }
 

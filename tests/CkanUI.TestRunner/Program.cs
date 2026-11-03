@@ -12,10 +12,12 @@ using NUnitLite;
 var repoRoot = FindRepoRoot();
 var config = ArgValue(args, "--config") ?? "Debug";
 
+// 过滤词里要扣掉配置名本身：以前只写死 Debug/Release，用自定义配置（如 -c Verify，
+// 绕开被别的进程锁住的 Debug 输出）时 `Verify` 会被当成过滤词，结果一个程序集都匹配不上，
+// 宿主报「没有可运行的测试程序集」。
 var filters = args
     .Where(a => !a.StartsWith("-", StringComparison.Ordinal))
-    .Where(a => !a.Equals("Debug", StringComparison.OrdinalIgnoreCase)
-                && !a.Equals("Release", StringComparison.OrdinalIgnoreCase))
+    .Where(a => !a.Equals(config, StringComparison.OrdinalIgnoreCase))
     .ToArray();
 
 // 性能用例（[Category("Perf")]）默认不跑：它们测的是毫秒级帧预算，宿主机一有别的进程在抢 CPU 就会假红，
@@ -95,7 +97,15 @@ foreach (var (project, path) in selected)
 
     var assembly = context.LoadFromAssemblyPath(path);
     var hostArgs = new List<string> { "--noresult", "--labels=Off" };
-    if (!includePerf)
+    // 单点复现用：UI_TEST_WHERE 覆盖默认过滤（例如 class == SomeFixture），
+    // 便于绕开与本次无关但会拖垮整轮的无头用例。
+    var explicitWhere = Environment.GetEnvironmentVariable("UI_TEST_WHERE");
+    if (!string.IsNullOrWhiteSpace(explicitWhere))
+    {
+        hostArgs.Add("--where");
+        hostArgs.Add(explicitWhere);
+    }
+    else if (!includePerf)
     {
         hostArgs.Add("--where");
         hostArgs.Add("cat != Perf");

@@ -89,6 +89,13 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private readonly Dictionary<object, Control> _pageViews = new(ReferenceEqualityComparer.Instance);
 
+    /// <summary>
+    /// 页面视图 → 导航键。入口消失（插件被停用/卸载）时要按名字把视图连视图模型一起撤掉：
+    /// 只删侧栏一项的话，视图仍挂在舞台上、视图模型仍被 <see cref="DataContext"/> 钉住，
+    /// 插件页的轮询定时器与整个可卸载 AssemblyLoadContext 都回收不了。
+    /// </summary>
+    private readonly Dictionary<object, string> _pageViewKeys = new(ReferenceEqualityComparer.Instance);
+
     /// <summary>当前可见的页面视图，也是换页动效的落点（见 <see cref="PlayPageReveal"/>）。</summary>
     private Control? _activePageView;
 
@@ -127,6 +134,9 @@ public sealed partial class MainWindow : Window
 
     /// <summary>Ctrl+滚轮隧道处理器是否已挂（AttachShell 可能因 DataContext 变更被多次调用）。</summary>
     private bool _pageZoomWheelHooked;
+
+    /// <summary>滑块拖动手势的按下/抬起处理器是否已挂：拖动期间只改内存，松手才落盘一次。</summary>
+    private bool _pageZoomSliderHooked;
 
     private CommandPaletteViewModel? _palette;
     private ICommandCatalog? _commands;
@@ -320,23 +330,17 @@ public sealed partial class MainWindow : Window
             cursor.Track(e.GetPosition(cursor), isOverInteractive: surface is not null);
         }
 
-        var starfield = BackgroundStarfield;
-        if (starfield is null || !starfield.IsVisible)
-        {
-            return;
-        }
-
-        var position = e.GetPosition(starfield);
+        var position = e.GetPosition(this);
         if (position.X < 0
             || position.Y < 0
-            || position.X > starfield.Bounds.Width
-            || position.Y > starfield.Bounds.Height)
+            || position.X > Bounds.Width
+            || position.Y > Bounds.Height)
         {
-            starfield.TrackPointer(null);
+            TrackBackgroundPointers(null);
             return;
         }
 
-        starfield.TrackPointer(position);
+        TrackBackgroundPointers(position);
     }
 
     /// <summary>
@@ -411,9 +415,23 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>把窗口坐标同时喂给两块装饰层；隐藏的一层不接，省掉无谓重绘。</summary>
+    private void TrackBackgroundPointers(Point? position)
+    {
+        if (BackgroundStarfield is { IsVisible: true } starfield)
+        {
+            starfield.TrackPointer(position);
+        }
+
+        if (BackgroundSceneCanvas is { IsVisible: true } canvas)
+        {
+            canvas.TrackPointer(position);
+        }
+    }
+
     private void OnWindowPointerExited(object? sender, PointerEventArgs e)
     {
-        BackgroundStarfield?.TrackPointer(null);
+        TrackBackgroundPointers(null);
         PointerAura?.Clear();
         CursorPointer?.Hide();
         DragTrail?.End();
@@ -430,7 +448,7 @@ public sealed partial class MainWindow : Window
 
     private void OnWindowDeactivated(object? sender, EventArgs e)
     {
-        BackgroundStarfield?.TrackPointer(null);
+        TrackBackgroundPointers(null);
 
         // 失焦后计时器没必要继续跑：环已经没人看，清掉省掉一路 60fps 的重绘。
         ClickRipple?.Clear();
@@ -552,6 +570,7 @@ public sealed partial class MainWindow : Window
         if (_shell is not null)
         {
             _shell.NavItems.CollectionChanged -= OnNavItemsChanged;
+            _shell.RailItems.CollectionChanged -= OnNavItemsChanged;
             _shell.PropertyChanged -= OnShellPropertyChanged;
         }
 
@@ -566,33 +585,22 @@ public sealed partial class MainWindow : Window
         _shell.ShellLauncher ??= new ShellInstanceLauncher();
         _shell.CommandStore ??= new LaunchCommandFile();
 
+        // 两个集合都要订阅：插件页签的重建是「先改 NavItems、最后 RefreshRailItems()」，
+        // 而 RebuildNavigation() 渲染的是 RailItems。只听 NavItems 会在 RailItems 还是旧值时
+        // 抢先重建一次，插件入口就永远看不见（docs/design/plugins.md §11.7）。
         _shell.NavItems.CollectionChanged += OnNavItemsChanged;
+        _shell.RailItems.CollectionChanged += OnNavItemsChanged;
         _shell.PropertyChanged += OnShellPropertyChanged;
 
         RebuildNavigation();
         ApplyPaneState(_shell.IsNavExpanded);
         ApplyPageZoom(_shell.PageZoom, animate: false);
         HookPageZoomWheel();
+        HookPageZoomSlider();
         SyncSelectedNavItem();
         UpdateShellStatusDot(_shell.StatusText);
         _lastPageKey = _shell.SelectedNavItem?.Key;
 
-
-        Dispatcher.UIThread.Post(async () =>
-        {
-            try
-            {
-                await System.Threading.Tasks.Task.Delay(3000);
-                var sb = new System.Text.StringBuilder();
-                sb.AppendLine($"zoom={_shell.PageZoom}");
-                sb.AppendLine($"hostLT={PageZoomHost?.LayoutTransform}");
-                sb.AppendLine($"pageHostRT={PageHost?.RenderTransform} bounds={PageHost?.Bounds}");
-                sb.AppendLine($"stageRT={PageStage?.RenderTransform}");
-                sb.AppendLine($"hostBounds={PageZoomHost?.Bounds}");
-                System.IO.File.WriteAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "zoomdiag.txt"), sb.ToString());
-            }
-            catch { }
-        }, DispatcherPriority.Background);
 
         StartPageWarmup();
 
@@ -769,6 +777,7 @@ public sealed partial class MainWindow : Window
         }
 
         _pageViews[page] = view;
+        _pageViewKeys[page] = key;
         PageStage.Children.Add(view);
         view.Opacity = 0;
         view.IsHitTestVisible = false;
@@ -911,6 +920,10 @@ public sealed partial class MainWindow : Window
             view = built;
             _pageViews[page] = view;
             PageStage.Children.Add(view);
+            if (_shell?.SelectedNavItem?.Key is { Length: > 0 } navKey)
+            {
+                _pageViewKeys[page] = navKey;
+            }
         }
 
         if (ReferenceEquals(_activePageView, view))
@@ -1271,6 +1284,14 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// 侧栏入口表变了就重画菜单。订阅的是 <see cref="ShellViewModel.RailItems"/>——那才是这里真正消费的集合。
+    /// </summary>
+    /// <remarks>
+    /// 也曾只订阅 NavItems，结果是插件页签永远进不了侧栏：视图模型先改 NavItems 再
+    /// <c>RefreshRailItems()</c>，所以 NavItems 的变更通知到达时 RailItems 还是旧的，
+    /// 早一步重建出来的菜单里永远只有内置入口，而 RailItems 的后续变化没人听。
+    /// </remarks>
     private void OnNavItemsChanged(object? sender, NotifyCollectionChangedEventArgs e) => RebuildNavigation();
 
     private void OnShellPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1322,6 +1343,35 @@ public sealed partial class MainWindow : Window
         _pageZoomWheelHooked = true;
         PageZoomHost.AddHandler(PointerWheelChangedEvent, OnPageZoomWheel, RoutingStrategies.Tunnel, handledEventsToo: true);
     }
+
+    /// <summary>
+    /// 滑块拖动：按下即进入「手势中」——期间每格只改内存不落盘（每格一次 fsync 会把 UI 线程按在磁盘上，
+    /// 写失败还会把日志抽屉刷满），松手或捕获丢失时合并成一次写入。
+    /// </summary>
+    private void HookPageZoomSlider()
+    {
+        if (PageZoomSlider is null || _pageZoomSliderHooked)
+        {
+            return;
+        }
+
+        _pageZoomSliderHooked = true;
+        PageZoomSlider.AddHandler(PointerPressedEvent, OnPageZoomSliderPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        PageZoomSlider.AddHandler(PointerReleasedEvent, OnPageZoomSliderReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
+        PageZoomSlider.AddHandler(PointerCaptureLostEvent, OnPageZoomSliderReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    private void OnPageZoomSliderPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(PageZoomSlider).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        _shell?.BeginPageZoomGesture();
+    }
+
+    private void OnPageZoomSliderReleased(object? sender, RoutedEventArgs e) => _shell?.EndPageZoomGesture();
 
     private void OnPageZoomWheel(object? sender, PointerWheelEventArgs e)
     {
@@ -1378,6 +1428,17 @@ public sealed partial class MainWindow : Window
     {
         if (_pageZoomTransform is null)
         {
+            return;
+        }
+
+        // 100% 不挂变换：恒等矩阵也会把整页提成一层合成层，快速拖滚动条会留下残影行。
+        // 但只有「目标也是 100%」才能摘——往上调的头几帧值仍≈1.0，摘掉就会每秒重建一次，读数涨页面不动。
+        var settledAtIdentity = _pageZoomSpring is null || Math.Abs(_pageZoomSpring.Target - 1d) < 1e-4d;
+        if (Math.Abs(scale - 1d) < 1e-4d && settledAtIdentity)
+        {
+            PageZoomHost!.LayoutTransform = null;
+            _pageZoomTransform = null;
+            _pageZoomSpring = null;
             return;
         }
 
@@ -1476,6 +1537,77 @@ public sealed partial class MainWindow : Window
         }
 
         SyncSelectedNavItem();
+        PruneRemovedPageViews();
+    }
+
+    /// <summary>
+    /// 撤掉入口已经不存在的页面视图（插件被停用/卸载时走这条）。
+    /// </summary>
+    /// <remarks>
+    /// 宿主刻意让页面视图常驻舞台（换页只切可见性，见 <see cref="_pageViews"/>），代价是
+    /// 「侧栏少一项」并不会让对应视图消失：它会带着 DataContext 一起留在 <see cref="PageStage"/> 里。
+    /// 插件页的轮询定时器因此永远不停止，插件程序集也永远卸载不掉（视图 → VM → 类型 → ALC 全部被钉住）。
+    /// 所以入口表一变就按导航键回收：摘视图、断引用、有 IDisposable 就 Dispose。
+    /// </remarks>
+    private void PruneRemovedPageViews()
+    {
+        if (PageStage is null || _shell is null || _pageViews.Count == 0)
+        {
+            return;
+        }
+
+        var live = new HashSet<string>(_shell.NavItems.Select(item => item.Key), StringComparer.OrdinalIgnoreCase);
+        foreach (var page in _pageViews.Keys.ToList())
+        {
+            if (!_pageViewKeys.TryGetValue(page, out var key) || key.Length == 0 || live.Contains(key))
+            {
+                continue;
+            }
+
+            var view = _pageViews[page];
+            _pageViews.Remove(page);
+            _pageViewKeys.Remove(page);
+            PageStage.Children.Remove(view);
+            if (ReferenceEquals(_activePageView, view))
+            {
+                _activePageView = null;
+            }
+
+            TracePagePruned(key);
+
+            try
+            {
+                if (page is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                // 插件代码写坏 Dispose 也不能把宿主带崩：引用已经摘掉，程序集回收照旧继续进行。
+                Log.Warn("释放已移除页面的视图模型失败：" + key, ex);
+            }
+        }
+    }
+
+    /// <summary>临时诊断：把「撤掉哪个入口、还剩几张视图」记到 CKANUI_NAV_TRACE 指定的文件里。</summary>
+    private void TracePagePruned(string key)
+    {
+        if (Environment.GetEnvironmentVariable("CKANUI_NAV_TRACE") is not { Length: > 0 } trace)
+        {
+            return;
+        }
+
+        try
+        {
+            File.AppendAllText(
+                trace,
+                string.Create(CultureInfo.InvariantCulture, $"[prune] {key} views={_pageViews.Count} stage={PageStage?.Children.Count}\n"));
+        }
+        catch (IOException)
+        {
+            // 诊断输出失败不影响界面。
+        }
     }
 
     private NavItem? LookupNavItem(string key) =>

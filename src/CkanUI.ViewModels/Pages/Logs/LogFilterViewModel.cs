@@ -17,6 +17,9 @@ public sealed partial class LogFilterViewModel : ObservableObject
     private readonly LogFamilyOptionViewModel[] _familyOptions;
     private readonly LogSourceOptionViewModel[] _sourceOptions;
 
+    /// <summary>批量改勾选时挂起逐项通知：一次「切通道」要改 7 个勾选，逐项触发会刷新 7 次列表。</summary>
+    private bool _suspended;
+
     /// <summary>按规格默认值构造：级别 Info+、族全选、源 log4net/user/exception/child。</summary>
     public LogFilterViewModel()
     {
@@ -185,6 +188,28 @@ public sealed partial class LogFilterViewModel : ObservableObject
         return intersected.Length > 0 ? intersected : parsed;
     }
 
+    /// <summary>
+    /// 「界面日志 / 游戏日志」两档切换时只勾选该档的来源。
+    /// 为什么是一刀切而不是叠加：两个通道的行格式与排障语境完全不同，混在一起看等于没分档。
+    /// </summary>
+    public void ApplySources(params LogSourceKind[] kinds)
+    {
+        _suspended = true;
+        try
+        {
+            foreach (var option in _sourceOptions)
+            {
+                option.IsSelected = kinds.Contains(option.Kind);
+            }
+        }
+        finally
+        {
+            _suspended = false;
+        }
+
+        RaiseChanged();
+    }
+
     /// <summary>只保留错误（工具栏「仅错误」）。</summary>
     public void ShowOnlyErrors()
     {
@@ -223,7 +248,7 @@ public sealed partial class LogFilterViewModel : ObservableObject
 
     private void OnOptionChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is nameof(LogFacetOptionViewModel.IsSelected))
+        if (args.PropertyName is nameof(LogFacetOptionViewModel.IsSelected) && !_suspended)
         {
             RaiseChanged();
         }

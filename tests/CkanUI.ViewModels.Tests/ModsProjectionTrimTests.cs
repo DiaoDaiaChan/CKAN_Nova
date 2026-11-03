@@ -65,4 +65,21 @@ public sealed class ModsProjectionTrimTests
 
         Assert.That(page.TrimProjection(), Is.EqualTo(0));
     }
+
+    [Test]
+    public void TrimProjection_WhileThePageIsOnScreen_ReleasesNothing()
+    {
+        var page = CreatePage();
+        page.ReloadFromSnapshots();
+        page.Activate();
+
+        var released = page.TrimProjection();
+
+        Assert.That(released, Is.EqualTo(0), "正在显示的页面不释放投影");
+        Assert.That(page.Rows.Count, Is.EqualTo(2), "否则用户眼前就是一张空表，状态栏还挂着「载入完成」");
+
+        page.Deactivate();
+        Assert.That(page.TrimProjection(), Is.EqualTo(4), "离开页面后照常释放");
+    }
 }
+

@@ -1,0 +1,15 @@
+{
+  "schema": "kpp.telemetry/1",
+  "writerAlive": true,
+  "pid": 24188,
+  "uptimeSec": 1000,
+  "publishIntervalMs": 1000,
+  "lastPublishUnixMs": 1762000000000,
+  "lastPublishMs": 3.4,
+  "writeFailures": 0,
+  "commandsSeen": 3,
+  "commandsApplied": 3,
+  "commandsFailed": 0,
+  "bridgeVersion": "1.0.0",
+  "telemetryDirectory": "D:/Kerbal Space Program_newmod/GameData/KSPPerformanceProfiler/Telemetry"
+}

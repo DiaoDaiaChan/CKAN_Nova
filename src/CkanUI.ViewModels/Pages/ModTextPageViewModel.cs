@@ -282,6 +282,13 @@ public sealed partial class ModTextPageViewModel : PageViewModel, IPageProjectio
     /// </remarks>
     public int TrimProjection()
     {
+        // 正在显示的页面不释放：投影丢完 OnActivated 不会再触发，用户面前就是一张空表，
+        // 状态栏却还留着「载入完成」的旧文案（启动游戏前的 L1 释放正是这么撞上的）。
+        if (IsActive)
+        {
+            return 0;
+        }
+
         var released = _allEntries.Count + Entries.Count;
         if (released == 0)
         {

@@ -62,19 +62,35 @@ public sealed class PointerAuraLayerTests
     }
 
     [Test]
-    public void FindSurface_OnlyRecognizesInteractiveCards_ExcludesStaticCards()
+    public void FindSurface_RecognizesCardContainers_ButNotInnerPanels()
     {
         var staticCard = new Border { Classes = { "CkanCard" } };
-        var emptyCard = new Border { Classes = { "CkanEmptyStateCard" } };
+        var emptyCard = new Border { Classes = { "CkanEmptyStateCard", "Elevated" } };
         var interactiveCard = new Border { Classes = { "CkanCardInteractive" } };
-        var panel = new StackPanel { Children = { staticCard, emptyCard, interactiveCard } };
-        var window = HeadlessAppHost.CreateTestWindow(panel, 320, 200);
+        var selectedCard = new Border { Classes = { "CkanCard", "CkanCardSelected" } };
+        var guideCard = new Border { Classes = { "CkanGuideCard" } };
+        var subtleCard = new Border { Classes = { "CkanSubtleCard" } };
+        var statCard = new Border { Classes = { "CkanStatCard" } };
+        var panel = new StackPanel
+        {
+            Children = { staticCard, emptyCard, interactiveCard, selectedCard, guideCard, subtleCard, statCard },
+        };
+        var window = HeadlessAppHost.CreateTestWindow(panel, 320, 400);
         try
         {
             HeadlessAppHost.PumpJobs();
-            Assert.That(PointerAuraLayer.FindSurface(staticCard, window), Is.Null, "静态容器卡片不作为响应表面，避免全卡片亮起与误按压");
-            Assert.That(PointerAuraLayer.FindSurface(emptyCard, window), Is.Null, "空状态卡片不作为响应表面");
+
+            // 卡片是一块「面」：悬停要有光环、按下要有回弹。早前为躲双重边框把卡片摘出响应表面，
+            // 结果整页大卡按下去毫无反应 —— 那是把反馈一起删了，不是修边框。
+            Assert.That(PointerAuraLayer.FindSurface(staticCard, window), Is.SameAs(staticCard), "容器卡片必须是响应表面");
+            Assert.That(PointerAuraLayer.FindSurface(emptyCard, window), Is.SameAs(emptyCard), "空状态卡片是页面主体，必须有反应");
             Assert.That(PointerAuraLayer.FindSurface(interactiveCard, window), Is.SameAs(interactiveCard), "可点击卡片保留响应表面");
+            Assert.That(PointerAuraLayer.FindSurface(selectedCard, window), Is.SameAs(selectedCard), "选中态卡片同样是可点的面");
+            Assert.That(PointerAuraLayer.FindSurface(guideCard, window), Is.SameAs(guideCard), "引导卡片有 hand 光标与 :pressed，必须同样给光环与回弹");
+
+            // 卡片内部的辅助小块不是面：在卡片里按一下不该把内层小面板缩出去。
+            Assert.That(PointerAuraLayer.FindSurface(subtleCard, window), Is.Null, "辅助小块不单独作为表面");
+            Assert.That(PointerAuraLayer.FindSurface(statCard, window), Is.Null, "指标块不单独作为表面");
         }
         finally
         {

@@ -54,6 +54,22 @@ internal static class SaveFileWriter
     }
 
     /// <summary>
+    /// 用已经写好的临时文件顶替目标（大文件补丁路径）：同样是一次 <c>File.Move(overwrite: true)</c>，
+    /// 失败时原文件不变；可选恢复原修改时间（L10）。
+    /// </summary>
+    public static void CommitTemp(string tempPath, string targetPath, DateTime? preserveLastWriteUtc)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tempPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetPath);
+
+        File.Move(tempPath, targetPath, overwrite: true);
+        if (preserveLastWriteUtc is { } stamp)
+        {
+            File.SetLastWriteTimeUtc(targetPath, stamp);
+        }
+    }
+
+    /// <summary>
     /// 原子写：先写 <c>&lt;name&gt;.tmp-&lt;8 位 guid&gt;</c>，再 <c>File.Move(overwrite: true)</c> 顶替目标，
     /// 失败时原文件不变；可选恢复原修改时间（L10）。
     /// </summary>

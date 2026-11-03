@@ -169,6 +169,7 @@ public static class SfsParser
                         usePending ? pendingToken!.Name : token.Name,
                         usePending ? raw : null);
 
+                    node.EndLineNumber = lineNumber;
                     current.Add(node);
                     open.Push(node);
                     current = node.ChildList;
@@ -204,6 +205,7 @@ public static class SfsParser
                     {
                         var node = open.Pop();
                         node.CloseLine = raw;
+                        node.EndLineNumber = lineNumber;
                         current = open.Count > 0 ? open.Peek().ChildList : topLevel;
                     }
 
@@ -234,6 +236,7 @@ public static class SfsParser
         while (open.Count > 0)
         {
             var node = open.Pop();
+            node.EndLineNumber = lineNumber;
             state.Diagnostics.Add(new SfsDiagnostic(
                 SfsSeverity.Error,
                 SfsDiagnosticCodes.UnbalancedBraces,

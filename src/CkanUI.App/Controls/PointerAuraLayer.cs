@@ -146,26 +146,12 @@ public sealed class PointerAuraLayer : Control
     /// <param name="source">指针事件的 Source。</param>
     /// <param name="root">向上查找的边界（通常是窗口）。</param>
     /// <returns>可响应元素；没有则返回 null。</returns>
-    public static Control? FindSurface(Visual? source, Visual? root)
-    {
-        for (var visual = source; visual is not null && visual != root; visual = visual.GetVisualParent())
-        {
-            // ToggleButton 覆盖 CheckBox / RadioButton；Button 覆盖 RepeatButton 与各类派生按钮。
-            if (visual is MenuItem or TabItem or TreeViewItem or ListBoxItem or DataGridRow
-                or Button or ToggleButton)
-            {
-                return visual as Control;
-            }
+    public static Control? FindSurface(Visual? source, Visual? root) => InteractionSurface.Find(source, root);
 
-            if (visual is Border border
-                && border.Classes.Contains("CkanCardInteractive"))
-            {
-                return border;
-            }
-        }
-
-        return null;
-    }
+    /// <summary>这个元素是不是卡片容器（悬停光环与按下收缩的共同判定）。</summary>
+    /// <param name="visual">候选元素。</param>
+    /// <returns>是卡片容器则为 <c>true</c>。</returns>
+    public static bool IsCardSurface(Visual? visual) => InteractionSurface.IsCard(visual);
 
     /// <inheritdoc />
     public override void Render(DrawingContext context)
@@ -192,7 +178,7 @@ public sealed class PointerAuraLayer : Control
         using (context.PushClip(new RoundedRect(localBounds, new CornerRadius(_cornerRadius))))
         {
             DrawSpotlight(context, localCenter, intensity);
-            DrawTexture(context, localCenter, intensity);
+            DrawTexture(context, localCenter, localBounds, intensity);
 
             var rimAlpha = PointerAuraModel.PeakAlpha * PointerAuraModel.RimAlpha * intensity;
             context.DrawRectangle(
@@ -232,14 +218,17 @@ public sealed class PointerAuraLayer : Control
     }
 
     /// <summary>确定性格点：同一格永远同一个值，帧间不闪；按到光标的距离衰减。</summary>
-    private void DrawTexture(DrawingContext context, Point center, double intensity)
+    private void DrawTexture(DrawingContext context, Point center, Rect localBounds, double intensity)
     {
         var radius = PointerAuraModel.Radius;
         var spacing = PointerAuraModel.TextureSpacing;
-        var left = Math.Max(_targetBounds.Left, center.X - radius);
-        var right = Math.Min(_targetBounds.Right, center.X + radius);
-        var top = Math.Max(_targetBounds.Top, center.Y - radius);
-        var bottom = Math.Min(_targetBounds.Bottom, center.Y + radius);
+
+        // 这里已经在 PushTransform 之后的局部坐标里，只能用目标自身的局部矩形；
+        // 拿 _targetBounds（层坐标）来夹会把颗粒画到卡片外面，被裁剪掉后就是一片死区。
+        var left = Math.Max(localBounds.Left, center.X - radius);
+        var right = Math.Min(localBounds.Right, center.X + radius);
+        var top = Math.Max(localBounds.Top, center.Y - radius);
+        var bottom = Math.Min(localBounds.Bottom, center.Y + radius);
 
         var startColumn = (int)Math.Floor(left / spacing);
         var endColumn = (int)Math.Ceiling(right / spacing);

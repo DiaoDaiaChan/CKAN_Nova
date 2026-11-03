@@ -100,6 +100,45 @@ public sealed class StarfieldModelTests
     }
 
     [Test]
+    public void Constellations_StayAboveTheBottomSafeLine()
+    {
+        var model = new StarfieldModel();
+
+        foreach (var figure in model.Figures)
+        {
+            var lowest = figure.Nodes.Max(index => model.Stars[index].NormalizedY);
+            Assert.That(lowest, Is.LessThanOrEqualTo(0.90 + 1e-9), "星座最低节点必须留在状态栏上方");
+        }
+    }
+
+    [Test]
+    public void Constellations_AvoidTrackingStationZone()
+    {
+        // 与 StarfieldModel 的 TrackingStationZone* 常量保持一致。
+        const double zoneMinX = 0.66;
+        const double zoneMinY = 0.58;
+        const double zoneMaxX = 1.12;
+        const double zoneMaxY = 1.12;
+        for (var seedOffset = 0; seedOffset < 128; seedOffset++)
+        {
+            var model = new StarfieldModel(seed: StarfieldModel.DefaultSeed + seedOffset);
+
+            foreach (var figure in model.Figures)
+            {
+                var xs = figure.Nodes.Select(index => model.Stars[index].NormalizedX).ToArray();
+                var ys = figure.Nodes.Select(index => model.Stars[index].NormalizedY).ToArray();
+                var overlaps = xs.Max() > zoneMinX && xs.Min() < zoneMaxX &&
+                               ys.Max() > zoneMinY && ys.Min() < zoneMaxY;
+
+                Assert.That(
+                    overlaps,
+                    Is.False,
+                    $"星座连线不得穿过右下角测控站（seedOffset={seedOffset}）：整组包围盒必须先移出避让区");
+            }
+        }
+    }
+
+    [Test]
     public void Figures_DrawFromMoreThanOneTopology()
     {
         var model = new StarfieldModel(seed: StarfieldModel.DefaultSeed);

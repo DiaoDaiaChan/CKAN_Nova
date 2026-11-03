@@ -5,6 +5,18 @@
              x:Class="CkanUI.App.Views.ModTextPageView"
              x:CompileBindings="False">
 
+  <!-- 行内边距压到 2px：4807 条词条靠虚拟化滚动，单行一表才有信息密度 -->
+  <UserControl.Styles>
+    <Style Selector="ListBox#ModTextEntryList > ListBoxItem">
+      <Setter Property="Padding" Value="6,0" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="ListBox#ModTextGroupList > ListBoxItem">
+      <Setter Property="Padding" Value="6,2" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+  </UserControl.Styles>
+
   <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
         Background="Transparent">
 
@@ -40,135 +52,255 @@
                  VerticalContentAlignment="Center"
                  Margin="0,0,12,0" />
 
-        <CheckBox Grid.Column="4"
-                  Content="{DynamicResource Ui_ModTextPage_OverridesOnly}"
-                  IsChecked="{Binding FilterOverrideOnly, Mode=TwoWay}"
-                  VerticalAlignment="Center"
-                  Margin="0,0,12,0" />
-
-        <Button Grid.Column="5"
+        <Button Grid.Column="4"
                 Content="{DynamicResource Ui_ModTextPage_SyncUi18n}"
                 Classes="CkanSecondary"
                 Command="{Binding SyncFromUniversalI18nCommand}"
                 Margin="0,0,8,0" />
 
-        <Button Grid.Column="6"
+        <Button Grid.Column="5"
                 Content="{DynamicResource Ui_ModTextPage_Reload}"
                 Classes="CkanSecondary"
                 Command="{Binding ReloadCommand}"
                 Margin="0,0,8,0" />
 
-        <Button Grid.Column="7"
+        <Button Grid.Column="6"
                 Content="{DynamicResource Ui_Settings_Auxiliary_OpenFolder}"
                 Classes="CkanGhost"
-                Command="{Binding OpenFolderCommand}" />
+                Command="{Binding OpenFolderCommand}"
+                Margin="0,0,8,0" />
+
+        <Button Grid.Column="7"
+                Content="{DynamicResource Ui_ModTextPage_OverrideToggle}"
+                Classes="CkanGhost"
+                Command="{Binding ToggleOverridePanelCommand}" />
       </Grid>
     </Border>
 
-    <!-- 主工作区：左侧文件与条目列表，右侧人工覆盖编辑面板 -->
-    <Grid Grid.Row="2" ColumnDefinitions="*,6,400">
+    <!-- 主工作区：左栏（模组分组 + 词条列表），右侧人工覆盖编辑面板 -->
+    <Grid Grid.Row="2" ColumnDefinitions="*,6,Auto">
 
-      <!-- 左栏：语言包文件与词条列表 -->
-      <Grid Grid.Column="0" RowDefinitions="Auto,8,*">
-        <!-- 文件概览折叠条 -->
-        <Border Grid.Row="0" Classes="CkanCard" Padding="10,8"
-                IsVisible="{Binding HasPackFiles}">
-          <DockPanel LastChildFill="True">
-            <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Ui_ModTextPage_LoadedFiles}"
-                       Classes="CkanSectionTitle"
-                       Margin="0,0,0,6" />
-            <ItemsControl ItemsSource="{Binding PackFiles}">
-              <ItemsControl.ItemTemplate>
+      <!-- 左栏：分组导航 + 文件概览 + 词条表 -->
+      <Grid Grid.Column="0" ColumnDefinitions="200,8,*">
+
+        <!-- 分组栏：4807 条词条按 CKAN identifier 归堆，点一下只看这个模组 -->
+        <Border Grid.Column="0" Classes="CkanCard" Padding="4,2">
+          <Grid RowDefinitions="Auto,Auto,*">
+            <TextBlock Grid.Row="0" Text="{DynamicResource Ui_ModTextPage_Groups}"
+                       Classes="CkanSectionTitle" Margin="6,4,6,6" />
+            <TextBox Grid.Row="1" Margin="6,0,6,6" Classes="CkanSearchBox"
+                     Text="{Binding GroupFilterQuery, Mode=TwoWay}"
+                     Watermark="{DynamicResource Ui_ModTextPage_GroupSearch}" />
+            <ListBox Grid.Row="2" x:Name="ModTextGroupList"
+                     ItemsSource="{Binding ModGroups}"
+                     SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListBox.ItemTemplate>
                 <DataTemplate>
-                  <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,2">
-                    <TextBlock Grid.Column="0" Text="{Binding RelativePath}"
+                  <Grid ColumnDefinitions="*,Auto" MinHeight="22">
+                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}"
                                FontSize="{DynamicResource CkanFontSizeCaption}"
-                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" Margin="8,0">
-                      <TextBlock Text="{DynamicResource Ui_ModTextPage_EntriesPrefix}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                      <TextBlock Text="{Binding EntryCount}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
-                      <TextBlock Text="{DynamicResource Ui_ModTextPage_ModifiedPrefix}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                      <TextBlock Text="{Binding LastModifiedUtc, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                    </StackPanel>
+                               Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center"
+                               ToolTip.Tip="{Binding DisplayName}" />
+                    <TextBlock Grid.Column="1" Text="{Binding CountText}" Margin="8,0,0,0"
+                               FontSize="{DynamicResource CkanFontSizeCaption}"
+                               Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                               VerticalAlignment="Center" />
                   </Grid>
                 </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </DockPanel>
-        </Border>
-
-        <!-- 条目列表 -->
-        <Border Grid.Row="2" Classes="CkanCard" Padding="4"
-                IsVisible="{Binding HasEntries}">
-          <ListBox ItemsSource="{Binding Entries}"
-                   SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
-                   Background="Transparent"
-                   BorderThickness="0">
-            <ListBox.ItemTemplate>
-              <DataTemplate>
-                <Grid RowDefinitions="Auto,Auto,Auto" Margin="6,6">
-                  <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                      <TextBlock Text="{Binding Identifier}"
-                                 FontWeight="SemiBold"
-                                 FontSize="{DynamicResource CkanFontSizeBody}"
-                                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                      <TextBlock Text="{Binding Field}"
-                                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                                 Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                                 VerticalAlignment="Center" />
-                    </StackPanel>
-                    <Border Grid.Column="1" Classes="CkanBadge" Padding="6,1">
-                      <TextBlock Text="{Binding SourceBadge}"
-                                 FontSize="{DynamicResource CkanFontSizeCaption}" />
-                    </Border>
-                  </Grid>
-
-                  <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="2" Margin="0,3,0,0">
-                    <TextBlock Text="{DynamicResource Ui_ModTextPage_SourcePrefix}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                    <TextBlock Text="{Binding Source}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextSecondaryBrush}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
-                  </StackPanel>
-
-                  <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="2" Margin="0,3,0,0">
-                    <TextBlock Text="{DynamicResource Ui_ModTextPage_TranslationPrefix}" FontSize="{DynamicResource CkanFontSizeBody}" Foreground="{DynamicResource CkanAccentBrush}" FontWeight="Medium" />
-                    <TextBlock Text="{Binding Translation}" FontSize="{DynamicResource CkanFontSizeBody}" Foreground="{DynamicResource CkanAccentBrush}" FontWeight="Medium" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
-                  </StackPanel>
-                </Grid>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-        </Border>
-
-        <!-- 空态：没有匹配条目 -->
-        <Border Grid.Row="2" Classes="CkanEmptyStateCard Elevated stagger-card" Margin="0"
-                IsVisible="{Binding !HasEntries}">
-          <Grid>
-            <Border Classes="CkanEmptyStateGlow" />
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" MaxWidth="380">
-              <Border Classes="CkanIconTile Lg Muted" HorizontalAlignment="Center">
-                <PathIcon Data="M4 5h16v2H4V5zm0 6h16v2H4v-2zm0 6h10v2H4v-2z" />
-              </Border>
-              <TextBlock Text="{DynamicResource Ui_ModTextPage_NoMatchesTitle}" HorizontalAlignment="Center"
-                         FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
-                         Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-              <TextBlock Text="{DynamicResource Ui_ModTextPage_NoMatchesSubtitle}"
-                         ToolTip.Tip="{DynamicResource Ui_ModTextPage_SavedOverridesUnaffected_Tip}"
-                         TextWrapping="Wrap" TextAlignment="Center"
-                         FontSize="{DynamicResource CkanFontSizeBody}"
-                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-            </StackPanel>
+              </ListBox.ItemTemplate>
+            </ListBox>
           </Grid>
         </Border>
+
+        <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center"
+                      VerticalAlignment="Stretch" Margin="0,10" ZIndex="5" />
+
+        <Grid Grid.Column="2" RowDefinitions="Auto,Auto,8,*">
+          <!-- 文件概览：默认折叠，展开才是清单；常驻展开会白白吃掉一百多像素的条目高度 -->
+          <Expander Grid.Row="0" IsExpanded="False" HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch"
+                    IsVisible="{Binding HasPackFiles}">
+            <Expander.Header>
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="{DynamicResource Ui_ModTextPage_LoadedFiles}"
+                           Classes="CkanSectionTitle" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding PackFiles.Count}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                           VerticalAlignment="Center" />
+              </StackPanel>
+            </Expander.Header>
+              <ScrollViewer MaxHeight="120" VerticalScrollBarVisibility="Auto"
+                            HorizontalScrollBarVisibility="Disabled">
+              <ItemsControl ItemsSource="{Binding PackFiles}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,2">
+                      <TextBlock Grid.Column="0" Text="{Binding RelativePath}"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" Margin="8,0">
+                        <TextBlock Text="{DynamicResource Ui_ModTextPage_EntriesPrefix}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                        <TextBlock Text="{Binding EntryCount}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
+                        <TextBlock Text="{DynamicResource Ui_ModTextPage_ModifiedPrefix}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                        <TextBlock Text="{Binding LastModifiedUtc, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}" FontSize="{DynamicResource CkanFontSizeCaption}" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                      </StackPanel>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              </ScrollViewer>
+          </Expander>
+
+          <!-- 筛选条：范围按钮 / 字段 / 类型 + 清除筛选。模组维度在左栏分组里点选。 -->
+          <Border Grid.Row="1" Classes="CkanCard" Padding="8,6" Margin="0,8,0,0">
+            <!-- WrapPanel：窄窗口下自动换行，否则三个范围按钮会把字段/类型下拉挤出卡片 -->
+            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+              <!-- 范围用显式按钮而不是下拉：用户得一眼看见"元数据"和"模组翻译"是两套语料 -->
+              <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,2,8,2">
+                <Button MinHeight="24" Padding="8,1"
+                        Content="{Binding ScopeFilterOptions[0]}"
+                        Command="{Binding SelectScopeCommand}"
+                        CommandParameter="{Binding ScopeFilterOptions[0]}"
+                        Classes.CkanPrimary="{Binding IsScopeAll}"
+                        Classes.CkanGhost="{Binding !IsScopeAll}" />
+                <Button MinHeight="24" Padding="8,1"
+                        Content="{Binding ScopeFilterOptions[1]}"
+                        Command="{Binding SelectScopeCommand}"
+                        CommandParameter="{Binding ScopeFilterOptions[1]}"
+                        Classes.CkanPrimary="{Binding IsScopeMetadata}"
+                        Classes.CkanGhost="{Binding !IsScopeMetadata}" />
+                <Button MinHeight="24" Padding="8,1"
+                        Content="{Binding ScopeFilterOptions[2]}"
+                        Command="{Binding SelectScopeCommand}"
+                        CommandParameter="{Binding ScopeFilterOptions[2]}"
+                        Classes.CkanPrimary="{Binding IsScopeMods}"
+                        Classes.CkanGhost="{Binding !IsScopeMods}" />
+              </StackPanel>
+              <ComboBox MinWidth="96" Margin="0,2,6,2" MaxWidth="150"
+                        ItemsSource="{Binding FieldFilterOptions}"
+                        SelectedItem="{Binding SelectedFieldFilter, Mode=TwoWay}"
+                        ToolTip.Tip="{DynamicResource Ui_ModTextPage_FilterAllFields}" />
+              <ComboBox MinWidth="88" Margin="0,2,6,2" MaxWidth="140"
+                        ItemsSource="{Binding KindFilterOptions}"
+                        SelectedItem="{Binding SelectedKindFilter, Mode=TwoWay}"
+                        ToolTip.Tip="{DynamicResource Ui_ModTextPage_FilterAllKinds}" />
+              <Button Margin="0,2,0,2"
+                      Content="{DynamicResource Ui_ModTextPage_ClearFilters}"
+                      Classes="CkanGhost"
+                      Command="{Binding ClearFiltersCommand}"
+                      IsVisible="{Binding HasActiveFilters}"
+                      Padding="8,2" />
+            </WrapPanel>
+          </Border>
+
+          <!-- 条目列表：单行一表（标识 / 原文 / 译文 / 类型），列宽与表头对齐 -->
+          <Border Grid.Row="3" Classes="CkanCard" Padding="4,2"
+                  IsVisible="{Binding HasEntries}">
+            <Grid RowDefinitions="Auto,*">
+              <Grid Grid.Row="0" ColumnDefinitions="2.5*,3*,3*,Auto" Margin="6,1,6,2">
+                <TextBlock Grid.Column="0" Text="{DynamicResource Ui_ModTextPage_ColumnEntry}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                <TextBlock Grid.Column="1" Text="{DynamicResource Ui_ModTextPage_ColumnSource}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                <TextBlock Grid.Column="2" Text="{DynamicResource Ui_ModTextPage_ColumnTranslation}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                <TextBlock Grid.Column="3" Text="{DynamicResource Ui_ModTextPage_ColumnKind}"
+                           IsVisible="{Binding ShowsSourceBadgeColumn}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              </Grid>
+
+              <ListBox Grid.Row="1" x:Name="ModTextEntryList"
+                       ItemsSource="{Binding Entries}"
+                       SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
+                       Background="Transparent"
+                       BorderThickness="0"
+                       MinHeight="160"
+                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="2.5*,3*,3*,Auto" MinHeight="18">
+                      <TextBlock Grid.Column="0" Text="{Binding DisplayKey}"
+                                 Margin="0,0,12,0"
+                                 FontWeight="SemiBold"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                                 Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                                 TextTrimming="CharacterEllipsis"
+                                 VerticalAlignment="Center"
+                                 ToolTip.Tip="{Binding KeyTooltip}" />
+
+                      <TextBlock Grid.Column="1" Text="{Binding Source}"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                 TextTrimming="CharacterEllipsis"
+                                 Margin="0,0,12,0"
+                                 VerticalAlignment="Center"
+                                 ToolTip.Tip="{Binding Source}" />
+
+                      <TextBlock Grid.Column="2" Text="{Binding Translation}"
+                                 FontSize="{DynamicResource CkanFontSizeCaption}"
+                                 Foreground="{DynamicResource CkanAccentBrush}"
+                                 FontWeight="Medium"
+                                 TextTrimming="CharacterEllipsis"
+                                 Margin="0,0,12,0"
+                                 VerticalAlignment="Center"
+                                 ToolTip.Tip="{Binding Translation}" />
+
+                      <Border Grid.Column="3" Classes="CkanBadge" Padding="4,0" Margin="6,0,0,0"
+                              HorizontalAlignment="Left" VerticalAlignment="Center"
+                              IsVisible="{Binding ShowSourceBadge}"
+                              ToolTip.Tip="{Binding SourceBadge}">
+                        <TextBlock Text="{Binding SourceBadge}"
+                                   FontSize="{DynamicResource CkanFontSizeCaption}" />
+                      </Border>
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Border>
+
+          <!-- 空态：没有匹配条目 -->
+          <Border Grid.Row="3" Classes="CkanEmptyStateCard Elevated stagger-card" Margin="0"
+                  IsVisible="{Binding !HasEntries}">
+            <Grid>
+              <Border Classes="CkanEmptyStateGlow" />
+              <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" MaxWidth="380">
+                <Border Classes="CkanIconTile Lg Muted" HorizontalAlignment="Center">
+                  <PathIcon Data="M4 5h16v2H4V5zm0 6h16v2H4v-2zm0 6h10v2H4v-2z" />
+                </Border>
+                <TextBlock Text="{DynamicResource Ui_ModTextPage_NoMatchesTitle}" HorizontalAlignment="Center"
+                           FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                <TextBlock Text="{DynamicResource Ui_ModTextPage_NoMatchesSubtitle}"
+                           ToolTip.Tip="{DynamicResource Ui_ModTextPage_SavedOverridesUnaffected_Tip}"
+                           TextWrapping="Wrap" TextAlignment="Center"
+                           FontSize="{DynamicResource CkanFontSizeBody}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </Grid>
       </Grid>
 
       <!-- 分割条（GridSplitter） -->
       <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center"
-                    VerticalAlignment="Stretch" />
+                    VerticalAlignment="Stretch" Margin="0,10" ZIndex="5" Cursor="SizeWestEast" />
 
       <!-- 右栏：人工覆盖编辑面板 -->
-      <Border Grid.Column="2" Classes="CkanCard stagger-card" Padding="16" MinWidth="300" MaxWidth="600">
+      <Border Grid.Column="2" Classes="CkanCard stagger-card" Padding="16" Width="380" MinWidth="300" MaxWidth="600"
+              IsVisible="{Binding IsOverridePanelVisible}">
         <ScrollViewer>
           <StackPanel Spacing="10">
             <TextBlock Text="{DynamicResource Ui_ModTextPage_ManualOverrideTitle}"

@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:CkanUI.ViewModels.Pages"
+             xmlns:shell="using:CkanUI.ViewModels"
              xmlns:st="using:CkanUI.ViewModels.Pages.Settings"
              xmlns:dlg="using:CkanUI.ViewModels.Dialogs"
              xmlns:ui="using:FluentAvalonia.UI.Controls"
@@ -47,6 +48,10 @@
         <Button Content="{DynamicResource Ui_SettingsPage_OpenDir}" Classes="CkanGhost" Margin="0,0,8,0"
                 Command="{Binding OpenConfigFolderCommand}"
                 ToolTip.Tip="{DynamicResource Ui_SettingsPage_OpenDir_Tip}" />
+        <Button Content="{DynamicResource Ui_NavRail_KspConfig}" Classes="CkanGhost" Margin="0,0,8,0"
+                Command="{Binding $parent[Window].((shell:ShellViewModel)DataContext).NavigateCommand}"
+                CommandParameter="kspconfig"
+                ToolTip.Tip="{DynamicResource Ui_NavRail_KspConfig}" />
         <Button Content="{DynamicResource Ui_SettingsPage_FirstRunWizard}" Classes="CkanGhost"
                 Command="{Binding OpenFirstRunWizardCommand}"
                 ToolTip.Tip="{DynamicResource Ui_SettingsPage_FirstRunWizard_Tip}" />

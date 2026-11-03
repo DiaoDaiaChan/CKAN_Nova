@@ -43,6 +43,9 @@ public sealed class NavGlyphToGeometryConverter : IValueConverter
         ["Home"] = "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"
     };
 
+    /// <summary>已知字形与它们的路径数据：图标动效按字形认语义时拿来做指纹比对。</summary>
+    internal static IReadOnlyDictionary<string, string> GlyphPaths => PathData;
+
     /// <summary>
     /// 清空字形几何缓存，返回清掉的条目数（18 篇 §3 的 L0 档）。
     /// </summary>

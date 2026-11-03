@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using CkanUI.Services.Abstractions;
+using CkanUI.Services.Saves;
 using CkanUI.ViewModels.Pages;
 using CkanUI.ViewModels.Pages.Saves;
 
@@ -38,6 +39,26 @@ public partial class SavesPageView : UserControl
 
         // ??= 让宿主（测试夹具 / 未来的 DI 注册）已经塞好的实现优先。
         _viewModel.ShellLauncher ??= new ShellSavesLauncher();
+    }
+
+    /// <summary>打开 SFS 工作台窗口：把选中存档交给语义编辑服务，窗口只负责展示。</summary>
+    private void OnOpenWorkbench(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_viewModel?.SelectedRow is not { } row)
+        {
+            return;
+        }
+
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        var workbench = new SfsWorkbenchWindow
+        {
+            DataContext = new CkanUI.ViewModels.Pages.Saves.SfsWorkbenchViewModel(row.FilePath, new SaveEditorService()),
+        };
+        workbench.Show(owner);
     }
 }
 

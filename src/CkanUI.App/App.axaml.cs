@@ -9,6 +9,7 @@ using CkanUI.Localization;
 using CkanUI.Platform.SingleInstance;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Commands;
+using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.Services.Abstractions.Logs;
 using CkanUI.Services.Commands;
 using CkanUI.Services.Logs;
@@ -37,8 +38,11 @@ public sealed partial class App : Application
     private Theming.BackdropHost? _backdrop;
     private Theming.BackgroundHost? _background;
     private Plugins.PluginToolItemHost? _pluginTools;
+    private CancellationTokenSource? _pluginBootstrapCts;
     private TrayHost? _tray;
     private ILogStore? _logStore;
+    private IKspLogTailService? _kspLogTail;
+    private IInstanceService? _kspLogInstanceSource;
     private LogPipeline? _logPipeline;
     private LogExceptionRouter? _logRouter;
     private bool _shutdownDone;
@@ -188,6 +192,10 @@ public sealed partial class App : Application
             shell.LogDrawer = _services.GetRequiredService<CkanUI.ViewModels.Pages.Logs.LogDrawerViewModel>();
             shell.LogDrawer.OpenPageRequested += (_, _) => shell.NavigateCommand.Execute("logs");
 
+            // 游戏日志（14 篇 §3.2 第五路）：跟随当前实例的 KSP.log。页面没打开也要跟着——
+            // 玩家往往是先看到游戏报错，再回来翻日志，那时错误已经写进文件了。
+            AttachKspLogTail(instanceService);
+
             var window = new MainWindow { DataContext = shell };
             _mainWindow = window;
             Mark("main-window-new");
@@ -205,6 +213,9 @@ public sealed partial class App : Application
 
             desktop.MainWindow = window;
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
+
+            // 真机换页计时（CKANUI_NAV_TRACE=<文件>）：不用时只是一个环境变量判断。
+            Diagnostics.NavigationProbe.Attach(window);
             desktop.Exit += (_, _) => Shutdown();
 
             _backdrop = new Theming.BackdropHost(
@@ -238,6 +249,14 @@ public sealed partial class App : Application
                 _services.GetRequiredService<IDispatcher>());
             _pluginTools.Install();
             Mark("plugin-tools");
+
+            // 插件启动期引导（12 篇 F-17）：扫内置 plugins\ 与用户目录，恢复上次显式激活态。
+            // 刻意放后台：插件目录 IO 与第三方 dll 加载一旦卡在首帧前，代价是整窗白屏
+            // （982e93d 的教训：启动期同步重活能把帧率从 60 打到 3）。插件页签由外壳订阅
+            // PluginService.Changed 后差分补进导航栏，这里不 await、不阻塞窗口显示。
+            _pluginBootstrapCts = new CancellationTokenSource();
+            StartPluginBootstrap(_pluginBootstrapCts.Token);
+            Mark("plugin-bootstrap-scheduled");
 
             // 托盘（12 篇 F-51）：窗口建好后再装图标；「最小化到托盘 / 关闭到托盘」两个开关的生效点就在这里。
             var trayMenu = _services.GetRequiredService<TrayMenuViewModel>();
@@ -347,6 +366,31 @@ public sealed partial class App : Application
         _logRouter?.Report(e.Exception, "ui-dispatcher");
     }
 
+    /// <summary>
+    /// 启动期预热元数据语言包（不阻塞首帧）。
+    /// <para>
+    /// 为什么要预热：<c>ModDetailsViewModel</c> 的摘要/描述只读 <c>IModTextService.Provider</c>，而 Provider 是按需构建的——
+    /// 以前只有 i18n 页面会调 <c>ReloadPacksAsync</c>，用户不点开那一页，模组详情永远显示英文原文。
+    /// </para>
+    /// <para>
+    /// 失败语义：缺包、目录无权访问都只降级为英文（<c>ReloadPacksAsync</c> 内部已 catch 并记日志），
+    /// 这里再兜一层是为了不让任何异常冒到启动序列里。
+    /// </para>
+    /// </summary>
+    private static async Task WarmUpModTextAsync(IServiceProvider services)
+    {
+        try
+        {
+            var modText = services.GetRequiredService<CkanUI.ModText.IModTextService>();
+            await modText.ReloadPacksAsync().ConfigureAwait(false);
+            Log.Info($"[启动] 元数据语言包预热完成：{modText.CurrentLanguage} / {modText.TotalEntries} 条条目（详情面板译文可用）。");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"[启动] 元数据语言包预热失败，详情面板按英文原文显示：{ex.Message}");
+        }
+    }
+
     private async Task StartAsync(ShellViewModel shell, IReadOnlyList<string>? launchArgs = null)
     {
         // 这段同步序言会挡住窗口显示 —— 它跑在 Avalonia 调用 Show() 之前，于是这里多花的时间
@@ -365,6 +409,11 @@ public sealed partial class App : Application
                                        .ConfigureAwait(false);
             TraceStartup($"[启动计时] bootstrap-done={_startupWatch.ElapsedMilliseconds}ms");
             startupReady = result.IsSuccess;
+
+            // 语言包预热：详情面板的译文只读 IModTextService.Provider，而 Provider 只在 ReloadPacksAsync
+            // 之后才有内容——此前全仓唯一触发点是 i18n 页面，等于用户不点开那一页就永远看到英文。
+            // 后台预热不挡窗口显示；失败只降级为英文原文，不影响启动（17 篇 §7「不阻塞首帧」）。
+            _ = WarmUpModTextAsync(services);
             var localizer = services.GetRequiredService<ILocalizer>();
             var status = result.IsSuccess
                 ? localizer.Get("Ui_Common_Status_Ready")
@@ -536,6 +585,25 @@ public sealed partial class App : Application
             Log.Warn("首次启动指引或高亮导览未能显示。", ex);
         }
     }
+
+    /// <summary>把 KSP.log 跟随器接到当前实例上（实例切换即换文件，缺失时保持轮询等待生成）。</summary>
+    private void AttachKspLogTail(IInstanceService? instances)
+    {
+        if (_services?.GetService<IKspLogTailService>() is not { } tail)
+        {
+            return;
+        }
+
+        _kspLogTail = tail;
+        tail.Attach(instances?.Current?.GameDir, instances?.Current?.Name);
+        if (instances is not null)
+        {
+            _kspLogInstanceSource = instances;
+            instances.CurrentChanged += OnKspLogInstanceChanged;
+        }
+    }
+
+    private void OnKspLogInstanceChanged(InstanceInfo? info) => _kspLogTail?.Attach(info?.GameDir, info?.Name);
 
     /// <summary>界面导览比向导晚一步出现，避开对话框自己的淡入与页面入场尾巴。</summary>
     private static readonly TimeSpan TourDelay = TimeSpan.FromMilliseconds(400);
@@ -709,6 +777,18 @@ public sealed partial class App : Application
     {
         if (_shutdownDone || _services is null) return;
         _shutdownDone = true;
+
+        // 先取消插件引导再去跑关闭序列：引导要调第三方插件的 Initialize，
+        // 容器拆了它还在回调服务就是 ObjectDisposedException 满地跑。取消是配合式的，这里不等它。
+        try
+        {
+            _pluginBootstrapCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // 已释放，取消无意义。
+        }
+
         try
         {
             // 关闭序列要跑完（DisposeAll 是必经步骤），但窗口已经在关，最多等 3 秒。
@@ -740,8 +820,42 @@ public sealed partial class App : Application
             _density?.Dispose();
             _theme?.Dispose();
             _localization?.Dispose();
+            _pluginBootstrapCts?.Dispose();
             _services.Dispose();
         }
+    }
+
+    /// <summary>
+    /// 后台跑一次插件引导（12 篇 F-17）：建目录 → 扫描内置与用户插件 → 恢复用户的持久化激活态。
+    /// </summary>
+    /// <param name="ct">取消令牌；关闭窗口时取消。</param>
+    /// <remarks>
+    /// 不 await、不观察结果：<see cref="CkanUI.Services.Plugins.PluginBootstrapper"/> 内部对每一步
+    /// 单独 try/catch 并记日志，承诺「插件再烂也不让主窗口打不开」。这里只保证两件事——
+    /// 不占用首帧，以及关闭时能取消。
+    /// </remarks>
+    private void StartPluginBootstrap(CancellationToken ct)
+    {
+        if (_services?.GetService<CkanUI.Services.Plugins.PluginBootstrapper>() is not { } bootstrapper)
+        {
+            Log.Warn("插件引导未注册，跳过启动期扫描。");
+            return;
+        }
+
+        _ = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    await bootstrapper.RunAsync(ct).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    // 兜底：RunAsync 自称不抛，但第三方插件代码可以在任何地方炸。
+                    Log.Warn("插件引导抛出未预期异常（已忽略）。", ex);
+                }
+            },
+            CancellationToken.None);
     }
 
     /// <summary>

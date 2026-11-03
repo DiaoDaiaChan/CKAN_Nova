@@ -230,7 +230,7 @@
 
       <!-- 分割条（GridSplitter） -->
       <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center"
-                    VerticalAlignment="Stretch" />
+                    VerticalAlignment="Stretch" Margin="0,10" ZIndex="5" Cursor="SizeWestEast" />
 
       <Grid Grid.Column="2" MinWidth="280" MaxWidth="600" RowDefinitions="Auto,*,Auto,*">
         <TextBlock Grid.Row="0" Text="{DynamicResource Ui_DedupPage_GroupFilesHeader}"

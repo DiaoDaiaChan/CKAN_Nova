@@ -5,6 +5,7 @@ using System.Threading;
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Media;
 using Avalonia.VisualTree;
@@ -317,6 +318,183 @@ public sealed class IconHoverMotionTests
             Tick(150);
             Assert.That(Math.Abs(Math.IEEERemainder(track.Angle, 360)), Is.LessThan(1.5), "离开后必须停在整圈位置");
             Assert.That(track.Scale, Is.EqualTo(1).Within(0.01), "离开后必须回到原始大小");
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    [Test]
+    public void ResolveShape_MapsEachHostRoleToItsOwnMotion()
+    {
+        var tileIcon = CreateIcon();
+        var tile = new Border { Width = 96, Height = 96, Child = tileIcon };
+        tile.Classes.Add(IconHoverRole.IconTileClass);
+
+        var hostIcon = CreateIcon();
+        var host = new Border { Width = 96, Height = 96, Child = hostIcon };
+        host.Classes.Add(IconHoverRole.IconHostClass);
+
+        var captionIcon = CreateIcon();
+        var caption = new Button { Width = 46, Height = 32, Content = captionIcon };
+        caption.Classes.Add(IconHoverRole.CaptionButtonClass);
+
+        var actionIcon = CreateIcon();
+        var action = new Button { Width = 30, Height = 30, Content = actionIcon };
+        action.Classes.Add(IconHoverRole.IconButtonClass);
+
+        var toggleIcon = CreateIcon();
+        var toggle = new ToggleButton { Content = toggleIcon };
+
+        var canvas = new Canvas { Width = 400, Height = 600 };
+        foreach (var control in new Control[] { tile, host, caption, action, toggle })
+        {
+            canvas.Children.Add(control);
+        }
+
+        var window = HeadlessAppHost.CreateTestWindow(canvas, 400, 600);
+
+        try
+        {
+            HeadlessAppHost.PumpJobs();
+
+            Assert.That(IconHoverMotion.ResolveShape(tileIcon), Is.EqualTo(IconHoverShape.Float), "图标底板的图标要离地呼吸，不要摇摆");
+            Assert.That(IconHoverMotion.ResolveShape(hostIcon), Is.EqualTo(IconHoverShape.Pulse), "自定义宿主里的图标要心跳");
+            Assert.That(IconHoverMotion.ResolveShape(captionIcon), Is.EqualTo(IconHoverShape.Snap), "标题栏控件要脆，挤一下就走");
+            Assert.That(IconHoverMotion.ResolveShape(actionIcon), Is.EqualTo(IconHoverShape.Nudge), "工具条图标按钮要被推一把");
+            Assert.That(IconHoverMotion.ResolveShape(toggleIcon), Is.EqualTo(IconHoverShape.Snap), "开关按钮的图标跟着挤压");
+
+            IconHoverMotion.SetShape(actionIcon, IconHoverShape.Spin);
+            Assert.That(IconHoverMotion.ResolveShape(actionIcon), Is.EqualTo(IconHoverShape.Spin), "显式形态必须压过宿主推断");
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    [Test]
+    public void IconTile_FloatsUpInsteadOfWaggling()
+    {
+        var icon = CreateIcon();
+        var tile = new Border { Width = 120, Height = 120, Child = icon };
+        tile.Classes.Add(IconHoverRole.IconTileClass);
+        var window = ShowInCanvas(tile, 40, 40);
+
+        try
+        {
+            HeadlessAppHost.PumpJobs();
+            var track = IconHoverTrack.For(icon);
+
+            // 指针落在底板留白上：不进图标，但整块底板都算"划过"。
+            window.MouseMove(new Point(50, 50));
+            HeadlessAppHost.PumpJobs();
+            Assert.That(track.IsHovered, Is.True, "划过底板留白也要驱动它的图标");
+
+            Tick(45);
+
+            Assert.That(track.OffsetY, Is.LessThan(-1.5), "底板图标要真的离地，不能只是原地转头");
+            Assert.That(Math.Abs(track.Angle), Is.LessThan(1.5), "呼吸形态不该顺便摇摆");
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    [Test]
+    public void Snap_SquashesOnceAndStops()
+    {
+        var icon = CreateIcon();
+        var window = ShowInCanvas(icon, 20, 20);
+
+        try
+        {
+            HeadlessAppHost.PumpJobs();
+            var track = IconHoverTrack.For(icon);
+
+            track.Enter(IconHoverShape.Snap);
+
+            var widest = 0d;
+            for (var frame = 0; frame < 40; frame++)
+            {
+                Tick(1);
+                widest = Math.Max(widest, Math.Abs(track.Scale - 1));
+            }
+
+            Assert.That(widest, Is.GreaterThan(0.001), "挤压形态进场必须真的挤一下");
+            Assert.That(widest, Is.LessThan(IconHoverTrack.SnapSquash + 0.01), "挤压要有上限，不能越挤越扁");
+            Assert.That(track.Scale, Is.EqualTo(1).Within(0.005), "挤完要立刻弹回原位");
+            Assert.That(Math.Abs(track.Angle), Is.LessThan(0.5), "挤压形态不该旋转");
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    [Test]
+    public void Nudge_PushesSidewaysWithoutRotating()
+    {
+        var icon = CreateIcon();
+        var window = ShowInCanvas(icon, 20, 20);
+
+        try
+        {
+            HeadlessAppHost.PumpJobs();
+            var track = IconHoverTrack.For(icon);
+
+            track.Enter(IconHoverShape.Nudge);
+
+            var furthest = 0d;
+            for (var frame = 0; frame < 40; frame++)
+            {
+                Tick(1);
+                furthest = Math.Max(furthest, track.OffsetX);
+            }
+
+            Assert.That(furthest, Is.GreaterThan(1), "轻推形态要沿水平轴顶出去");
+            Assert.That(furthest, Is.LessThan(IconHoverTrack.NudgePixels + 0.5), "推出去的距离要有上限");
+            Assert.That(Math.Abs(track.Angle), Is.LessThan(0.5), "轻推形态不该旋转");
+        }
+        finally
+        {
+            window.Close();
+            HeadlessAppHost.PumpJobs();
+        }
+    }
+
+    [Test]
+    public void Sway_HangsFromTheTopEdgeAndSwings()
+    {
+        var icon = CreateIcon();
+        var window = ShowInCanvas(icon, 20, 20);
+
+        try
+        {
+            HeadlessAppHost.PumpJobs();
+            var track = IconHoverTrack.For(icon);
+
+            track.Enter(IconHoverShape.Sway);
+
+            var origin = icon.RenderTransformOrigin;
+            Assert.That(origin.Unit, Is.EqualTo(RelativeUnit.Relative));
+            Assert.That(origin.Point.Y, Is.LessThan(0.1), "钟摆要绕上沿摆，支点得贴着顶边");
+
+            var furthest = 0d;
+            for (var frame = 0; frame < 90; frame++)
+            {
+                Tick(1);
+                furthest = Math.Max(furthest, Math.Abs(track.Angle));
+            }
+
+            Assert.That(furthest, Is.GreaterThan(2), "钟摆要真的摆起来");
+            Assert.That(furthest, Is.LessThan(IconHoverTrack.SwayTiltDegrees + IconHoverTrack.SwayAmplitudeDegrees + 2), "钟摆不能越摆越大");
         }
         finally
         {

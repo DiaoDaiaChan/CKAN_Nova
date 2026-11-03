@@ -77,24 +77,25 @@ public sealed class IconHoverMotion : AvaloniaObject
     /// <param name="visual">起点。</param>
     public static IconHoverShape ShapeOf(Visual visual)
     {
-        ArgumentNullException.ThrowIfNull(visual);
+        var explicitShape = ExplicitShapeOf(visual);
+        return explicitShape == IconHoverShape.Auto ? IconHoverShape.Waggle : explicitShape;
+    }
 
-        Visual? current = visual;
-        while (current is not null)
+    /// <summary>
+    /// 图标真正该用的形态：显式设置 &gt; 字形语义（<see cref="IconHoverGlyph"/>：齿轮转、文件夹被推开）
+    /// &gt; 宿主判定（<see cref="IconHoverRole"/>：标题栏按钮、图标底板、工具条按钮各有各的手感）。
+    /// </summary>
+    /// <param name="visual">图标。</param>
+    public static IconHoverShape ResolveShape(Visual visual)
+    {
+        var explicitShape = ExplicitShapeOf(visual);
+        if (explicitShape != IconHoverShape.Auto)
         {
-            if (current is Control control)
-            {
-                var shape = GetShape(control);
-                if (shape != IconHoverShape.Auto)
-                {
-                    return shape;
-                }
-            }
-
-            current = current.GetVisualParent();
+            return explicitShape;
         }
 
-        return IconHoverShape.Waggle;
+        var glyphShape = IconHoverGlyph.Resolve(visual);
+        return glyphShape == IconHoverShape.Auto ? IconHoverRole.Resolve(visual) : glyphShape;
     }
 
     /// <summary>判断一个视觉是不是图标：标准图标元素，或类型名以 Icon 结尾的图标控件。</summary>
@@ -149,6 +150,29 @@ public sealed class IconHoverMotion : AvaloniaObject
         wiring.HostAttached = enabled;
     }
 
+    /// <summary>沿视觉树向上找第一个明确指定的形态；都没有返回 <see cref="IconHoverShape.Auto"/>。</summary>
+    private static IconHoverShape ExplicitShapeOf(Visual visual)
+    {
+        ArgumentNullException.ThrowIfNull(visual);
+
+        Visual? current = visual;
+        while (current is not null)
+        {
+            if (current is Control control)
+            {
+                var shape = GetShape(control);
+                if (shape != IconHoverShape.Auto)
+                {
+                    return shape;
+                }
+            }
+
+            current = current.GetVisualParent();
+        }
+
+        return IconHoverShape.Auto;
+    }
+
     private static void DriveIcons(Control host, bool entering)
     {
         foreach (var descendant in host.GetVisualDescendants())
@@ -161,7 +185,7 @@ public sealed class IconHoverMotion : AvaloniaObject
             var track = IconHoverTrack.For(icon);
             if (entering)
             {
-                track.Enter(ShapeOf(icon));
+                track.Enter(ResolveShape(icon));
             }
             else
             {
@@ -175,7 +199,7 @@ public sealed class IconHoverMotion : AvaloniaObject
     {
         internal Wiring(Control owner)
         {
-            SelfEntered = (_, _) => IconHoverTrack.For(owner).Enter(ShapeOf(owner));
+            SelfEntered = (_, _) => IconHoverTrack.For(owner).Enter(ResolveShape(owner));
             SelfExited = (_, _) => IconHoverTrack.For(owner).Exit();
             HostEntered = (_, _) => DriveIcons(owner, entering: true);
             HostExited = (_, _) => DriveIcons(owner, entering: false);

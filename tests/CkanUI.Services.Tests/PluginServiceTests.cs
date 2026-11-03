@@ -26,6 +26,7 @@ public sealed class PluginServiceTests
     private TempWorkspace? _workspace;
     private string _root = string.Empty;
     private string _pluginsDirectory = string.Empty;
+    private string _activationPath = string.Empty;
 
     [SetUp]
     public void SetUp()
@@ -34,6 +35,7 @@ public sealed class PluginServiceTests
         _workspace = new TempWorkspace("plugins");
         _root = _workspace.Path;
         _pluginsDirectory = _workspace.Combine("plugins");
+        _activationPath = _workspace.Combine("plugin-activation.json");
         Directory.CreateDirectory(_pluginsDirectory);
     }
 
@@ -432,8 +434,10 @@ public sealed class PluginServiceTests
 
     // ---------- 辅助 ----------
 
+    // 激活状态必须落在临时目录：默认路径是用户的 %LocalAppData%/CKAN/plugin-activation.json，
+    // 用例一旦激活插件就会往真实用户目录写记录（曾经污染过一次）。
     private PluginService CreateService(IPluginAssemblyLoader loader, string? hostVersion = null) =>
-        new(_pluginsDirectory, loader, hostVersion);
+        new(_pluginsDirectory, loader, hostVersion, bundledDirectory: null, activationStore: new PluginActivationStore(_activationPath));
 
     private static FakePluginLoader FakeLoaderFor(FakePlugin plugin)
     {

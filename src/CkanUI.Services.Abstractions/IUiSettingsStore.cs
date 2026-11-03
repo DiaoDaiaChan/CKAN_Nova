@@ -44,6 +44,18 @@ public sealed record UiSettings
     /// </summary>
     public double PageZoom { get; init; } = 1.0;
 
+    /// <summary>AI 排障接口地址（OpenAI 兼容，例如 https://api.deepseek.com/v1）。空表示没配。</summary>
+    public string? AiBaseUrl { get; init; }
+
+    /// <summary>AI 排障模型名（例如 deepseek-chat）。</summary>
+    public string? AiModel { get; init; }
+
+    /// <summary>
+    /// AI 排障的 API Key，已由 <c>ISecretProtector</c>（Windows 上是 DPAPI）加密成 Base64。
+    /// 绝不存明文：设置文件会被备份、同步、贴进 issue。
+    /// </summary>
+    public string? AiApiKeyProtected { get; init; }
+
     /// <summary>界面背景（20 篇 P-06）：纯色 / 渐变 / 本机图片，含填充、暗化、模糊、不透明度。</summary>
     public BackgroundProfile? Background { get; init; }
 
@@ -53,6 +65,13 @@ public sealed record UiSettings
     /// </summary>
     public IReadOnlyDictionary<string, BackgroundProfile> BackgroundByInstance { get; init; } =
         new Dictionary<string, BackgroundProfile>();
+
+    /// <summary>
+    /// 应用自带的程序化背景场景（星空 / 轨道蓝图 / 月面晨昏线 / 深空探测器 / 引力透镜）。
+    /// 与 <see cref="Background"/> 分开：用户自选背景生效时，装饰场景整体让位；
+    /// 高对比度下同样不画（THM-10）。空值按星空处理，保证旧配置升级后仍有背景。
+    /// </summary>
+    public string BackgroundScene { get; init; } = BackgroundSceneKinds.Starfield;
 
     /// <summary>界面语言（BCP-47）。UI 语言的唯一真源，不回写 Core 的 config.json（见工程约定 §12）。</summary>
     public string? Locale { get; init; }
@@ -137,6 +156,7 @@ public sealed record UiSettings
         && PageZoom.Equals(other.PageZoom)
         && Equals(Background, other.Background)
         && BackgroundsEqual(BackgroundByInstance, other.BackgroundByInstance)
+        && string.Equals(BackgroundScene, other.BackgroundScene, StringComparison.Ordinal)
         && ReleaseTier == other.ReleaseTier
         && HideVersionEpoch == other.HideVersionEpoch
         && HideVersionVPrefix == other.HideVersionVPrefix
@@ -151,6 +171,9 @@ public sealed record UiSettings
         && string.Equals(ProxyServer, other.ProxyServer, StringComparison.Ordinal)
         && string.Equals(ProxyBypass, other.ProxyBypass, StringComparison.Ordinal)
         && string.Equals(NavHoverMode, other.NavHoverMode, StringComparison.Ordinal)
+        && string.Equals(AiBaseUrl, other.AiBaseUrl, StringComparison.Ordinal)
+        && string.Equals(AiModel, other.AiModel, StringComparison.Ordinal)
+        && string.Equals(AiApiKeyProtected, other.AiApiKeyProtected, StringComparison.Ordinal)
         && ColumnWidthsEqual(ColumnWidths, other.ColumnWidths);
 
     public override int GetHashCode()
@@ -172,6 +195,7 @@ public sealed record UiSettings
         hash.Add(FontScale, StringComparer.Ordinal);
         hash.Add(PageZoom);
         hash.Add(Background);
+        hash.Add(BackgroundScene, StringComparer.Ordinal);
         hash.Add(ReleaseTier);
         hash.Add(HideVersionEpoch);
         hash.Add(HideVersionVPrefix);
@@ -186,6 +210,9 @@ public sealed record UiSettings
         hash.Add(ProxyServer, StringComparer.Ordinal);
         hash.Add(ProxyBypass, StringComparer.Ordinal);
         hash.Add(NavHoverMode, StringComparer.Ordinal);
+        hash.Add(AiBaseUrl, StringComparer.Ordinal);
+        hash.Add(AiModel, StringComparer.Ordinal);
+        hash.Add(AiApiKeyProtected, StringComparer.Ordinal);
 
         // 字典无序：逐项哈希异或，保证顺序无关。
         var columns = 0;

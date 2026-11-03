@@ -12,10 +12,20 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 新增
 
+- 插件系统试点（F-17）：新增随包携带的「性能」页签，作为首个**内置（首方）插件**，端到端跑通「插件目录 → 激活 → 导航栏页签 → 宿主注入服务 → 卸载」。
+  - 内置目录 `<App>/plugins` 与用户目录 `%LocalAppData%/CKAN/plugins` 分开：内置插件由宿主背书激活，用户插件仍默认不激活；同 Id 时内置优先并把用户那份记进失败清单。
+  - 激活状态持久化到 `%LocalAppData%/CKAN/plugin-activation.json`（tmp → 原子替换，读坏按空表处理，写失败只告警）。
+  - 启动引导放后台（不占首帧），完成后经 `IPluginService.Changed` 差分重建导航栏，页签自动出现在「插件」之后。
+  - 「性能」页：5 个指标（FPS / 帧耗时 / 1% low / PTR / 抖动）+ 七段耗时分解 + GPU 五段与括号耗时 + 四类热点页签（插件 / 模块 / 部件 / 程序集）+ 诊断与检查项 + 内存 / 垫高 / 探针 / 分配器 + 尖峰，迷你折线与占比条自绘，不引图表库。
+  - 数据来自 KSPPerformanceProfiler 的文件桥 `GameData/KSPPerformanceProfiler/Telemetry`（latest / status / commands + acks）：1 Hz 轮询、容忍半写、契约主版本不兼容时明确提示而不是画空图；缺字段显示 `N/A`，无效数据不显示成 0。
+  - 页内命令：导出报告 / 重置统计 / 垫高内存 / 释放垫高 / 刷新，按钮忙碌态与失败原因在页内可见。
+  - 空态分得清「没装」和「装的是旧版」：遥测目录不在但同级有 KPP 本体（`Plugins/` 或 `*.version`）时，标题是「KPP 已安装，但版本不带遥测桥」、徽标「待升级」，并提示升级到 1.2.0+ 而不是让人去重装同一个旧版本。
+  - 侧栏重建同时订阅 `RailItems.CollectionChanged`：视图模型是「先改 NavItems、最后刷 RailItems」，只订阅前者会永远拿旧快照重建（表现：视图模型里有 `performance`，侧栏看不见）。
+  - 插件页一路验到视图：`ViewLocator` 的插件分支按程序集查同名 View，断掉时静默落到占位视图，看上去就是「插件只是个占位符」。
 - 主菜单（启动落地页）：新增「主页」页并把它设为应用启动后的默认页（侧栏第一个入口）。
   - 实例概览：名称/版本/模组数/游戏目录，一键「启动游戏」「打开游戏目录」或跳到「实例管理」；实例被占用时禁用启动并说明原因。
   - 「快捷操作」分区按主次三层排布：两张大卡（模组库、变更集）承载核心工作流，三张普通卡（实例管理、存档、模组仓库）是常用页面，两个胶囊（日志、设置）收工具页；同样七个入口，不再平铺成一片。
-  - 「游戏截图」分区：自动枚举 `<GameDir>/Screenshots`（与背景层同一批扩展名），按拍摄时间倒序取最近 12 张，标注拍摄时间与体积；目录不存在或还没截过图时给出空态说明。
+  - 「游戏截图」分区：自动枚举 `<GameDir>/Screenshots`（与背景层同一批扩展名），按拍摄时间倒序取最近 12 张，标注拍摄时间与体积；还没截过图时只留一行「还没有截图」，不铺解释文案与目录路径（路径在「打开截图目录」的悬停提示里）。
   - 截图以横向胶片带呈现，不切页签就能看到；静止时约 50 px/s 自动向左滚动播放最近截图，触底停留约 1.2 秒后回卷，鼠标悬停暂停。缩略图在 App 层解码（宽 640），缓存按文件修改时间失效。
 - 日志与诊断（M8）：新增「日志」页与底部日志抽屉。
   - 十万行级内存环形缓冲（2 万条）+ 滚动文件（5 MB × 5），日志写入失败时自动降级为仅内存，不影响主流程。
@@ -23,6 +33,8 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
   - 导出诊断包：脱敏后的 zip（用户目录、盘符、UNC、令牌、SteamID、邮箱、IP、主机名等 13 组规则）+ SHA256，出口再反向扫描一遍，命中即拒发。
   - 旧版 `CKAN.log` 导入、子进程输出捕获、未处理异常（AppDomain/任务/UI 线程）统一入日志流。
   - 内置 20 条分类规则，可用 `Themes/log-rules.json` 外置热加载；坏规则只跳过单条。
+  - 游戏日志接入：日志页可按「界面日志 / 游戏日志」分档，后者增量跟随当前实例的 `<GameDir>/KSP.log`（每 750 ms 轮询、从末尾 256 KB 起读、文件被截断即从头重读，UTF-8 多字节安全），增量行按 `WRN/ERR/EXC` 着色、模块名进标签、续行淡化；可一键「导入已有日志」补齐整个文件。
+  - AI 排障：日志页「请 AI 分析」现在先给出脱敏后的完整预览，确认后才发往 OpenAI 兼容接口（地址/模型/Key 可配，Key 以 Windows DPAPI 密文落盘）；返回的假设按置信度降序，每条都带 `#序号` 证据行，低于 50% 的假设折叠显示。
 - Mod 配置适配层（M9）：新增「Mod 配置」页与 `adapters/` 适配器目录。
   - 适配器用 JSON 声明（`docs/design/adapter.schema.json`）描述配置文件布局与字段类型，内置 KSP-Community-Fixes 与 Kerbalism 两枚。
   - 配置读写走自带的无损文本编辑：保留注释、缩进、行尾与键序，写前存快照、写后重新解析自校验，失败自动回滚；检测到不可无损往返的编码直接拒写。
@@ -74,9 +86,57 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
   冷启动 0.81 s → 1.6 s；`manifest.json` 的 `publishOptions.publishReadyToRun` 记录实际取值。
 - 项目许可证落到仓库根：新增 `LICENSE.md`（GPL-3.0 全文 + 上游 MIT 说明），发布包随带该文件（缺失即中止出包），
   「关于」对话框的双声明从此有承载文件。
+- 页面缩放（75%–150%，5% 一档）：底栏中段新增滑块与加减按钮，Ctrl+滚轮微调、Ctrl+0 复位，读数常显。
+  缩放只作用页面承载区——`LayoutTransformControl` 把 `ScaleTransform` 折进测量，文字、图标、间距一起按比例重排
+  （不是位图拉伸），标题栏/侧栏/状态栏保持原尺寸，拖动时滑块不会被自己缩放。换档走静止阈值 0.05% 的临界阻尼弹簧，
+  与 `FontScale` 相比是两件事、可叠加；比例写入 `UiSettings.PageZoom`，重启保持。
+- 模组元数据中文化全链路（CKAN × UniversalI18n）：`i18n/tools/ckan_i18n_pipeline.py` 统一编排「抽取 → 翻译 → 校验 → 同步」四阶段，
+  路径零硬编码（`--ui18n-root` → `UNIVERSAL_I18N_ROOT` → 仓库内 `external/UniversalI18n` 联接），退出码分级（0/10/11/12/13/14/20/21）；
+  `--check` 是 15 项零网络门禁（官方向量、pool 解析/哈希/键形状、包哈希/归一化/同包 `h` 唯一/`k` 形状/`k` 孤儿/`k` 哈希对齐、清单一致、运行时 sha256、覆盖率缺口），
+  `--strict` 把告警当失败，`--selftest` 47 项自证；`--stage sync` 走 `.tmp` → sha256 → `os.replace` 原子替换，用户覆盖层只增不减。
+- 包行新增可选稳定键 `k`（`ckan:<identifier>:<field>`，形状 `^[a-z][a-z0-9-]*:[^\s]+$`、长度 ≤200）：
+  `api.py` 校验形状并允许同一 `k` 在同包多行（上游原文改版后的历史译文并存，`stats.dupKeyRows` 只计数不报错），
+  `entry put --key` / `entry put-batch --stdin` / `mod put` 全通路透传；读取侧 `DictEntry.Key` + `ModTextProvider.BuildKeyIndex` 以 `k` 优先建索引（同键人工 > 机翻、同类后写胜），
+  无 `k` 的历史行回落「`n` 形如 `ckan:`」的旧约定。
+- `CKANMeta` 升为 UniversalI18n 一等包（98 包 / 19837 行）：真实 LLM 跑满 4807 条元数据译文，覆盖 4833 条候选的 99.46%
+  （余 26 条：缩写/纯 URL/已是中文等前置跳过，另有 6 条术语门禁拒收）；`packindex` 覆盖率报告新增「CKAN 元数据」一节。
+- 模组详情面板接上译文：`ModDetailsViewModel` 的摘要/描述先查 `IModTextService.Provider.Find(identifier, "abstract"|"description", 原文)`，
+  命中用译文、未命中回落英文原文（无 Provider、原文空白、标识为空时与接线前逐字节一致）；命中挂 `CkanBadge Success`「已译」，
+  原文改版后译文仍是旧版时挂 `CkanBadge Warning`「译文对应的是旧版原文，英文内容已更新」，徽标文案在 VM 内、颜色走主题 token。
+- 启动预热语言包：此前全仓唯一调用 `ReloadPacksAsync` 的是 i18n 页面，用户不点开那一页模组详情永远英文；
+  `App.StartAsync` 在 bootstrap 完成后后台预热一次（失败只降级为英文原文，不挡首帧）——运行时目录实测一次载入 4807 条条目。
+- 模组翻译页（i18n）重做信息密度与筛选：条目从「三行卡」改为单行表格行（`标识 + 字段` / `原文` / `译文` / `类型` 徽标，200 / * / * / 96 固定列 + 表头 + 6,2 行内边距），同屏可见条目数由 3 条提升到 17 条以上；
+  左栏新增「按模组查看」分组导航（按 CKAN identifier 归堆、条目数降序，首项「全部模组」，没有 identifier 的老数据回落语言包 mod 名），点一下只看该模组的词条；
+  筛选条保留字段 / 类型两个下拉（候选项按条目数降序、空值归「无字段」，选项随语言包刷新重建），搜索范围扩展到 `Mod`、`Field` 与 `Context`，
+  「清除筛选」按是否有活动筛选显隐（分组也是筛选维度之一），页脚在有筛选时显示「已显示 N / M 条 · 已筛选」；
+  条目列表加 `MinHeight`、行加 `MinHeight=22`，视图代码后置对「列表零高度视口导致虚拟化一行都不实现」做最多 3 次布局自愈。
+  筛选逻辑全部在 `ModTextPageViewModel`，视图只绑定；`tests/CkanUI.App.Tests/ModTextPageDensityTests.cs` 用无头渲染断言行高 < 36 px 并留档快照，真实 4807 行运行包实测单行渲染、首行容器高 30 px。
+- 语言包同步扩到**全量语料**：`ckan_i18n_pipeline.py --stage sync` 从只搬 `CKANMeta.jsonl` 改为搬 `packs/<lang>/*.jsonl` 全部语言包
+  （新增 `--langs`，默认 `all` 覆盖所有语言目录），游戏内 modui / 部件描述等译文因此进入 ckan-ui；
+  运行时目录实测 98 个包 / 19837 行 / 6.9 MB，i18n 页一次载入 19837 条（204 ms）、按模组归堆 3730 组。
+  `--check` 新增 `runtime.packs`（运行时语言目录缺包即 warn，`--strict` 判红）；`--selftest` 51 项（+4：其余语言包一并搬运、全集同步 exit 0、缺包可见、`--langs` 无匹配目录 exit 13）。
+- i18n 页配合全量语料：游戏内语言包没有稳定键 `k`，条目首列改为 `DisplayKey`（identifier → mod 名 → 上下文）回落，否则整列空白；
+  左栏分组栏新增「搜索模组」过滤框（`GroupFilterQuery`，首项「全部模组」常驻，选中组被过滤掉时回落「全部」并重跑筛选）；
+  文件清单卡改为最高 96 px 的滚动区——99 个包会把条目列表整个挤出视口（无头实测列表 `bounds.Y = -59`）。
+- 模组翻译页按**范围**拆分 + 二次提密度：筛选条改成三个显式按钮（全部范围 / CKAN 元数据 / 模组翻译，选中态用 `CkanPrimary`、未选中 `CkanGhost`，
+  由 `IsScopeAll / IsScopeMetadata / IsScopeMods` 驱动、`SelectScopeCommand` 切换；下拉框藏得太深，用户找不到"只看元数据"），
+  元数据条目按稳定键 `k` 以 `ckan:` 前缀或 `mod = CKANMeta` 判定，两个范围各自分组、各自计数，切换范围时清空分组选中避免筛空；
+  筛选条外层换成 `WrapPanel`（窄窗口自动换行，否则三个按钮会把字段/类型下拉挤出卡片，无头实测 416 px 宽时换成两行）；
+  工具栏新增「覆盖编辑」开关（隐藏右栏后列表宽度 416 → 796 px），文件清单卡折叠为 `Expander`、左栏分组 220 → 200 px、右栏 400 → 380 px；
+  行高 30 → 22 px（`MinHeight=18` + `Padding=6,0`），同屏行数 11 → 21；列宽由固定 `200,*,*,96` 改为 `2.5*,3*,3*,Auto`，字段移入首列悬停提示（`KeyTooltip`）；
+  「类型」徽标只在非默认来源（人工覆盖 / 保留 / 非空 `src`）时显示，整批都是默认词典条目时连表头一起隐藏（`ShowsSourceBadgeColumn`）；
+  无头实测（1052×814，800 条假数据）：左栏 200 + 分组、列表 416×434（筛选条两行）/ 416×476（单行）、首行容器高 22 px、分组栏在元数据范围下 401 组、模组翻译范围下 2 组。
+- `--stage sync --dest <实例>/GameData/UI18n/Packs` 打通「装进游戏实例」：游戏侧只认 `GameData/UI18n/Packs/<lang>/*.jsonl`
+  （`UI18n.Runtime/Update/UpdateWorkflow.cs:261`），与 ckan-ui 自己的运行时目录是两份；实测把实例从 99 包补到 100 包
+  （多出 `CKANMeta.jsonl` 4807 行 / 1,780,151 字节），`--check --dest <实例>` 16 项全绿，同步逐文件原子替换、覆盖层只增不减。
 
 ### 变更
 
+- 安装与出包体验重做：安装程序改为原生 Win32 图形向导，出包多了一条「双击即出」的入口。
+  - `CkanUISetup.exe` 改用 Native AOT 编译（不再是自包含 CLR）：引导内核 36 MB → 1.95 MB，从「自带运行时」变成「零前置依赖、毫秒级起来」。
+  - 新增五步安装向导（欢迎 → 目标目录与磁盘空间校验 → 桌面/开始菜单/应用路径选项 → 带当前文件名的实时进度条 → 完成并可立即启动）与三步卸载向导（含「是否保留配置与缓存」），高分屏按 PerMonitorV2 感知；`-Quiet`/`/S`/`-InstallDir`/`-Uninstall` 等静默参数保持不变。
+  - 出包脚本剔除 12 MB 用不上的非 Windows 与调试组件（`Avalonia.X11/Metal/Native/FreeDesktop`、`createdump`、`mscordbi`、`mscordaccore*`、`clrgcexp`、原文 XML 文档），zip 走 7-Zip 极限 Deflate（`-mx=9`）；安装包 85.7 MB → 51.8 MB（`-NoReadyToRun` 档）。
+  - 新增一键出包入口 `tools/release/build-setup.cmd`（逻辑在 `Build-Setup.ps1`）：先验 .NET SDK 与 Native AOT 需要的 MSVC 链接器，再透传调用 `release.ps1`，收工用 `CkanUISetup.exe /?` 真跑一次自检并列出产物体积。
 - 主程序名统一为 `CkanUI.exe`（程序集名 `CkanUI`），与文档里的写法一致；Avalonia 资源 URI 同步改为
   `avares://CkanUI/…`，发布包里不再有 `CkanUI.App.exe`。
 - 导航栏新增「日志」「Mod 配置」两个一级入口（共 19 项），并补对应字形。
@@ -92,6 +152,44 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 修复
 
+- 指针停在列表行的边缘时，行会在「选中 / 未选中」之间疯狂闪烁：悬停的 2px 位移原本挂在
+  `ListBoxItem` 自己身上，而 `RenderTransform` 参与命中测试——行一右移，停在左缘的指针就掉出包围盒，
+  悬停态消失、行弹回、指针又落回行内，每帧来回切换。位移现在下沉到模板内的 `ContentPresenter`
+  （行的包围盒原地不动），表格行 `DataGridRow` 同样处理；卡片与引导卡不再整体上浮 2px，抬升感交给阴影，
+  指针压住卡片下缘也不会再抖。回归用例：`LogListScrollTests.HoveringARow_SlidesItsPresenter_WithoutMovingTheRowItself`。
+- 启动游戏前的那次 L1「释放页面投影」会把当前正显示着的列表也清空（模组翻译 19837 条词条、模组表、内容树都中招）：
+  释放后不会再有 `OnActivated`，用户看到的是一张只剩表头的空列表，而状态栏还挂着「载入完成，共 N 条词条」——
+  启动失败时尤其刺眼。现在 `TrimProjection()` 在页面 `IsActive` 时直接返回 0（离屏页面照常释放，
+  内存目标不变），`ModsProjectionTrimTests`/`ModTextPageViewModelTests` 各加一条「在屏页面不释放」的用例。
+- 滚动条在静止时是「看不见也拖不到」的：全局样式把 `ScrollBar` 的不透明度设成 0，只有指针悬停才变 1，
+  而 FluentAvalonia 的模板还会在收起态把 thumb 压成 `scaleX(0.35)`（8px → 2.8px 的一条线）。
+  现在滚动条常驻 0.7 不透明度、指针上去加亮到 1 且 thumb 转强调色，模板的收缩变换被取消（thumb 满宽 10px），
+  并加 `Ui_Common_ScrollBar_Tip` 悬停提示；`tests/CkanUI.App.Tests/ScrollBarAffordanceTests.cs` 钉住「静止可见、悬停加亮」。
+- 快速拖滚动条时日志列表整段空白：虚拟化列表在大跳转时来不及回收/新建行容器，视口里会夹着视口外的孤儿容器。
+  日志行有硬上限（`LogPageViewModel.RowLimit = 500`）且行高固定 20px，改成常驻 `StackPanel` 全量实现，
+  `EveryLogRowIsRealized_SoAFastScrollbarDragCannotLeaveHoles` 断言 500 行全部 realized。
+- 页面缩放只缩版面、不缩字：缩放矩阵被写在 `PageHost` 上，而页面动效的 `TransformSpring` 一接管就把
+  `PageHost.RenderTransform` 改写成 identity —— 矩阵丢了，只剩「按视口/scale 重新测量」这一步，
+  表现出来就是卡片变窄、文字和图标还是原尺寸（150% 与 100% 的字宽逐像素相同）。
+  现在 `LayoutTransformControl` 与 `PageHost` 之间夹一层没人碰的 `PageZoomSurface`，矩阵落在这一层；
+  并补 `PageZoom_MatrixLandsOnTheSurfacePanel_SoTextAndIconsActuallyGrow` 锁住「矩阵在谁身上」这个判据。
+- 页面缩放从 100% 往上调时页面纹丝不动：首帧弹簧值还在 1.0，100% 摘变换的分支把刚建好的变换和弹簧一起置空，
+  下一帧又重新建、再摘 —— 每秒 60 次原地空转。摘变换改为「目标也是 100%」才执行，从 100% 拖到 150% 全程连续放大；
+  `tests/CkanUI.App.Tests/TitleBarLayoutTests.cs` 逐档断言变换不消失（10 档 × 6 帧）。
+- 带 UTF-8 BOM 的 `ckan-ui.json` 会让全部界面设置静默回落默认值：设置按字节反序列化，`0xEF` 是非法起始字符，
+  整份 JSON 抛异常后被当成「文件不可读」吞掉 —— 用户手改或用 PowerShell 5.1 / 记事本另存一次，缩放比例、主题、列宽就一起丢。
+  读取前统一剥掉 BOM，并补 `Load_FileWithUtf8Bom_StillReadsTheUsersSettings` 回归。
+- 日志列表的阅读顺序与滚动：改为时间正序（最新的在最下面），跟随末尾时自动贴住最新一行；后台每来一条日志只追加尾部增量，
+  不再整表 Clear 重建 —— 之前每次刷新都会让虚拟化列表发出 Reset，把滚动位置顶回顶部、行容器来不及重建，屏幕上就剩一大片空白。
+  行高同时从 26px 压到 20px，一屏多显示近三成日志。快速拖动滚动条后残留的半透明「残影行」另有根因：
+  页面缩放承载区的恒等 `ScaleTransform`（100% 时也挂着）把整页变成一层合成层，合成器来不及失效就留下旧内容；
+  现在 100% 直接摘掉变换回到直绘，日志行也不再给悬停挂弹簧 `RenderTransform` 过渡。
+- 页面缩放滑块的拖动体验：此前每挪一格都同步落盘一次（每格一次 fsync），拖动全程把 UI 线程按在磁盘上，
+  写失败时还会一格一条「保存 UI 设置失败」把日志抽屉刷满。改为手势内只改内存、松开滑块合并写一次；
+  设置写入对瞬时占用重试一次，同类失败 30 秒内只记一条。
+- 底栏缩放控件排版：FluentAvalonia 的 Slider 模板给刻度留了上下各 14px 的固定行（默认要求 32px 高），
+  硬压进 28px 状态栏后滑轨被挤到中线以下约 10px、18px 的滑块被窗口底边裁掉一角；改为只对该滑块局部覆盖
+  （去掉预留行、轨道与滑块收到 12px），滑轨、加减按钮与读数回到同一条水平中线，两侧间距对称。
 - 游玩时长：重启后手动基线与自动累计不再互相覆盖，崩溃遗留的会话在下次启动时丢弃而不是计入时长。
 - 安装历史：新增「删除选中」「清空历史」入口（含二次确认），按时间点成对删除条目与快照行，不可解析的行保留。
 - 旧版日志导入：保留毫秒字段，同秒内的多行不再被抹平顺序。
@@ -130,6 +228,10 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
   - 一条命令出包：`tools/release/release.ps1` 产出两个 zip + `SHA256SUMS.txt` + `manifest.json`（版本、提交、构建参数、逐包哈希、冒烟结果）。
   - 版本号写入程序集与「关于」对话框：`v0.1.0 (26.g4a888a5)` 形式，提交数+短哈希可追溯构建来源。
 - 工程内建：三平台 CI（构建 + 测试）、`tools/verify-layout` 仓库卫生门禁 12 条、统一测试运行器。
+
+### 修复
+
+- 测试宿主 `tests/CkanUI.TestRunner`：`--config <自定义配置>` 的配置名不再被当成程序集过滤词。此前只硬编码跳过 `Debug`/`Release`，用 `-c Verify` 绕开被占用的 Debug 输出目录（构建/测试并行时的常见情形）会把 `Verify` 当过滤词，一个测试程序集都匹配不上，报「没有可运行的测试程序集」。
 
 ### 已知问题
 

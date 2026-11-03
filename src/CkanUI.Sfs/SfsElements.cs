@@ -141,6 +141,9 @@ public sealed class SfsNode : SfsElement
     /// <summary>独占一行的右花括号行；为 null 表示块未闭合（V-01 已报错）。</summary>
     public SfsRawLine? CloseLine { get; internal set; }
 
+    /// <summary>块占用的最后一个物理行（右花括号行）；未闭合时解析器会补成文件最后一行。</summary>
+    public int EndLineNumber { get; internal set; }
+
     /// <summary>子元素（保持原文件顺序）。</summary>
     public IReadOnlyList<SfsElement> Children => _children;
 

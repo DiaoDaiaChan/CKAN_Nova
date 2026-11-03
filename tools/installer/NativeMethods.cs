@@ -223,6 +223,16 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool FreeConsole();
 
+    // 控制台代码页：安装程序输出的是 UTF-8，若不把控制台切到 65001，
+    // cmd/PowerShell 按 GBK 解释就会整屏乱码（用户贴日志时完全没法看）。
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetConsoleOutputCP(uint wCodePageID);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetConsoleCP(uint wCodePageID);
+
     [DllImport("kernel32.dll", EntryPoint = "GetModuleHandleW", CharSet = CharSet.Unicode)]
     public static extern IntPtr GetModuleHandle(string? lpModuleName);
 
@@ -428,4 +438,68 @@ internal static class NativeMethods
     [DllImport("gdi32.dll", EntryPoint = "TextOutW", CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool TextOut(IntPtr hdc, int x, int y, string lpString, int nCount);
+
+    // ---- 主题化 / 自绘控件所需的补充声明（安装向导与主程序共享设计语言）----
+    public const uint WM_DRAWITEM = 0x002B;
+    public const uint BS_OWNERDRAW = 0x0000000B;
+
+    public const uint PBM_SETBARCOLOR = WM_USER + 9;
+    public const uint CCM_SETBKCOLOR = 0x2001;
+
+    public const uint ODS_SELECTED = 0x0001;
+    public const uint ODS_DISABLED = 0x0004;
+    public const uint ODS_FOCUS = 0x0010;
+
+    public const uint DT_CENTER = 0x0001;
+    public const uint DT_VCENTER = 0x0004;
+    public const uint DT_SINGLELINE = 0x0020;
+    public const uint DT_NOPREFIX = 0x0800;
+
+    public const int PS_SOLID = 0;
+    public const int NULL_BRUSH = 5;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DRAWITEMSTRUCT
+    {
+        public uint CtlType;
+        public uint CtlID;
+        public uint itemID;
+        public uint itemAction;
+        public uint itemState;
+        public IntPtr hwndItem;
+        public IntPtr hDC;
+        public RECT rcItem;
+        public IntPtr itemData;
+    }
+
+    [DllImport("user32.dll", EntryPoint = "DrawTextW", CharSet = CharSet.Unicode)]
+    public static extern int DrawText(IntPtr hdc, string lpchText, int cchText, ref RECT lprc, uint format);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool AdjustWindowRectEx(ref RECT lpRect, uint dwStyle, [MarshalAs(UnmanagedType.Bool)] bool bMenu, uint dwExStyle);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool InvalidateRect(IntPtr hWnd, IntPtr lpRect, [MarshalAs(UnmanagedType.Bool)] bool bErase);
+
+    [DllImport("gdi32.dll")]
+    public static extern IntPtr CreatePen(int iStyle, int cWidth, uint color);
+
+    [DllImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool RoundRect(IntPtr hdc, int left, int top, int right, int bottom, int width, int height);
+
+    [DllImport("uxtheme.dll", EntryPoint = "SetWindowTheme", CharSet = CharSet.Unicode)]
+    public static extern int SetWindowTheme(IntPtr hWnd, string? pszSubAppName, string? pszSubIdList);
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref uint pvAttribute, int cbAttribute);
 }

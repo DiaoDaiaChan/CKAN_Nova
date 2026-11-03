@@ -23,4 +23,7 @@ public enum LogSourceKind
 
     /// <summary>从旧 <c>CKAN.log</c> 导入的历史行。</summary>
     Legacy = 5,
+
+    /// <summary>实例的 KSP 游戏日志（<c>&lt;GameDir&gt;/KSP.log</c>）：玩家排障时真正要看的那一路。</summary>
+    Game = 6,
 }

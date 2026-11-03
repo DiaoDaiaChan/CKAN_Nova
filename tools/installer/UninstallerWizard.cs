@@ -10,6 +10,11 @@ internal sealed class UninstallerWizard
     private const int ID_BTN_CANCEL = 1002;
     private const int ID_BTN_FINISH = 1003;
 
+    private const int WindowWidth = 560;
+    private const int WindowHeight = 400;
+    private const int HeaderHeight = 72;
+    private const int FooterTop = 332;
+
     private const int ID_CHK_REMOVE_USERDATA = 2001;
     private const int ID_PROGRESS = 3001;
     private const int ID_STATIC_STATUS = 3002;
@@ -20,10 +25,6 @@ internal sealed class UninstallerWizard
     private readonly string _installDir;
     private IntPtr _hWnd;
     private IntPtr _hFontTitle;
-    private IntPtr _hFontNormal;
-    private IntPtr _hFontBold;
-    private IntPtr _hBrushHeader;
-    private IntPtr _hBrushBody;
 
     private int _currentStep; // 0: Confirm, 1: Uninstalling, 2: Finished
 
@@ -57,6 +58,7 @@ internal sealed class UninstallerWizard
             dwICC = NativeMethods.ICC_PROGRESS_CLASS | NativeMethods.ICC_STANDARD_CLASSES
         };
         NativeMethods.InitCommonControlsEx(ref icc);
+        InstallerTheme.Init();
 
         var wizard = new UninstallerWizard(options, installDir);
         _current = wizard;
@@ -78,7 +80,7 @@ internal sealed class UninstallerWizard
             hInstance = hInstance,
             hIcon = IntPtr.Zero,
             hCursor = NativeMethods.LoadCursorW(IntPtr.Zero, (IntPtr)NativeMethods.IDC_ARROW),
-            hbrBackground = (IntPtr)(NativeMethods.COLOR_BTNFACE + 1),
+            hbrBackground = IntPtr.Zero,
             lpszMenuName = null,
             lpszClassName = className,
             hIconSm = IntPtr.Zero
@@ -86,17 +88,16 @@ internal sealed class UninstallerWizard
 
         NativeMethods.RegisterClassEx(ref wndClass);
 
-        _hFontTitle = NativeMethods.CreateFont(-16, 0, 0, 0, 700, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI");
-        _hFontBold = NativeMethods.CreateFont(-12, 0, 0, 0, 700, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI");
-        _hFontNormal = NativeMethods.CreateFont(-12, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI");
-
-        _hBrushHeader = NativeMethods.CreateSolidBrush(0x00FFFFFF); // White
-        _hBrushBody = NativeMethods.GetStockObject(NativeMethods.COLOR_BTNFACE);
+        _hFontTitle = InstallerTheme.FontTitle;
 
         var screenW = NativeMethods.GetSystemMetrics(NativeMethods.SM_CXSCREEN);
         var screenH = NativeMethods.GetSystemMetrics(NativeMethods.SM_CYSCREEN);
-        var winW = 520;
-        var winH = 380;
+        var style = NativeMethods.WS_OVERLAPPED | NativeMethods.WS_CAPTION | NativeMethods.WS_SYSMENU
+            | NativeMethods.WS_MINIMIZEBOX | NativeMethods.WS_CLIPCHILDREN;
+        var frame = new NativeMethods.RECT { Left = 0, Top = 0, Right = WindowWidth, Bottom = WindowHeight };
+        NativeMethods.AdjustWindowRectEx(ref frame, style, false, 0);
+        var winW = frame.Right - frame.Left;
+        var winH = frame.Bottom - frame.Top;
         var posX = (screenW - winW) / 2;
         var posY = (screenH - winH) / 2;
 
@@ -104,7 +105,7 @@ internal sealed class UninstallerWizard
             0,
             className,
             "CKAN UI 卸载向导",
-            NativeMethods.WS_OVERLAPPED | NativeMethods.WS_CAPTION | NativeMethods.WS_SYSMENU | NativeMethods.WS_MINIMIZEBOX,
+            style,
             posX,
             posY,
             winW,
@@ -113,6 +114,8 @@ internal sealed class UninstallerWizard
             IntPtr.Zero,
             hInstance,
             IntPtr.Zero);
+
+        InstallerTheme.ApplyChrome(_hWnd);
 
         CreateControls();
         UpdateStepView();
@@ -132,54 +135,55 @@ internal sealed class UninstallerWizard
 
     private void Cleanup()
     {
-        if (_hFontTitle != IntPtr.Zero) NativeMethods.DeleteObject(_hFontTitle);
-        if (_hFontBold != IntPtr.Zero) NativeMethods.DeleteObject(_hFontBold);
-        if (_hFontNormal != IntPtr.Zero) NativeMethods.DeleteObject(_hFontNormal);
-        if (_hBrushHeader != IntPtr.Zero) NativeMethods.DeleteObject(_hBrushHeader);
+        // 字体/画刷由 InstallerTheme 统一持有并释放。
+        InstallerTheme.Dispose();
     }
 
     private void CreateControls()
     {
-        // Bottom separator
-        CreateWindowControl("STATIC", "", NativeMethods.WS_CHILD | NativeMethods.WS_VISIBLE | NativeMethods.SS_ETCHEDHORZ, 0, 290, 520, 2, 0);
+        var btnStyle = NativeMethods.WS_CHILD | NativeMethods.WS_VISIBLE | NativeMethods.BS_OWNERDRAW | NativeMethods.WS_TABSTOP;
 
-        // Buttons
-        _hBtnUninstall = CreateWindowControl("BUTTON", "卸载 (&Uninstall)", NativeMethods.WS_CHILD | NativeMethods.WS_VISIBLE | NativeMethods.BS_DEFPUSHBUTTON | NativeMethods.WS_TABSTOP, 310, 302, 95, 28, ID_BTN_UNINSTALL);
-        _hBtnCancel = CreateWindowControl("BUTTON", "取消", NativeMethods.WS_CHILD | NativeMethods.WS_VISIBLE | NativeMethods.BS_PUSHBUTTON | NativeMethods.WS_TABSTOP, 415, 302, 80, 28, ID_BTN_CANCEL);
-        _hBtnFinish = CreateWindowControl("BUTTON", "完成 (&Finish)", NativeMethods.WS_CHILD | NativeMethods.BS_DEFPUSHBUTTON | NativeMethods.WS_TABSTOP, 415, 302, 80, 28, ID_BTN_FINISH);
+        // 卸载=危险操作，但按钮仍是主操作样式；取消放左侧远离主按钮，减少误触。
+        _hBtnCancel = CreateWindowControl("BUTTON", "取消", btnStyle, 24, 352, 84, 32, ID_BTN_CANCEL);
+        _hBtnUninstall = CreateWindowControl("BUTTON", "卸载", btnStyle, 404, 352, 132, 32, ID_BTN_UNINSTALL);
+        _hBtnFinish = CreateWindowControl("BUTTON", "完成", btnStyle, 404, 352, 132, 32, ID_BTN_FINISH);
 
-        SetFont(_hBtnUninstall, _hFontNormal);
-        SetFont(_hBtnCancel, _hFontNormal);
-        SetFont(_hBtnFinish, _hFontNormal);
+        InstallerTheme.StyleButton(_hBtnCancel, primary: false);
+        InstallerTheme.StyleButton(_hBtnUninstall, primary: true);
+        InstallerTheme.StyleButton(_hBtnFinish, primary: true);
 
-        // Step 0: Confirm Controls
+        // --- 第 0 步：确认 ---
         var c1 = CreateWindowControl("STATIC",
-            "是否确定从本地计算机完全卸载 CKAN UI？\r\n\r\n" +
-            "目标卸载目录: " + _installDir + "\r\n\r\n" +
-            "注意：卸载程序将删除该目录下的 CKAN UI 核心程序与快捷方式。\r\n" +
-            "默认保留您的 KSP 游戏实例、已安装模组及共享缓存。",
-            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 30, 80, 460, 120, 0);
-        _hChkUserData = CreateWindowControl("BUTTON", "同时删除用户数据（CKAN UI 日志与自有配置）", NativeMethods.WS_CHILD | NativeMethods.BS_AUTOCHECKBOX | NativeMethods.WS_TABSTOP, 30, 220, 460, 22, ID_CHK_REMOVE_USERDATA);
+            "是否确定从本机完全卸载 CKAN UI？\r\n\r\n" +
+            "目标目录: " + _installDir + "\r\n\r\n" +
+            "卸载会删除该目录下的 CKAN UI 程序文件与快捷方式。\r\n" +
+            "你的 KSP 游戏实例、已安装模组及共享缓存会默认保留。",
+            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 24, 96, 512, 140, 0);
+        _hChkUserData = CreateWindowControl("BUTTON", "同时删除用户数据（CKAN UI 日志与自有配置）",
+            NativeMethods.WS_CHILD | NativeMethods.BS_AUTOCHECKBOX | NativeMethods.WS_TABSTOP, 24, 248, 512, 24, ID_CHK_REMOVE_USERDATA);
 
-        SetFont(c1, _hFontNormal);
-        SetFont(_hChkUserData, _hFontNormal);
+        SetFont(c1, InstallerTheme.FontBody);
+        InstallerTheme.StyleCheckBox(_hChkUserData);
         _step0Controls.AddRange([c1, _hChkUserData]);
 
-        // Step 1: Progress Controls
-        _hStaticStatus = CreateWindowControl("STATIC", "正在卸载 CKAN UI...", NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 30, 100, 460, 22, ID_STATIC_STATUS);
-        _hProgress = CreateWindowControl("msctls_progress32", "", NativeMethods.WS_CHILD | NativeMethods.WS_BORDER, 30, 135, 455, 22, ID_PROGRESS);
+        // --- 第 1 步：卸载中 ---
+        _hStaticStatus = CreateWindowControl("STATIC", "正在卸载 CKAN UI...",
+            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 24, 108, 512, 22, ID_STATIC_STATUS);
+        _hProgress = CreateWindowControl("msctls_progress32", "", NativeMethods.WS_CHILD, 24, 140, 512, 10, ID_PROGRESS);
         NativeMethods.SendMessage(_hProgress, NativeMethods.PBM_SETRANGE32, IntPtr.Zero, (IntPtr)100);
+        InstallerTheme.StyleProgress(_hProgress);
 
-        SetFont(_hStaticStatus, _hFontBold);
+        SetFont(_hStaticStatus, InstallerTheme.FontStrong);
         _step1Controls.AddRange([_hStaticStatus, _hProgress]);
 
-        // Step 2: Finished Controls
+        // --- 第 2 步：完成 ---
         var f1 = CreateWindowControl("STATIC",
-            "CKAN UI 已成功从计算机中卸载。\r\n\r\n" +
-            "快捷方式、系统注册项及程序文件均已清除。\r\n\r\n" +
-            "感谢您使用 CKAN UI！",
-            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 30, 90, 460, 120, 0);
-        SetFont(f1, _hFontNormal);
+            "CKAN UI 已从本机卸载。\r\n\r\n" +
+            "快捷方式、注册表卸载项与程序文件均已清理。\r\n" +
+            "开始菜单与桌面上的 CKAN UI 图标此后不应再出现。\r\n\r\n" +
+            "感谢使用 CKAN UI！",
+            NativeMethods.WS_CHILD | NativeMethods.SS_LEFT, 24, 96, 512, 140, 0);
+        SetFont(f1, InstallerTheme.FontBody);
         _step2Controls.Add(f1);
     }
 
@@ -220,6 +224,7 @@ internal sealed class UninstallerWizard
                 break;
         }
 
+        NativeMethods.InvalidateRect(_hWnd, IntPtr.Zero, true);
         NativeMethods.UpdateWindow(_hWnd);
     }
 
@@ -309,19 +314,36 @@ internal sealed class UninstallerWizard
                 break;
             }
 
+            case NativeMethods.WM_ERASEBKGND:
+            {
+                var rect = new NativeMethods.RECT { Left = 0, Top = 0, Right = WindowWidth, Bottom = WindowHeight };
+                NativeMethods.FillRect(wParam, ref rect, InstallerTheme.BrushCanvas);
+                return (IntPtr)1;
+            }
+
             case NativeMethods.WM_PAINT:
             {
                 var hdc = NativeMethods.BeginPaint(hWnd, out var ps);
-                inst.DrawHeader(hdc);
+                inst.Paint(hdc);
                 NativeMethods.EndPaint(hWnd, ref ps);
                 return IntPtr.Zero;
             }
 
+            case NativeMethods.WM_DRAWITEM:
+            {
+                var dis = Marshal.PtrToStructure<NativeMethods.DRAWITEMSTRUCT>(lParam);
+                var primary = dis.hwndItem == inst._hBtnUninstall || dis.hwndItem == inst._hBtnFinish;
+                InstallerTheme.DrawButton(in dis, primary);
+                return (IntPtr)1;
+            }
+
             case NativeMethods.WM_CTLCOLORSTATIC:
+            case NativeMethods.WM_CTLCOLORBTN:
             {
                 var hdc = wParam;
                 NativeMethods.SetBkMode(hdc, NativeMethods.TRANSPARENT);
-                return inst._hBrushBody;
+                NativeMethods.SetTextColor(hdc, InstallerTheme.TextPrimary);
+                return InstallerTheme.BrushCanvas;
             }
 
             case NativeMethods.WM_CLOSE:
@@ -336,33 +358,57 @@ internal sealed class UninstallerWizard
         return NativeMethods.DefWindowProc(hWnd, msg, wParam, lParam);
     }
 
+    private void Paint(IntPtr hdc)
+    {
+        var client = new NativeMethods.RECT { Left = 0, Top = 0, Right = WindowWidth, Bottom = WindowHeight };
+        NativeMethods.FillRect(hdc, ref client, InstallerTheme.BrushCanvas);
+        DrawHeader(hdc);
+        DrawFooter(hdc);
+    }
+
     private void DrawHeader(IntPtr hdc)
     {
-        var headerRect = new NativeMethods.RECT { Left = 0, Top = 0, Right = 520, Bottom = 65 };
-        NativeMethods.FillRect(hdc, ref headerRect, _hBrushHeader);
+        var headerRect = new NativeMethods.RECT { Left = 0, Top = 0, Right = WindowWidth, Bottom = HeaderHeight + 1 };
+        NativeMethods.FillRect(hdc, ref headerRect, InstallerTheme.BrushSurface);
 
-        var lineRect = new NativeMethods.RECT { Left = 0, Top = 64, Right = 520, Bottom = 65 };
-        var hbrLine = NativeMethods.CreateSolidBrush(0x00D0D0D0);
-        NativeMethods.FillRect(hdc, ref lineRect, hbrLine);
-        NativeMethods.DeleteObject(hbrLine);
+        var accentBrush = NativeMethods.CreateSolidBrush(InstallerTheme.Accent);
+        var accentRect = new NativeMethods.RECT { Left = 0, Top = 0, Right = WindowWidth, Bottom = 3 };
+        NativeMethods.FillRect(hdc, ref accentRect, accentBrush);
+        NativeMethods.DeleteObject(accentBrush);
 
-        NativeMethods.SetBkMode(hdc, NativeMethods.TRANSPARENT);
+        var lineBrush = NativeMethods.CreateSolidBrush(InstallerTheme.Border);
+        var lineRect = new NativeMethods.RECT { Left = 0, Top = HeaderHeight, Right = WindowWidth, Bottom = HeaderHeight + 1 };
+        NativeMethods.FillRect(hdc, ref lineRect, lineBrush);
+        NativeMethods.DeleteObject(lineBrush);
 
         var (title, subtitle) = _currentStep switch
         {
-            0 => ("卸载 CKAN UI", "从本地计算机完全移除 CKAN UI。"),
-            1 => ("正在卸载 CKAN UI", "向导正在清理文件与系统注册项，请稍候..."),
-            2 => ("卸载完成", "CKAN UI 已成功从计算机移除。"),
-            _ => ("CKAN UI 卸载向导", "")
+            0 => ("卸载 CKAN UI", "从本机移除 CKAN UI 及其系统集成。"),
+            1 => ("正在卸载", "正在清理程序文件与注册表项，请稍候。"),
+            2 => ("卸载完成", "CKAN UI 已从本机移除。"),
+            _ => ("CKAN UI 卸载程序", "")
         };
 
-        NativeMethods.SelectObject(hdc, _hFontTitle);
-        NativeMethods.SetTextColor(hdc, 0x00202020);
-        TextOut(hdc, 24, 12, title);
+        NativeMethods.SetBkMode(hdc, NativeMethods.TRANSPARENT);
 
-        NativeMethods.SelectObject(hdc, _hFontNormal);
-        NativeMethods.SetTextColor(hdc, 0x00555555);
-        TextOut(hdc, 36, 36, subtitle);
+        NativeMethods.SelectObject(hdc, _hFontTitle);
+        NativeMethods.SetTextColor(hdc, InstallerTheme.TextPrimary);
+        TextOut(hdc, 24, 20, title);
+
+        NativeMethods.SelectObject(hdc, InstallerTheme.FontSubtitle);
+        NativeMethods.SetTextColor(hdc, InstallerTheme.TextSecondary);
+        TextOut(hdc, 24, 48, subtitle);
+    }
+
+    private static void DrawFooter(IntPtr hdc)
+    {
+        var footerRect = new NativeMethods.RECT { Left = 0, Top = FooterTop, Right = WindowWidth, Bottom = WindowHeight };
+        NativeMethods.FillRect(hdc, ref footerRect, InstallerTheme.BrushSurface);
+
+        var lineBrush = NativeMethods.CreateSolidBrush(InstallerTheme.Border);
+        var lineRect = new NativeMethods.RECT { Left = 0, Top = FooterTop, Right = WindowWidth, Bottom = FooterTop + 1 };
+        NativeMethods.FillRect(hdc, ref lineRect, lineBrush);
+        NativeMethods.DeleteObject(lineBrush);
     }
 
     private static void TextOut(IntPtr hdc, int x, int y, string str)

@@ -235,7 +235,8 @@
           </Grid>
         </Border>
 
-        <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
+        <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center" ResizeDirection="Columns"
+                      VerticalAlignment="Stretch" Margin="0,10" ZIndex="5" Cursor="SizeWestEast" />
 
         <!-- 详情面板 Card -->
         <Border Grid.Column="2" Padding="16"

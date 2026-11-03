@@ -2,7 +2,9 @@ using System.Diagnostics;
 using CkanUI.Localization;
 using System.Collections.ObjectModel;
 using CkanUI.Services.Abstractions;
+using CkanUI.Services.Abstractions.Ai;
 using CkanUI.Services.Abstractions.Logs;
+using CkanUI.Services.Abstractions.Security;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -27,6 +29,8 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
     private readonly ILogStore _store;
     private readonly ILogQueryService _query;
     private readonly ILogBundleService? _bundle;
+    private readonly IKspLogTailService? _gameLog;
+    private readonly ILogRedactor? _redactor;
 
     /// <summary>构造时捕获的同步上下文：log4net appender 来自任意工作线程，刷新必须切回 UI 线程。</summary>
     private readonly SynchronizationContext? _sync;
@@ -42,12 +46,27 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
     }
 
     /// <summary>正常构造（<paramref name="bundle"/> 为 null 时导出按钮会提示未接线）。</summary>
-    public LogPageViewModel(ILogStore store, ILogQueryService query, ILogBundleService? bundle = null)
+    public LogPageViewModel(
+        ILogStore store,
+        ILogQueryService query,
+        ILogBundleService? bundle = null,
+        IKspLogTailService? gameLog = null,
+        IUiSettingsStore? settingsStore = null,
+        ILlmDiagnosticService? ai = null,
+        ISecretProtector? secrets = null,
+        ILogRedactor? redactor = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _query = query ?? throw new ArgumentNullException(nameof(query));
         _bundle = bundle;
+        _gameLog = gameLog;
+        _redactor = redactor;
+        Ai = new AiDiagnosisViewModel(ai, settingsStore, secrets, key => Text(key, key));
         _sync = SynchronizationContext.Current;
+        if (_gameLog is not null)
+        {
+            _gameLog.StatusChanged += OnGameLogStatusChanged;
+        }
 
         Filters = new LogFilterViewModel();
         Filters.Changed += OnFiltersChanged;
@@ -55,8 +74,17 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
         RefreshCommand = new RelayCommand(Refresh);
         ToggleAggregateCommand = new RelayCommand(() => IsAggregated = !IsAggregated);
         ClearCommand = new RelayCommand(Clear);
-        ShowOnlyErrorsCommand = new RelayCommand(() => Filters.ShowOnlyErrors());
-        ResetFiltersCommand = new RelayCommand(() => Filters.Reset());
+        ShowOnlyErrorsCommand = new RelayCommand(() =>
+        {
+            Filters.ShowOnlyErrors();
+            ApplyChannelSources();
+        });
+        ResetFiltersCommand = new RelayCommand(() =>
+        {
+            Filters.Reset();
+            ApplyChannelSources();
+        });
+
         ToggleFollowTailCommand = new RelayCommand(() => IsFollowTail = !IsFollowTail);
         FindNextCommand = new RelayCommand(() => MoveMatch(1));
         FindPreviousCommand = new RelayCommand(() => MoveMatch(-1));
@@ -72,6 +100,9 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
 
     /// <summary>三段过滤条 + 搜索框。</summary>
     public LogFilterViewModel Filters { get; }
+
+    /// <summary>AI 排障面板（预览 → 确认 → 发送）。</summary>
+    public AiDiagnosisViewModel Ai { get; }
 
     /// <summary>主列表行（新→旧或旧→新，取决于跟随末尾）。</summary>
     public ObservableCollection<LogRowViewModel> Rows { get; } = new();
@@ -137,6 +168,78 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
 
     /// <summary>用户点击了日志行里的可联动对象（mod / instance / URL / 安装任务），由外壳负责导航。</summary>
     public event EventHandler<LogObjectLink>? ObjectLinkActivated;
+
+    /// <summary>当前日志分档：界面日志 / 游戏日志。</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsGuiChannel))]
+    [NotifyPropertyChangedFor(nameof(IsGameChannel))]
+    [NotifyPropertyChangedFor(nameof(GameLogStatusText))]
+    [NotifyPropertyChangedFor(nameof(EmptyHint))]
+    private LogChannel _channel = LogChannel.Gui;
+
+    /// <summary>是否在看 CKAN 侧日志。</summary>
+    public bool IsGuiChannel => Channel == LogChannel.Gui;
+
+    /// <summary>是否在看当前实例的 KSP 游戏日志。</summary>
+    public bool IsGameChannel => Channel == LogChannel.Game;
+
+    /// <summary>
+    /// 游戏日志跟随状态（文件路径 / 已导入行数 / 读取错误），显示在分档开关旁。
+    /// 为什么要把路径摊在界面上：玩家报「游戏崩了」时，第一件事是确认我们看的是不是同一个 KSP.log。
+    /// </summary>
+    public string GameLogStatusText
+    {
+        get
+        {
+            if (_gameLog is null)
+            {
+                return "未接入游戏日志";
+            }
+
+            if (!string.IsNullOrEmpty(_gameLog.LastError))
+            {
+                return string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $"读取 KSP.log 失败：{_gameLog.LastError}");
+            }
+
+            if (!_gameLog.IsWatching)
+            {
+                return string.IsNullOrEmpty(_gameLog.InstanceName)
+                    ? "没有选中实例，游戏日志不可用。"
+                    : "该实例还没有 KSP.log，启动一次游戏后自动出现。";
+            }
+
+            return string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"正在跟随 {_gameLog.GameLogPath}（已导入 {_gameLog.ImportedLineCount} 行）");
+        }
+    }
+
+    /// <summary>切到界面日志。</summary>
+    [RelayCommand]
+    private void ShowGuiLog() => SetChannel(LogChannel.Gui);
+
+    /// <summary>切到游戏日志。</summary>
+    [RelayCommand]
+    private void ShowGameLog() => SetChannel(LogChannel.Game);
+
+    /// <summary>把该实例已有的 KSP.log 全文导入（默认只从末尾 256KB 起跟随）。</summary>
+    [RelayCommand]
+    private async Task ImportGameLogAsync()
+    {
+        if (_gameLog is null)
+        {
+            Message = "未接入游戏日志：当前构建没有 KSP.log 跟随服务。";
+            return;
+        }
+
+        var imported = await _gameLog.ImportFromStartAsync().ConfigureAwait(true);
+        Message = imported > 0
+            ? $"已从 KSP.log 导入 {imported} 行。"
+            : "没有读到新的游戏日志行（文件为空或该实例还没有 KSP.log）。";
+        Refresh();
+    }
 
     /// <summary>刷新列表。</summary>
     public IRelayCommand RefreshCommand { get; }
@@ -236,7 +339,9 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
     /// <summary>空状态文案（区分「过滤太严」与「确实没有日志」）。</summary>
     public string EmptyHint => Filters.MatchesNothing
         ? Text("当前过滤不命中，试试恢复默认。", LocalizationKeys.LogsEmptyFiltered)
-        : Text("缓冲区还没有日志，采集到后自动出现。", LocalizationKeys.LogsEmptyNoLogs);
+        : IsGameChannel
+            ? Text("还没有读到这个实例的游戏日志：启动一次游戏后会自动出现，也可以点「导入已有日志」。", LocalizationKeys.LogsEmptyGame)
+            : Text("缓冲区还没有日志，采集到后自动出现。", LocalizationKeys.LogsEmptyNoLogs);
 
     /// <summary>聚合视图的提示。</summary>
     public string AggregateHint => IsAggregated
@@ -300,19 +405,25 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
             var aggregate = _query.Aggregate(query, TimelineBucketCount, TopFingerprintCount);
             var keyword = query.NormalizedText;
 
+            // 查询按「最新优先」取窗口（先拿到最新的 500 条再翻回来），但列表按时间正序显示：
+            // 最新的在最下面，滚动到底就是当前时刻，和终端/浏览器的阅读习惯一致。
             var rows = new List<LogRowViewModel>(result.Events.Count);
-            foreach (var entry in result.Events)
+            if (query.NewestFirst)
             {
-                var row = new LogRowViewModel(entry);
-                if (keyword.Length > 0)
+                for (var i = result.Events.Count - 1; i >= 0; i--)
                 {
-                    row.IsHighlighted = row.Matches(keyword);
+                    rows.Add(BuildRow(result.Events[i], keyword));
                 }
-
-                rows.Add(row);
+            }
+            else
+            {
+                foreach (var entry in result.Events)
+                {
+                    rows.Add(BuildRow(entry, keyword));
+                }
             }
 
-            Rows.Replace(rows);
+            ApplyRows(rows);
             Groups.Replace(aggregate.TopFingerprints.Select(group => new LogFingerprintGroupViewModel(group)));
 
             var maxTotal = aggregate.Timeline.Count == 0 ? 1 : aggregate.Timeline.Max(bucket => bucket.Total);
@@ -460,6 +571,79 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
         OnPropertyChanged(nameof(AggregateHint));
     }
 
+    private LogRowViewModel BuildRow(LogEvent entry, string keyword)
+    {
+        var row = new LogRowViewModel(entry);
+        if (keyword.Length > 0)
+        {
+            row.IsHighlighted = row.Matches(keyword);
+        }
+
+        return row;
+    }
+
+    /// <summary>
+    /// 把新窗口同步进 <see cref="Rows"/>，能对齐就只增删两端、复用旧行对象。
+    /// 为什么不能每次整批 Replace：列表是虚拟化的，Clear 会重置 ScrollViewer 的滚动位置，
+    /// 跟随末尾时每 750ms 一次的刷新会把用户正在看的位置拽回去；整批重建还会让选中的行和匹配高亮丢失。
+    /// 对不齐（切档、换过滤、跳变）才退回整批替换。
+    /// </summary>
+    private void ApplyRows(List<LogRowViewModel> next)
+    {
+        if (!TryAlignRows(next, out var drop, out var last))
+        {
+            Rows.Replace(next);
+            return;
+        }
+
+        for (var i = 0; i < drop; i++)
+        {
+            Rows.RemoveAt(0);
+        }
+
+        for (var i = 0; i <= last; i++)
+        {
+            next[i] = Rows[i];
+        }
+
+        for (var i = last + 1; i < next.Count; i++)
+        {
+            Rows.Add(next[i]);
+        }
+    }
+
+    private bool TryAlignRows(List<LogRowViewModel> next, out int drop, out int last)
+    {
+        drop = 0;
+        last = -1;
+        if (Rows.Count == 0 || next.Count == 0)
+        {
+            return false;
+        }
+
+        last = next.FindIndex(row => row.Seq == Rows[^1].Seq);
+        if (last < 0)
+        {
+            return false;
+        }
+
+        drop = Rows.Count - (last + 1);
+        if (drop < 0)
+        {
+            return false;
+        }
+
+        for (var i = 0; i <= last; i++)
+        {
+            if (Rows[drop + i].Seq != next[i].Seq)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private LogRowViewModel PickSelection(List<LogRowViewModel> rows)
     {
         if (!IsFollowTail && SelectedRow is { } current)
@@ -473,7 +657,8 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
             }
         }
 
-        return rows[0];
+        // 行序是时间正序，跟随末尾时要选的是最后一行（最新的一条）。
+        return rows[^1];
     }
 
     private void ResetMatchCursor()
@@ -506,14 +691,19 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
 
     private void RequestAiAnalysis()
     {
-        if (ExportedPath is null)
-        {
-            Message = Text("请先导出诊断包：AI 分析只读打包并脱敏后的内容，不会直接读本机路径。", LocalizationKeys.LogsErrorNeedBundleFirst);
-            return;
-        }
-
+        // 发出去的是「当前这一窗日志」，不再是先打包再上传：用户在预览里看到的就是将要发送的全部内容。
+        var channel = IsGameChannel
+            ? Text("游戏日志", LocalizationKeys.LogPageChannelGame)
+            : Text("界面日志", LocalizationKeys.LogPageChannelGui);
+        Ai.Prepare(
+            Rows.Select(row => row.Entry).ToList(),
+            _gameLog?.InstanceName,
+            gameVersion: null,
+            channel,
+            _redactor);
+        Ai.IsOpen = true;
         IsAiPanelOpen = true;
-        AiAnalysisRequested?.Invoke(this, ExportedPath);
+        AiAnalysisRequested?.Invoke(this, ExportedPath ?? string.Empty);
     }
 
     private void ActivateLink(LogObjectLink? link)
@@ -527,6 +717,51 @@ public sealed partial class LogPageViewModel : PageViewModel, IActivatable
     }
 
     private void OnFiltersChanged(object? sender, EventArgs args) => Refresh();
+
+    /// <summary>切分档：换档即换来源勾选，并立刻重查一次（不同来源的行完全不同，等下次节流刷新就是空白页）。</summary>
+    private void SetChannel(LogChannel channel)
+    {
+        if (Channel == channel)
+        {
+            return;
+        }
+
+        Channel = channel;
+        ApplyChannelSources();
+        Refresh();
+    }
+
+    /// <summary>
+    /// 把来源勾选对齐到当前分档。用 <see cref="LogFilterViewModel.ApplySources"/> 批量改而不是逐项点，
+    /// 否则 7 个勾选会各自触发一次查询。
+    /// </summary>
+    private void ApplyChannelSources()
+    {
+        Filters.ApplySources(IsGameChannel
+            ? new[] { LogSourceKind.Game }
+            : new[] { LogSourceKind.Log4Net, LogSourceKind.User, LogSourceKind.Exception, LogSourceKind.Child });
+    }
+
+    /// <summary>跟随服务在后台线程报告路径/行数/错误变化：回到 UI 线程更新状态文案与列表。</summary>
+    private void OnGameLogStatusChanged(object? sender, EventArgs args)
+    {
+        void Apply()
+        {
+            OnPropertyChanged(nameof(GameLogStatusText));
+            if (IsGameChannel && IsActive)
+            {
+                ScheduleTrailingRefresh(120);
+            }
+        }
+
+        if (_sync is null)
+        {
+            Apply();
+            return;
+        }
+
+        _sync.Post(static state => ((Action)state!)(), (Action)Apply);
+    }
 
     /// <summary>把被时间窗压住的刷新排到窗口末尾，保证最后一条日志也会落到界面上。</summary>
     /// <param name="delayMs">距时间窗结束还有多久。</param>

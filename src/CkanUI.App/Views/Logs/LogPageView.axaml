@@ -33,10 +33,26 @@
       <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
-    <!-- 行高固定 20px 才能让虚拟化列表的滚动位置稳定（§4.2③） -->
+    <!-- 行高固定 20px 才能让虚拟化列表的滚动位置稳定（§4.2③）；
+         模板默认给 ListBoxItem 留了上下内边距（实测每行 26px），逐条压掉，一屏多出近三成行。 -->
     <Style Selector="ListBox.logList ListBoxItem">
       <Setter Property="MinHeight" Value="20" />
-      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="Height" Value="20" />
+      <Setter Property="Padding" Value="2,0" />
+      <Setter Property="Margin" Value="0" />
+      <!-- 日志是只读阅读面，行不该跟着鼠标横向滑。更关键的是：列表项会被虚拟化反复回收/重建，
+           全局 ListBoxItem 样式给 RenderTransform 挂了弹簧过渡，快速拖动滚动条时每个复用容器都在开合成动画，
+           合成层来不及失效就会在原地留下错位的半透明「鬼影」行。这里只保留背景色过渡。 -->
+      <Setter Property="Cursor" Value="Arrow" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationFast}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="ListBox.logList ListBoxItem:pointerover">
+      <Setter Property="RenderTransform" Value="none" />
+      <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
     </Style>
     <!-- 级别字形：颜色 + 形状双通道 -->
     <Style Selector="TextBlock.glyph">
@@ -63,6 +79,22 @@
     </Style>
     <Style Selector="TextBlock.glyph.debug">
       <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+    </Style>
+    <!-- 游戏日志（KSP.log）：模块标签换成强调色，一眼看出是哪家插件在说话；
+         续行（堆栈/Unity 附注）压暗；错误/警告行在左缘加形状通道色条，色弱也能分辨。 -->
+    <Style Selector="Border.familyTag.gameTag">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    </Style>
+    <Style Selector="Border.logRow.continuation">
+      <Setter Property="Opacity" Value="0.62" />
+    </Style>
+    <Style Selector="Border.logRow.levelWarn">
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanWarningBrush}" />
+      <Setter Property="BorderThickness" Value="2,0,0,0" />
+    </Style>
+    <Style Selector="Border.logRow.levelError">
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanDangerBrush}" />
+      <Setter Property="BorderThickness" Value="2,0,0,0" />
     </Style>
     <!-- 族标签 -->
     <Style Selector="Border.familyTag">
@@ -117,6 +149,29 @@
     -->
     <Border Grid.Row="1" Classes="CkanToolbar stagger-card" Margin="0,0,0,12">
       <StackPanel Spacing="10">
+        <!-- 分档开关：CKAN 界面日志 ↔ 当前实例的游戏日志（KSP.log）。
+             放最上面是因为「这次是 CKAN 坏了还是游戏坏了」是排障的第一个问题。 -->
+        <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                      ToolTip.Tip="{DynamicResource Ui_LogPage_Channel_Tip}">
+            <ToggleButton x:Name="LogChannelGuiButton" Classes="CkanPill"
+                          Content="{DynamicResource Ui_LogPage_Channel_Gui}"
+                          IsChecked="{Binding IsGuiChannel, Mode=OneWay}"
+                          Command="{Binding ShowGuiLogCommand}" />
+            <ToggleButton x:Name="LogChannelGameButton" Classes="CkanPill"
+                          Content="{DynamicResource Ui_LogPage_Channel_Game}"
+                          IsChecked="{Binding IsGameChannel, Mode=OneWay}"
+                          Command="{Binding ShowGameLogCommand}" />
+          </StackPanel>
+          <TextBlock Grid.Column="1" x:Name="GameLogStatusText" Classes="caption"
+                     Text="{Binding GameLogStatusText}" Margin="10,0" VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" IsVisible="{Binding IsGameChannel}" />
+          <Button Grid.Column="2" x:Name="ImportGameLogButton" Classes="CkanSecondary"
+                  Content="{DynamicResource Ui_LogPage_Game_Import}"
+                  Command="{Binding ImportGameLogCommand}"
+                  IsVisible="{Binding IsGameChannel}" />
+        </Grid>
+
         <Grid ColumnDefinitions="*,Auto">
           <TextBox Grid.Column="0" Classes="CkanSearchBox"
                    Text="{Binding Filters.SearchText}" MinHeight="32"
@@ -243,11 +298,23 @@
 
       <Grid Grid.Column="0" RowDefinitions="*">
         <!-- 主列表（虚拟化，等高 20px）-->
-        <ListBox Grid.Row="0" Classes="logList" ItemsSource="{Binding Rows}"
+        <ListBox Grid.Row="0" x:Name="LogList" Classes="logList" ItemsSource="{Binding Rows}"
                  SelectedItem="{Binding SelectedRow}" IsVisible="{Binding !IsAggregated}">
+          <!-- 日志行不做虚拟化：行数上限就是 LogPageViewModel.RowLimit = 500、行高固定 20px，
+               全部实现出来的成本可控；而虚拟化在快速拖滚动条时来不及回收/新建容器，会出现整段空白
+               （用户连报两次「拖动后显示丢失」）。这里用普通 StackPanel 一次实现到底。 -->
+          <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Vertical" />
+            </ItemsPanelTemplate>
+          </ListBox.ItemsPanel>
           <ListBox.ItemTemplate>
             <DataTemplate>
-              <Border Classes.hit="{Binding IsHighlighted}" Classes.current="{Binding IsCurrentMatch}"
+              <Border Classes="logRow"
+                      Classes.hit="{Binding IsHighlighted}" Classes.current="{Binding IsCurrentMatch}"
+                      Classes.continuation="{Binding IsContinuation}"
+                      Classes.levelWarn="{Binding IsWarning}"
+                      Classes.levelError="{Binding IsError}"
                       Padding="2,0">
                 <Grid ColumnDefinitions="56,88,20,Auto,*" Height="20">
                   <TextBlock Grid.Column="0" Classes="mono" Text="{Binding Seq}"
@@ -259,8 +326,9 @@
                              Classes.error="{Binding IsError}"
                              Classes.user="{Binding IsUser}"
                              Text="{Binding Glyph}" />
-                  <Border Grid.Column="3" Classes="familyTag">
-                    <TextBlock Text="{Binding FamilyLabel}" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                  <Border Grid.Column="3" Classes="familyTag" Classes.gameTag="{Binding IsGame}">
+                    <TextBlock Text="{Binding TagLabel}" FontSize="{DynamicResource CkanFontSizeCaption}"
+                               TextTrimming="CharacterEllipsis" />
                   </Border>
                   <TextBlock Grid.Column="4" Classes="mono" Text="{Binding Message}"
                              TextTrimming="CharacterEllipsis" Margin="4,0,0,0" />
@@ -388,5 +456,87 @@
         </StackPanel>
       </Grid>
     </Border>
+
+    <!-- AI 排障面板（14 篇 §6）：右侧浮层，不挤占日志列宽。
+         纪律：先看预览再发送——日志会离开本机，这一步不能省。 -->
+    <Border x:Name="AiDiagnosisPanel" Grid.RowSpan="4"
+            IsVisible="{Binding Ai.IsOpen}"
+            HorizontalAlignment="Right" VerticalAlignment="Stretch"
+            Width="420" Margin="12,0,0,0" Padding="14"
+            Background="{DynamicResource CkanDialogBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}" BoxShadow="{DynamicResource CkanElevationHigh}">
+      <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0" Text="{DynamicResource Ui_LogPage_AiPanel_Title}"
+                     FontWeight="SemiBold" VerticalAlignment="Center"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+          <Button Grid.Column="1" Classes="CkanIcon" Width="22" Height="22"
+                  Command="{Binding Ai.CloseCommand}"
+                  ToolTip.Tip="{DynamicResource Ui_LogPage_AiClose_Tip}">
+            <PathIcon Data="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+          </Button>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Spacing="6">
+          <TextBox x:Name="AiBaseUrlBox" Text="{Binding Ai.BaseUrl, Mode=TwoWay}"
+                   PlaceholderText="{DynamicResource Ui_LogPage_AiBaseUrl}" />
+          <TextBox x:Name="AiModelBox" Text="{Binding Ai.Model, Mode=TwoWay}"
+                   PlaceholderText="{DynamicResource Ui_LogPage_AiModel}" />
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBox Grid.Column="0" x:Name="AiApiKeyBox" Text="{Binding Ai.ApiKey, Mode=TwoWay}"
+                     PasswordChar="●" PlaceholderText="{DynamicResource Ui_LogPage_AiApiKey}" />
+            <Button x:Name="AiSaveButton" Grid.Column="1" Classes="CkanSecondary" Margin="6,0,0,0"
+                    Content="{DynamicResource Ui_LogPage_AiSave}" Command="{Binding Ai.SaveConfigurationCommand}" />
+          </Grid>
+          <TextBlock x:Name="AiStatusText" Classes="caption" Text="{Binding Ai.StatusText}"
+                     TextWrapping="Wrap" IsVisible="{Binding Ai.HasStatus}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Spacing="4">
+          <TextBlock Text="{DynamicResource Ui_LogPage_AiPreview}" Classes="caption"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+          <TextBox x:Name="AiPreviewBox" Text="{Binding Ai.PreviewText, Mode=OneWay}" IsReadOnly="True"
+                   AcceptsReturn="True" TextWrapping="Wrap" Height="120" Classes="mono"
+                   ScrollViewer.VerticalScrollBarVisibility="Auto"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+          <Button x:Name="AiSendButton" Classes="CkanPrimary" HorizontalAlignment="Left"
+                  Content="{DynamicResource Ui_LogPage_AiSend}" Command="{Binding Ai.SendCommand}" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="3">
+          <StackPanel Spacing="8">
+            <TextBlock x:Name="AiSummaryText" Text="{Binding Ai.Summary}" TextWrapping="Wrap"
+                       IsVisible="{Binding Ai.HasResult}" FontWeight="SemiBold"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+            <ItemsControl x:Name="AiHypothesesList" ItemsSource="{Binding Ai.Hypotheses}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Classes="stagger-card" Padding="8" Margin="0,0,0,6"
+                          Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                          CornerRadius="{DynamicResource CkanCornerRadiusSmall}">
+                    <StackPanel Spacing="3">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding Cause}" TextWrapping="Wrap" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                        <TextBlock Grid.Column="1" Text="{Binding ConfidenceText}" Margin="6,0,0,0"
+                                   FontFeatures="tnum" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                      </Grid>
+                      <TextBlock Text="{Binding Explain}" TextWrapping="Wrap" Classes="caption" />
+                      <TextBlock Text="{Binding Fix}" TextWrapping="Wrap" Classes="caption"
+                                 Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                      <TextBlock Text="{Binding EvidenceText}" Classes="caption"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+
   </Grid>
 </UserControl>
