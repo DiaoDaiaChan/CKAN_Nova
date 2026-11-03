@@ -291,9 +291,33 @@ public sealed class PluginsPageViewModelTests
         await vm.RefreshCommand.ExecuteAsync(null);
         var row = vm.DormantPlugins[0];
 
-        Assert.That(row.PagesText, Is.EqualTo("提供 2 个页签：示例页、关于示例"));
+        Assert.That(row.PagesText, Is.EqualTo(
+            "提供 2 个页签 · 扩展：示例页、关于示例 · 已停用，重新激活后这些入口才会出现"));
         Assert.That(row.MinimumHostVersionText, Is.EqualTo("要求宿主 1.2.0+"));
         Assert.That(row.AssemblyPath, Is.Not.Empty);
+    }
+
+    [Test]
+    public async Task Row_NamesTheSectionEachPageLivesIn_SoDisabledEntriesStayFindable()
+    {
+        var service = new FakePluginService();
+        service.DormantItems.Add(PluginsFixtures.Plugin(
+            "com.example.instances",
+            name: "实例页签",
+            pages: new[]
+            {
+                new PluginPageDescriptor("saves", "存档", "Example.SavesViewModel", Section: "instances", Order: 10),
+                new PluginPageDescriptor("ships", "飞船", "Example.ShipsViewModel", Section: "instances", Order: 20),
+                new PluginPageDescriptor("performance", "性能", "Example.PerfViewModel"),
+            }));
+        var vm = Create(service);
+
+        await vm.RefreshCommand.ExecuteAsync(null);
+        var row = vm.DormantPlugins[0];
+
+        // 停用后内嵌页签会从「实例」分节里消失，侧栏也翻不到——这一行必须说清它原本在哪儿。
+        Assert.That(row.PagesText, Is.EqualTo(
+            "提供 3 个页签 · 实例：存档、飞船 · 扩展：性能 · 已停用，重新激活后这些入口才会出现"));
     }
 
     private static PluginsPageViewModel Create(FakePluginService service) =>

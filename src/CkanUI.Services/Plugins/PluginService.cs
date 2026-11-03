@@ -458,7 +458,14 @@ public sealed class PluginService : IPluginService
             return;
         }
 
-        var shouldActivate = activateBundled || _activation.IsActivated(loaded.Plugin.Id);
+        // 用户显式停用过的插件必须保持停用：activateBundled 是「宿主为自己带的插件背书」的默认值，
+        // 不是覆盖用户决定的指令。否则在插件页点一次「停用」、下次启动又被自动拉起来——
+        // 入口会周期性地出现又消失，比不能停用更让人摸不着头脑。
+        var explicitChoice = _activation.Load().TryGetValue(loaded.Plugin.Id, out var persisted)
+            ? persisted.Activated
+            : (bool?)null;
+
+        var shouldActivate = explicitChoice ?? activateBundled;
         if (!shouldActivate)
         {
             return;

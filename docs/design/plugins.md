@@ -240,6 +240,14 @@ public sealed class DemoPlugin : ICkanUiPlugin
 `PluginBootstrapper` 的顺序是「建目录 → `DiscoverAsync(activateBundled: true)` → 恢复持久化激活态」，
 全程 try/catch，永不抛：插件是第三方代码，磁盘也可能只读，启动路径上任何失败都不该让主窗口打不开。
 
+**`activateBundled` 是默认值，不是命令**（真机踩到后修）：`PluginService` 判定内置插件是否激活时先看
+持久化表里有没有这个 Id 的显式记录，有就听它的（`activated: false` 就是停用），只有完全没有记录时才落回
+`activateBundled`。原来的写法是 `activateBundled || IsActivated(id)`，引导固定传 `true` —— 于是在插件页
+点一次「停用」，下次启动又被自动拉起来，入口周期性地出现又消失，比不能停用更让人摸不着头脑。
+用例：`PluginBundledDiscoveryTests.DiscoverAsync_ActivateBundled_RespectsExplicitDeactivation`；
+真机复验：把 `{"com.ckanui.assets":{"activated":false},"com.ckanui.saves":{"activated":false}}` 写进
+`plugin-activation.json` 后重启，「实例」分节的存档/飞船/旗帜/加载图四个页签不再出现，KSP 设置等其余页签照常。
+
 ### 11.3 启动时机（性能红线）
 
 `App.axaml.cs` 在 `_pluginTools.Install()` 之后把引导丢进后台任务（`StartPluginBootstrap`，`Task.Run` + 取消令牌，
@@ -535,6 +543,13 @@ public sealed class DemoPlugin : ICkanUiPlugin
   里、都不在 `RailItems` 里；停用资产插件后三个页签一起消失，其他页签不受影响。
 - `tests/CkanUI.ViewModels.Tests/PluginPageCatalogTests.cs`：`Section` 透传 + `Order` 排序、未知 `Section` 退回
   侧栏、停用后回退到分节根页。
+
+**停用之后入口去哪儿了**：内嵌页签从分节里消失后，侧栏上没有任何痕迹——这正是「关掉插件某些入口就找不到」的
+现实形态。三件事一起兜住：①当前页若被停掉的插件占着，重建时回退到该分节的根页（`instances`），导航不会
+停在空白上；②插件页（工具 › 插件）的行文案点名每个页签落在哪一节，形如
+`提供 4 个页签 · 实例：存档、飞船、旗帜、加载图 · 已停用，重新激活后这些入口才会出现`
+（`PluginRowViewModel.PagesText`）；③重新激活插件，页签按 `Order` 回到原来的槽位，不需要重启宿主。
+用例：`PluginsPageViewModelTests.Row_NamesTheSectionEachPageLivesIn_SoDisabledEntriesStayFindable`。
 
 ### 11.12 宿主能力注入：文本输入框这类「要弹窗」的能力
 

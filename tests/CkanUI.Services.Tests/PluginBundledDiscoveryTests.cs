@@ -137,6 +137,22 @@ public sealed class PluginBundledDiscoveryTests
     }
 
     [Test]
+    public async Task DiscoverAsync_ActivateBundled_RespectsExplicitDeactivation()
+    {
+        WriteDll(_bundled, "bundled.dll");
+        _store.Save("com.example.bundled", false);
+        var service = CreateService();
+
+        // 启动期固定传 activateBundled:true，这是宿主对首方插件的默认背书；但用户在插件页
+        // 显式停用过它，就该保持停用——否则「关掉」只管到本次进程退出。
+        await service.DiscoverAsync(activateBundled: true);
+
+        Assert.That(service.Active, Is.Empty, "显式停用过的内置插件不该被启动引导重新拉起来。");
+        Assert.That(service.Dormant, Has.Count.EqualTo(1));
+        Assert.That(service.Dormant[0].Id, Is.EqualTo("com.example.bundled"));
+    }
+
+    [Test]
     public async Task DiscoverAsync_MissingBundledDirectory_IsNotCreatedByDiscovery()
     {
         var missingBundled = _workspace!.Combine("no-such-bundled");
