@@ -1,3 +1,6 @@
+using System.Reflection;
+using System.Runtime.Loader;
+
 using CkanUI.Services.Abstractions;
 using CkanUI.ViewModels.Navigation;
 
@@ -50,8 +53,10 @@ public static class PluginPageFactory
 
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
-            if (assembly.IsDynamic)
+            if (assembly.IsDynamic || IsUnloading(assembly))
             {
+                // 正在卸载的那一份（重载插件时旧 ALC 还挂在 AppDomain 上）：用它等于把旧 ALC 又钉住，
+                // 页面跑的还是旧代码，卸载也永远收不了尾。跳过，等新一份加载完再解析。
                 continue;
             }
 
@@ -72,6 +77,19 @@ public static class PluginPageFactory
         }
 
         return null;
+    }
+
+    /// <summary>这个程序集所在的加载上下文是不是已经在卸载途中。</summary>
+    private static bool IsUnloading(Assembly assembly)
+    {
+        try
+        {
+            return AssemblyLoadContext.GetLoadContext(assembly) is IPluginAssemblyContext { IsUnloading: true };
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+        {
+            return false;
+        }
     }
 
     /// <summary>构造插件页视图模型；失败只记日志并返回 <c>null</c>。</summary>

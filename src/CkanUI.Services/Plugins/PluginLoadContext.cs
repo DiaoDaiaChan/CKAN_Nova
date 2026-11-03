@@ -18,7 +18,7 @@ namespace CkanUI.Services.Plugins;
 /// <item><description><c>isCollectible: true</c>：卸载后程序集可以真正从内存里回收（前提是宿主不残留引用）。</description></item>
 /// </list>
 /// </remarks>
-internal sealed class PluginLoadContext : AssemblyLoadContext
+internal sealed class PluginLoadContext : AssemblyLoadContext, IPluginAssemblyContext
 {
     private static readonly string[] HostProvidedPrefixes =
     [
@@ -32,6 +32,17 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
     ];
 
     private readonly string _probeDirectory;
+    private volatile bool _isUnloading;
+
+    /// <inheritdoc />
+    public bool IsUnloading => _isUnloading;
+
+    /// <summary>开始卸载：先置标志，再交给基类（基类之后不会再加载新程序集进这个上下文）。</summary>
+    public new void Unload()
+    {
+        _isUnloading = true;
+        base.Unload();
+    }
 
     /// <summary>为某个插件目录建立独立的可卸载上下文。</summary>
     /// <param name="probeDirectory">插件自己的目录（依赖探测根）。</param>

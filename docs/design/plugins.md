@@ -355,6 +355,25 @@ public sealed class DemoPlugin : ICkanUiPlugin
 - 两条用例都要求把局部变量关进 `[MethodImpl(MethodImplOptions.NoInlining)]` 的辅助方法里，只把 `WeakReference` 带出去；
   否则 JIT 可能让局部（页面实例、`Type`）活过卸载点，用例变成永远红的假阴性。
 
+**协议外的坑：卸载没有完成之前，旧一份程序集还挂在 `AppDomain` 里**
+
+`AssemblyLoadContext.Unload()` 只是开始回收，程序集从 `AppDomain.GetAssemblies()` 消失要等 GC。
+于是"重载插件"这段窗口里，同一个类型名会有两份程序集，而 `PluginPageFactory.ResolveViewModelType`
+是按名字遍历 `AppDomain` 找的——挑中旧那份的话，页面跑的是旧代码，旧 ALC 也被类型引用重新钉住，
+等于卸载白做。.NET 没有公开"这个上下文正在卸载"的查询口子（`AssemblyLoadContext.IsCollecting` 不是公开 API），
+所以由插件加载上下文自己记一笔：
+
+- `src/CkanUI.Services.Abstractions/IPluginAssemblyContext.cs`：`bool IsUnloading { get; }`。
+- `src/CkanUI.Services/Plugins/PluginLoadContext.cs` 实现它：`Unload()` 先置标志再交给基类
+  （`new void Unload()` 隐藏基类方法，调用点 `AssemblyLoadContextPluginLoader.cs:55` 持有的是 `PluginLoadContext`，实际调到的就是这个）。
+- `PluginPageFactory.ResolveViewModelType` 遍历时跳过 `IsUnloading` 的上下文。
+- `PluginPageReleaseTests` 断言 `UnloadAsync` 之后该标志为真——只靠"页面被回收"验不出这一层。
+
+顺带一条测试写法教训：插件加载器用 `LoadFromStream` 装 dll，**这种程序集的 `Assembly.Location` 是空串**，
+按路径去 `AppDomain` 里认领"我这一份"永远找不到（症状：`staged 目录里的插件程序集没被加载进 AppDomain`）。
+`PluginPageReleaseTests.DiscoverSingle` 改成"扫描前后程序集差集"认领，既避开空 `Location`，
+也避开同进程里别的用例加载的同名副本。
+
 **还没做的（诚实登记）**
 
 - 插件页仍是拉取模型（§11.6），管理器不订阅 `Changed`：引导完成前进来会看到空表。

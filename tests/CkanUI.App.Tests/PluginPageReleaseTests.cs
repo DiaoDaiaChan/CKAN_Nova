@@ -1,6 +1,8 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
 using CkanUI.App.Plugins;
+using CkanUI.Services.Abstractions;
 using CkanUI.Services.Plugins;
 using CkanUI.ViewModels.Navigation;
 using NUnit.Framework;
@@ -104,11 +106,17 @@ public class PluginPageReleaseTests
         string storePath)
     {
         var service = CreateService(bundledDirectory, userDirectory, storePath);
-        var id = DiscoverSingle(service).Id;
-        var (cache, page, type) = CreatePage(service);
+        var (plugin, assembly) = DiscoverSingle(service);
+        var id = plugin.Id;
+        var (cache, page, type) = CreatePage(service, assembly);
 
         var pageReference = new WeakReference(page);
         var assemblyReference = new WeakReference(type.Assembly);
+
+        // 卸载标志是 PluginPageFactory 跳过旧一份程序集的依据；没有它，重载后页面会解析到旧类型。
+        var context = AssemblyLoadContext.GetLoadContext(type.Assembly) as IPluginAssemblyContext;
+        Assert.That(context, Is.Not.Null, "插件加载上下文应实现 IPluginAssemblyContext");
+        Assert.That(context!.IsUnloading, Is.False, "加载中的上下文不该被标记成卸载中");
 
         var deactivated = service.DeactivateAsync(id).GetAwaiter().GetResult();
         Assert.That(deactivated.IsSuccess, Is.True, "停用插件失败：" + deactivated.Message);
@@ -120,6 +128,7 @@ public class PluginPageReleaseTests
 
         var unloaded = service.UnloadAsync(id).GetAwaiter().GetResult();
         Assert.That(unloaded.IsSuccess, Is.True, "卸载插件失败：" + unloaded.Message);
+        Assert.That(context.IsUnloading, Is.True, "UnloadAsync 之后加载上下文必须标记为卸载中（否则重载后类型解析会挑到旧一份）");
 
         return (pageReference, assemblyReference);
     }
@@ -127,8 +136,9 @@ public class PluginPageReleaseTests
     private static void AssertPageReleasedOnDeactivate(string bundledDirectory, string userDirectory, string storePath)
     {
         var service = CreateService(bundledDirectory, userDirectory, storePath);
-        var id = DiscoverSingle(service).Id;
-        var (cache, page, _) = CreatePage(service);
+        var (plugin, assembly) = DiscoverSingle(service);
+        var id = plugin.Id;
+        var (cache, page, _) = CreatePage(service, assembly);
         var disposedField = page.GetType().GetField("_disposed", BindingFlags.Instance | BindingFlags.NonPublic);
 
         Assert.That(disposedField, Is.Not.Null, "页面视图模型里应有一个 _disposed 标志（Dispose 的幂等开关）");
@@ -160,21 +170,41 @@ public class PluginPageReleaseTests
             bundledDirectory: bundledDirectory,
             activationStore: new PluginActivationStore(storePath));
 
+    /// <summary>扫描并激活唯一的插件；顺带用「扫描前后程序集差集」认领本用例这一份程序集。</summary>
+    /// <remarks>
+    /// 不能按 <c>Assembly.Location</c> 认：加载器用 <c>LoadFromStream</c> 装 dll，这种程序集的 Location 是空串。
+    /// 也不能按名字在 AppDomain 里随便取第一个：同进程里别的用例可能还留着同名插件的另一份 ALC。
+    /// </remarks>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static CkanUI.Services.Abstractions.Dtos.PluginInfo DiscoverSingle(PluginService service)
+    private static (CkanUI.Services.Abstractions.Dtos.PluginInfo Plugin, Assembly Assembly) DiscoverSingle(PluginService service)
     {
+        var known = new HashSet<Assembly>(AppDomain.CurrentDomain.GetAssemblies());
+
         var discovered = service.DiscoverAsync(activateBundled: true).GetAwaiter().GetResult();
         Assert.That(discovered.IsSuccess, Is.True, "扫描内置插件失败：" + discovered.Message);
         Assert.That(service.Failures, Is.Empty, "扫描时不该有失败记录");
 
-        return service.Active.Single();
+        var loaded = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(assembly => !known.Contains(assembly)
+                && string.Equals(assembly.GetName().Name, PluginAssemblyName, StringComparison.Ordinal))
+            .ToList();
+
+        Assert.That(loaded.Count, Is.EqualTo(1), "扫描应当新加载恰好一份插件程序集（实际 " + loaded.Count + " 份）");
+
+        return (service.Active.Single(), loaded[0]);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static (PluginPageCache Cache, object Page, Type Type) CreatePage(PluginService service)
+    private static (PluginPageCache Cache, object Page, Type Type) CreatePage(PluginService service, Assembly assembly)
     {
         var descriptor = service.Active.Single().Pages.Single(page => page.Key == "performance");
-        var type = PluginPageFactory.ResolveViewModelType(descriptor.ViewModelTypeName);
+
+        // 刻意不用 PluginPageFactory.ResolveViewModelType：它按全名在 AppDomain 里逐个程序集找，
+        // 同进程里只要有另一个用例还加载着同名插件（不同 ALC），就可能拿到别人那份类型——
+        // 那样本用例卸载的是自己的 ALC，弱引用却盯着别人的程序集，结果取决于用例执行顺序。
+        Assert.That(assembly.IsCollectible, Is.True, "插件程序集应该是可回收的");
+
+        var type = assembly.GetType(descriptor.ViewModelTypeName, throwOnError: false);
         Assert.That(type, Is.Not.Null, "解析不到性能页的视图模型类型");
 
         var cache = new PluginPageCache();
