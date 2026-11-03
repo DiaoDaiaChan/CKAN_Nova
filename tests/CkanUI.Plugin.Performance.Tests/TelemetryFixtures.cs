@@ -60,7 +60,9 @@ internal static class TelemetryFixtures
                 path);
         }
 
-        return File.ReadAllText(path);
+        // 行尾由 .gitattributes 的 `* text=auto` 决定（Windows 签出是 CRLF），而用例按 "\n" 拼替换片段，
+        // 统一成 LF 才能保证换台机器、重新签出都不假红。
+        return File.ReadAllText(path).ReplaceLineEndings("\n");
     }
 }
 

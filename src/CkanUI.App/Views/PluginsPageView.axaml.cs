@@ -54,10 +54,21 @@ public partial class PluginsPageView : UserControl
             return;
         }
 
+        // 防连击与非就绪保护：繁忙或不可执行时回滚开关状态
+        if (viewModel.IsBusy)
+        {
+            toggle.IsChecked = true;
+            return;
+        }
+
         viewModel.SelectedActive = row;
         if (viewModel.DeactivateCommand.CanExecute(null))
         {
             viewModel.DeactivateCommand.Execute(null);
+        }
+        else
+        {
+            toggle.IsChecked = true;
         }
     }
 
@@ -76,10 +87,21 @@ public partial class PluginsPageView : UserControl
             return;
         }
 
+        // 防连击与非就绪保护：繁忙或不可执行时回滚开关状态
+        if (viewModel.IsBusy)
+        {
+            toggle.IsChecked = false;
+            return;
+        }
+
         viewModel.SelectedDormant = row;
         if (viewModel.ActivateCommand.CanExecute(null))
         {
             viewModel.ActivateCommand.Execute(null);
+        }
+        else
+        {
+            toggle.IsChecked = false;
         }
     }
 }

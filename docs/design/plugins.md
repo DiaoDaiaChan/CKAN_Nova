@@ -587,3 +587,67 @@ public sealed class DemoPlugin : ICkanUiPlugin
 3. **全量跑之前先构建整个解决方案**。TestRunner 是一个进程按顺序加载各测试程序集，同名依赖只会加载
    第一份（通常是先跑的 `CkanUI.App.Tests` 输出目录里那份）。只构建单个测试工程时，后面的程序集
    跑的是旧依赖，症状是"单跑绿、全量红"——本次就有一条主页回退用例这样假红了两次。
+
+### 11.13 插件功能视觉微型角标：页面与子页面统一辨识
+
+**动机**：随着模组翻译、性能、AI 助手、存档、飞船、旗帜、加载图、KSP 游戏设置、Mod 配置等功能全量插件化，
+插件已深入到顶格侧栏入口与各分节内部（如「实例」与「模组」）的子页签条中。用户和排错人员需要一目了然地区分
+「哪些是宿主原生基础建设，哪些是由可插拔插件注入的扩展能力」。
+
+**实现与分层**：
+
+1. **契约与视图模型层**：
+   - `src/CkanUI.ViewModels/ShellViewModel.cs`：`NavItem(string Key, string Title, string Glyph, bool IsPlugin = false)`，
+     `NavTab(NavItem item)` 代理此状态 `public bool IsPlugin => Item.IsPlugin;`。
+   - `ShellViewModel.GetOrCreatePluginNavItem`：通过 `entry.IsPlugin`（来自插件目录收集的条目）统一定义为 `IsPlugin: true`。
+   - `ShellViewModel.IsCurrentPagePlugin`：暴露当前选中项是否为插件 `SelectedNavItem?.IsPlugin ?? false`，并随导航切换触发通知。
+
+2. **样式与本地化**：
+   - `i18n/packs/{zh-CN,en-US}.json` 新增 `Ui_Plugin_Badge`（中"插件"，英"Plugin"），常量挂载于 `LocalizationKeys.PluginBadge`。
+   - `src/CkanUI.App/Resources/FluentStyles.axaml`：定义 `Border.CkanPluginCornerTag` 微型胶囊标签样式（高 15px、圆角 3px、字号 9px SemiBold），在普通、悬停与选中态下与主题强调色保持协调自适应。
+
+3. **视图层多维注入**：
+   - **分节子页签（`SectionTabsControl`）**：在「实例」与「模组」分节内部，针对 `NavTab.IsPlugin` 为真的项在标题右侧挂载 `CkanPluginCornerTag`。
+   - **外壳顶栏（`MainWindow.axaml`）**：在 `WindowTitleTextBlock`（第 3 列）右侧联动呈现角标，无论通过侧栏还是子页签切入插件，顶栏均有插件状态指示。
+   - **侧栏入口与悬停卡片（`MainWindow.axaml.cs`）**：`CreateNavItem` 中为插件导航项挂载 `FAInfoBadge`（AttentionDot），抽屉提示追加 `(插件)`；`NavPopout` 标题旁及展开的子项列表中同步渲染角标。
+
+**验证**：
+- `tests/CkanUI.App.Tests/PluginSectionTabsTests.cs` 的 `页签与导航项正确标记插件身份_子页面与页面区分明晰`：断言内置项 `IsPlugin == false`，插件分节项与独立入口 `IsPlugin == true`。
+- `tests/CkanUI.App.Tests/TitleBarLayoutTests.cs`：断言标题列角标不破坏窗口布局与标题文本独占列契约。
+### 11.14 启停插件为什么会把界面卡住（0.2 修复）
+
+**现象**：在插件页点「激活」或「停用」，界面有几秒钟不响应；连着点几次更像彻底卡死。
+
+**根因一：分节入口项每轮重建都造新实例，而侧栏按引用差分。**
+`BuildSections` 里每个分节都 `new NavSection(root, title, new NavItem(root, title, tabs[0].Glyph), tabs)`。
+`RefreshRailItems` 的差分是 `ReferenceEquals(item, RailItems[i])`，`MainWindow.RebuildNavigation` 判断
+「这一项属于分节还是插件自述页」也用 `ReferenceEquals(section.RailItem, item)`（决定「扩展」标题插在哪儿）。
+于是激活一个「实例」分节里的插件（存档/飞船/旗帜/加载图/KSP 设置都在这节）时：分节的 tabs 变了 ⇒
+`SectionsEquivalent` 为假 ⇒ `_sections` 整批替换 ⇒ 五个分节入口全是新实例 ⇒
+`RailItems` 被逐项删除再插入（实测一个插件启停 12 次集合变更）⇒ 外壳按 `RailItems` 逐项销毁重建整套菜单十几次。
+修法：`GetOrCreateSectionRailItem(root, title, glyph)` 在标题与字形没变时**复用上一轮那个 `NavItem` 实例**。
+实例稳定后引用差分自然收敛到「只动真正变化的那一项」（一次启停 1 次变更）。
+
+**根因二：`PluginService` 是同步实现，页面命令在 UI 线程上直接 `await` 它。**
+`ActivateAsync` / `DeactivateAsync` / `ReloadAsync` / `UnloadAsync` 全是 `Task.FromResult(XxxCore(...))`，
+而 `XxxCore` 里干的是 `Plugin.Initialize()` / `Deinitialize()`、写 `plugin-activation.json`、
+`RaiseChanged()` 同步广播（订阅方里就有释放插件页缓存、重建导航栏）。
+`await` 一个已完成的 Task 不会让出线程——整条链就跑在 UI 线程上。
+修法：`PluginsPageViewModel` 的六个命令把服务调用包进 `Task.Run`（`ConfigureAwait(true)` 回 UI 线程继续），
+`RunAsync` 里先 `await Task.Yield()` 让 `IsBusy` 上屏；`ServiceRegistration` 对 `plugins.Changed` 的释放动作
+按 `Dispatcher.UIThread.CheckAccess()` 决定直接执行还是 `Post`（订阅方改成在 UI 线程收口）。
+开关另加防连击：忙碌时把勾选回滚，避免手抖连点把命令堆起来。
+
+**验证（都不需要真实桌面，符合「无头调试不要打扰使用电脑」）**：
+
+| 用例 | 钉住什么 |
+| --- | --- |
+| `PluginPageCatalogTests.Shell_TogglingSectionEmbeddedPlugin_DoesNotTouchTheRail` | 分节内嵌插件启停对 `RailItems` **零变更**；改回「每轮造新实例」会红在「实际 12 次」 |
+| `PluginPageCatalogTests.Shell_TogglingRailPlugin_TouchesTheRailExactlyOncePerToggle` | 侧栏入口插件增删各只发 1 次 Add/Remove，不是「清空 + 重填」 |
+| `PluginToggleResponsivenessTests.启停插件在无头宿主里能跑完且侧栏只做最小重建` | 无头宿主里用**真插件 dll** 走完激活 → 停用，限时 10 s、限制集合变更与菜单 Reset 次数 |
+| `PluginsPageViewModelTests.Activate_RunsTheServiceOffTheThreadThatOwnsTheDispatcher` / `Deactivate_…` | 用手动泵的 `SynchronizationContext` 模拟界面线程：服务体必须跑在别的线程上（改回直接 `await` 就红在「激活必须离开界面线程」） |
+| `PluginPageCacheTests.并发读取与清理安全无死锁` | 激活/停用在后台线程跑，`PluginPageCache` 的读写与释放不能互相踩 |
+
+**踩过的坑**：无头用例不要在带 Avalonia `SynchronizationContext` 的测试线程上 `await ConfigureAwait(true)`
+（NUnit 的 `NoMessagePumpStrategy` 不会替我们泵消息，表现是永远挂住、没有异常）；
+要驱动命令就自己泵 `Dispatcher.UIThread.RunJobs()`，并给等待加超时。

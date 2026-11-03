@@ -159,7 +159,9 @@ public sealed class SaveEditorService : ISaveEditorService
 
             // ② 原文命中：大纲有预算，整合包塞进来的深层行不在分区里；这里按行扫一遍补齐。
             var tokens = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var lines = document.SourceText.Split(['\r', '\n']);
+            // 只按 \n 切，再把行尾的 \r 去掉：按 ['\r','\n'] 切会让每个 CRLF 多出一个空元素，
+            // 行号随之翻倍（20 行变成 39），原文命中就会跳到错的行——Windows 上的存档全是 CRLF。
+            var lines = document.SourceText.ReplaceLineEndings("\n").Split('\n');
             for (var index = 0; index < lines.Length && hits.Count < limit; index++)
             {
                 var line = lines[index];

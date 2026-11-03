@@ -1617,11 +1617,20 @@ public sealed partial class MainWindow : Window
             Tag = nav,
         };
 
+        if (nav.IsPlugin)
+        {
+            item.InfoBadge = new FAInfoBadge
+            {
+                Classes = { "AttentionDot" },
+            };
+        }
+
         // 仅在侧边栏抽屉模式且展开受阻时使用系统原生 ToolTip；
         // 在单 Tab 悬停弹出卡片模式下，由精美的悬浮亚克力卡片呈现标题与子项，禁用原生 ToolTip 避免两个浮层相互叠压冲突。
         if (_shell is not null && _shell.NavHoverMode == NavHoverMode.Drawer)
         {
-            ToolTip.SetTip(item, nav.Title);
+            var tip = nav.IsPlugin ? $"{nav.Title} ({ResolveGroupTitle("Ui_Plugin_Badge") ?? "插件"})" : nav.Title;
+            ToolTip.SetTip(item, tip);
             ToolTip.SetShowDelay(item, 300);
         }
 
@@ -1916,6 +1925,7 @@ public sealed partial class MainWindow : Window
         }
 
         NavPopoutTitle.Text = nav.Title;
+        NavPopoutPluginBadge.IsVisible = nav.IsPlugin;
         var section = _shell.Sections.FirstOrDefault(s => ReferenceEquals(s.RailItem, nav) || s.Tabs.Any(t => string.Equals(t.Key, nav.Key, StringComparison.OrdinalIgnoreCase)));
 
         var activeRail = _shell.RailItemFor(_shell.SelectedNavItem?.Key);
@@ -1988,6 +1998,20 @@ public sealed partial class MainWindow : Window
                     text.Foreground = tb;
                 }
                 stack.Children.Add(text);
+
+                if (tab.IsPlugin)
+                {
+                    var badge = new Border
+                    {
+                        Classes = { "CkanPluginCornerTag" },
+                        VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                        Child = new TextBlock
+                        {
+                            Text = ResolveGroupTitle("Ui_Plugin_Badge") ?? "插件",
+                        }
+                    };
+                    stack.Children.Add(badge);
+                }
 
                 btn.Content = stack;
                 btn.Click += (s, e) =>

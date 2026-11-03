@@ -2024,4 +2024,23 @@
     <Setter Property="anim:IconHoverMotion.Host" Value="True" />
   </Style>
 
+  <!-- 插件功能微型角标（Tab / NavItem / Header 统一） -->
+  <Style Selector="Border.CkanPluginCornerTag">
+    <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="4,0" />
+    <Setter Property="Height" Value="15" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Opacity" Value="0.9" />
+  </Style>
+  <Style Selector="Border.CkanPluginCornerTag TextBlock">
+    <Setter Property="FontSize" Value="9" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="LineHeight" Value="11" />
+  </Style>
+
 </Styles>

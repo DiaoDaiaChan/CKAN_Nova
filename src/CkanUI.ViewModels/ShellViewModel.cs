@@ -17,7 +17,8 @@ namespace CkanUI.ViewModels;
 /// <param name="Key">页面唯一标识键值。</param>
 /// <param name="Title">导航项目显示标题。</param>
 /// <param name="Glyph">图标字形标识符。</param>
-public sealed record NavItem(string Key, string Title, string Glyph);
+/// <param name="IsPlugin">该项目是否由首方或第三方插件提供。</param>
+public sealed record NavItem(string Key, string Title, string Glyph, bool IsPlugin = false);
 
 /// <summary>
 /// 侧栏一级入口：同一个对象的不同面（管理 / 内容预览 / 变更集 / 仓库）收进一个入口，
@@ -52,6 +53,7 @@ public sealed partial class NavTab : ObservableObject
     {
         Key = item.Key;
         Title = item.Title;
+        IsPlugin = item.IsPlugin;
     }
 
     /// <summary>页面键。</summary>
@@ -59,6 +61,9 @@ public sealed partial class NavTab : ObservableObject
 
     /// <summary>页签文字（沿用该页的导航标题）。</summary>
     public string Title { get; }
+
+    /// <summary>是否由插件提供（用于呈现微型插件角标）。</summary>
+    public bool IsPlugin { get; }
 
     /// <summary>是否为当前页。</summary>
     [ObservableProperty]
@@ -396,8 +401,12 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>前进按钮提示。</summary>
     public string ForwardToolTip => _translate("Ui_Common_Nav_Forward");
 
+    /// <summary>当前选中的页面或分节子页面是否由插件提供（供外壳顶栏/页头呈现小角标）。</summary>
+    public bool IsCurrentPagePlugin => SelectedNavItem?.IsPlugin ?? false;
+
     partial void OnSelectedNavItemChanged(NavItem? value)
     {
+        OnPropertyChanged(nameof(IsCurrentPagePlugin));
         if (value != null && !string.Equals(value.Key, _navigation.CurrentKey, StringComparison.OrdinalIgnoreCase))
         {
             _ = ExecuteNavigateAsync(value.Key, CancellationToken.None);
@@ -757,12 +766,13 @@ public sealed partial class ShellViewModel : ObservableObject
 
         if (_pluginNavItems.TryGetValue(entry.Key, out var existing) &&
             string.Equals(existing.Title, title, StringComparison.Ordinal) &&
-            string.Equals(existing.Glyph, glyph, StringComparison.Ordinal))
+            string.Equals(existing.Glyph, glyph, StringComparison.Ordinal) &&
+            existing.IsPlugin)
         {
             return existing;
         }
 
-        var item = new NavItem(entry.Key, title, glyph);
+        var item = new NavItem(entry.Key, title, glyph, IsPlugin: true);
         _pluginNavItems[entry.Key] = item;
         return item;
     }
@@ -957,7 +967,7 @@ public sealed partial class ShellViewModel : ObservableObject
             }
 
             var title = titleKey is null ? tabs[0].Title : _translate(titleKey);
-            result.Add(new NavSection(root, title, new NavItem(root, title, tabs[0].Glyph), tabs));
+            result.Add(new NavSection(root, title, GetOrCreateSectionRailItem(root, title, tabs[0].Glyph), tabs));
         }
 
         return result;
@@ -971,6 +981,31 @@ public sealed partial class ShellViewModel : ObservableObject
         string.IsNullOrWhiteSpace(section)
             ? null
             : SectionSpecs.FirstOrDefault(spec => string.Equals(spec.Root, section.Trim(), StringComparison.OrdinalIgnoreCase)).Root;
+
+    /// <summary>
+    /// 分节入口项：标题与字形没变就复用上一轮那个实例。
+    /// </summary>
+    /// <remarks>
+    /// 两处按引用认人：<c>MainWindow.RebuildNavigation</c> 用 <c>ReferenceEquals(section.RailItem, item)</c>
+    /// 判断「这一项属于分节还是插件自述页」（决定「扩展」标题插在哪儿），
+    /// <see cref="RefreshRailItems"/> 也按引用差分。每轮重建都造新实例的话，
+    /// 激活一个分节内嵌插件会让五项入口全部「变成新项」→ 侧栏十几次全量销毁重建 → 界面卡住。
+    /// </remarks>
+    private NavItem GetOrCreateSectionRailItem(string root, string title, string glyph)
+    {
+        foreach (var section in _sections)
+        {
+            if (string.Equals(section.Key, root, StringComparison.OrdinalIgnoreCase) &&
+                !section.RailItem.IsPlugin &&
+                string.Equals(section.RailItem.Title, title, StringComparison.Ordinal) &&
+                string.Equals(section.RailItem.Glyph, glyph, StringComparison.Ordinal))
+            {
+                return section.RailItem;
+            }
+        }
+
+        return new NavItem(root, title, glyph);
+    }
 
     /// <summary>某个页面键当前落在哪个分节里；不在任何分节返回 null。</summary>
     private string? SectionRootForPage(string? pageKey) =>
@@ -1006,13 +1041,16 @@ public sealed partial class ShellViewModel : ObservableObject
         return true;
     }
 
-    /// <summary>重建侧栏入口列表：六个入口在前，插件自述页追加在后（日志与设置由外壳放进底部区）。</summary>
+    /// <summary>
+    /// 重建侧栏入口列表：分节入口在前，顶层插件自述页追加在后（日志与设置由外壳放进底部区）。
+    /// 采用差分就地同步，避免每次清空导致监听 RailItems 的外壳视图触发 8~10 次全量菜单控件销毁与重建。
+    /// </summary>
     private void RefreshRailItems()
     {
-        RailItems.Clear();
+        var desired = new List<NavItem>(Sections.Count + NavItems.Count);
         foreach (var section in Sections)
         {
-            RailItems.Add(section.RailItem);
+            desired.Add(section.RailItem);
         }
 
         foreach (var item in NavItems)
@@ -1024,7 +1062,40 @@ public sealed partial class ShellViewModel : ObservableObject
                 continue;
             }
 
-            RailItems.Add(item);
+            desired.Add(item);
+        }
+
+        var railChanged = RailItems.Count != desired.Count ||
+                          desired.Select((item, index) => !ReferenceEquals(item, RailItems[index])).Any(different => different);
+        if (!railChanged)
+        {
+            return;
+        }
+
+        var desiredKeys = new HashSet<string>(desired.Select(i => i.Key), StringComparer.OrdinalIgnoreCase);
+        for (var i = RailItems.Count - 1; i >= 0; i--)
+        {
+            if (!desiredKeys.Contains(RailItems[i].Key))
+            {
+                RailItems.RemoveAt(i);
+            }
+        }
+
+        for (var i = 0; i < desired.Count; i++)
+        {
+            if (i >= RailItems.Count)
+            {
+                RailItems.Add(desired[i]);
+            }
+            else if (!ReferenceEquals(RailItems[i], desired[i]))
+            {
+                RailItems.Insert(i, desired[i]);
+            }
+        }
+
+        while (RailItems.Count > desired.Count)
+        {
+            RailItems.RemoveAt(RailItems.Count - 1);
         }
     }
 

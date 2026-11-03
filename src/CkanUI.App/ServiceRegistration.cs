@@ -409,7 +409,19 @@ public static class ServiceRegistration
             // 插件停用/卸载后它的页签不再出现在目录里：先把实例摘掉并 Dispose（停定时器、退订阅），
             // 视图那一侧由 MainWindow 按导航键撤（见 RebuildNavigation → PruneRemovedPageViews），
             // 否则外层还攥着视图 ⇒ 插件程序集永远卸载不掉。
-            plugins.Changed += (_, _) => ReleaseOrphanedPluginPages(pluginPages, plugins);
+            // 保证跨线程安全：若在后台线程触发（如 Bootstrapper 或异步激活/停用），封送到 UI 线程释放，
+            // 避免页面 Dispose 触发的 UI 操作或控件解绑跨线程冲突。
+            plugins.Changed += (_, _) =>
+            {
+                if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+                {
+                    ReleaseOrphanedPluginPages(pluginPages, plugins);
+                }
+                else
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() => ReleaseOrphanedPluginPages(pluginPages, plugins));
+                }
+            };
         }
 
         // 内置页签直接查表；查不到再问插件（12 篇 F-17）：插件声明的页签由 App 层反射构造，

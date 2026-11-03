@@ -162,7 +162,7 @@ public sealed partial class PluginsPageViewModel : PageViewModel
     private Task RefreshAsync() => RunAsync(
         async () =>
         {
-            var result = await _service.DiscoverAsync().ConfigureAwait(true);
+            var result = await Task.Run(() => _service.DiscoverAsync()).ConfigureAwait(true);
             ApplyState();
             if (!result.IsSuccess)
             {
@@ -193,7 +193,7 @@ public sealed partial class PluginsPageViewModel : PageViewModel
                 return;
             }
 
-            var result = await _service.AddFromPathAsync(path).ConfigureAwait(true);
+            var result = await Task.Run(() => _service.AddFromPathAsync(path)).ConfigureAwait(true);
             ApplyState();
             ReportLoadResult(
                 result,
@@ -213,7 +213,7 @@ public sealed partial class PluginsPageViewModel : PageViewModel
             var row = SelectedDormant;
             if (row is null) return;
 
-            var result = await _service.ActivateAsync(row.Id).ConfigureAwait(true);
+            var result = await Task.Run(() => _service.ActivateAsync(row.Id)).ConfigureAwait(true);
             ApplyState();
             ReportLoadResult(
                 result,
@@ -233,7 +233,7 @@ public sealed partial class PluginsPageViewModel : PageViewModel
             var row = SelectedActive;
             if (row is null) return;
 
-            var result = await _service.DeactivateAsync(row.Id).ConfigureAwait(true);
+            var result = await Task.Run(() => _service.DeactivateAsync(row.Id)).ConfigureAwait(true);
             ApplyState();
             if (result.IsSuccess)
             {
@@ -255,7 +255,7 @@ public sealed partial class PluginsPageViewModel : PageViewModel
             var row = CurrentSelection;
             if (row is null) return;
 
-            var result = await _service.ReloadAsync(row.Id).ConfigureAwait(true);
+            var result = await Task.Run(() => _service.ReloadAsync(row.Id)).ConfigureAwait(true);
             ApplyState();
             ReportLoadResult(
                 result,
@@ -275,7 +275,7 @@ public sealed partial class PluginsPageViewModel : PageViewModel
             var row = CurrentSelection;
             if (row is null) return;
 
-            var result = await _service.UnloadAsync(row.Id).ConfigureAwait(true);
+            var result = await Task.Run(() => _service.UnloadAsync(row.Id)).ConfigureAwait(true);
             ApplyState();
             if (result.IsSuccess)
             {
@@ -351,6 +351,8 @@ public sealed partial class PluginsPageViewModel : PageViewModel
         ErrorDetail = null;
         try
         {
+            // 让出当前 UI 调度周期，确保 IsBusy 蒙层和 BusyText 能够立即渲染上屏
+            await Task.Yield();
             await action().ConfigureAwait(true);
         }
         catch (Exception ex)

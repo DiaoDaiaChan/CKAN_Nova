@@ -95,6 +95,7 @@
                                Foreground="{DynamicResource CkanTextPrimaryBrush}" />
                     <ToggleSwitch Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
                                   IsChecked="True" OnContent="" OffContent=""
+                                  IsEnabled="{Binding !DataContext.IsBusy, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                   ToolTip.Tip="{DynamicResource Ui_PluginsPage_ToggleDeactivate_Tip}"
                                   IsCheckedChanged="OnActivePluginToggled" />
                   </Grid>
@@ -151,6 +152,7 @@
                                Foreground="{DynamicResource CkanTextPrimaryBrush}" />
                     <ToggleSwitch Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
                                   IsChecked="False" OnContent="" OffContent=""
+                                  IsEnabled="{Binding !DataContext.IsBusy, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                   ToolTip.Tip="{DynamicResource Ui_PluginsPage_ToggleActivate_Tip}"
                                   IsCheckedChanged="OnDormantPluginToggled" />
                   </Grid>

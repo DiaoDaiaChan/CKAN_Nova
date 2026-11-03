@@ -159,6 +159,71 @@ public class PluginSectionTabsTests
             DeleteQuietly(storePath);
         }
     }
+    [Test]
+    public void 页签与导航项正确标记插件身份_子页面与页面区分明晰()
+    {
+        var bundledDirectory = StageBundledPlugins();
+        var userDirectory = Path.Combine(Path.GetTempPath(), "ckanui-plugins-badge-" + Guid.NewGuid().ToString("N"));
+        var storePath = Path.Combine(Path.GetTempPath(), "ckanui-activation-badge-" + Guid.NewGuid().ToString("N") + ".json");
+
+        try
+        {
+            var service = new PluginService(
+                userDirectory,
+                new AssemblyLoadContextPluginLoader(),
+                hostVersion: null,
+                bundledDirectory: bundledDirectory,
+                activationStore: new PluginActivationStore(storePath));
+
+            var discovered = Task.Run(() => service.DiscoverAsync(activateBundled: true)).GetAwaiter().GetResult();
+            Assert.That(discovered.IsSuccess, Is.True, discovered.Message);
+
+            var shell = new ShellViewModel(new SilentNavigation(), plugins: service);
+
+            // 1. 验证实例分节下的 Tabs: 插件页与原生页区分正确
+            var instances = shell.Sections.Single(section => section.Key == "instances");
+            var pluginKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "saves", "ships", "flags", "loadingimages", "kspconfig" };
+            foreach (var tab in instances.Tabs)
+            {
+                if (pluginKeys.Contains(tab.Key))
+                {
+                    Assert.That(tab.IsPlugin, Is.True, $"插件页签 {tab.Key} 必须标记 IsPlugin=true");
+                }
+                else
+                {
+                    Assert.That(tab.IsPlugin, Is.False, $"宿主原生页签 {tab.Key} 必须为 IsPlugin=false");
+                }
+            }
+
+            // 2. 验证模组分节下的 ModConfig 是插件
+            var mods = shell.Sections.Single(section => section.Key == "mods");
+            var modConfigTab = mods.Tabs.Single(t => t.Key == "modconfig");
+            Assert.That(modConfigTab.IsPlugin, Is.True, "ModConfig 页面必须标记 IsPlugin=true");
+
+            // 3. 验证切到实例页面后 SectionTabs 生成的 NavTab 正确继承 IsPlugin
+            shell.SelectedNavItem = shell.NavItems.First(i => i.Key == "instances");
+            Assert.That(shell.IsCurrentPagePlugin, Is.False, "当前处于原生实例页时 IsCurrentPagePlugin 必须为 false");
+
+            // 4. 验证切到插件子页面（如 saves）时 IsCurrentPagePlugin 为 true
+            shell.SelectedNavItem = shell.NavItems.First(i => i.Key == "saves");
+            Assert.That(shell.IsCurrentPagePlugin, Is.True, "当前处于插件子页面 saves 时 IsCurrentPagePlugin 必须为 true");
+
+            var savesTab = shell.SectionTabs.FirstOrDefault(t => t.Key == "saves");
+            Assert.That(savesTab, Is.Not.Null);
+            Assert.That(savesTab!.IsPlugin, Is.True, "SectionTabs 中的 NavTab 必须继承 IsPlugin=true");
+
+            var instancesTab = shell.SectionTabs.FirstOrDefault(t => t.Key == "instances");
+            Assert.That(instancesTab, Is.Not.Null);
+            Assert.That(instancesTab!.IsPlugin, Is.False, "SectionTabs 中的原生 NavTab 必须为 IsPlugin=false");
+        }
+        finally
+        {
+            DeleteQuietly(bundledDirectory);
+            DeleteQuietly(userDirectory);
+            DeleteQuietly(storePath);
+        }
+    }
+
 
     /// <summary>把三个插件工程的产物 dll/pdb 复制进一个干净目录，模拟发布形态的 &lt;App&gt;/plugins。</summary>
     private static string StageBundledPlugins()

@@ -104,6 +104,46 @@ public class PluginPageCacheTests
         });
     }
 
+    [Test]
+    public async Task 并发读取与清理安全无死锁()
+    {
+        var cache = new PluginPageCache();
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var tasks = new List<Task>();
+
+        for (var i = 0; i < 8; i++)
+        {
+            var id = i;
+            tasks.Add(Task.Run(() =>
+            {
+                while (!cts.Token.IsCancellationRequested)
+                {
+                    var key = "plugin-" + (id % 4);
+                    cache.GetOrCreate(key, () => new FakePage());
+                    _ = cache.Count;
+                    _ = cache.Instances;
+                }
+            }));
+        }
+
+        for (var i = 0; i < 4; i++)
+        {
+            tasks.Add(Task.Run(() =>
+            {
+                while (!cts.Token.IsCancellationRequested)
+                {
+                    cache.RetainOnly(["plugin-0", "plugin-2"]);
+                }
+            }));
+        }
+
+        await Task.Delay(150);
+        cts.Cancel();
+        await Task.WhenAll(tasks);
+
+        Assert.That(cache.Count, Is.GreaterThanOrEqualTo(0));
+    }
+
     private class FakePage : IDisposable
     {
         public bool Disposed { get; private set; }

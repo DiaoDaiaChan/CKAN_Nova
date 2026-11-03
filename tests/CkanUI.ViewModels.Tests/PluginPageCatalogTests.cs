@@ -306,4 +306,63 @@ public sealed class PluginPageCatalogTests
         Assert.That(shell.SectionTabs.Any(tab => tab.Key == "example-saves"), Is.False, "停用后页签条不能停在死页签上");
         Assert.That(navigation.CurrentKey, Is.EqualTo("instances"), "停用后要退回分节首页，不是插件管理页");
     }
+
+    [Test]
+    public void Shell_TogglingSectionEmbeddedPlugin_DoesNotTouchTheRail()
+    {
+        // 外壳（MainWindow.RebuildNavigation）按 RailItems 逐项销毁重建整套侧栏菜单，
+        // 所以「激活一个分节内嵌的插件」不该让侧栏集合发出任何一次变更通知——
+        // 一次 Clear 加 N 次 Add 会让 8~10 次全量重建排在同一个调度回合里，界面就卡住了。
+        var plugins = new FakePluginService();
+        var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key, plugins: plugins);
+        var railEvents = 0;
+        shell.RailItems.CollectionChanged += (_, _) => railEvents++;
+
+        plugins.ActiveItems.Add(Plugin("Saves", new PluginPageDescriptor(
+            "example-saves",
+            "存档",
+            "CkanUI.ViewModels.SomePageViewModel",
+            Section: "instances")));
+        plugins.RaiseChanged();
+
+        // 看 Sections 而不是 SectionTabs：后者只反映「当前所在分节」，而这里没导航进实例页。
+        var instances = shell.Sections.Single(section => section.Key == "instances");
+        Assert.That(instances.Tabs.Any(tab => tab.Key == "example-saves"), Is.True, "页签条要收到这一页");
+        Assert.That(railEvents, Is.Zero, "分节内嵌的插件页只改页签条，侧栏一项都不该动");
+
+        plugins.ActiveItems.Clear();
+        plugins.RaiseChanged();
+
+        Assert.That(railEvents, Is.Zero, "停用分节内嵌插件同样不该动侧栏");
+    }
+
+    [Test]
+    public void Shell_TogglingRailPlugin_TouchesTheRailExactlyOncePerToggle()
+    {
+        // 侧栏入口的插件（没声明分节）确实要增删一项，但只能是最小代价的一次变更。
+        var plugins = new FakePluginService();
+        var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key, plugins: plugins);
+        var added = 0;
+        var removed = 0;
+        shell.RailItems.CollectionChanged += (_, args) =>
+        {
+            added += args.NewItems?.Count ?? 0;
+            removed += args.OldItems?.Count ?? 0;
+        };
+
+        plugins.ActiveItems.Add(Plugin("Hello", Page("hello-page", "Hello 页")));
+        plugins.RaiseChanged();
+
+        Assert.That(shell.RailItems.Any(item => item.Key == "hello-page"), Is.True);
+        Assert.That(added, Is.EqualTo(1), "新增一个侧栏入口就是一次 Add，不能靠清空整表再重填");
+        Assert.That(removed, Is.Zero, "新增不该顺手删掉别的侧栏项");
+
+        added = 0;
+        plugins.ActiveItems.Clear();
+        plugins.RaiseChanged();
+
+        Assert.That(shell.RailItems.Any(item => item.Key == "hello-page"), Is.False);
+        Assert.That(removed, Is.EqualTo(1), "去掉一个侧栏入口就该只删这一项");
+        Assert.That(added, Is.Zero, "删除不该重建整张侧栏表");
+    }
 }

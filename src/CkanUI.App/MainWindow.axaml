@@ -355,6 +355,14 @@
                          Margin="8,0,8,0"
                          TextTrimming="CharacterEllipsis"
                          IsHitTestVisible="False" />
+              <Border Grid.Column="3"
+                      Classes="CkanPluginCornerTag"
+                      IsVisible="{Binding IsCurrentPagePlugin}"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Center"
+                      Margin="0,0,12,0">
+                <TextBlock Text="{DynamicResource Ui_Plugin_Badge}" />
+              </Border>
 
               <!--
                 窗口按钮：ChromeHints=NoChrome 之后系统不再画标题与按钮（否则 DWM 会把窗口标题
@@ -506,10 +514,18 @@
                     <DataTemplate>
                       <Border Classes="CkanTabUnderline" Classes.Active="{Binding IsActive}">
                         <Button Classes="CkanTab"
-                                Content="{Binding Title}"
                                 Command="{Binding $parent[Window].DataContext.NavigateCommand}"
                                 CommandParameter="{Binding Key}"
-                                AutomationProperties.Name="{Binding Title}" />
+                                AutomationProperties.Name="{Binding Title}">
+                          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                            <Border Classes="CkanPluginCornerTag"
+                                    IsVisible="{Binding IsPlugin}"
+                                    VerticalAlignment="Center">
+                              <TextBlock Text="{DynamicResource Ui_Plugin_Badge}" />
+                            </Border>
+                          </StackPanel>
+                        </Button>
                       </Border>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
@@ -844,10 +860,18 @@
                             HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
-                  <TextBlock x:Name="NavPopoutTitle"
-                             FontWeight="SemiBold"
-                             FontSize="{DynamicResource CkanFontSizeBody}"
-                             Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                  <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock x:Name="NavPopoutTitle"
+                               FontWeight="SemiBold"
+                               FontSize="{DynamicResource CkanFontSizeBody}"
+                               Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                    <Border x:Name="NavPopoutPluginBadge"
+                            Classes="CkanPluginCornerTag"
+                            IsVisible="False"
+                            VerticalAlignment="Center">
+                      <TextBlock Text="{DynamicResource Ui_Plugin_Badge}" />
+                    </Border>
+                  </StackPanel>
                   <TextBlock x:Name="NavPopoutSubtitle"
                              FontSize="{DynamicResource CkanFontSizeCaption}"
                              Foreground="{DynamicResource CkanTextTertiaryBrush}" />

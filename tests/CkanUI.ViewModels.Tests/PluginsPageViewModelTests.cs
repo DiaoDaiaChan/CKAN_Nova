@@ -320,6 +320,136 @@ public sealed class PluginsPageViewModelTests
             "提供 3 个页签 · 实例：存档、飞船 · 扩展：性能 · 已停用，重新激活后这些入口才会出现"));
     }
 
+    [Test]
+    public void Activate_RunsTheServiceOffTheThreadThatOwnsTheDispatcher()
+    {
+        // 界面上点一下「激活」= Initialize() + 落盘 + 广播，真服务全在一条同步调用栈里。
+        // 这段活压在 UI 线程上就是肉眼可见的卡顿，所以命令必须把它交给后台、自己立刻回来。
+        //
+        // 用手动泵的 SynchronizationContext 模拟 UI 线程：Task.Yield 之后的续体、
+        // 以及服务完成后的收口，都只在这根线程上跑。判据于是很明确——
+        // 服务体跑在哪根线程：跟泵线程同一根，界面就是死的。
+        var hookThread = 0;
+        using var started = new ManualResetEventSlim(false);
+        using var release = new ManualResetEventSlim(false);
+        var service = new FakePluginService
+        {
+            ActivateHook = () =>
+            {
+                hookThread = Environment.CurrentManagedThreadId;
+                started.Set();
+                release.Wait(TimeSpan.FromSeconds(5));
+            },
+        };
+        service.DormantItems.Add(PluginsFixtures.Plugin("com.example.off"));
+        var vm = Create(service);
+        vm.RefreshCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        vm.SelectedDormant = vm.DormantPlugins[0];
+
+        var pump = new ManualPumpContext();
+        var previous = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(pump);
+        try
+        {
+            var pumpThread = Environment.CurrentManagedThreadId;
+            var pending = vm.ActivateCommand.ExecuteAsync(null);
+
+            PumpUntil(pump, () => started.IsSet, TimeSpan.FromSeconds(5));
+            Assert.That(started.IsSet, Is.True, "服务调用必须真的开始");
+            Assert.That(hookThread, Is.Not.EqualTo(pumpThread),
+                "激活必须离开界面线程：真服务是同步实现，留在这根线程上就是界面卡住");
+            Assert.That(pending.IsCompleted, Is.False, "服务还在跑，命令就必须是未完成状态");
+            Assert.That(vm.IsBusy, Is.True, "忙碌态要立刻上屏，否则用户以为没点上");
+
+            release.Set();
+            PumpUntil(pump, () => pending.IsCompleted, TimeSpan.FromSeconds(10));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(pending.IsCompleted, Is.True, "服务结束后命令要收口");
+                Assert.That(service.ActivatedIds, Has.Count.EqualTo(1), "服务调用本身不能因为换线程而丢失");
+                Assert.That(vm.IsBusy, Is.False, "命令结束后忙碌态必须复位，否则开关会一直点不动");
+            });
+        }
+        finally
+        {
+            release.Set();
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+    }
+
+    [Test]
+    public void Deactivate_RunsTheServiceOffTheThreadThatOwnsTheDispatcher()
+    {
+        var hookThread = 0;
+        using var started = new ManualResetEventSlim(false);
+        using var release = new ManualResetEventSlim(false);
+        var service = new FakePluginService
+        {
+            DeactivateHook = () =>
+            {
+                hookThread = Environment.CurrentManagedThreadId;
+                started.Set();
+                release.Wait(TimeSpan.FromSeconds(5));
+            },
+        };
+        service.ActiveItems.Add(PluginsFixtures.Plugin("com.example.on", state: PluginState.Active));
+        var vm = Create(service);
+        vm.RefreshCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        vm.SelectedActive = vm.ActivePlugins[0];
+
+        var pump = new ManualPumpContext();
+        var previous = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(pump);
+        try
+        {
+            var pumpThread = Environment.CurrentManagedThreadId;
+            var pending = vm.DeactivateCommand.ExecuteAsync(null);
+
+            PumpUntil(pump, () => started.IsSet, TimeSpan.FromSeconds(5));
+            Assert.That(started.IsSet, Is.True, "服务调用必须真的开始");
+            Assert.That(hookThread, Is.Not.EqualTo(pumpThread),
+                "停用必须离开界面线程：Deinitialize 与释放页面都在这一条调用栈里");
+            Assert.That(pending.IsCompleted, Is.False);
+            Assert.That(vm.IsBusy, Is.True);
+
+            release.Set();
+            PumpUntil(pump, () => pending.IsCompleted, TimeSpan.FromSeconds(10));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(pending.IsCompleted, Is.True);
+                Assert.That(service.DeactivatedIds, Has.Count.EqualTo(1));
+                Assert.That(vm.IsBusy, Is.False);
+            });
+        }
+        finally
+        {
+            release.Set();
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+    }
+
+    /// <summary>把续体排队、由测试线程自己泵的上下文，用来模拟「界面线程」。</summary>
+    private static void PumpUntil(SynchronizationContext pump, Func<bool> condition, TimeSpan timeout)
+    {
+        var deadline = System.Diagnostics.Stopwatch.StartNew();
+        while (!condition() && deadline.Elapsed < timeout)
+        {
+            if (pump is ManualPumpContext manual)
+            {
+                manual.RunPending();
+            }
+
+            Thread.Sleep(2);
+        }
+
+        if (pump is ManualPumpContext remaining)
+        {
+            remaining.RunPending();
+        }
+    }
+
     private static PluginsPageViewModel Create(FakePluginService service) =>
         new(service, new PluginsFakeErrorReporter());
 
@@ -411,6 +541,13 @@ internal sealed class FakePluginService : IPluginService
     /// <summary>扫描次数。</summary>
     public int DiscoverCalls { get; private set; }
 
+
+    /// <summary>激活期间的可选阻塞钩子：用来验证命令没把调用线程占住。</summary>
+    public Action? ActivateHook { get; set; }
+
+    /// <summary>停用期间的可选阻塞钩子。</summary>
+    public Action? DeactivateHook { get; set; }
+
     /// <summary>被激活的 Id。</summary>
     public List<string> ActivatedIds { get; } = new();
 
@@ -460,6 +597,7 @@ internal sealed class FakePluginService : IPluginService
     public Task<PluginLoadResult> ActivateAsync(string pluginId, CancellationToken ct = default)
     {
         ActivatedIds.Add(pluginId);
+        ActivateHook?.Invoke();
         if (ActivateResult is { IsSuccess: false } failed)
         {
             return Task.FromResult(failed);
@@ -473,6 +611,7 @@ internal sealed class FakePluginService : IPluginService
     public Task<OperationResult> DeactivateAsync(string pluginId, CancellationToken ct = default)
     {
         DeactivatedIds.Add(pluginId);
+        DeactivateHook?.Invoke();
         if (DeactivateResult is { IsSuccess: false } failed)
         {
             return Task.FromResult(failed);
@@ -559,4 +698,40 @@ internal sealed class PluginsFakeErrorReporter : IErrorReporter
     public void Report(Exception exception, string context, string? userMessage = null) => Contexts.Add(context);
 
     public void Report(string context, string userMessage, string? detail = null) => Contexts.Add(context);
+}
+
+/// <summary>
+/// 手动泵的同步上下文：Post 只入队，由测试线程自己 RunPending()。
+/// 用来模拟「界面线程」——续体只在这根线程上跑，服务体跑在别的线程上才算没卡界面。
+/// </summary>
+internal sealed class ManualPumpContext : SynchronizationContext
+{
+    private readonly Queue<(SendOrPostCallback Callback, object? State)> _queue = new();
+
+    public override void Post(SendOrPostCallback d, object? state)
+    {
+        lock (_queue)
+        {
+            _queue.Enqueue((d, state));
+        }
+    }
+
+    public void RunPending()
+    {
+        while (true)
+        {
+            (SendOrPostCallback Callback, object? State) item;
+            lock (_queue)
+            {
+                if (_queue.Count == 0)
+                {
+                    return;
+                }
+
+                item = _queue.Dequeue();
+            }
+
+            item.Callback(item.State);
+        }
+    }
 }

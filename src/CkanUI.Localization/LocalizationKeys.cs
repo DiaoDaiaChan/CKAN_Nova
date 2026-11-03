@@ -1943,4 +1943,5 @@ public static class LocalizationKeys
     public const string NavRailShips = "Ui_NavRail_Ships";
     public const string NavRailFlags = "Ui_NavRail_Flags";
     public const string NavRailLoadingScreens = "Ui_NavRail_LoadingScreens";
+    public const string PluginBadge = "Ui_Plugin_Badge";
 }

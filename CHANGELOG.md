@@ -12,6 +12,11 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 新增
 
+- 插件功能微型视觉角标（页面与子页面统一标出）：
+  - 架构数据层：`NavItem` 与 `NavTab` 契约增加 `IsPlugin` 字段，插件解析与分节装配时自动置位；`ShellViewModel` 暴露 `IsCurrentPagePlugin` 用于外壳顶层感知。
+  - 子页面分节页签（`SectionTabsControl`）：在「实例」（存档/飞船/旗帜/加载图/KSP设置）与「模组」（Mod配置）等内嵌插件页签上，标题右侧呈现精致微型「插件」胶囊角标（`CkanPluginCornerTag`），激活时自适应主题反色，清晰辨识原生与插件功能。
+  - 侧栏导航与悬浮卡片（`FANavigationView` / `NavPopout`）：插件级导航项配置 `FAInfoBadge` 强调点，悬浮卡片标题旁与子项列表同步标注插件角标，并在抽屉模式 ToolTip 中追加 `(插件)`。
+  - 顶栏外壳联动：当前处于插件页面或插件子页面时，窗口标题右侧同步呈现微型插件角标。
 - Mod 配置解耦为内置插件并增加通用配置读写支持（`src/CkanUI.Plugin.ModConfig`，`com.ckanui.modconfig`）：
   - 架构解耦：将原本硬编码在宿主中的「Mod 配置」整套视图与视图模型迁移至独立插件工程，声明 `Section=mods` 与 `Order=50`，无缝嵌回「模组」分节内部页签条，宿主侧移除死类型注册与预热绑定。
   - 通用 ConfigNode 配置模式：针对绝大多数没有专属适配器包的模组，新增通用配置扫描器（`GenericConfigScanner`）与编辑服务（`GenericConfigEditService`）。递归扫描当前游戏实例 `GameData` 下可配置的 `*.cfg` 文件（自动排除 ModuleManager 补丁及原版零件节点）。
@@ -197,6 +202,25 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 修复
 
+- 存档工作台在 CRLF 存档里搜到的东西点不开：原文命中那一支按 CR 与 LF 两个字符切行，每个 CRLF 因此
+  多出一个空元素，行号整体翻倍（20 行变成 39 行），于是"搜索命中的行"和文档行号对不上——点命中落到
+  错误的块上，或者干脆展开不出字段。Windows 上的 .sfs 全是 CRLF，这条对真实用户是必现的。改成先把行尾
+  统一再按单个换行切分。回归用例：`SfsCrlfRegressionTests.原文命中的行号在CRLF存档里仍然是真实行号`。
+- 插件启停卡顿之外的同类边角：`TelemetryFixtures` 读契约样例时统一行尾（样例是 JSON，签出时的行尾由
+  `.gitattributes` 的 `* text=auto` 决定），避免换台机器重新签出后按 `\n` 拼的替换片段命不中而假红。
+  回归用例：`TelemetryFixtureLineEndingTests.样例读取后统一成LF`。
+- 启停插件时界面会卡住（激活/停用一次，界面几秒钟不响应）：这条链上有两处把活压在 UI 线程上。
+  一是分节入口项每轮重建都造新实例，而侧栏按引用差分——激活一个「实例」分节里的插件，五个分节入口全部
+  「变成新项」，外壳（逐项销毁重建整套菜单）在同一个调度回合里重建十几次；现在标题与字形没变就复用上一轮实例，
+  一次启停只动真正变化的那一项。二是 `PluginService` 的激活/停用本来是同步实现（`Initialize` / `Deinitialize`、
+  写激活表、广播变更全在一条调用栈里），页面命令直接 `await` 它等于在 UI 线程上跑完；现在命令把服务调用丢到
+  线程池、`IsBusy` 先上屏，变更通知也回到 UI 线程收口（插件页缓存的释放、导航栏重建都不再跨线程）。
+  开关另加防连击（忙碌时把勾选回滚），避免手抖连点堆命令。
+  回归用例：`PluginPageCatalogTests.Shell_TogglingSectionEmbeddedPlugin_DoesNotTouchTheRail`（分节内嵌插件启停对
+  `RailItems` 零变更，改回旧写法会红在「实际 12 次」）、`PluginPageCatalogTests.Shell_TogglingRailPlugin_TouchesTheRailExactlyOncePerToggle`、
+  `PluginToggleResponsivenessTests.启停插件在无头宿主里能跑完且侧栏只做最小重建`（无头宿主里真插件走完激活→停用，
+  限时且限制重建次数）、`PluginsPageViewModelTests.Activate_RunsTheServiceOffTheThreadThatOwnsTheDispatcher` /
+  `Deactivate_RunsTheServiceOffTheThreadThatOwnsTheDispatcher`（用手动泵的同步上下文模拟界面线程，服务体必须在别的线程上跑）。
 - 从一个选项（A）切到另一个（B）时，A 会「又亮一下」：行的底色挂了 120–200 ms 的 `BrushTransition`，
   选中色退场要跑完整段过渡，旧行在那段时间里一直带着选中色。现在 `ListBoxItem` / `DataGridRow` 的底色瞬时切换，
   位移弹簧仍挂在模板内的 `ContentPresenter` 上；键盘焦点只画焦点环、不再重绘整行底色（否则焦点迁移也像一次选中闪烁）。

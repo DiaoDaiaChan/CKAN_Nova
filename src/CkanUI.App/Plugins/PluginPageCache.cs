@@ -18,13 +18,32 @@ public sealed class PluginPageCache
 {
     private static readonly ILog Log = LogManager.GetLogger(typeof(PluginPageCache));
 
+    private readonly object _gate = new();
     private readonly Dictionary<string, object> _pages = new(StringComparer.Ordinal);
 
     /// <summary>当前缓存的页面实例数（诊断与测试用）。</summary>
-    public int Count => _pages.Count;
+    public int Count
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _pages.Count;
+            }
+        }
+    }
 
     /// <summary>当前缓存的页面实例快照（L1 投影释放要逐个问它们能不能丢行）。</summary>
-    public IReadOnlyList<object> Instances => _pages.Values.ToList();
+    public IReadOnlyList<object> Instances
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _pages.Values.ToList();
+            }
+        }
+    }
 
     /// <summary>按导航键取页面实例，没有就调一次工厂并记住结果（工厂返回 <c>null</c> 不缓存）。</summary>
     public object? GetOrCreate(string key, Func<object?> factory)
@@ -32,15 +51,27 @@ public sealed class PluginPageCache
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentNullException.ThrowIfNull(factory);
 
-        if (_pages.TryGetValue(key, out var cached))
+        lock (_gate)
         {
-            return cached;
+            if (_pages.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
         }
 
+        // 工厂在锁外执行，避免复杂的页面构造逻辑引发锁竞争或嵌套死锁
         var created = factory();
         if (created is not null)
         {
-            _pages[key] = created;
+            lock (_gate)
+            {
+                if (_pages.TryGetValue(key, out var existing))
+                {
+                    return existing;
+                }
+
+                _pages[key] = created;
+            }
         }
 
         return created;
@@ -56,31 +87,43 @@ public sealed class PluginPageCache
 
         var live = new HashSet<string>(liveKeys, StringComparer.OrdinalIgnoreCase);
         List<string>? removed = null;
-        foreach (var key in _pages.Keys.ToList())
+        List<(string Key, IDisposable Disposable)>? toDispose = null;
+
+        lock (_gate)
         {
-            if (live.Contains(key))
+            foreach (var key in _pages.Keys.ToList())
             {
-                continue;
-            }
+                if (live.Contains(key))
+                {
+                    continue;
+                }
 
-            var page = _pages[key];
-            // 先摘引用再释放：Dispose 里若回调宿主（例如发事件）不会看到半释放的缓存。
-            _pages.Remove(key);
-            (removed ??= []).Add(key);
+                var page = _pages[key];
+                // 先在锁内摘掉引用：保证并发读取或回调宿主时不会看到半释放状态
+                _pages.Remove(key);
+                (removed ??= []).Add(key);
 
-            if (page is not IDisposable disposable)
-            {
-                continue;
+                if (page is IDisposable disposable)
+                {
+                    (toDispose ??= []).Add((key, disposable));
+                }
             }
+        }
 
-            try
+        if (toDispose is not null)
+        {
+            // 在锁外调用 Dispose：插件内部清理逻辑可能较重，锁外释放确保无死锁风险
+            foreach (var (key, disposable) in toDispose)
             {
-                disposable.Dispose();
-            }
-            catch (Exception ex)
-            {
-                // 插件写坏了 Dispose 也不能把宿主带崩：引用已经摘掉，收集仍会继续。
-                Log.Warn("释放已下线的插件页失败：" + key, ex);
+                try
+                {
+                    disposable.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    // 插件写坏了 Dispose 也不能把宿主带崩：引用已经摘掉，收集仍会继续
+                    Log.Warn("释放已下线的插件页失败：" + key, ex);
+                }
             }
         }
 
