@@ -195,6 +195,11 @@ internal static class NavigationProbe
                 await ClickCommandsAsync(window, shell, path, key).ConfigureAwait(true);
             }
 
+            if (round == 1 && Environment.GetEnvironmentVariable("CKANUI_NAV_BUTTONS") == "1")
+            {
+                ReportButtons(window, path, key);
+            }
+
             if (round == 1 && Environment.GetEnvironmentVariable("CKANUI_NAV_TABS") == "1")
             {
                 await SwitchTabsAsync(window, path, key).ConfigureAwait(true);
@@ -267,6 +272,38 @@ internal static class NavigationProbe
                 string.Create(CultureInfo.InvariantCulture, $"[click] {key} {property.Name} sync={sync:F1}ms free={free:F1}ms frames={frames} maxGap={maxGap:F1}ms over50={over50}"));
             await Task.Delay(120).ConfigureAwait(true);
         }
+    }
+
+    /// <summary>
+    /// 清点页面上的按钮：哪些挂了命令（可安全点）、哪些是代码后置事件（不点，只报名字）。
+    /// </summary>
+    /// <remarks>
+    /// 只点 VM 上的白名单命令会漏掉一类按钮：<c>Click</c> 在 code-behind 里接的按钮（窗口镶边、工作台工具条等），
+    /// 它们在 VM 上根本没有 ICommand 属性，遍历命令永远看不见。这里按可视树清点，把覆盖率和盲区一起写进日志。
+    /// </remarks>
+    private static void ReportButtons(TopLevel window, string path, string key)
+    {
+        if (window is not MainWindow { ActivePageView: { } page })
+        {
+            TryWrite(path, $"[btn] {key} no-page");
+            return;
+        }
+
+        var buttons = page.GetVisualDescendants().OfType<Button>().ToArray();
+        var withCommand = buttons.Count(b => b.Command is not null);
+        var named = buttons
+            .Where(b => b.Command is null)
+            .Select(b => string.IsNullOrEmpty(b.Name) ? b.Content?.ToString()?.Trim() : b.Name)
+            .Where(n => !string.IsNullOrEmpty(n))
+            .Select(n => n!.Length > 24 ? n[..24] : n!)
+            .Distinct(StringComparer.Ordinal)
+            .Take(8);
+
+        TryWrite(
+            path,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"[btn] {key} total={buttons.Length} command={withCommand} codebehind={buttons.Length - withCommand} [{string.Join(" | ", named)}]"));
     }
 
     /// <summary>
