@@ -12,6 +12,7 @@ public sealed partial class KspSettingItemViewModel : ObservableObject
 {
     private readonly KspSettingItem _model;
     private readonly Action? _onChanged;
+    private string? _localizedName;
 
     public KspSettingItemViewModel(KspSettingItem model, Action? onChanged = null)
     {
@@ -25,7 +26,22 @@ public sealed partial class KspSettingItemViewModel : ObservableObject
 
     public string Key => _model.Key;
 
-    public string DisplayName => _model.DisplayName;
+    public string DisplayName => _localizedName ?? _model.DisplayName;
+
+    /// <summary>
+    /// 用语言包里的人工译名覆盖 settings.cfg 的原始键名；传 null 退回模型自带的名字
+    /// （精选项是官方词条译文，其余是友好化后的键名）。搜索与显示都读 <see cref="DisplayName"/>。
+    /// </summary>
+    public void ApplyLocalizedName(string? localized)
+    {
+        if (string.Equals(_localizedName, localized, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _localizedName = localized;
+        OnPropertyChanged(nameof(DisplayName));
+    }
 
     public string? Description => _model.Description;
 

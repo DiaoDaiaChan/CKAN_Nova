@@ -461,4 +461,67 @@ public sealed class KspConfigPageViewModelTests
         Assert.That(viewModel.Sections, Has.Count.EqualTo(4), "清空搜索后分节要复原。");
     }
 
+    [Test]
+    public async Task SettingNamesComeFromTheLanguagePack_AndFallBackToTheFriendlyName()
+    {
+        // 三个典型：官方词条已有译文（精选项）、语言包里有人工译名、包里没有这条键。
+        var document = new KspConfigDocument
+        {
+            FilePath = @"D:\KSP\settings.cfg",
+            Language = "zh-cn",
+            HasBackup = false,
+            RawLines = ["FULLSCREEN = True", "MISSION_SHOW_CREATE_VESSEL_WARNING = False", "SOME_MOD_KEY = 1"],
+            LocalizationTable = new Dictionary<string, string> { ["#autoLOC_1"] = "全屏显示" },
+            Settings =
+            [
+                new KspSettingItem
+                {
+                    Key = "FULLSCREEN",
+                    Value = "True",
+                    OriginalValue = "True",
+                    DisplayName = "全屏显示",
+                    LocKey = "#autoLOC_1",
+                    Category = KspSettingCategory.Graphics,
+                    SettingType = KspSettingType.Boolean,
+                    Priority = 100
+                },
+                new KspSettingItem
+                {
+                    Key = "MISSION_SHOW_CREATE_VESSEL_WARNING",
+                    Value = "False",
+                    OriginalValue = "False",
+                    DisplayName = "MISSION SHOW CREATE VESSEL WARNING",
+                    Category = KspSettingCategory.Gameplay,
+                    SettingType = KspSettingType.Boolean
+                },
+                new KspSettingItem
+                {
+                    Key = "SOME_MOD_KEY",
+                    Value = "1",
+                    OriginalValue = "1",
+                    DisplayName = "SOME MOD KEY",
+                    Category = KspSettingCategory.Other,
+                    SettingType = KspSettingType.Integer
+                }
+            ]
+        };
+
+        var viewModel = new KspConfigPageViewModel(new FakeKspConfigService { Document = document });
+        viewModel.TextResolver = key => key == KspConfigPageViewModel.SettingNameKey("MISSION_SHOW_CREATE_VESSEL_WARNING")
+            ? "显示创建飞行器警告"
+            : key;
+        await viewModel.LoadConfigAsync();
+
+        Assert.That(viewModel.FilteredItems.Single(item => item.Key == "FULLSCREEN").DisplayName,
+            Is.EqualTo("全屏显示"), "官方词条有译文的项不该被语言包覆盖，也不该去查包。");
+        Assert.That(viewModel.FilteredItems.Single(item => item.Key == "MISSION_SHOW_CREATE_VESSEL_WARNING").DisplayName,
+            Is.EqualTo("显示创建飞行器警告"), "语言包里的译名要顶掉原始键名。");
+        Assert.That(viewModel.FilteredItems.Single(item => item.Key == "SOME_MOD_KEY").DisplayName,
+            Is.EqualTo("SOME MOD KEY"), "包里没有的键要退回友好名，不能把键名或占位键糊上去。");
+
+        viewModel.SearchText = "创建飞行器";
+        Assert.That(viewModel.FilteredItems.Single().Key, Is.EqualTo("MISSION_SHOW_CREATE_VESSEL_WARNING"),
+            "搜索要按译名命中，不能只认原始键。");
+    }
+
 }

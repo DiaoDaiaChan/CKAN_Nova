@@ -130,23 +130,32 @@
       <ItemsControl ItemsSource="{Binding Sections}" Margin="0,0,14,0">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:KspConfigSectionViewModel">
-            <StackPanel Margin="0,0,0,14">
+            <!-- 分组卡：照抄设置页——CkanCard 底色 + 强调色竖条的分组头 + 行间 hairline。
+                 之前行直接铺在星空背景上，表单与背景混在一起（用户实测反馈），现在有卡面兜住。 -->
+            <Border Classes="CkanCard KspSectionCard" Margin="0,0,0,14" Padding="0"
+                    ClipToBounds="True" BorderBrush="{DynamicResource CkanBorderBrush}">
+              <StackPanel>
 
-              <!-- 分组标题：设置页同款——小图标 + 加粗标题 + 灰计数，不画卡片不铺底色 -->
-              <StackPanel Classes="KspSectionHeader" Orientation="Horizontal" Spacing="8" Margin="0,0,0,2">
-                <ui:GlyphIcon Glyph="{Binding Icon}" Size="14" VerticalAlignment="Center"
-                              Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Classes="KspSectionTitle" Text="{Binding Title}" FontSize="15" FontWeight="SemiBold"
-                           Foreground="{DynamicResource CkanTextPrimaryBrush}" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding Count}" FontSize="11" VerticalAlignment="Center"
-                           Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-              </StackPanel>
+                <Border Classes="KspSectionHeader" Padding="12,7,12,6"
+                        Background="{DynamicResource CkanAccentSubtleBrush}"
+                        BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CkanBorderBrush}">
+                  <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Border Width="3" Height="15" CornerRadius="1.5" VerticalAlignment="Center"
+                            Background="{DynamicResource CkanAccentBrush}" />
+                    <ui:GlyphIcon Glyph="{Binding Icon}" Size="14" VerticalAlignment="Center"
+                                  Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    <TextBlock Classes="KspSectionTitle" Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"
+                               Foreground="{DynamicResource CkanTextPrimaryBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Count}" FontSize="11" VerticalAlignment="Center"
+                               Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                  </StackPanel>
+                </Border>
 
               <ItemsControl ItemsSource="{Binding Items}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:KspSettingItemViewModel">
                     <Border Classes="KspRow" BorderThickness="0,0,0,1"
-                            BorderBrush="{DynamicResource CkanHairlineBrush}" Padding="0,6">
+                            BorderBrush="{DynamicResource CkanHairlineBrush}" Padding="12,6">
                       <Grid ColumnDefinitions="*,240,96" VerticalAlignment="Center">
 
                         <!-- 名称 / 说明 / 原值线索：名称列固定 200，说明占剩余宽度 -->
@@ -254,7 +263,8 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-            </StackPanel>
+              </StackPanel>
+            </Border>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>

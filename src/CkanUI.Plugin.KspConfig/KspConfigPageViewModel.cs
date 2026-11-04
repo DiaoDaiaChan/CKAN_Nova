@@ -50,6 +50,31 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
     public override string Title => Text("KSP 游戏原生设置", LocalizationKeys.KspConfigPageTitle);
 
     /// <summary>
+    /// 设置项名称的语言包键前缀。键由 settings.cfg 的数据决定（实例里有什么键就有什么键），
+    /// 不可能为每个键写一个常量，因此这一族键在 <c>LocalizationKeyDriftTests</c> 里走前缀白名单。
+    /// </summary>
+    public const string SettingNameKeyPrefix = "Ui_KspConfigPage_Setting_";
+
+    /// <summary>把 KSP 原始键换成语言包键，例：<c>MISSION_SHOW_CREATE_VESSEL_WARNING</c>。</summary>
+    public static string SettingNameKey(string kspKey) => SettingNameKeyPrefix + kspKey;
+
+    /// <summary>
+    /// 设置项显示名的译名：精选项走 dictionary.cfg 官方译文（已由服务填好，不再查包），
+    /// 其余走语言包的人工译名；包里没有这条键时退回模型给的友好名，绝不把键名糊到表单上。
+    /// </summary>
+    private string? LocalizedSettingName(KspSettingItem item)
+    {
+        if (!string.IsNullOrEmpty(item.LocKey))
+        {
+            return null;
+        }
+
+        var key = SettingNameKey(item.Key);
+        var translated = Text(item.DisplayName, key);
+        return string.Equals(translated, key, StringComparison.Ordinal) ? null : translated;
+    }
+
+    /// <summary>
     /// 分类页签集合。
     /// </summary>
     public ObservableCollection<KspConfigCategoryTabViewModel> Tabs { get; } = [];
@@ -196,7 +221,9 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
             _allItems.Clear();
             foreach (var item in _document.Settings)
             {
-                _allItems.Add(new KspSettingItemViewModel(item, OnItemModifiedStateChanged));
+                var itemViewModel = new KspSettingItemViewModel(item, OnItemModifiedStateChanged);
+                itemViewModel.ApplyLocalizedName(LocalizedSettingName(item));
+                _allItems.Add(itemViewModel);
             }
 
             UpdateTabCounts();

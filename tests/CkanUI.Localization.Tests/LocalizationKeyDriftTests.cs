@@ -46,6 +46,18 @@ public sealed class LocalizationKeyDriftTests
         Assert.That(duplicates, Is.Empty);
     }
 
+    /// <summary>
+    /// 数据驱动的键族：键集来自实例里的 settings.cfg（有什么键就有什么键），不可能为每个键写常量。
+    /// 这一族允许在包里出现常量之外的键，但必须限于白名单前缀——别的前缀漏写常量照样红。
+    /// </summary>
+    private static readonly string[] DataDrivenKeyPrefixes =
+    [
+        "Ui_KspConfigPage_Setting_",
+    ];
+
+    private static bool IsDataDriven(string key) =>
+        DataDrivenKeyPrefixes.Any(prefix => key.StartsWith(prefix, StringComparison.Ordinal));
+
     [Test]
     public void Shipped_packs_declare_no_keys_outside_localization_keys()
     {
@@ -55,8 +67,40 @@ public sealed class LocalizationKeyDriftTests
         Assert.That(packs, Is.Not.Empty);
         foreach (var pack in packs)
         {
-            var dead = pack.Strings.Keys.Where(k => !known.Contains(k)).ToArray();
+            var dead = pack.Strings.Keys.Where(k => !known.Contains(k) && !IsDataDriven(k)).ToArray();
             Assert.That(dead, Is.Empty, pack.Locale + " 里有常量之外的键（死键）:" + string.Join(", ", dead));
+        }
+    }
+
+    [Test]
+    public void Data_driven_settings_names_are_translated_in_every_pack()
+    {
+        var packs = LocalizerFactory.LoadEmbedded(NullLocalizationLog.Instance);
+        var kspPrefix = "Ui_KspConfigPage_Setting_";
+
+        // 真实 settings.cfg 里有 300+ 个根级键，其中约 260 个不在精选项里、官方字典也没有译文；
+        // 这条守住"别只剩几条"，也守住每条都不是把键名原样搬过来。
+        foreach (var pack in packs)
+        {
+            var names = pack.Strings.Where(pair => pair.Key.StartsWith(kspPrefix, StringComparison.Ordinal)).ToArray();
+            Assert.That(names.Length, Is.GreaterThanOrEqualTo(250), pack.Locale + " 的设置项译名太少。");
+            foreach (var (key, value) in names)
+            {
+                Assert.That(value, Is.Not.Null.And.Not.Empty, key + " 在 " + pack.Locale + " 里是空值。");
+                Assert.That(value, Is.Not.EqualTo(key), key + " 在 " + pack.Locale + " 里只是把键名原样搬过来。");
+                Assert.That(value, Does.Not.Contain('_'), key + " 在 " + pack.Locale + " 里还带着下划线。");
+            }
+        }
+
+        foreach (var kspKey in new[]
+                 {
+                     "MISSION_SHOW_CREATE_VESSEL_WARNING",
+                     "COLOR_PART_TRANSFER_DEST_HIGHLIGHT",
+                     "SERENITY_CONTROLLER_IGNORES_VESSEL",
+                     "WHEEL_WEIGHT_STRESS_MULTIPLIER",
+                 })
+        {
+            Assert.That(packs[0].Strings, Does.ContainKey(kspPrefix + kspKey), kspKey + " 没有译名。");
         }
     }
 
