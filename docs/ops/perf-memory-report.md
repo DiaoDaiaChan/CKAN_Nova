@@ -112,6 +112,8 @@ UI 线程（采样）自时间排名：`Avalonia.StyledElement.ApplyStyles` **11
 - `src/CkanUI.App/Views/ModsPageView.axaml:16` 在页面根上写了 `<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />` —— 视图每次进树都带着整套 DataGrid 样式重新套用；
 - `ModsPageViewModel.OnActivated`（src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:1066-1090）每次都先改 `IsDetailsPaneVisible` 再 `ReloadFromSnapshots()`，属性变化会再触发一次子树样式失效。
 
+基线对照做不到：`git worktree` 出来的 HEAD 副本缺 `external/CKAN`（未入库）与本地 NuGet 缓存，`dotnet restore` 直接 `MSB3202 未找到 external\CKAN\Core\CKAN-core.csproj`，所以没拿到「HEAD 版本 mods 进入耗时」的对照值。
+
 验证这两条只需要把 StyleInclude 移到 App 级、把密度/详情窗格属性改成「与当前值不同才赋值」，但两个文件都是别人的 WIP。
 
 ## 11. 已落地
