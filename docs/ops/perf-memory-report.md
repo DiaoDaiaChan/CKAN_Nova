@@ -92,6 +92,20 @@ $env:CKAN_CONFIG_FILE="$env:APPDATA\CKAN\GUI\config.json"
 node tools/perf-probe/measure-instance.mjs
 ```
 
+### 5.2 峰值的两次误读：单跑不可比，涨幅跟着"看了几页"走
+
+同一个 336 模组实例、同一条命令，三次峰值：**938MB / 1499MB / 1553MB**。差别不在改动，而在这一轮扫到了第几页——t=60s 之后才开始的页面（saves / downloadstats / cache）会把工作集推到 1.2–1.6 GB 区间，60 秒前结束的那次自然只有 938MB。结论：**单次峰值不能横向比较，必须连同轨迹一起看**。
+
+单页隔离（`CKANUI_NAV_ONLY=<key>`，每页独立进程，45s 窗口）把涨幅拆开：
+
+| 只看这一页 | home | cache | downloadstats | saves |
+| --- | --- | --- | --- | --- |
+| 峰值 WS | 891MB | 1220MB | 1304MB | 1401MB |
+
+相对 home 的边际：saves ≈ +510MB、downloadstats ≈ +413MB、cache ≈ +329MB。这三页都是「首进即把整份数据投影出来、离开也不还」，正好对应全仓只有 content / mods / modtext / kspconfig 四个 VM 实现 `IPageProjectionTrim` 这件事——其余 20 页没有释放契约。访问页数越多，累积越接近 1.6GB；把同样的斜率外推到数据量级更大的真实整合包，就是「4 个 G」的量级。
+
+`System.GC.ConserveMemory=5` 的 A/B（`runtimeconfig.template.json`）：1499/1575MB，与关掉时的 1553MB 无差异 ⇒ **该开关对本应用无效，已回退**，不进主干。原因也清楚：占大头的是页面投影与合成器表面，不是 GC 该收的堆碎片。
+
 ## 6. 待决策的三个杠杆
 
 | 杠杆 | 预期收益 | 阻塞 |
