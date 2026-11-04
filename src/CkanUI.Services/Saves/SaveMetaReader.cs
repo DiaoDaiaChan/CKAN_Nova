@@ -17,6 +17,9 @@ internal static class SaveMetaReader
     /// <summary>头部读取行预算（13 篇 §7.1）。</summary>
     private const int HeaderLineBudget = 200;
 
+    /// <summary>头部读取字节预算：大存档前 200 行也可能是几百 MB，必须按字节封顶。</summary>
+    private const int HeaderByteBudget = 256 * 1024;
+
     /// <summary>同级元数据文件扩展名。</summary>
     private const string LoadMetaExtension = ".loadmeta";
 
@@ -119,21 +122,51 @@ internal static class SaveMetaReader
             FileMode.Open,
             FileAccess.Read,
             FileShare.ReadWrite | FileShare.Delete);
-        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
 
-        var builder = new StringBuilder();
-        for (var i = 0; i < HeaderLineBudget; i++)
+        // 只读固定字节预算，不用 StreamReader.ReadLine：大存档里单行可能上百 MB，
+        // ReadLine 会在 StringBuilder 里一路翻倍（实测把 ArrayPool<char> 顶到 512MB，
+        // 且池中巨块在线程里常驻不还）。元数据键都在 GAME 头几十 KB 内，256KB 足够。
+        var buffer = new byte[HeaderByteBudget];
+        var read = 0;
+        while (read < buffer.Length)
         {
-            var line = reader.ReadLine();
-            if (line is null)
+            var chunk = stream.Read(buffer, read, buffer.Length - read);
+            if (chunk <= 0)
             {
                 break;
             }
 
-            builder.Append(line).Append('\n');
+            read += chunk;
         }
 
-        return builder.ToString();
+        if (read == 0)
+        {
+            return string.Empty;
+        }
+
+        var text = Encoding.UTF8.GetString(buffer, 0, read);
+        if (text.Length > 0 && text[0] == '\uFEFF')
+        {
+            text = text[1..];
+        }
+
+        // 截断点必须落在行边界：半行会让 SfsParser 把残缺节点算进来。
+        if (read == buffer.Length)
+        {
+            var lastBreak = text.LastIndexOf('\n');
+            if (lastBreak > 0)
+            {
+                text = text[..lastBreak];
+            }
+        }
+
+        var lines = text.Split('\n');
+        if (lines.Length <= HeaderLineBudget)
+        {
+            return text;
+        }
+
+        return string.Join('\n', lines, 0, HeaderLineBudget);
     }
 
     /// <summary>
