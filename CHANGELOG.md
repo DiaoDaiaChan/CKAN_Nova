@@ -267,6 +267,12 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
   - 17 处全改成 `LocalizationKeys.KspConfigPage*` 常量（`Ui_KspConfigPage_*` 22 条），三处插值 fallback 去掉 `$`（`"保存 {0} 项"`、`"已加载 {0} 项配置（官方词条 {1} 条）"`、`"{0} / {1} 项"` 等），两份语言包同步补齐 22 条（现各 1984 键，键集与占位符一致）。
   - 守卫升级：`PageTextLocalizationTests` 的扫描范围从 `src/CkanUI.ViewModels/Pages` 扩到 `src` 下全部 `.cs`（主程序与首方插件同一套规矩），并新增 `NoSourceUsesALiteralLocalizationKey`——第二参是字符串字面量的 `Text(...)` 直接判红。原守卫只查「包里有常量之外的死键」，缺的正是「代码用了包里没有的键」这一向。基线 800 站点/17 文件抬到 900/20。
   - 回归：`CkanUI.Plugin.KspConfig.Tests` 24/24、`CkanUI.Localization.Tests` 76/76（键集相同、常量全覆盖、占位符一致）、`CkanUI.Architecture.Tests` 28/28（含新守卫）；快照复核状态条已显示中文「已加载 306 项配置（官方词条 12028 条）」。
+- KSP 配置页右半截排版错位（截图：值列输入框漂移、「重置」按钮与操作列对不上），且与设置页不是一套设计语言（截图：仓库与网络 / 认证令牌 / 外观）：
+  - 根因：手写表头 `Grid ColumnDefinitions="*,150,210,56"` 与 `xmlns:tbl` 的 `ListTableTools.Enabled/Columns` 自绘表头同时存在（`src/CkanUI.Ui/Tables` 当时还是未跟踪文件），两套列宽各算一遍，编辑器与操作列整体错位。重写时把 `xmlns:tbl` 与两条 attached property 一并去掉，表体不再依赖任何自绘表头。
+  - 版式换成设置页那一套：`FilteredItems` 之外由 VM 出 `Sections`（新增 `KspConfigSectionViewModel`，按页签顺序分组、空组不出、选中单分类时只有一节），视图是「无卡片分节平铺」——节头 = 14 px 图标 + 15 px 粗标题 + 11 px 计数，行是 `Border.KspRow` + 底部 hairline，不再用卡片撑高度。
+  - 三列定点对齐：名称列 200 px（描述 11 px 单行省略）、编辑槽固定 240 px、操作槽固定 96 px 右对齐；值输入框、「重置」按钮、ToggleSwitch 全部落在同一条右缘上（1280×800 实测右缘 1150，滚动条留 14 px 不压按钮），行距 45 px、一屏 10 行。
+  - 取舍：布尔项去掉「开/关」文案（`OnContent="" OffContent=""`），否则 240 px 槽会把它裁掉；原始键名不再常驻列里，改挂在名称的悬停提示上（`ToolTip.Tip="{Binding Key}"`），需要时仍能对着 `settings.cfg` 查。
+  - 回归：`KspConfigPageViewModelTests` 新增 3 条（分节按页签顺序且计数求和等于筛选结果、选中分类只剩一节、搜索跟着分节收敛）；`KspConfigPageViewLayoutTests` 改成按 `Border.KspRow` 与 `.KspSectionHeader/.KspSectionTitle` 断言，新增分节标题顺序用例，行高上限 40 px（旧版 45 px 卡片）。套件 28/28；`ckan-ui.sln` 0 警告 0 错误；干净签出全量 21 套件 4367 条、4353 通过、13 跳过，唯一红是既有的 `HoverInteractionTests.ListBoxItem_HoverShiftsRightAndShowsHandCursor`（与本页无关）。
 
 - 存档工作台在大存档上「找不到东西」：拿真实生涯存档（45.9 MB / 98.9 万键值 / 65.6 万块）复现后，问题不是文件读不出来，而是列表把差异藏了起来。
   - 左栏不再出现一屏「模组数据」：同名分区自动加 `#1`/`#2`，`SCENARIO` 的副标题改成可读的「场景 #N」；分区、键值、块三栏各加就地筛选，计数写明「筛出 2 / 9」「已列 3 / 23349」，不再让人把「界面只列了一部分」误读成「文件里只有这么多」。
