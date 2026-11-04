@@ -30,6 +30,18 @@ internal static class NavigationProbe
             ? System.Linq.Enumerable.Count(Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(active))
             : 0;
 
+    /// <summary>看门狗当前归属的页面键：卡顿记在「当时正在看哪一页」上。</summary>
+    private static volatile string _stallKey = "startup";
+
+    /// <summary>看门狗当前归属的阶段：进入/稳定窗/滚动/点命令/页间空档，用来区分「切过去卡」和「停着也卡」。</summary>
+    private static volatile string _stallPhase = "startup";
+
+    private static readonly List<(string Key, double Lag, double At)> StallLog = new();
+
+    private static readonly object StallLock = new();
+
+    private static CancellationTokenSource? _stallCts;
+
     /// <summary>相邻两页之间的静置时间，让动画与队列收尾。</summary>
     private const int GapMilliseconds = 900;
 
@@ -55,6 +67,9 @@ internal static class NavigationProbe
     }
 
     /// <summary>采样前静置时长可由 CKANUI_NAV_WARMUP_MS 覆盖（给空闲预热留时间用）。</summary>
+    /// <summary>本页窗口内的 Gen2 回收次数：用来区分「页面自己在算」和「一次 GC 停顿」。</summary>
+    private static string GcDelta(int before) => $" gen2={GC.CollectionCount(2) - before}";
+
     private static int WarmupMs() => int.TryParse(Environment.GetEnvironmentVariable("CKANUI_NAV_WARMUP_MS"), out var ms) && ms > 0 ? ms : WarmupMilliseconds;
 
     /// <summary>按环境变量挂上探针；没设就什么都不做。</summary>
@@ -84,6 +99,7 @@ internal static class NavigationProbe
                 }
 
                 await Task.Delay(WarmupMs());
+                StartStallWatch();
                 await RunAsync(window, path);
             }
             catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
@@ -126,6 +142,92 @@ internal static class NavigationProbe
         TryWrite(path, $"[nav] watch frames={frames.Count} over50={over50} maxGap={gaps.Select(g => g.Gap).DefaultIfEmpty(0).Max():F1} top={string.Join(", ", worst)}");
     }
 
+    /// <summary>
+    /// UI 线程卡顿看门狗：后台线程每 15ms 往 UI 线程投一次 <see cref="Dispatcher.UIThread.Post(Action)"/>，
+    /// 量「投递 → 真正执行」的时间差。差值就是 UI 线程被同步计算占住的时长。
+    /// </summary>
+    /// <remarks>
+    /// 为什么需要它：命令体快不等于不卡——真正的同步重活常发生在 <c>await</c> 之后的续体里
+    /// （把结果投影成行、建树、排序），那段代码既不在命令里，也不在布局里，帧探针只能看到「掉帧」，
+    /// 看不出是谁占的。看门狗给的是「哪一页、卡多久、什么时刻」，能和 [nav] 行对上。
+    /// 只采超过 50ms 的停顿：低于这个数是正常的一帧。
+    /// </remarks>
+    private static void StartStallWatch()
+    {
+        if (Environment.GetEnvironmentVariable("CKANUI_NAV_STALLS") != "1" || _stallCts is not null)
+        {
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _stallCts = cts;
+        var clock = Stopwatch.StartNew();
+        var thread = new Thread(() =>
+        {
+            while (!cts.IsCancellationRequested)
+            {
+                var posted = clock.Elapsed.TotalMilliseconds;
+                // 归属必须在投递时定：等它回来再读，页面早换了，卡顿会记到冤枉的页上。
+                var owner = $"{_stallKey}/{_stallPhase}";
+                var completion = new TaskCompletionSource<double>(TaskCreationOptions.RunContinuationsAsynchronously);
+                Dispatcher.UIThread.Post(() => completion.TrySetResult(clock.Elapsed.TotalMilliseconds - posted));
+                if (completion.Task.Wait(3000) && completion.Task.Result > 50d)
+                {
+                    lock (StallLock)
+                    {
+                        StallLog.Add((owner, completion.Task.Result, posted));
+                    }
+                }
+
+                Thread.Sleep(15);
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "ckanui-ui-stall-watch",
+        };
+        thread.Start();
+    }
+
+    /// <summary>停掉看门狗并写出汇总：总数、超 200ms 的条数、最长的 15 条、按页取最大值。</summary>
+    private static void StopStallWatch(string path)
+    {
+        if (_stallCts is null)
+        {
+            return;
+        }
+
+        _stallCts.Cancel();
+        _stallCts.Dispose();
+        _stallCts = null;
+
+        List<(string Key, double Lag, double At)> snapshot;
+        lock (StallLock)
+        {
+            snapshot = StallLog.ToList();
+            StallLog.Clear();
+        }
+
+        if (snapshot.Count == 0)
+        {
+            TryWrite(path, "[stall] count=0");
+            return;
+        }
+
+        var top = string.Join(
+            " | ",
+            snapshot.OrderByDescending(item => item.Lag).Take(15).Select(item => $"t={item.At:F0}ms key={item.Key} lag={item.Lag:F0}ms"));
+        TryWrite(path, $"[stall] count={snapshot.Count} over200={snapshot.Count(item => item.Lag > 200)} top={top}");
+
+        var byKey = string.Join(
+            " ",
+            snapshot
+                .GroupBy(item => item.Key)
+                .Select(group => $"{group.Key}={group.Max(item => item.Lag):F0}ms/{group.Count()}")
+                .OrderByDescending(item => item));
+        TryWrite(path, $"[stall] byKey {byKey}");
+    }
+
     private static async Task RunAsync(MainWindow window, string path)
     {
         if (window.DataContext is not ShellViewModel shell)
@@ -155,6 +257,10 @@ internal static class NavigationProbe
             }
 
             previousKey = key;
+            _stallKey = key;
+            _stallPhase = "enter";
+            var gen2Before = GC.CollectionCount(2);
+            var pauseBefore = GC.GetTotalPauseDuration();
             var frames = new List<double>();
             var stop = false;
             var sw = Stopwatch.StartNew();
@@ -177,7 +283,13 @@ internal static class NavigationProbe
 
             // 首帧之后继续采一段窗口：用户感知的「掉帧」不只是切过去卡一下，
             // 还有页面稳定后每隔几帧卡一下（滚动、图表重绘、定时器刷新）。
-            await Task.Delay(FrameWindowMs()).ConfigureAwait(true);
+            _stallPhase = "window0";
+            var windowMs = FrameWindowMs();
+            await Task.Delay(windowMs / 3).ConfigureAwait(true);
+            _stallPhase = "window1";
+            await Task.Delay(windowMs / 3).ConfigureAwait(true);
+            _stallPhase = "window2";
+            await Task.Delay(windowMs - (2 * (windowMs / 3))).ConfigureAwait(true);
             stop = true;
 
             var gaps = new List<double>(frames.Count);
@@ -198,10 +310,11 @@ internal static class NavigationProbe
                 path,
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"[nav] r{round} {key} assign={assign:F1}ms layout={layout:F1}ms paint={paint:F1}ms frames={frames.Count} maxGap={maxGap:F1}ms p50={p50:F1}ms p95={p95:F1}ms dropped={dropped} nodes={ActiveNodeCount(window)} worstAt={worstEnd:F0}ms{MemorySuffix()}"));
+                    $"[nav] r{round} {key} assign={assign:F1}ms layout={layout:F1}ms paint={paint:F1}ms frames={frames.Count} maxGap={maxGap:F1}ms p50={p50:F1}ms p95={p95:F1}ms dropped={dropped} nodes={ActiveNodeCount(window)} worstAt={worstEnd:F0}ms{MemorySuffix()}{GcDelta(gen2Before)} pause={(GC.GetTotalPauseDuration() - pauseBefore).TotalMilliseconds:F0}ms"));
 
             if (round == 1 && Environment.GetEnvironmentVariable("CKANUI_NAV_CLICKS") == "1")
             {
+                _stallPhase = "click";
                 await ClickCommandsAsync(window, shell, path, key).ConfigureAwait(true);
             }
 
@@ -217,9 +330,11 @@ internal static class NavigationProbe
 
             if (Environment.GetEnvironmentVariable("CKANUI_NAV_SCROLL") == "1")
             {
+                _stallPhase = "scroll";
                 await ScrollWindowAsync(window, path, round, key).ConfigureAwait(true);
             }
 
+            _stallPhase = "gap";
             await Task.Delay(GapMilliseconds);
         }
 
@@ -235,6 +350,7 @@ internal static class NavigationProbe
             TryWrite(path, $"[nav] idle-after-sweep{MemorySuffix()}");
         }
 
+        StopStallWatch(path);
         TryWrite(path, "[nav] done");
     }
 
