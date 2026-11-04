@@ -75,6 +75,23 @@ node tools/perf-probe/measure-instance.mjs
 2. `private - heap` 的差（本机 24 页收尾 ws 1280 / private 1200 / heap 860 ⇒ 非托管约 340MB，约 14MB/页，合成器 + Skia 表面）；
 3. 走完后再静置 30 秒看 `ws` 是否回落（回落慢就是 LOH 段没压）。
 
+### 5.1 外部工作集时间轴（不依赖应用内探针）
+
+`tools/perf-probe/measure-instance.mjs` 现在自己每 5 秒问一次 Windows（`tasklist /FI "PID eq <pid>"`），把工作集打成 `[ws] t=Ns ws=NNNMB` 时间轴，结束时给峰值。为什么另做一套：应用内的 `[nav]` 行只在走完一页时打印，「静静涨上去」的现场抓不到；而且日志目录不可写时 log4net 会静默丢行。
+
+实测（336 模组实例，24 页全扫，2026-11-05）：
+
+| t | 6s | 11s | 16s | 21s | 26s | 31s | 41s | 61s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| WS | 358MB | 815MB | **938MB** | 545MB | 776MB | 845MB | 752MB | 871MB |
+
+峰值 938MB 落在 t≈16s（首屏 + 首轮预热），不是扫到后面的页面；40s 之后在 735–871MB 之间来回，收尾稳态约 620MB。用法不变，只是多了一段峰值行：
+
+```powershell
+$env:CKAN_CONFIG_FILE="$env:APPDATA\CKAN\GUI\config.json"
+node tools/perf-probe/measure-instance.mjs
+```
+
 ## 6. 待决策的三个杠杆
 
 | 杠杆 | 预期收益 | 阻塞 |
