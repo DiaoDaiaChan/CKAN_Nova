@@ -12,6 +12,24 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 新增
 
+- 共享图标与曲线控件（`src/CkanUI.Ui` + `src/CkanUI.Plugin.Performance` + `src/CkanUI.Plugin.Rp1`）：页内图标、多序列曲线与数据展板统一到共享层，插件不再各画各的。
+  - 图标：`src/CkanUI.Ui/Icons/GlyphCatalog.cs` 收 22 个 24×24 Material 路径（`Speed`/`Timer`/`Percent`/`Pulse`/`Cpu`/`Memory`/`Gpu`/`Chart`/`Curve`/`Money`/`Science`/`Confidence`/`Reputation`/`Contract`/`Milestone`/`Program`/`Crew`/`Calendar`/`Clock`/`Warning`/`Check`/`Bug`），
+    `GlyphIcon` 控件按 `Size` 等比缩放后画几何，解析结果进缓存（同一个名字多次 `Resolve` 返回同一个 `Geometry` 实例）。**认不出的字形解析为 null、不画占位图**——
+    与导航栏「未知字形退回 Puzzle」的策略相反：导航栏留空位会让布局错位，页内猜错则是错误暗示，空着比猜错好。
+  - 曲线：`ChartSeries(Name, Values, Stroke, Fill, Dashed)` 描述一条序列；`CurveMath` 是纯函数（`ResolveRange` 归并多序列值域、`Project` 把值映射成点），
+    null/NaN/∞ 一律断线不补 0，全平数据给 ±5% 的可见带；`CurveChart` 控件负责网格、图例、悬停十字线与最近点读数、面积填充与 6 色调色板，
+    `IncludeZero`/`MinY`/`MaxY`/`ValueFormat`/`ValueSuffix`/`YAxisLabelWidth` 可按页调。
+  - 性能页（`src/CkanUI.Plugin.Performance/FrameSeriesBuilder.cs`）：把 `timeline.frames` 摊成「帧耗时（ms）」与「帧率（fps）」两条序列，
+    **量纲不同分两张图、不共用一根 Y 轴**；指标卡补 `Speed`/`Timer`/`Percent`/`Pulse`/`Chart`，耗时分解行补 `Cpu`/`Program`/`Pulse`/`Gpu`/`Curve`/`Memory`。
+    没有 `timeline.frames` 时给「时间线不可用（latest.json 无 timeline.frames），不画曲线」，有帧但 `frameMs`/`fps` 全空时另给一句「不画曲线」——都不补 0、不外推。
+  - RP-1 页（`src/CkanUI.Plugin.Rp1/UI/CareerSeriesBuilder.cs`）：生涯曲线画**全部**预算周期（列表仍只显示最近 12 期，页脚口径改成「曲线画的是全部周期」），
+    资金/科技/信心/声望四指标可切（`CareerMetricOptions` + `SelectCareerMetric`，后缀在「 资金 / 点 / 空」之间换）；8 块统计卡补 `Contract`/`Milestone`/`Program`/`Crew`/`Money`/`Science`/`Confidence`/`Reputation`。
+    某一期缺这个数值时保持 null（断线），不写 0。
+  - 测试：`CurveMathTests` 13 条、`GlyphCatalogTests` 6 条、`FrameSeriesBuilderTests` 8 条、`CareerSeriesBuilderTests` 7 条，外加两插件各一条无头视图冒烟——
+    性能页断言两张曲线已绑定且 `Bounds` 有尺寸、无时间线时可见曲线为 0 而说明文案出现；RP-1 页断言曲线画 15 期而列表 12 条、切指标后量纲跟着换、8 个图标全部可解析。
+    `CkanUI.Ui.Tests` 25/25、`CkanUI.Plugin.Performance.Tests` 42/42、`CkanUI.Plugin.Rp1.Tests` 30/30；干净签出全量 21 套件 4349 条，仅 1 条既有 hover 红（与本次无关，基线提交同样红）。
+  - 字形用例的渲染平台判定改成解析探针（`Geometry.Parse("M0 0L1 1")` 成功即说明几何实现就位），不再断言 `HeadlessHost.CanCreateControls`：
+    全量套件里无头壳由别的测试程序集在另一线程建好，窗口亲和性在本线程必然为 false，7 条用例曾因此误红。
 - 实例配置档与存储管理（`src/CkanUI.Plugin.ModPackShare` + `src/CkanUI.Plugin.Storage` + 服务层 `src/CkanUI.Services/Profiles`）：不复制实例，用目录换位在多套整合包之间切换。
   - 配置档布局：`<GameDir>/CKANProfiles/<名字>/{GameData,CKAN,modpack.ckan}` + `profiles.json`；当前生效那档回到游戏根目录。切换 = 校验 → 查游戏是否在跑 → 关注册表 → live 移进旧档槽位 → 目标档移回 live → 写清单 → 刷新，失败按反序回滚。
   - 「整合包分享」插件（`com.ckanui.modpackshare`，页 `modpack-profiles`，模组包分节 `Order=10`）：从 GitHub 仓库或本地 `.ckan` 导入、新建并接管当前状态、切换、删除、设为启动档；下载 20 s 超时 + 8 MiB 双闸 + 首字节必须 `{`，缓存按内容 SHA-256 前 16 位命名；写操作前现查游戏运行态，不用页面打开时的旧快照放行。
