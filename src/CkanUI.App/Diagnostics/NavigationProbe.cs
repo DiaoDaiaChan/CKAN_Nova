@@ -423,6 +423,12 @@ internal static class NavigationProbe
     }
 
     /// <summary>滚动主力列表 60 帧，量滚动期间的帧间隔（用户感知的「滚起来卡」）。</summary>
+    private static ScrollViewer? PickScroller(Visual scope) => scope.GetVisualDescendants()
+        .OfType<ScrollViewer>()
+        .Where(viewer => viewer.IsVisible && viewer.Extent.Height - viewer.Viewport.Height > 40)
+        .OrderByDescending(viewer => viewer.Extent.Height - viewer.Viewport.Height)
+        .FirstOrDefault();
+
     private static async Task ScrollWindowAsync(TopLevel window, string path, int round, string key)
     {
         if (window is not Visual root)
@@ -432,13 +438,16 @@ internal static class NavigationProbe
 
         var scope = window is MainWindow { ActivePageView: { } active } ? active : root;
 
-        var scroll = scope.GetVisualDescendants()
-            .OfType<ScrollViewer>()
-            .Where(viewer => viewer.IsVisible && viewer.Extent.Height - viewer.Viewport.Height > 40)
-            .OrderByDescending(viewer => viewer.Extent.Height - viewer.Viewport.Height)
-            .FirstOrDefault();
+        var scroll = PickScroller(scope);
+        if (scroll is null && !ReferenceEquals(scope, root))
+        {
+            scroll = PickScroller(root);
+        }
+
         if (scroll is null)
         {
+            var seen = scope.GetVisualDescendants().OfType<ScrollViewer>().Count();
+            TryWrite(path, $"[scroll] skip {key} reason=no-scroller scrollers={seen}");
             return;
         }
 
