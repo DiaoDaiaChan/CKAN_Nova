@@ -106,6 +106,31 @@ node tools/perf-probe/measure-instance.mjs
 
 `System.GC.ConserveMemory=5` 的 A/B（`runtimeconfig.template.json`）：1499/1575MB，与关掉时的 1553MB 无差异 ⇒ **该开关对本应用无效，已回退**，不进主干。原因也清楚：占大头的是页面投影与合成器表面，不是 GC 该收的堆碎片。
 
+### 5.3 空闲回收后的回落：峰值是临时的，常驻才是账
+
+`CKANUI_NAV_ONLY=<key> CKANUI_NAV_IDLE_CHECK=1`（单页、45s 窗口、末尾静置 25s）：每个页面自己一个进程，读 `[nav] r1` 与 `[nav] idle-after-sweep` 两行。
+
+| 页面 | 首进峰值 ws / heap | 静置 25s 后 ws / heap |
+|---|---|---|
+| home | 996 / 573 MB | 869 / 225 MB |
+| cache | 1096–1370 / 486–684 MB | 1017–1024 / 368–369 MB |
+| downloadstats | 1323 / 638 MB | 1341 / 364 MB |
+| saves | 1268 / 583 MB | 837 / 245 MB |
+
+⇒ 堆（heap）在静置后一律回到 225–370MB：**首进那 300–600MB 是可回收的垃圾，不是常驻**。工作集（ws）回落幅度不一（saves −431MB、cache −80MB、downloadstats 持平），因为 GC 提交过的段不会立刻还给操作系统——这部分靠 `IdleMemoryReclaimer` 的整理式回收才慢慢降，属于「已提交未使用」，不是泄漏。
+
+**这条否证了「这 20 页的投影永久钉住内存」的推断**：同一页面有/无行投影裁剪时，静置后 ws 分别是 1021MB 与 1017–1024MB，差在噪声里。
+
+### 5.4 试过并回退的实验：给 cache 页补 `IPageProjectionTrim`
+
+`CachePageViewModel`（当轮干净文件）实现 `TrimProjection()`：`IsActive` 时返回 0，否则清空 `Entries`/`EntryCount`/`TotalBytes`/`UsagePercent` 并复位 `_hasLoadedOnce`，让下次 `OnActivated` 重新读盘；两条单测（丢行 + 重进重载、可见页面不清空）全绿。
+
+A/B（同一实例、同一命令，各 1–2 次）：
+
+- 有裁剪：首进 ws=1130MB/heap=483MB → 静置 ws=1021MB/heap=369MB
+- 无裁剪：首进 ws=1096–1370MB/heap=486–684MB → 静置 ws=1017–1024MB/heap=368–369MB
+
+⇒ 差在噪声内：缓存列表的行对象只有几 MB，真正占内存的是条目 DTO 与字符串，GC 本来就能收。代价是每次重进页面多读一次盘（约 60ms）。**已整体回退（文件与测试均复原到 HEAD），代码不进主干**。结论：给页面补裁剪对这类「可重读列表」没有收益，别再加了。
 ## 6. 待决策的三个杠杆
 
 | 杠杆 | 预期收益 | 阻塞 |
