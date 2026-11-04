@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 「存储管理」页签插件的测试（docs/design/plugins.md）。
+       页面只做投影：数字来自 IInstanceStorageService，页面不能自己造 0；去重必须 dry-run -> 确认 -> 实跑。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.Storage.Tests</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.Storage.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/CkanUI.Plugin.Storage/CkanUI.Plugin.Storage.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -2,6 +2,7 @@ using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.Services.Abstractions.Instances;
+using CkanUI.Services.Abstractions.Profiles;
 using CkanUI.ViewModels.Dialogs.InstanceDialogs;
 using CkanUI.ViewModels.Pages.Instances;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -89,6 +90,15 @@ public sealed partial class InstancesPageViewModel : PageViewModel
 
     /// <summary>UI 设置（取释放档位 <see cref="UiSettings.ReleaseTier"/>）；未注入时按均衡档。</summary>
     public IUiSettingsStore? UiSettings { get; set; }
+
+    /// <summary>
+    /// 实例配置档（整合包切换）：未注入时启动照常、不做任何切换。
+    /// </summary>
+    /// <remarks>
+    /// 启动前切换而不是启动后：GameData 与 CKAN/registry.json 必须在对游戏进程可见之前就换好，
+    /// 否则进去的是上一个整合包的世界。切换服务自己负责释放注册表锁，这里只管把失败挡在启动之前。
+    /// </remarks>
+    public IInstanceProfileService? Profiles { get; set; }
 
     /// <summary>
     /// 游戏时长自动累计（18 篇 §5 / 12 篇 F-48）：启动成功时开始计时、游戏退出时结算。
@@ -891,6 +901,19 @@ public sealed partial class InstancesPageViewModel : PageViewModel
             // 18 篇 §4 T0 的前置动作：先把 CKAN/registry.locked 还回去，再拉进程。
             // 放锁必须发生在启动之前——游戏侧工具看到锁会以为 CKAN 正在改写实例。
             LaunchPhase = GameLaunchPhase.Preparing;
+
+            // 启动配置档（整合包切换）：必须在放锁之前完成——切换会自己关掉注册表再换目录、换完重开。
+            if (Profiles is { } profiles)
+            {
+                var applied = await profiles.ApplyLaunchProfileAsync(row.Name).ConfigureAwait(true);
+                if (!applied.IsSuccess)
+                {
+                    LaunchPhase = GameLaunchPhase.Idle;
+                    SetError(InstancesErrorText.ComposeStep("切换启动配置档失败", applied.Message, applied.Retryable), applied.Detail);
+                    return;
+                }
+            }
+
             await ReleaseRegistryLockBeforeLaunchAsync().ConfigureAwait(true);
 
             LaunchPhase = GameLaunchPhase.Starting;

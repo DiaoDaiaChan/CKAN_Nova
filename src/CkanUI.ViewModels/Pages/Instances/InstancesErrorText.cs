@@ -18,6 +18,16 @@ public static class InstancesErrorText
         return $"{text}（{(retryable ? "可重试" : "不可重试")}）";
     }
 
+    /// <summary>
+    /// 多步流程里的一步失败：文案带上步骤名，用户才知道是「哪一步」没成。
+    /// 例：<c>切换启动配置档失败：游戏正在运行，不能切换配置档。（不可重试）</c>
+    /// </summary>
+    public static string ComposeStep(string step, string? message, bool retryable)
+    {
+        var text = string.IsNullOrWhiteSpace(message) ? step : step + "：" + message!.Trim();
+        return $"{text}（{(retryable ? "可重试" : "不可重试")}）";
+    }
+
     /// <summary>把异常拼成一行用户可读文案（技术细节走 <c>Detail</c>，由错误条展开）。</summary>
     public static string FromException(Exception exception, string fallback)
     {

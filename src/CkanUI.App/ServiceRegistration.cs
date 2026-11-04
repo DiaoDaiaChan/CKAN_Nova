@@ -182,6 +182,8 @@ public static class ServiceRegistration
             page.PlayTime = sp.GetService<IPlayTimeTracker>();
             // F-08 实例自检/强制解锁/坏注册表隔离：服务在 Services 层注册，页面只认窄接口。
             page.Repair = sp.GetService<IInstanceRepairService>();
+            // 整合包切换：启动游戏前把当前实例切到「启动配置档」。服务未注册时保持 null，启动照常。
+            page.Profiles = sp.GetService<CkanUI.Services.Abstractions.Profiles.IInstanceProfileService>();
             return page;
         });
         // 存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置五页已搬成首方插件（docs/design/plugins.md §11.11）：

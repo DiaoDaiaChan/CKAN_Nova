@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 「整合包分享 / 配置档切换」插件的测试（docs/design/plugins.md）。
+       这里钉死两件最容易出错的事：来源文本怎么解析成下载地址，以及导入失败时绝不留下半个配置档。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.ModPackShare.Tests</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.ModPackShare.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/CkanUI.Plugin.ModPackShare/CkanUI.Plugin.ModPackShare.csproj" />
+    <ProjectReference Include="../CkanUI.TestSupport/CkanUI.TestSupport.csproj" />
+  </ItemGroup>
+
+</Project>

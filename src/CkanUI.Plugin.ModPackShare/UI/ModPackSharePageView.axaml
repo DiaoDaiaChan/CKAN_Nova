@@ -1,0 +1,253 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CkanUI.Plugin.ModPackShare.UI.ModPackSharePageView"
+             x:CompileBindings="False">
+  <UserControl.Styles>
+    <!-- 行只放形状，选中色走动态资源：换主题时页面不用跟着改。 -->
+    <Style Selector="Border.share-row">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+      <Setter Property="Padding" Value="8,6" />
+      <Setter Property="Margin" Value="0,1" />
+    </Style>
+    <Style Selector="Border.share-row.selected">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    </Style>
+    <Style Selector="Button.share-tool">
+      <Setter Property="MinHeight" Value="32" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}" Background="Transparent">
+
+    <!-- 页头：这页管的是同一个实例下的多套 GameData/CKAN，不是多份游戏 -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+      <StackPanel Grid.Column="0" Spacing="4">
+        <TextBlock Text="整合包配置" Classes="CkanPageTitle" />
+        <TextBlock Text="把 .ckan 整合包导入成独立配置档。多个整合包共用同一份游戏本体，切换时只换出/换入 GameData 与 CKAN，不复制实例。"
+                   Classes="CkanCaption" TextWrapping="Wrap" MaxWidth="760" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right">
+        <TextBlock Text="{Binding InstanceName}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+        <TextBlock Text="{Binding ProfilesDirectoryText}" Classes="CkanCaption" HorizontalAlignment="Right"
+                   TextTrimming="CharacterEllipsis" MaxWidth="420" />
+      </StackPanel>
+    </Grid>
+
+    <!-- 事实条：生效档、启动档、游戏是否在跑。没有数据时用破折号，不写 0 -->
+    <StackPanel Grid.Row="1" Spacing="4" Margin="0,0,0,8">
+      <WrapPanel Orientation="Horizontal">
+        <Border Classes="CkanBadge" Margin="0,0,8,4">
+          <TextBlock Text="{Binding ActiveProfileText}" />
+        </Border>
+        <Border Classes="CkanBadge Success" IsVisible="{Binding HasLaunchProfile}" Margin="0,0,8,4">
+          <TextBlock Text="{Binding LaunchProfileBadgeText}" />
+        </Border>
+        <Border Classes="CkanBadge Danger" IsVisible="{Binding IsGameRunning}" Margin="0,0,8,4">
+          <TextBlock Text="游戏运行中 · 切换/导入已锁定" />
+        </Border>
+        <Border Classes="CkanBadge Warning" IsVisible="{Binding HasWarnings}" Margin="0,0,8,4">
+          <TextBlock Text="{Binding WarningBadgeText}" />
+        </Border>
+      </WrapPanel>
+      <TextBlock Text="{Binding ProfileCountText}" Classes="CkanCaption"
+                 Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+    </StackPanel>
+
+    <!-- 工具条：切换/删除/设启动/清启动/打开文件夹/刷新，CanExecute 由 IsBusy + 是否有选中档决定 -->
+    <Border Grid.Row="2" Classes="CkanToolbar" Padding="10,8" Margin="0,0,0,8">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Content="切换到这个配置档" Command="{Binding SwitchCommand}" Classes="CkanPrimary share-tool"
+                  ToolTip.Tip="把 GameData/CKAN 换成选中配置档的；重新打开游戏后生效" />
+          <Button Content="设为启动配置档" Command="{Binding SetLaunchCommand}" Classes="CkanSecondary share-tool"
+                  ToolTip.Tip="启动游戏前自动切到这一档" />
+          <Button Content="清除启动配置" Command="{Binding ClearLaunchCommand}" Classes="CkanGhost share-tool" />
+          <Button Content="删除配置档" Command="{Binding DeleteCommand}" Classes="CkanSecondary share-tool"
+                  ToolTip.Tip="当前生效的配置档会被服务拒绝删除" />
+          <Button Content="打开配置档目录" Command="{Binding OpenFolderCommand}" Classes="CkanGhost share-tool" />
+          <Button Content="刷新" Command="{Binding RefreshCommand}" Classes="CkanGhost share-tool" />
+          <TextBlock Text="{Binding BusyText}" Classes="CkanCaption" VerticalAlignment="Center"
+                     IsVisible="{Binding IsBusy}" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <Border Classes="CkanBadge Warning" IsVisible="{Binding IsGameRunning}">
+            <TextBlock Text="先退出游戏" />
+          </Border>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- 错误/成功/警告单独占行，长文案不挤工具条 -->
+    <StackPanel Grid.Row="3" Spacing="6" Margin="0,0,0,8">
+      <Border IsVisible="{Binding HasError}"
+              Background="{DynamicResource CkanDangerBackgroundBrush}"
+              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,10">
+        <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap"
+                   Foreground="{DynamicResource CkanDangerBrush}" Classes="CkanCaption" />
+      </Border>
+      <Border IsVisible="{Binding HasStatusMessage}"
+              Background="{DynamicResource CkanSuccessBackgroundBrush}"
+              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,10">
+        <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"
+                   Foreground="{DynamicResource CkanSuccessBrush}" Classes="CkanCaption" />
+      </Border>
+      <Border IsVisible="{Binding HasWarnings}"
+              Background="{DynamicResource CkanWarningBackgroundBrush}"
+              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,10">
+        <StackPanel Spacing="2">
+          <TextBlock Text="注意" FontWeight="SemiBold" Classes="CkanCaption" />
+          <ItemsControl ItemsSource="{Binding Warnings}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" TextWrapping="Wrap" Classes="CkanCaption" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <!-- 空态：没有实例 / 没有配置档 / 服务不可用三种，文案由 VM 给 -->
+    <Border Grid.Row="4" Classes="CkanEmptyStateCard Elevated"
+            IsVisible="{Binding ShowEmptyState}" VerticalAlignment="Top">
+      <StackPanel Spacing="10" MaxWidth="720" HorizontalAlignment="Left">
+        <TextBlock Text="{Binding EmptyTitle}" Classes="CkanSectionTitle" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding EmptyDetail}" Classes="CkanCaption" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding ProfilesDirectoryText}" Classes="CkanCaption"
+                   Foreground="{DynamicResource CkanTextTertiaryBrush}" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <!-- 主体：左配置档列表，右详情/导入 -->
+    <Grid Grid.Row="4" ColumnDefinitions="320,12,*" IsVisible="{Binding ShowContent}">
+
+      <Border Grid.Column="0" Classes="CkanCard" Padding="4">
+        <Grid RowDefinitions="Auto,*">
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="10,8,8,6">
+            <StackPanel Grid.Column="0" Spacing="1">
+              <TextBlock Text="配置档" FontWeight="SemiBold" FontSize="{DynamicResource CkanFontSizeCaption}"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <TextBlock Text="{Binding ProfileCountText}" Classes="CkanCaption" />
+            </StackPanel>
+          </Grid>
+
+          <ListBox Grid.Row="1" ItemsSource="{Binding Profiles}"
+                   SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+                   BorderThickness="0" Background="Transparent"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Border Classes="share-row" Classes.selected="{Binding IsSelected}">
+                  <Grid RowDefinitions="Auto,Auto">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                      <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold"
+                                 TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                 ToolTip.Tip="{Binding Directory}" />
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                        <Border Classes="CkanBadge Success" IsVisible="{Binding IsActive}" Padding="5,1">
+                          <TextBlock Text="使用中" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                        </Border>
+                        <Border Classes="CkanBadge Warning" IsVisible="{Binding IsLaunchProfile}" Padding="5,1">
+                          <TextBlock Text="启动用" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                        </Border>
+                      </StackPanel>
+                    </Grid>
+                    <TextBlock Grid.Row="1" Text="{Binding DetailText}" Classes="CkanCaption"
+                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="2" Classes="CkanCard" Padding="14">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="10">
+
+          <!-- 详情头：名字 + 生效/启动标记 -->
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0" Spacing="2">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="{Binding SelectedProfile.Name}" FontWeight="SemiBold" FontSize="15"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <Border Classes="CkanBadge Success" IsVisible="{Binding SelectedProfile.IsActive}" Padding="5,1">
+                  <TextBlock Text="使用中" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                </Border>
+                <Border Classes="CkanBadge Warning" IsVisible="{Binding SelectedProfile.IsLaunchProfile}" Padding="5,1">
+                  <TextBlock Text="启动用" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                </Border>
+              </StackPanel>
+              <TextBlock Text="{Binding SelectedProfile.Directory}" Classes="CkanCaption"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <TextBlock Grid.Column="1" Text="{Binding SwitchHintText}" Classes="CkanCaption"
+                       VerticalAlignment="Center" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+          </Grid>
+
+          <!-- 详情事实：模组数/体积/来源/最近使用 -->
+          <Grid Grid.Row="1" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="4">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="模组数" Classes="CkanCaption" Width="72" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedProfile.ModCountText}" Classes="CkanCaption" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="体积" Classes="CkanCaption" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedProfile.SizeText}" Classes="CkanCaption" />
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="最近使用" Classes="CkanCaption" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedProfile.LastUsedText}" Classes="CkanCaption" />
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="来源" Classes="CkanCaption" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedProfile.SourceText}" Classes="CkanCaption"
+                       TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="52" />
+          </Grid>
+
+          <!-- 导入区：GitHub 地址或本地 .ckan 路径 -->
+          <Border Grid.Row="2" Padding="12" BorderThickness="1"
+                  BorderBrush="{DynamicResource CkanBorderBrush}"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}">
+            <StackPanel Spacing="8">
+              <TextBlock Text="导入 .ckan 整合包" FontWeight="SemiBold" FontSize="{DynamicResource CkanFontSizeCaption}" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0" Text="{Binding SourceText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         PlaceholderText="https://github.com/owner/repo/blob/main/xxx.ckan  或  本地 .ckan 路径"
+                         Classes="CkanSearchBox" Margin="0,0,8,0" />
+                <Button Grid.Column="1" Content="导入" Command="{Binding ImportCommand}"
+                        Classes="CkanPrimary share-tool" />
+              </Grid>
+              <TextBlock Text="支持 GitHub blob/raw 链接、owner/repo/path[@分支]、raw.githubusercontent.com 直链和本地文件；未给分支时依次试 main、master。"
+                         Classes="CkanCaption" TextWrapping="Wrap"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            </StackPanel>
+          </Border>
+
+          <!-- 新建配置档：把当前 GameData/CKAN 收进一档（第一次做「原版」基线用） -->
+          <Border Grid.Row="3" Padding="12" BorderThickness="1"
+                  BorderBrush="{DynamicResource CkanBorderBrush}"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}">
+            <StackPanel Spacing="8">
+              <TextBlock Text="把当前状态收进新配置档" FontWeight="SemiBold" FontSize="{DynamicResource CkanFontSizeCaption}" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0" Text="{Binding NewProfileName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         PlaceholderText="配置档名，例如 原版" Margin="0,0,8,0" />
+                <Button Grid.Column="1" Content="新建并接管当前状态" Command="{Binding CreateFromCurrentCommand}"
+                        Classes="CkanSecondary share-tool" />
+              </Grid>
+              <TextBlock Text="新建后当前的 GameData/CKAN 会归到这一档；之后导入的整合包互不影响。"
+                         Classes="CkanCaption" TextWrapping="Wrap"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            </StackPanel>
+          </Border>
+
+          <!-- 状态条：口径说明，不重复上面的徽标 -->
+          <Border Grid.Row="4" Classes="CkanToolbar" Padding="10,6" VerticalAlignment="Bottom">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="切换只换出/换入 GameData 与 CKAN 目录，游戏本体始终只有一份。"
+                         Classes="CkanCaption" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Text="{Binding SelectedProfile.DetailText}" Classes="CkanCaption"
+                         VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

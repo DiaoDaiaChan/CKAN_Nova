@@ -1,0 +1,221 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CkanUI.Plugin.Storage.UI.StoragePageView"
+             x:CompileBindings="False">
+  <UserControl.Styles>
+    <!-- 行只放形状；选中色走动态资源，换主题时不用改页面。 -->
+    <Style Selector="Border.storage-row">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+      <Setter Property="Padding" Value="8,6" />
+      <Setter Property="Margin" Value="0,1" />
+    </Style>
+    <Style Selector="Border.storage-row.selected">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    </Style>
+    <Style Selector="Button.storage-tool">
+      <Setter Property="MinHeight" Value="32" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}" Background="Transparent">
+
+    <!-- 页头：这页回答的是“多个实例一共吃了多少盘”，不是单实例的安装详情 -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+      <StackPanel Grid.Column="0" Spacing="4">
+        <TextBlock Text="存储管理" Classes="CkanPageTitle" />
+        <TextBlock Text="把每个实例的 GameData、CKAN 目录和 CKANProfiles 摊在一张表上；配置档里内容相同的文件可以合并成硬链接。"
+                   Classes="CkanCaption" TextWrapping="Wrap" MaxWidth="760" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right">
+        <TextBlock Text="{Binding RowCountText}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+        <StackPanel Orientation="Horizontal" Spacing="3" HorizontalAlignment="Right">
+          <TextBlock Text="扫描于" Classes="CkanCaption" />
+          <TextBlock Text="{Binding TakenAtText}" Classes="CkanCaption" />
+        </StackPanel>
+      </StackPanel>
+    </Grid>
+
+    <!-- 汇总条：合计体积是服务算的，页面只负责排版 -->
+    <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+      <Border Classes="CkanBadge" Margin="0,0,8,4">
+        <StackPanel Orientation="Horizontal" Spacing="4">
+          <TextBlock Text="全部实例合计" />
+          <TextBlock Text="{Binding TotalText}" FontWeight="SemiBold" />
+        </StackPanel>
+      </Border>
+      <Border Classes="CkanBadge" Margin="0,0,8,4">
+        <StackPanel Orientation="Horizontal" Spacing="4">
+          <TextBlock Text="配置档合计" />
+          <TextBlock Text="{Binding ProfileTotalText}" FontWeight="SemiBold" />
+        </StackPanel>
+      </Border>
+      <Border Classes="CkanBadge Warning" IsVisible="{Binding HasDiagnostics}" Margin="0,0,8,4">
+        <TextBlock Text="有目录没量到" />
+      </Border>
+    </WrapPanel>
+
+    <!-- 工具条：扫描/预估去重；实跑必须走确认条，这里只给第一步 -->
+    <Border Grid.Row="2" Classes="CkanToolbar" Padding="10,8" Margin="0,0,0,8">
+      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <Button Content="扫描" Command="{Binding ScanCommand}" Classes="CkanPrimary storage-tool"
+                ToolTip.Tip="重新统计全部实例的磁盘占用" />
+        <Button Content="预估可合并空间" Command="{Binding DeduplicateCommand}" Classes="CkanSecondary storage-tool"
+                ToolTip.Tip="对选中实例跑 dry-run；只估算，不写盘" />
+        <TextBlock Text="统计中…" Classes="CkanCaption" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />
+        <TextBlock Text="选中实例后可预估去重" Classes="CkanCaption" VerticalAlignment="Center"
+                   Foreground="{DynamicResource CkanTextTertiaryBrush}" IsVisible="{Binding !HasSelection}" />
+      </StackPanel>
+    </Border>
+
+    <!-- 错误/成功/诊断各占一行，长文案不挤工具条 -->
+    <StackPanel Grid.Row="3" Spacing="6" Margin="0,0,0,8">
+      <Border IsVisible="{Binding HasError}"
+              Background="{DynamicResource CkanDangerBackgroundBrush}"
+              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,10">
+        <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap"
+                   Foreground="{DynamicResource CkanDangerBrush}" Classes="CkanCaption" />
+      </Border>
+      <Border IsVisible="{Binding HasStatusMessage}"
+              Background="{DynamicResource CkanSuccessBackgroundBrush}"
+              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,10">
+        <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"
+                   Foreground="{DynamicResource CkanSuccessBrush}" Classes="CkanCaption" />
+      </Border>
+      <Border IsVisible="{Binding HasDiagnostics}"
+              Background="{DynamicResource CkanWarningBackgroundBrush}"
+              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,10">
+        <TextBlock Text="{Binding DiagnosticsText}" TextWrapping="Wrap"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}" Classes="CkanCaption" />
+      </Border>
+    </StackPanel>
+
+    <!-- 空态：没有实例 / 服务缺失 / 统计失败都由 VM 给标题和原因 -->
+    <Border Grid.Row="4" Classes="CkanEmptyStateCard Elevated" IsVisible="{Binding ShowEmptyState}"
+            VerticalAlignment="Top">
+      <StackPanel Spacing="10" MaxWidth="720" HorizontalAlignment="Left">
+        <TextBlock Text="{Binding EmptyTitle}" Classes="CkanSectionTitle" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding EmptyDetail}" Classes="CkanCaption" TextWrapping="Wrap" />
+        <Button Content="重新扫描" Command="{Binding ScanCommand}" Classes="CkanPrimary"
+                HorizontalAlignment="Left" />
+      </StackPanel>
+    </Border>
+
+    <!-- 主体：上表下明细。列宽用共享像素值，表头和行才对得齐 -->
+    <Grid Grid.Row="4" RowDefinitions="Auto,12,*" IsVisible="{Binding ShowContent}">
+
+      <Border Grid.Row="0" Classes="CkanCard" Padding="4">
+        <Grid RowDefinitions="Auto,Auto,*">
+          <!-- 表头 -->
+          <Grid Grid.Row="0" ColumnDefinitions="2*,110,110,110,140,120" Margin="8,8,8,4">
+            <TextBlock Grid.Column="0" Text="实例" Classes="CkanCaption" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="1" Text="总量" Classes="CkanCaption" FontWeight="SemiBold" HorizontalAlignment="Right" />
+            <TextBlock Grid.Column="2" Text="GameData" Classes="CkanCaption" FontWeight="SemiBold" HorizontalAlignment="Right" />
+            <TextBlock Grid.Column="3" Text="CKAN" Classes="CkanCaption" FontWeight="SemiBold" HorizontalAlignment="Right" />
+            <TextBlock Grid.Column="4" Text="配置档" Classes="CkanCaption" FontWeight="SemiBold" HorizontalAlignment="Right" />
+            <TextBlock Grid.Column="5" Text="剩余空间" Classes="CkanCaption" FontWeight="SemiBold" HorizontalAlignment="Right" />
+          </Grid>
+          <Border Grid.Row="1" Height="1" Background="{DynamicResource CkanBorderBrush}" Margin="8,0" />
+
+          <ListBox Grid.Row="2" ItemsSource="{Binding Rows}"
+                   SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                   BorderThickness="0" Background="Transparent"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Border Classes="storage-row" Classes.selected="{Binding IsSelected}">
+                  <Grid RowDefinitions="Auto,Auto">
+                    <Grid Grid.Row="0" ColumnDefinitions="2*,110,110,110,140,120">
+                      <StackPanel Grid.Column="0" Spacing="1">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding GameDir}" />
+                        <TextBlock Text="{Binding GameDir}" Classes="CkanCaption"
+                                   Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                   TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="1" Text="{Binding TotalText}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+                      <TextBlock Grid.Column="2" Text="{Binding GameDataText}" HorizontalAlignment="Right" />
+                      <TextBlock Grid.Column="3" Text="{Binding CkanText}" HorizontalAlignment="Right" />
+                      <TextBlock Grid.Column="4" Text="{Binding ProfileText}" HorizontalAlignment="Right" />
+                      <TextBlock Grid.Column="5" Text="{Binding FreeText}" HorizontalAlignment="Right" />
+                    </Grid>
+                    <!-- 配置档一行摘要：名字+体积，当前生效那档带“使用中” -->
+                    <TextBlock Grid.Row="1" Text="{Binding ProfilesText}" Classes="CkanCaption"
+                               Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                               TextWrapping="Wrap" Margin="0,3,0,0" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+
+      <!-- 选中实例的配置档明细 + 去重确认条 -->
+      <Border Grid.Row="2" Classes="CkanCard" Padding="14">
+        <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0" Spacing="1">
+              <TextBlock Text="{Binding SelectedTitle}" FontWeight="SemiBold" FontSize="15" />
+              <TextBlock Text="配置档体积来自 CKANProfiles；当前生效那一档标「使用中」。" Classes="CkanCaption"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            </StackPanel>
+            <TextBlock Grid.Column="1" Text="{Binding ProfileTotalText}" FontWeight="SemiBold"
+                       VerticalAlignment="Center" />
+          </Grid>
+
+          <!-- 确认条：dry-run 结果 + 风险说明；确认前不写盘，误点取消也不丢报告 -->
+          <Border Grid.Row="1" IsVisible="{Binding ShowDedupConfirmation}"
+                  Background="{DynamicResource CkanWarningBackgroundBrush}"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="12,10">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="{Binding DedupConfirmText}" TextWrapping="Wrap"
+                         Classes="CkanCaption" VerticalAlignment="Center" Margin="0,0,10,0" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                <Button Content="确认合并" Command="{Binding ConfirmDedupCommand}"
+                        Classes="CkanPrimary" Padding="10,5" />
+                <Button Content="取消" Command="{Binding CancelDedupCommand}"
+                        Classes="CkanGhost" Padding="10,5" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <!-- 去重报告：dry-run 与实跑共用一块，标题由报告本身区分 -->
+          <Border Grid.Row="2" IsVisible="{Binding HasDedupReport}"
+                  Background="{DynamicResource CkanAccentSubtleBrush}"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="12,10">
+            <TextBlock Text="{Binding DedupReportText}" Classes="CkanCaption" TextWrapping="Wrap" />
+          </Border>
+
+          <Grid Grid.Row="3" IsVisible="{Binding HasProfilesPlaceholder}">
+            <TextBlock Text="{Binding SelectedProfilesEmptyText}" Classes="CkanCaption"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap"
+                       TextAlignment="Center" MaxWidth="420" />
+          </Grid>
+
+          <ListBox Grid.Row="3" IsVisible="{Binding HasProfiles}" ItemsSource="{Binding SelectedProfiles}"
+                   BorderThickness="0" Background="Transparent"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,4">
+                  <StackPanel Grid.Column="0" Spacing="1">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding DetailText}" Classes="CkanCaption"
+                               Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                  </StackPanel>
+                  <Border Grid.Column="1" Classes="CkanBadge Success" IsVisible="{Binding IsActive}"
+                          Margin="0,0,10,0" Padding="5,1" VerticalAlignment="Center">
+                    <TextBlock Text="使用中" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                  </Border>
+                  <TextBlock Grid.Column="2" Text="{Binding SizeText}" FontWeight="SemiBold"
+                             VerticalAlignment="Center" MinWidth="90" TextAlignment="Right" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

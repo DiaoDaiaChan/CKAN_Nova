@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 「整合包分享 / 配置档切换」页签插件：把 .ckan 整合包导入成一个独立配置档，
+       多个整合包共用一份游戏本体，靠宿主 IInstanceProfileService 的目录换出/换入切换。
+       本插件只引用契约程序集，不引 CkanUI.App / CkanUI.Services / CkanUI.ViewModels。 -->
+  <PropertyGroup>
+    <RootNamespace>CkanUI.Plugin.ModPackShare</RootNamespace>
+    <AssemblyName>CkanUI.Plugin.ModPackShare</AssemblyName>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

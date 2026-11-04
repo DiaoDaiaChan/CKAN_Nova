@@ -1,6 +1,8 @@
 using CkanUI.Plugin.Assets;
 using CkanUI.Plugin.KspConfig;
 using CkanUI.Plugin.ModConfig;
+using CkanUI.Plugin.ModPackShare;
+using CkanUI.Plugin.Storage;
 using CkanUI.Plugin.Saves;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Plugins;
@@ -225,7 +227,92 @@ public class PluginSectionTabsTests
     }
 
 
-    /// <summary>把三个插件工程的产物 dll/pdb 复制进一个干净目录，模拟发布形态的 &lt;App&gt;/plugins。</summary>
+
+    [Test]
+    public void 模组分节的整合包配置页签由插件补进槽位_不进侧栏()
+    {
+        var bundledDirectory = StageBundledPlugins();
+        var userDirectory = Path.Combine(Path.GetTempPath(), "ckanui-plugins-mps-" + Guid.NewGuid().ToString("N"));
+        var storePath = Path.Combine(Path.GetTempPath(), "ckanui-activation-mps-" + Guid.NewGuid().ToString("N") + ".json");
+
+        try
+        {
+            var service = new PluginService(
+                userDirectory,
+                new AssemblyLoadContextPluginLoader(),
+                hostVersion: null,
+                bundledDirectory: bundledDirectory,
+                activationStore: new PluginActivationStore(storePath));
+
+            var discovered = Task.Run(() => service.DiscoverAsync(activateBundled: true)).GetAwaiter().GetResult();
+            Assert.That(discovered.IsSuccess, Is.True, discovered.Message);
+
+            var shell = new ShellViewModel(new SilentNavigation(), plugins: service);
+
+            var modpacks = shell.Sections.SingleOrDefault(section => section.Key == "modpacks");
+            Assert.That(modpacks, Is.Not.Null, "「模组包」分节没有建起来；实际分节：" + string.Join(", ", shell.Sections.Select(s => s.Key)));
+
+            Assert.That(
+                modpacks!.Tabs.Select(tab => tab.Key),
+                Is.EqualTo(new[] { "modpacks", "modpack-editor", "modpack-profiles" }),
+                "整合包配置不在宿主槽位里，按 Order=10 追加在分节末尾");
+
+            Assert.That(shell.NavItems.Select(item => item.Key), Does.Contain("modpack-profiles"), "内嵌页签仍要进 NavItems，否则选中态找不到它");
+            Assert.That(shell.RailItems.Select(item => item.Key), Does.Not.Contain("modpack-profiles"), "它属于「模组包」分节的页签条，不该多出一个侧栏入口");
+        }
+        finally
+        {
+            DeleteQuietly(bundledDirectory);
+            DeleteQuietly(userDirectory);
+            DeleteQuietly(storePath);
+        }
+    }
+
+    [Test]
+    public void 数据分节的存储页签由插件补进槽位_不进侧栏()
+    {
+        var bundledDirectory = StageBundledPlugins();
+        var userDirectory = Path.Combine(Path.GetTempPath(), "ckanui-plugins-stg-" + Guid.NewGuid().ToString("N"));
+        var storePath = Path.Combine(Path.GetTempPath(), "ckanui-activation-stg-" + Guid.NewGuid().ToString("N") + ".json");
+
+        try
+        {
+            var service = new PluginService(
+                userDirectory,
+                new AssemblyLoadContextPluginLoader(),
+                hostVersion: null,
+                bundledDirectory: bundledDirectory,
+                activationStore: new PluginActivationStore(storePath));
+
+            var discovered = Task.Run(() => service.DiscoverAsync(activateBundled: true)).GetAwaiter().GetResult();
+            Assert.That(discovered.IsSuccess, Is.True, discovered.Message);
+
+            var shell = new ShellViewModel(new SilentNavigation(), plugins: service);
+
+            var cache = shell.Sections.SingleOrDefault(section => section.Key == "cache");
+            Assert.That(cache, Is.Not.Null, "「数据」分节没有建起来；实际分节：" + string.Join(", ", shell.Sections.Select(s => s.Key)));
+
+            Assert.That(
+                cache!.Tabs.Select(tab => tab.Key),
+                Is.EqualTo(new[] { "cache", "downloadstats", "dedup", "storage" }),
+                "存储管理按 Order=20 追加在「数据」分节末尾");
+
+            Assert.That(shell.NavItems.Select(item => item.Key), Does.Contain("storage"));
+            Assert.That(shell.RailItems.Select(item => item.Key), Does.Not.Contain("storage"));
+
+            var storageTab = cache.Tabs.Single(tab => tab.Key == "storage");
+            Assert.That(storageTab.IsPlugin, Is.True, "存储页是插件贡献的，页签要标记 IsPlugin=true 才能显示角标");
+            Assert.That(storageTab.Title, Is.EqualTo("存储"));
+        }
+        finally
+        {
+            DeleteQuietly(bundledDirectory);
+            DeleteQuietly(userDirectory);
+            DeleteQuietly(storePath);
+        }
+    }
+
+    /// <summary>把首方插件工程的产物 dll/pdb 复制进一个干净目录，模拟发布形态的 &lt;App&gt;/plugins。</summary>
     private static string StageBundledPlugins()
     {
         var directory = Path.Combine(Path.GetTempPath(), "ckanui-bundled-sec-" + Guid.NewGuid().ToString("N"));
@@ -237,6 +324,8 @@ public class PluginSectionTabsTests
                      typeof(AssetsPlugin).Assembly,
                      typeof(KspConfigPlugin).Assembly,
                      typeof(ModConfigPlugin).Assembly,
+                     typeof(ModPackSharePlugin).Assembly,
+                     typeof(StoragePlugin).Assembly,
                  })
         {
             var source = assembly.Location;

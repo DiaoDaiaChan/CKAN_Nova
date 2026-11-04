@@ -92,6 +92,16 @@
                       ReferenceOutputAssembly="false"
                       Private="false"
                       SkipGetTargetFrameworkProperties="true" />
+    <!-- 整合包分享：把 .ckan / GitHub 仓库导入成实例配置档，启动游戏前自动切到指定档。 -->
+    <ProjectReference Include="../CkanUI.Plugin.ModPackShare/CkanUI.Plugin.ModPackShare.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      SkipGetTargetFrameworkProperties="true" />
+    <!-- 存储管理：多实例磁盘占用账本与配置档之间的硬链接去重。 -->
+    <ProjectReference Include="../CkanUI.Plugin.Storage/CkanUI.Plugin.Storage.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -169,6 +179,16 @@
       <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
     </MSBuild>
     <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.Rp1/CkanUI.Plugin.Rp1.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.ModPackShare/CkanUI.Plugin.ModPackShare.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.Storage/CkanUI.Plugin.Storage.csproj"
              Targets="GetTargetPath"
              Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />

@@ -82,6 +82,10 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IDedupLinker, NativeDedupLinker>();
         services.TryAddSingleton<IInstanceDedupService, InstanceDedupService>();
 
+        // 实例配置档（多整合包共用一份游戏本体）：切换是 GameData/CKAN 目录换位，不复制实例。
+        services.TryAddSingleton<CkanUI.Services.Abstractions.Profiles.IInstanceProfileService, Profiles.InstanceProfileService>();
+        services.TryAddSingleton<CkanUI.Services.Abstractions.Profiles.IInstanceStorageService, Profiles.InstanceStorageService>();
+
         // Mod 元数据翻译服务（17 篇 E5）：纯内存查找器 + 语言包扫描与仓库联动。
         services.TryAddSingleton<CkanUI.ModText.IModTextService, ModText.ModTextService>();
 

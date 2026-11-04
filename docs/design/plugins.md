@@ -268,6 +268,8 @@ public sealed class DemoPlugin : ICkanUiPlugin
 | 音乐 | `src/CkanUI.Plugin.Soundtrack` | `com.ckanui.soundtrack` | `Music`（音符） | 「音乐」页签（`music`，`Section=plugins`、`Order=20`）：读写 KSP 根目录 `Playlists/playlists.cfg`（增删曲目、排序、开关播放列表、备份后保存），乐曲库扫 `<游戏目录>/Music` 与 `GameData`；不做试听。文件契约与已知缺口见 [soundtrack.md](soundtrack.md) |
 | kOS 脚本 | `src/CkanUI.Plugin.Kos` | `com.ckanui.kos` | `Code`（尖括号） | 「kOS 脚本」页签（`kos`，`Section=plugins`、`Order=30`）：读写 KSP 根目录 `Ships/Script/*.ks`（kOS 的 Archive 卷），左侧列表 + 右侧纯文本编辑器，保存前自动备份、外部改动检测；不做语法高亮与执行。文件契约见 [kos.md](kos.md) |
 | RP-1 生涯日志 | `src/CkanUI.Plugin.Rp1` | `com.ckanui.rp1` | `History`（时钟箭头） | 「RP-1 生涯日志」页签（`rp1-career`，`Section=plugins`、`Order=40`）：只读当前实例 `saves/<存档>/persistent.sfs`，合并 `RP1ContractTracker` / `CareerLog` / `MilestoneHandler` / `ProgramHandler` / `CrewHandler` 的合同、里程碑、项目、人员与预算周期，按游戏时间排序；标题读 `GameData/RP-1` 的定义文件。文件契约与实测见 [rp1-career.md](rp1-career.md)；同时声明主页部件 `career`，见 [home-widgets.md](home-widgets.md) |
+| 整合包分享 | `src/CkanUI.Plugin.ModPackShare` | `com.ckanui.modpackshare` | `Archive`（归档盒） | 「整合包配置」页签（`modpack-profiles`，`Section=modpacks`、`Order=10`）：配置档列表、从 GitHub 仓库或本地 `.ckan` 导入、新建并接管当前状态、切换/删除、设为启动档；配置档是 GameData/CKAN 目录换位，不复制 5–20 GB 的游戏本体，见 [instance-profiles.md](instance-profiles.md) |
+| 存储管理 | `src/CkanUI.Plugin.Storage` | `com.ckanui.storage` | `Storage`（磁盘） | 「存储」页签（`storage`，`Section=cache`、`Order=20`）：多实例占用总览（本体/配置档/存档分开计）、卷剩余空间、配置档明细、配置档之间的硬链接去重（dry-run → 确认 → 执行），见 [instance-profiles.md](instance-profiles.md) |
 | Mod 配置 | `src/CkanUI.Plugin.ModConfig` | `com.ckanui.modconfig` | `Sliders`（滑块） | 「Mod 配置」页签（`modconfig`，`Section=mods`、`Order=50`）：解耦为内置插件，嵌入「模组」分节内；提供适配器高级配置模式与通用 ConfigNode（`*.cfg`）自动扫描、就地编辑与安全写回模式；通用模式支持宽松扫描（自定义根/扁平键值/视觉配置，见 [mod-config-generic.md](mod-config-generic.md)） |
 
 宿主侧不改一行就能拿到这个页签：插件只引用 `CkanUI.Services.Abstractions` + `Avalonia`（视图里用到缩略图/骨架屏这类共享基元的，再引 `CkanUI.Ui`），
@@ -749,3 +751,33 @@ RP-1 的生涯记录不在一个日志文件里，而是散在 `persistent.sfs` 
   所以拖动中只算落点，松手才改布局。阈值 8 px。
 - **无头用例要挂窗口**：只 `Measure/Arrange` 一个没有视觉根的 `UserControl`，`ScrollViewer` 不会实例化内容，
   `ItemsControl` 容器数为 0；用 `HeadlessAppHost.CreateTestWindow`（不 `ForceRenderTimerTick`）。
+
+### 11.19 实例配置档与存储管理：两个插件把「换整合包」变成换目录（0.3）
+
+一份 KSP 本体 5–20 GB，复制实例来隔离整合包不现实（`IInstanceService.CloneAsync` 走 `GameInstanceManager.CloneInstance`，
+`src/CkanUI.Services/Instances/InstanceService.cs:71`）。所以配置档是**目录换位**：
+
+- 布局：`<GameDir>/CKANProfiles/<名字>/{GameData,CKAN,modpack.ckan}` + `profiles.json` 清单；
+  当前生效的那一档不在 `CKANProfiles` 里，而是回到游戏根目录（`GameData`/`CKAN`）。
+- 切换序列：校验 → `IsGameRunning` → 当前实例先 `IRegistryService.CloseAsync` → live 移进旧档槽位 →
+  目标档移回 live → 写 `profiles.json` → `RefreshAsync`；中途失败按反序回滚，不允许出现「半个配置档」。
+- 首次接管 `adoptCurrent`：把现有 GameData/CKAN 直接认领成一档；此后 live 为空是**合法状态**，
+  所以 `Switch` 的槽位冲突守卫只在「live 还有东西要挪」且「目标槽位已有同名目录」时才判冲突（首轮 4 条用例就红在这里）。
+- 启动自动切换：`ApplyLaunchProfileAsync` 必须在放锁之前跑完，失败就不启动游戏（宿主侧 `InstancesPageViewModel` 里，
+  用例 `InstancesLaunchProfileTests` 钉住「先 profile 后 launch」的调用顺序）。
+- 存储账本：active 档的行复用 live 的字节数且不计入 `ProfileBytes`/`TotalBytes`，否则同一份文件会被算两遍。
+- 去重只扫 `CKANProfiles/*/GameData`，≥128 KiB、长度分组再 SHA-256、同卷 `DedupVolume.SameVolume`，默认 dry-run。
+
+两个插件按「宿主能力注入」的老规矩写：只引 `CkanUI.Services.Abstractions`，
+构造函数拿 `IServiceProvider` 或直接拿 `IInstanceProfileService`/`IInstanceStorageService`，缺服务时开空态而不是白屏。
+下载与网络解析全走注入的 `HttpMessageHandler`，测试不打真网络。
+
+用例：`tests/CkanUI.Services.Tests/Profiles` 49 条（40 配置档 + 9 存储）、`tests/CkanUI.Plugin.ModPackShare.Tests` 34 条、
+`tests/CkanUI.Plugin.Storage.Tests` 13 条、`tests/CkanUI.ViewModels.Tests/InstancesLaunchProfileTests.cs` 3 条、
+`tests/CkanUI.App.Tests/StoragePluginIntegrationTests.cs` 1 条（真 dll + 真宿主 DI，含「只注册 `IInstanceService` 时也要开得出来」），
+以及 `PluginSectionTabsTests` 里两条分节接线：`modpacks` 分节补出 `modpack-profiles`、`cache` 分节补出 `storage`，
+两条都断言页签不进 `RailItems`（内嵌页签不该在侧栏多出并列入口）；
+另有 `StoragePageViewTests` / `ModPackSharePageViewTests` 各 1 条真实 Avalonia 加载（样式类与绑定路径只有运行时才验得到）。
+跨 ALC 的用例纪律：插件 dll 由独立 `AssemblyLoadContext` 装载，插件里的 `StoragePageViewModel` 与测试程序集引用的那个**不是同一个 Type**。
+所以集成用例不能用 `as StoragePageViewModel` / `Is.TypeOf<>` 判身份（32 个 worker 并发跑时，`PluginPageFactory` 遍历 `AppDomain` 可能先命中插件 ALC 那份，`as` 直接给 null——单跑绿、全量红）；
+改成断言 `GetType().FullName`、用反射读属性，释放走默认 ALC 的 `IDisposable`。

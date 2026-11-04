@@ -49,6 +49,13 @@ public sealed class ViewLocatorTests
         Assert.That(
             ViewLocator.ResolveViewType(typeof(CkanUI.Plugin.Rp1.UI.Rp1CareerPageViewModel))?.FullName,
             Is.EqualTo("CkanUI.Plugin.Rp1.UI.Rp1CareerPageView"));
+        // 存储管理与整合包分享也一样：视图就在插件自己的程序集里，宿主不认类型。
+        Assert.That(
+            ViewLocator.ResolveViewType(typeof(CkanUI.Plugin.Storage.UI.StoragePageViewModel))?.FullName,
+            Is.EqualTo("CkanUI.Plugin.Storage.UI.StoragePageView"));
+        Assert.That(
+            ViewLocator.ResolveViewType(typeof(CkanUI.Plugin.ModPackShare.UI.ModPackSharePageViewModel))?.FullName,
+            Is.EqualTo("CkanUI.Plugin.ModPackShare.UI.ModPackSharePageView"));
         // 日志页在 Views/Logs 与 ViewModels/Pages/Logs 两个子命名空间下，解析规则只换 ".ViewModels.Pages." 段，
         // 子命名空间原样保留——这条断言就是钉住这一点（写错会静默回退到占位视图）。
         Assert.That(

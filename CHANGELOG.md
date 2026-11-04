@@ -12,6 +12,13 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 新增
 
+- 实例配置档与存储管理（`src/CkanUI.Plugin.ModPackShare` + `src/CkanUI.Plugin.Storage` + 服务层 `src/CkanUI.Services/Profiles`）：不复制实例，用目录换位在多套整合包之间切换。
+  - 配置档布局：`<GameDir>/CKANProfiles/<名字>/{GameData,CKAN,modpack.ckan}` + `profiles.json`；当前生效那档回到游戏根目录。切换 = 校验 → 查游戏是否在跑 → 关注册表 → live 移进旧档槽位 → 目标档移回 live → 写清单 → 刷新，失败按反序回滚。
+  - 「整合包分享」插件（`com.ckanui.modpackshare`，页 `modpack-profiles`，模组包分节 `Order=10`）：从 GitHub 仓库或本地 `.ckan` 导入、新建并接管当前状态、切换、删除、设为启动档；下载 20 s 超时 + 8 MiB 双闸 + 首字节必须 `{`，缓存按内容 SHA-256 前 16 位命名；写操作前现查游戏运行态，不用页面打开时的旧快照放行。
+  - 「存储管理」插件（`com.ckanui.storage`，页 `storage`，数据分节 `Order=20`）：多实例占用总览（本体/配置档/存档分开计）、卷剩余空间、配置档明细、配置档之间硬链接去重（dry-run → 确认 → 执行）；缺数据显示「—」不用 0 冒充。
+  - 启动时自动切到指定配置档：`InstancesPageViewModel` 先 `ApplyLaunchProfileAsync` 再拉进程，切换失败就不启动，错误文案点名是哪一步失败（`InstancesErrorText.ComposeStep`）。
+  - 存储扫描的 active 档复用 live 字节数且不计入配置档合计，避免同一份文件算两遍；去重只扫 `CKANProfiles/*/GameData`，≥128 KiB、长度分组再 SHA-256、同卷判定走 `DedupVolume.SameVolume`。
+  - 测试：服务层 49 条（40 配置档 + 9 存储）、整合包分享插件 34 条、存储插件 13 条、启动闸门 3 条、真实插件 dll + 宿主 DI 接线 1 条，另加两条分节页签接线（「模组包」补 `modpack-profiles`、「数据」补 `storage`，都不进侧栏）与两条真实 Avalonia 视图冒烟（XAML 解析、绑定落位、布局正尺寸）。设计与边界见 [instance-profiles.md](docs/design/instance-profiles.md)。
 - 自定义主页部件（`HomePageViewModel` + `HomePageView`）：主页从写死的长图改成可增删、可拖动排序的部件板。
   - 内置三块（实例概览、快捷操作、最近截图）可以移除再添加；「添加部件」下拉只列还没在布局里的块，允许清空主页。
   - 另加五块宿主数据部件：模组更新（仓库快照）、安装历史、下载缓存、存档、后台任务（订阅队列变化，只重画这一块）。没有数据时给下一步说明，不用 0 冒充；读取失败显示错误文案，部件不整块消失。
