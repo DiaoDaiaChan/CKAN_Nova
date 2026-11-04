@@ -413,4 +413,52 @@ public sealed class KspConfigPageViewModelTests
         Assert.That(vm.HasEmptyResult, Is.True);
         Assert.That(vm.EmptyResultText, Does.Contain("还没有读到"));
     }
+    [Test]
+    public async Task Sections_GroupItemsByCategoryInTabOrder()
+    {
+        var viewModel = new KspConfigPageViewModel(new FakeKspConfigService());
+        await viewModel.LoadConfigAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.Sections.Select(section => section.Title),
+                Is.EqualTo(new[] { "图像画质", "声音音效", "游戏常规", "高级调试" }),
+                "「全部」页签下按分类分节，顺序跟页签一致，空分类不出现。");
+            Assert.That(viewModel.Sections.Select(section => section.Count), Is.EqualTo(new[] { 2, 1, 1, 1 }));
+            Assert.That(viewModel.Sections.Sum(section => section.Count), Is.EqualTo(viewModel.FilteredItems.Count),
+                "分节不能丢条目，也不能重复。");
+            Assert.That(viewModel.Sections[0].Items.Select(item => item.DisplayName),
+                Is.EqualTo(new[] { "全屏显示", "屏幕分辨率" }),
+                "节内顺序沿用「常用优先、再按键名」。");
+        });
+    }
+
+    [Test]
+    public async Task Sections_CollapseToOneWhenACategoryTabIsSelected()
+    {
+        var viewModel = new KspConfigPageViewModel(new FakeKspConfigService());
+        await viewModel.LoadConfigAsync();
+
+        viewModel.SelectedTab = viewModel.Tabs.Single(tab => tab.Title == "图像画质");
+
+        Assert.That(viewModel.Sections, Has.Count.EqualTo(1), "选中具体分类时只该有一节。");
+        Assert.That(viewModel.Sections[0].Title, Is.EqualTo("图像画质"));
+        Assert.That(viewModel.Sections[0].Items.All(item => item.Category == KspSettingCategory.Graphics), Is.True);
+    }
+
+    [Test]
+    public async Task Sections_FollowTheSearchFilter()
+    {
+        var viewModel = new KspConfigPageViewModel(new FakeKspConfigService());
+        await viewModel.LoadConfigAsync();
+
+        viewModel.SearchText = "MASTER";
+        Assert.That(viewModel.Sections, Has.Count.EqualTo(1), "只搜到声音项目时不该留三个空节。");
+        Assert.That(viewModel.Sections[0].Title, Is.EqualTo("声音音效"));
+        Assert.That(viewModel.Sections[0].Items.Single().Key, Is.EqualTo("MASTER_VOLUME"));
+
+        viewModel.SearchText = string.Empty;
+        Assert.That(viewModel.Sections, Has.Count.EqualTo(4), "清空搜索后分节要复原。");
+    }
+
 }

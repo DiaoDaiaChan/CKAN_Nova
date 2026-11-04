@@ -95,8 +95,8 @@ public sealed class KspConfigPageViewLayoutTests
                 return;
             }
 
-            // 表头位置是「这一行到底占不占高度」的硬证据：收起时它必须整体上移。
-            var headerTopWithStatus = HeaderTop(window);
+            // 第一行数据的位置是「这一条到底占不占高度」的硬证据：收起时它必须整体上移。
+            var rowsTopWithStatus = FirstRowTop(window);
 
             // 没话说：收起。之前这条绑在不存在的 HasStatus 上，永远占着一行空白。
             viewModel.StatusMessage = string.Empty;
@@ -105,7 +105,7 @@ public sealed class KspConfigPageViewLayoutTests
             UiTestHost.PumpJobs();
 
             Assert.That(strip.IsEffectivelyVisible, Is.False, "没有状态消息时状态条必须收起。");
-            Assert.That(HeaderTop(window)!.Value, Is.LessThan(headerTopWithStatus!.Value),
+            Assert.That(FirstRowTop(window)!.Value, Is.LessThan(rowsTopWithStatus!.Value),
                 "状态条收起后表头要跟着上移——否则就是留了一条空行。");
 
             // 有话要说：出现且撑出高度（绑定真的在跟踪 HasStatus）。
@@ -143,15 +143,16 @@ public sealed class KspConfigPageViewLayoutTests
                 .FirstOrDefault(text => text.IsEffectivelyVisible
                     && text.Text?.Contains("还没有读到", StringComparison.Ordinal) == true);
 
-            var list = window.GetVisualDescendants().OfType<ListBox>()
-                .FirstOrDefault(box => box.Classes.Contains("KspConfigList"));
+            var rows = window.GetVisualDescendants().OfType<Border>()
+                .Where(border => border.Classes.Contains("KspRow"))
+                .ToArray();
 
             Assert.Multiple(() =>
             {
                 Assert.That(emptyCard, Is.Not.Null);
                 Assert.That(emptyCard?.IsEffectivelyVisible, Is.True, "没有配置项时要给说明卡，不是一片空白。");
                 Assert.That(explanation, Is.Not.Null, "说明卡要说清为什么是空的。");
-                Assert.That(list?.IsEffectivelyVisible, Is.Not.True, "空列表时列表本身不该再占位。");
+                Assert.That(rows, Is.Empty, "空列表时不该有行容器撑着高度。");
             });
         }
         finally
@@ -172,14 +173,17 @@ public sealed class KspConfigPageViewLayoutTests
         var window = Show(viewModel);
         try
         {
-            var rows = window.GetVisualDescendants().OfType<ListBoxItem>().ToArray();
-            Assert.That(rows, Is.Not.Empty, "加载 5 项后列表里应该有行。");
+            var rows = window.GetVisualDescendants().OfType<Border>()
+                .Where(border => border.Classes.Contains("KspRow"))
+                .ToArray();
+            Assert.That(rows, Has.Length.EqualTo(5), "加载 5 项后就要有 5 行。");
 
             var tallest = rows.Max(row => row.Bounds.Height);
-            Assert.That(tallest, Is.LessThanOrEqualTo(48),
-                "行高必须收进 48px 以内（实测 45px）：旧版三行堆叠 + CkanCard 内边距是 58-60px，一屏只放得下 6 行；" +
-                "放宽到 72 就等于允许退回旧密度，这条守卫也就白写了。");
+            Assert.That(tallest, Is.LessThanOrEqualTo(40),
+                "行高必须收进 40px 以内（实测 34px 左右）：旧版三行堆叠 + 卡片内边距是 58-60px，一屏只放得下 6 行；" +
+                "放宽就等于允许退回旧密度，这条守卫也就白写了。");
             Assert.That(rows.All(row => row.Bounds.Width > 0), Is.True, "行宽不能被压成 0。");
+            Assert.That(rows.All(row => row.Bounds.Height > 24), Is.True, "行不能被压到放不下 24px 的编辑控件。");
         }
         finally
         {
@@ -187,12 +191,56 @@ public sealed class KspConfigPageViewLayoutTests
         }
     }
 
-    /// <summary>表头（「配置项 / 官方说明」那一行）在窗口坐标系里的顶边位置。</summary>
-    private static double? HeaderTop(Window window)
+    [Test]
+    public async Task RowsAreGroupedIntoCategorySections()
     {
-        var header = window.GetVisualDescendants().OfType<TextBlock>()
-            .FirstOrDefault(text => text.Text?.StartsWith("配置项", StringComparison.Ordinal) == true);
-        return header?.TranslatePoint(new Point(0, 0), window)?.Y;
+        UiTestHost.EnsureInitialized();
+        RequireWindowAffinity();
+
+        var viewModel = new KspConfigPageViewModel(new FakeKspConfigService());
+        await viewModel.LoadConfigAsync();
+
+        var window = Show(viewModel);
+        try
+        {
+            var categoryTitles = new[] { "图像画质", "声音音效", "游戏常规", "高级调试" };
+
+            // 只认分节头的标题：分类名在页签栏里也有一份，按整窗口扫会把页签数错。
+            var sectionTitles = SectionTitles(window);
+            Assert.That(sectionTitles, Is.EqualTo(categoryTitles),
+                "「全部」页签下按分类分节，顺序跟页签一致，空分类不出现。");
+
+            // 单分类页签只剩一节：切到「图像画质」后，声音/游戏/高级的节头必须消失。
+            viewModel.SelectedTab = viewModel.Tabs.Single(tab => tab.Title == "图像画质");
+            UiTestHost.PumpJobs();
+            window.UpdateLayout();
+            UiTestHost.PumpJobs();
+
+            Assert.That(viewModel.Sections, Has.Count.EqualTo(1), "选中具体分类时只该有一节。");
+
+            Assert.That(SectionTitles(window), Is.EqualTo(new[] { "图像画质" }));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>分节头里可见的分类标题，按视觉顺序。</summary>
+    private static string[] SectionTitles(Window window) =>
+        window.GetVisualDescendants().OfType<Control>()
+            .Where(control => control.Classes.Contains("KspSectionHeader") && control.IsEffectivelyVisible)
+            .SelectMany(control => control.GetVisualDescendants().OfType<TextBlock>())
+            .Where(text => text.Classes.Contains("KspSectionTitle") && text.Text is not null)
+            .Select(text => text.Text!)
+            .ToArray();
+
+    /// <summary>第一行数据在窗口坐标系里的顶边位置。</summary>
+    private static double? FirstRowTop(Window window)
+    {
+        var row = window.GetVisualDescendants().OfType<Border>()
+            .FirstOrDefault(border => border.Classes.Contains("KspRow"));
+        return row?.TranslatePoint(new Point(0, 0), window)?.Y;
     }
 
     private static void WaitUntil(Func<bool> condition, int timeoutMs = 5_000)

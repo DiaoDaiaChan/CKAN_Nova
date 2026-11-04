@@ -10,21 +10,6 @@
              x:DataType="vm:KspConfigPageViewModel">
 
   <UserControl.Styles>
-    <!-- 列表容器是 ListBox（自带虚拟化）：把行容器的默认内边距/选中/悬停底色全部抹平，视觉与裸 ItemsControl 一致。 -->
-    <Style Selector="ListBox.KspConfigList ListBoxItem">
-      <Setter Property="Padding" Value="0" />
-      <Setter Property="Margin" Value="0" />
-      <Setter Property="MinHeight" Value="0" />
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-    </Style>
-    <Style Selector="ListBox.KspConfigList ListBoxItem:selected /template/ ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
-    </Style>
-    <Style Selector="ListBox.KspConfigList ListBoxItem:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource CkanLayerRecessedBrush}" />
-    </Style>
-
     <!-- 分类页签：胶囊底 + 计数角标；选中才上强调色，未选中就是一排安静的过滤器。 -->
     <Style Selector="ListBox.KspTabs">
       <Setter Property="Background" Value="Transparent" />
@@ -138,145 +123,141 @@
       <TextBlock Text="{Binding StatusMessage}" Classes="CkanCaption" TextTrimming="CharacterEllipsis" />
     </Border>
 
-    <!-- 表体：表头对齐 + 行列表；空列表时换成说明卡，不留一片空白 -->
-    <Grid Grid.Row="3" RowDefinitions="Auto,*">
-      <Border Grid.Row="0" Background="{DynamicResource CkanLayerRecessedBrush}"
-              CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-              Padding="12,5" Margin="0,0,0,4">
-        <Grid ColumnDefinitions="*,150,210,56">
-          <TextBlock Grid.Column="0" Text="配置项 / 官方说明" Classes="CkanCaption" FontWeight="SemiBold"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="1" Text="键名 / 词条" Classes="CkanCaption" FontWeight="SemiBold"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="2" Text="设定值" Classes="CkanCaption" FontWeight="SemiBold"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="3" Text="操作" Classes="CkanCaption" FontWeight="SemiBold"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-        </Grid>
-      </Border>
+    <!-- 表体：按分类分节，版式对齐设置页（分组标题 + 平铺行 + 右对齐编辑槽）。
+         空列表时换成说明卡，不留一片空白。 -->
+    <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Disabled"
+                  IsVisible="{Binding !HasEmptyResult}">
+      <ItemsControl ItemsSource="{Binding Sections}" Margin="0,0,14,0">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:KspConfigSectionViewModel">
+            <StackPanel Margin="0,0,0,14">
 
-      <Grid Grid.Row="1">
-        <!-- 表头 4 列，末列是重置按钮位；列表按行铺开，不再用卡片撑高度。 -->
-        <ListBox Classes="KspConfigList"
-                 ItemsSource="{Binding FilteredItems}"
-                 Background="Transparent" BorderThickness="0" Padding="0"
-                 SelectionMode="Single"
-                 IsVisible="{Binding !HasEmptyResult}"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-          <ListBox.ItemsPanel>
-            <ItemsPanelTemplate>
-              <VirtualizingStackPanel />
-            </ItemsPanelTemplate>
-          </ListBox.ItemsPanel>
-          <ListBox.ItemTemplate>
-            <DataTemplate x:DataType="vm:KspSettingItemViewModel">
-              <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CkanHairlineBrush}"
-                      Padding="12,3">
-                <Grid ColumnDefinitions="*,150,210,56" VerticalAlignment="Center">
+              <!-- 分组标题：设置页同款——小图标 + 加粗标题 + 灰计数，不画卡片不铺底色 -->
+              <StackPanel Classes="KspSectionHeader" Orientation="Horizontal" Spacing="8" Margin="0,0,0,2">
+                <ui:GlyphIcon Glyph="{Binding Icon}" Size="14" VerticalAlignment="Center"
+                              Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Classes="KspSectionTitle" Text="{Binding Title}" FontSize="15" FontWeight="SemiBold"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Count}" FontSize="11" VerticalAlignment="Center"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              </StackPanel>
 
-                  <!-- 第 0 列：配置项名称与说明 -->
-                  <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="1" Margin="0,0,8,0">
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                      <Border Classes="CkanBadge Accent" IsVisible="{Binding IsCommon}" Padding="5,0">
-                        <TextBlock Text="常用" FontSize="10" />
-                      </Border>
-                      <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" LineHeight="16"
-                                 Foreground="{DynamicResource CkanTextPrimaryBrush}" VerticalAlignment="Center" />
-                      <Border Classes="CkanBadge Warning" IsVisible="{Binding IsModified}" Padding="5,0">
-                        <TextBlock Text="已修改" FontSize="10" />
-                      </Border>
-                      <TextBlock Text="{Binding OriginalValue, StringFormat='原值 {0}'}"
-                                 IsVisible="{Binding IsModified}"
-                                 FontSize="10" Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                                 VerticalAlignment="Center" />
-                    </StackPanel>
+              <ItemsControl ItemsSource="{Binding Items}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:KspSettingItemViewModel">
+                    <Border Classes="KspRow" BorderThickness="0,0,0,1"
+                            BorderBrush="{DynamicResource CkanHairlineBrush}" Padding="0,6">
+                      <Grid ColumnDefinitions="*,240,96" VerticalAlignment="Center">
 
-                    <TextBlock Text="{Binding Description}" IsVisible="{Binding HasDescription}"
-                               Classes="CkanCaption" FontSize="11" LineHeight="14" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
-                               Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                               ToolTip.Tip="{Binding Description}" />
-                  </StackPanel>
+                        <!-- 名称 / 说明 / 原值线索：名称列固定 200，说明占剩余宽度 -->
+                        <Grid Grid.Column="0" ColumnDefinitions="200,*,Auto" Margin="0,0,16,0"
+                              VerticalAlignment="Center">
+                          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Border Classes="CkanBadge Accent" IsVisible="{Binding IsCommon}" Padding="5,0">
+                              <TextBlock Text="常用" FontSize="10" />
+                            </Border>
+                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13"
+                                       LineHeight="16" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                                       TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Key}" />
+                          </StackPanel>
 
-                  <!-- 第 1 列：配置键名与官方词条 -->
-                  <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1" Margin="0,0,8,0">
-                    <Border Classes="CkanBadge" Background="{DynamicResource CkanLayerCanvasBrush}" Padding="6,0" HorizontalAlignment="Left">
-                      <TextBlock Text="{Binding Key}" FontSize="10" FontFamily="Consolas,DejaVu Sans Mono,monospace"
-                                 Foreground="{DynamicResource CkanTextSecondaryBrush}" TextTrimming="CharacterEllipsis"
-                                 ToolTip.Tip="{Binding Key}" />
+                          <TextBlock Grid.Column="1" Text="{Binding Description}" IsVisible="{Binding HasDescription}"
+                                     Classes="CkanCaption" FontSize="11" LineHeight="14" Margin="10,0,0,0"
+                                     VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                     Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                     ToolTip.Tip="{Binding Description}" />
+
+                          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                                      VerticalAlignment="Center" HorizontalAlignment="Right">
+                            <Border Classes="CkanBadge Warning" IsVisible="{Binding IsModified}" Padding="5,0">
+                              <TextBlock Text="已修改" FontSize="10" />
+                            </Border>
+                            <TextBlock Text="{Binding OriginalValue, StringFormat='原值 {0}'}"
+                                       IsVisible="{Binding IsModified}" FontSize="10"
+                                       Foreground="{DynamicResource CkanTextTertiaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Key}" IsVisible="{Binding IsModified}" FontSize="9"
+                                       FontFamily="Consolas,DejaVu Sans Mono,monospace"
+                                       Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                       VerticalAlignment="Center" MaxWidth="160" TextTrimming="CharacterEllipsis"
+                                       ToolTip.Tip="{Binding LocKey}" />
+                          </StackPanel>
+                        </Grid>
+
+                        <!-- 编辑控件槽：固定 240，与设置页的编辑器列同宽；各类型互斥显示 -->
+                        <Grid Grid.Column="1" VerticalAlignment="Center">
+
+                          <!-- 设置页同款：只留开关本体，不带 On/Off 文案——文案在 240 的槽里会被裁掉 -->
+                          <ToggleSwitch IsVisible="{Binding IsBoolean}"
+                                        IsChecked="{Binding BooleanValue, Mode=TwoWay}"
+                                        OnContent="" OffContent=""
+                                        MinHeight="24" Height="24" Margin="0" Padding="0"
+                                        VerticalAlignment="Center" HorizontalAlignment="Right" />
+
+                          <ComboBox IsVisible="{Binding IsPreset}"
+                                    ItemsSource="{Binding Options}"
+                                    SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
+                                    MinHeight="24" Height="24" Padding="8,0" VerticalAlignment="Center"
+                                    HorizontalAlignment="Stretch">
+                            <ComboBox.ItemTemplate>
+                              <DataTemplate x:DataType="cfg:KspOptionEntry">
+                                <TextBlock Text="{Binding Label}" FontSize="12" />
+                              </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                          </ComboBox>
+
+                          <Grid IsVisible="{Binding IsFloat}" ColumnDefinitions="*,48" VerticalAlignment="Center">
+                            <Slider Grid.Column="0" Minimum="{Binding MinValue}" Maximum="{Binding MaxValue}"
+                                    Value="{Binding DoubleValue, Mode=TwoWay}"
+                                    Height="18" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding DoubleValue, StringFormat='{}{0:F2}'}"
+                                       TextAlignment="Right" VerticalAlignment="Center"
+                                       FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="11"
+                                       Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                          </Grid>
+
+                          <TextBox IsVisible="{Binding IsInteger}"
+                                   Text="{Binding IntegerValue, Mode=TwoWay}"
+                                   Width="110" MinHeight="24" Height="24" Padding="6,0" VerticalAlignment="Center"
+                                   HorizontalAlignment="Right" TextAlignment="Center"
+                                   CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                                   FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" />
+
+                          <TextBox IsVisible="{Binding IsText}"
+                                   Text="{Binding TextValue, Mode=TwoWay}"
+                                   MinHeight="24" Height="24" Padding="8,0" VerticalAlignment="Center"
+                                   HorizontalAlignment="Stretch" FontSize="12"
+                                   CornerRadius="{DynamicResource CkanCornerRadiusSmall}" />
+                        </Grid>
+
+                        <!-- 动作槽：固定 96，右对齐，与设置页的辅助按钮位一致 -->
+                        <Button Grid.Column="2" Classes="CkanGhost CkanSmall"
+                                Command="{Binding ResetCommand}"
+                                IsEnabled="{Binding IsModified}"
+                                ToolTip.Tip="恢复为读盘时的原始值"
+                                HorizontalAlignment="Right" VerticalAlignment="Center" Padding="8,2" FontSize="11"
+                                Content="重置" />
+                      </Grid>
                     </Border>
-                    <TextBlock Text="{Binding LocKey}" IsVisible="{Binding HasLocKey}" FontSize="9" LineHeight="11"
-                               FontFamily="Consolas,DejaVu Sans Mono,monospace"
-                               Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                               TextTrimming="CharacterEllipsis" />
-                  </StackPanel>
-
-                  <!-- 第 2 列：类型专用编辑控件（按类型唯一显示） -->
-                  <Grid Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Center">
-
-                    <ToggleSwitch IsVisible="{Binding IsBoolean}"
-                                  IsChecked="{Binding BooleanValue, Mode=TwoWay}"
-                                  OnContent="开" OffContent="关"
-                                  MinHeight="24" Height="24" Margin="0" Padding="0"
-                                  VerticalAlignment="Center" HorizontalAlignment="Center" />
-
-                    <ComboBox IsVisible="{Binding IsPreset}"
-                              ItemsSource="{Binding Options}"
-                              SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
-                              Width="196" MinHeight="24" Height="24" Padding="8,0" VerticalAlignment="Center">
-                      <ComboBox.ItemTemplate>
-                        <DataTemplate x:DataType="cfg:KspOptionEntry">
-                          <TextBlock Text="{Binding Label}" FontSize="12" />
-                        </DataTemplate>
-                      </ComboBox.ItemTemplate>
-                    </ComboBox>
-
-                    <StackPanel IsVisible="{Binding IsFloat}" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                      <Slider Minimum="{Binding MinValue}" Maximum="{Binding MaxValue}"
-                              Value="{Binding DoubleValue, Mode=TwoWay}"
-                              Width="132" Height="18" VerticalAlignment="Center" />
-                      <TextBlock Text="{Binding DoubleValue, StringFormat='{}{0:F2}'}"
-                                 Width="44" TextAlignment="Right" VerticalAlignment="Center"
-                                 FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="11" />
-                    </StackPanel>
-
-                    <TextBox IsVisible="{Binding IsInteger}"
-                             Text="{Binding IntegerValue, Mode=TwoWay}"
-                             Width="110" MinHeight="24" Height="24" Padding="6,0" VerticalAlignment="Center" TextAlignment="Center"
-                             FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" />
-
-                    <TextBox IsVisible="{Binding IsText}"
-                             Text="{Binding TextValue, Mode=TwoWay}"
-                             Width="196" MinHeight="24" Height="24" Padding="8,0" VerticalAlignment="Center" FontSize="12" />
-                  </Grid>
-
-                  <!-- 第 3 列：重置 -->
-                  <Button Grid.Column="3" Classes="CkanGhost"
-                          Command="{Binding ResetCommand}"
-                          IsEnabled="{Binding IsModified}"
-                          ToolTip.Tip="恢复为读盘时的原始值"
-                          HorizontalAlignment="Center" VerticalAlignment="Center" Padding="6,2">
-                    <TextBlock Text="重置" FontSize="11" />
-                  </Button>
-
-                </Grid>
-              </Border>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
-
-        <Border Classes="CkanEmptyStateCard Flat" IsVisible="{Binding HasEmptyResult}"
-                VerticalAlignment="Top" Margin="0,8,0,0" Padding="16,12">
-          <StackPanel Orientation="Horizontal" Spacing="10">
-            <ui:GlyphIcon Glyph="Check" Size="18" VerticalAlignment="Top" />
-            <StackPanel Spacing="4">
-              <TextBlock Text="{Binding EmptyResultText}" Classes="CkanCaption" TextWrapping="Wrap" />
-              <Button Content="清除筛选条件" Command="{Binding ResetFiltersCommand}"
-                      Classes="CkanGhost" HorizontalAlignment="Left" Padding="8,2" FontSize="11" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
             </StackPanel>
-          </StackPanel>
-        </Border>
-      </Grid>
-    </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
 
+    <Border Grid.Row="3" Classes="CkanEmptyStateCard Flat" IsVisible="{Binding HasEmptyResult}"
+            VerticalAlignment="Top" Margin="0,8,0,0" Padding="16,12">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <ui:GlyphIcon Glyph="Check" Size="18" VerticalAlignment="Top" />
+        <StackPanel Spacing="4">
+          <TextBlock Text="{Binding EmptyResultText}" Classes="CkanCaption" TextWrapping="Wrap" />
+          <Button Content="清除筛选条件" Command="{Binding ResetFiltersCommand}"
+                  Classes="CkanGhost" HorizontalAlignment="Left" Padding="8,2" FontSize="11" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
   </Grid>
 </UserControl>

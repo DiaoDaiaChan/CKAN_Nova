@@ -68,6 +68,12 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
     /// </summary>
     public ObservableCollection<KspSettingItemViewModel> FilteredItems { get; } = [];
 
+    /// <summary>
+    /// 按分类分节后的列表（「全部」页签每个分类一节，单分类页签只有一节）。
+    /// 与 <see cref="FilteredItems"/> 同源同序，视图两栏都从这一批实例渲染。
+    /// </summary>
+    public ObservableCollection<KspConfigSectionViewModel> Sections { get; } = [];
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSearchText))]
     private string _searchText = string.Empty;
@@ -385,7 +391,43 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
             FilteredItems.Add(item);
         }
 
+        RebuildSections(FilteredItems);
+
         RaiseListSummaryChanged();
+    }
+
+    /// <summary>
+    /// 按当前页签决定分节方式：选中的是「全部」就按分类各一节，选中的是具体分类就只给一节。
+    /// 空分组不出现——「全部」页签下搜索到 3 项，不该留 4 个空节。
+    /// </summary>
+    private void RebuildSections(IReadOnlyList<KspSettingItemViewModel> items)
+    {
+        Sections.Clear();
+
+        var selected = SelectedTab;
+        if (selected?.Category is not null)
+        {
+            if (items.Count > 0)
+            {
+                Sections.Add(new(selected.Title, selected.Icon, items.Count, items));
+            }
+
+            return;
+        }
+
+        foreach (var tab in Tabs)
+        {
+            if (tab.Category is null)
+            {
+                continue;
+            }
+
+            var group = items.Where(item => item.Category == tab.Category.Value).ToArray();
+            if (group.Length > 0)
+            {
+                Sections.Add(new(tab.Title, tab.Icon, group.Length, group));
+            }
+        }
     }
 
     // ---- 列表摘要（工具条右侧的计数条 + 空结果说明） -----------------------
