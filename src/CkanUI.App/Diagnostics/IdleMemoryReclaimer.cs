@@ -163,6 +163,7 @@ public sealed class IdleMemoryReclaimer : IDisposable
             return false;
         }
 
+        InvokeBeforeReclaim();
         _reclaim();
 
         _hasReclaimed = true;
@@ -175,6 +176,7 @@ public sealed class IdleMemoryReclaimer : IDisposable
     /// <summary>立即执行一次回收（不等轮询与策略判定）：预热结束后工作集被撑大时用。</summary>
     public void ReclaimNow()
     {
+        InvokeBeforeReclaim();
         _reclaim();
         _hasReclaimed = true;
         _workingSetAfterLastReclaim = _readWorkingSet();
@@ -191,8 +193,28 @@ public sealed class IdleMemoryReclaimer : IDisposable
         return process.WorkingSet64;
     }
 
+    /// <summary>
+    /// 回收前的可选钩子：先把「离页后不再需要」的行投影丢掉，再压缩堆。
+    /// 位置在 GC 之前是因为投影本身也压着大对象；先松手再压缩，回收一段就能带走。
+    /// </summary>
+    public static Action? BeforeReclaim { get; set; }
+
+    private static void InvokeBeforeReclaim()
+    {
+        try
+        {
+            BeforeReclaim?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            // 投影释放失败不该挡住 GC：这里只记一笔，继续回收。
+            Trace.WriteLine($"回收前的投影释放失败：{ex.Message}");
+        }
+    }
+
     private static void DefaultReclaim()
     {
+
         // Aggressive + compacting 才会搬动大对象堆：撑大工作集的主要是 LOH 碎片，普通第 2 代回收压不下来。
         GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
         GC.WaitForPendingFinalizers();

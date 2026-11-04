@@ -1,3 +1,4 @@
+using CkanUI.App.Diagnostics;
 using CkanUI.App.Plugins;
 using CkanUI.Services.Abstractions;
 using CkanUI.ViewModels.Pages;
@@ -29,6 +30,10 @@ public sealed class PageProjectionCacheParticipant : IAppCacheParticipant
     {
         _pages = pages ?? throw new ArgumentNullException(nameof(pages));
         _pluginPages = pluginPages;
+
+        // 空闲回收前先松手：撑大工作集的不只是 GC 段，还有离页后没人要、却仍被页面字段压着的行投影。
+        // 挂在静态钩子上是因为 IdleMemoryReclaimer 由 DynamicRefreshRateController 静态构造，拿不到容器。
+        IdleMemoryReclaimer.BeforeReclaim = () => TrimAppCache();
     }
 
     /// <inheritdoc />

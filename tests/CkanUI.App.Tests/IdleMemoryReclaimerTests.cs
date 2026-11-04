@@ -116,6 +116,46 @@ public sealed class IdleMemoryReclaimerTests
     }
 
     [Test]
+    public void ReclaimNow_InvokesBeforeReclaimHookBeforeCollecting()
+    {
+        var order = new List<string>();
+        IdleMemoryReclaimer.BeforeReclaim = () => order.Add("trim");
+        try
+        {
+            var reclaimer = new IdleMemoryReclaimer(
+                () => 0L, () => order.Add("gc"), () => true, () => TimeSpan.FromMinutes(1));
+
+            reclaimer.ReclaimNow();
+
+            // 顺序是语义的一部分：弦上的投影要先松手，压缩堆才带得走。
+            Assert.That(order, Is.EqualTo(new[] { "trim", "gc" }));
+        }
+        finally
+        {
+            IdleMemoryReclaimer.BeforeReclaim = null;
+        }
+    }
+
+    [Test]
+    public void ReclaimNow_WhenHookThrows_StillCollects()
+    {
+        IdleMemoryReclaimer.BeforeReclaim = () => throw new InvalidOperationException("投影释放失败");
+        try
+        {
+            var collected = false;
+            var reclaimer = new IdleMemoryReclaimer(
+                () => 0L, () => collected = true, () => true, () => TimeSpan.FromMinutes(1));
+
+            Assert.DoesNotThrow(reclaimer.ReclaimNow);
+            Assert.That(collected, Is.True, "钩子失败不该挡住回收。");
+        }
+        finally
+        {
+            IdleMemoryReclaimer.BeforeReclaim = null;
+        }
+    }
+
+    [Test]
     public void Detach_WithoutAttach_IsSafe()
     {
         var reclaimer = new IdleMemoryReclaimer(() => 0L, () => { }, () => false, () => TimeSpan.FromMinutes(1));

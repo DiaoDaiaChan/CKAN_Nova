@@ -383,6 +383,7 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 修复
 
+- 空闲回收只压堆、不松手：进过一遍全部页面后，即使页面已经切走，页里的行投影（成千上万行视图模型）仍被页面字段压着，GC 压不掉——因为它还活着。`src/CkanUI.App/Diagnostics/IdleMemoryReclaimer.cs` 新增回收前钩子 `BeforeReclaim`，`src/CkanUI.App/Lifecycle/PageProjectionCacheParticipant.cs` 在构造时挂上 `TrimAppCache`：先让各页把离页后没人要的投影丢掉，再压缩堆，一段回收就能带走。钩子抛异常不挡回收（记 Trace 后继续），并有两条单测钉住「先 trim 后 GC」的顺序与失败降级。
 - 校验大存档后进程常驻内存不回落：src/CkanUI.Services/Saves/SaveFileService.cs 的校验路径 File.ReadAllBytes 把整份 sfs 读进内存再解析，实测最大的 persistent 存档 120 MB，解析出的字符块全部落在 LOH（大对象堆）上；托管堆回收了，但 LOH 默认不压缩，段一直挂在进程里。现在存档 ≥32 MB 时只登记一次 GCSettings.LargeObjectHeapCompactionMode = CompactOnce，由下一次 GC 顺带压缩，不主动 Collect、不占 UI 线程。
 - 内容预览页在没有几个控件的空页面上也在掉帧：`src/CkanUI.Services/Content/ContentService.cs` 在 UI 线程上 `new ZipArchive(stream, ZipArchiveMode.Read)`——`.NET` 的 `ZipArchive` 构造函数会同步读完整个中央目录，大整合包里单个 ZIP 上万条目；随后 `src/CkanUI.ViewModels/Pages/ContentPageViewModel.cs` 又把最多 20000 个条目逐个建成节点 VM 再拼树，全在 UI 线程上（实测这一段抢占 UI 线程 480 ms，而页面只有 89 个视觉节点）。
   - ZIP 读取整体移到线程池（`Task.Run` + `ConfigureAwait(false)`，DTO 建好再回 UI 线程）；条目投影与建树同样挪到线程池，节点 VM 不碰控件，建完整体换上去。

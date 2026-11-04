@@ -213,6 +213,13 @@ internal static class NavigationProbe
             await Task.Delay(GapMilliseconds);
         }
 
+        if (Environment.GetEnvironmentVariable("CKANUI_NAV_IDLE_CHECK") == "1")
+        {
+            // 走完全部页面后静置：让空闲回收器（8 秒轮询 + 12 秒最早回收）有机会跑一轮，看稳态能压到哪。
+            await Task.Delay(25_000).ConfigureAwait(true);
+            TryWrite(path, $"[nav] idle-after-sweep{MemorySuffix()}");
+        }
+
         TryWrite(path, "[nav] done");
     }
 
