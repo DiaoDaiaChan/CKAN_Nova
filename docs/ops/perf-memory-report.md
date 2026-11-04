@@ -227,3 +227,65 @@ UI 线程（采样）自时间排名：`Avalonia.StyledElement.ApplyStyles` **11
 - `a9f5dfc` ZIP 预览与条目投影移出 UI 线程（内容页 480ms 同步块清零）
 - `9eae410` 大存档校验后压缩 LOH
 - `da11ccb`/`9734f2c`/`3c62845` 探针：每页 ws/private/heap、页内页签、按钮清点
+## 12. 卡顿看门狗：冻结发生在进页后 1–1.5 s，GC 停顿占六成量级
+
+### 12.1 怎么量
+
+`CKANUI_NAV_STALLS=1` 打开 `src/CkanUI.App/Diagnostics/NavigationProbe.cs` 里的看门狗：后台线程每 15 ms `Dispatcher.UIThread.Post` 一个空操作，用 Stopwatch 量「投递 → 执行」的延迟，>50 ms 记一次卡顿。
+
+两个细节决定这张表能不能信：
+
+- **归属必须在投递时取**。第一版在回调里读当前页名，结果卡顿被记到下一个页面上（跨页漂移），整张表看起来毫无规律。
+- **阶段要切细**。每页 1500 ms 采样窗被切成 window0/1/2 三段，另加 startup/enter/gap/click/scroll，才能区分「进页面就慢」和「一秒钟后才慢」。
+
+同一份代码在 `[nav]` 行尾追加本页窗口内的 `gen2=`（Gen2 次数）与 `pause=`（`GC.GetTotalPauseDuration()` 增量），把「卡」和 GC 停顿放进同一张表对账。
+
+### 12.2 冻结在哪个阶段（336 模组实例，31 页 × 2 轮）
+
+| 阶段 | 累计卡顿 | 次数 | 最长 |
+| --- | --- | --- | --- |
+| window2（进入后 1000–1500 ms） | 12545 ms | 31 | 652 ms |
+| enter（点下去到首屏） | 4051 ms | 17 | 850 ms |
+| gap（页与页之间） | 3910 ms | 15 | 895 ms |
+| window0（0–500 ms） | 736 ms | 2 | — |
+| window1（500–1000 ms） | 186 ms | 2 | — |
+| startup | 383 ms | 1 | — |
+
+⇒ 44% 的卡顿落在 window2，即**异步数据落地那一段**。用户说的「GUI 好像没有异步计算」，指的不是命令体——上一轮 32 条白名单命令 `sync≤14.3 ms`、UI 恢复 `≤82 ms`、`over50=0`。真正冻结的是数据回填后的一次性建行/排版/GC。
+
+### 12.3 每页 GC 停顿 vs 页面卡顿（同一次运行）
+
+| 页面 | GC 停顿 | 卡顿累计 | 页面 | GC 停顿 | 卡顿累计 |
+| --- | --- | --- | --- | --- | --- |
+| changes | 2010 ms | 1016 ms | modtext | 339 ms | 1736 ms |
+| instances | 1586 ms | 197 ms | playtime | 324 ms | 994 ms |
+| saves | 1376 ms | 392 ms | kspconfig | 305 ms | 392 ms |
+| installhistory | 1128 ms | 1228 ms | dedup | 289 ms | 0 ms |
+| cache | 893 ms | 1474 ms | plugins | 276 ms | 1220 ms |
+| modconfig | 760 ms | 1078 ms | modpack-profiles | 271 ms | 835 ms |
+| performance | 742 ms | 2171 ms | storage | 266 ms | 2296 ms |
+| ai-assistant | 701 ms | 0 ms | mods | 243 ms | 235 ms |
+| content | 687 ms | 86 ms | repos | 221 ms | 449 ms |
+| rp1-career | 642 ms | 805 ms | modpack-editor | 205 ms | 2525 ms |
+| ships | 619 ms | 1679 ms | modpacks | 141 ms | 89 ms |
+| music | 399 ms | 2927 ms | 合计 | **17159 ms** | **28592 ms** |
+
+**相关性别看错**：逐页 pause 与逐页卡顿的皮尔逊 r = −0.06，不是正相关。样本只有 31 个、两边归属都有漂移（一次 GC 可能发生在别页的窗口里，一次卡顿也可能是建行而非 GC），所以正确的口径是：**总量上 GC 停顿 17.2 s ≈ 卡顿总量 28.6 s 的六成，但「哪一页卡」不能只看 GC**。要钉到具体一行，得用 dotnet-trace 采 window2 窗口的 UI 线程叶子帧，或按页关掉后台加载做 A/B。
+
+### 12.4 试过并否决：SustainedLowLatency
+
+假设是 GC 停顿就降低 GC 攻击性：`GCSettings.LatencyMode = GCLatencyMode.SustainedLowLatency`（在 `Program.Main` 里按 `CKANUI_GC_LOWLATENCY=1` 临时注入，同一次构建跑两遍，唯一差异是这个环境变量）：
+
+| 指标 | 基线 | SustainedLowLatency |
+| --- | --- | --- |
+| 卡顿次数 / 超 200 ms | 67 / 46 | **101 / 53** |
+| 31 页 GC 停顿合计 | 17159 ms | **30389 ms** |
+| 峰值工作集 | 1584 MB | 1654 MB |
+
+停顿反而涨了 77%，卡顿次数涨了 50%。原因：低延迟模式把阻塞式 Gen2 换成后台 GC，但分配速率不变，堆继续涨，后台 GC 追不上就一直重试，反而更频繁地抢占。**已按 md5 原样还原 `src/CkanUI.App/Program.cs`（a3ae264b…），配置未进主干。**
+
+### 12.5 结论
+
+1. 卡顿不在命令体（全异步），在**进页面后 1–1.5 s 的数据回填段**：建行、排版、Gen2/LOH 一次性分配。
+2. GC 停顿是最大单一来源（六成量级），但它不解释「为什么偏偏这页卡」。
+3. 剩下的空间在**每页首进的投影体量**上；要压它必须改各页 VM（`IPageProjectionTrim` 目前只有 content/mods/modtext/kspconfig 实现），而音乐、存档、存储、模组配置、设置、变更、下载统计等页的 VM 仍在其他人的未提交改动里，按约定我没有动。
