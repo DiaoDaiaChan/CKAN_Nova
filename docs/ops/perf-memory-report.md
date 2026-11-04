@@ -13,7 +13,8 @@
 | 加页内页签切换 | 追加 `CKANUI_NAV_TABS=1` |
 | 加按钮清点 | 追加 `CKANUI_NAV_BUTTONS=1` |
 | 内存输出 | `CKANUI_NAV_MEM=1`（`ws/private/heap`） |
-| 接入真实整合包 | `CKAN_CONFIG_FILE=<你的配置.json> CKANUI_PROBE_REAL_CONFIG=1 CKANUI_PROBE_INSTANCE=1` |
+| 接入真实整合包 | `$env:CKAN_CONFIG_FILE="$env:APPDATA\CKAN\GUI\config.json"; node tools/perf-probe/measure-instance.mjs`（只读探针，自带 24 页 ×2 轮遍历与 ws/private/heap 采样；逐页 trace 落在 `artifacts/nav-instance.log`） |
+| 手工起真实实例 | `CKAN_CONFIG_FILE=<你的配置.json> CKANUI_PROBE_REAL_CONFIG=1 CKANUI_PROBE_INSTANCE=1` |
 
 两套基准实例：`artifacts/perf/instance-steam`（336 模组）与 `instance-large`（3000 模组），均由 junction 指向真实 GameData，`CKAN/CKAN` 为独立副本，不会锁住用户实例。
 
@@ -60,7 +61,21 @@
 
 WS 峰值 1824MB，稳态 1345–1425MB。9 分钟长跑首尾 +3.5MB ⇒ **不是泄漏**，是「激活期持有、离页释放」+ 24 页常驻。
 
-## 5. 待决策的三个杠杆
+## 5. 4 GB 从哪来：怎么在自己的包上量
+
+我不能替你量你的机器，但可以给你一条命令——`tools/perf-probe/measure-instance.mjs` 只读打开你的 CKAN 配置，走完 24 页 ×2 轮，把每页的 `ws/private/heap` 写进 `artifacts/nav-instance.log`：
+
+```powershell
+$env:CKAN_CONFIG_FILE = "$env:APPDATA\CKAN\GUI\config.json"
+node tools/perf-probe/measure-instance.mjs
+```
+
+看三件事：
+1. 哪一页之后 `ws` 跳得最多（本机是 saves +666MB、changes +350MB、downloadstats +270MB）；
+2. `private - heap` 的差（本机 24 页收尾 ws 1280 / private 1200 / heap 860 ⇒ 非托管约 340MB，约 14MB/页，合成器 + Skia 表面）；
+3. 走完后再静置 30 秒看 `ws` 是否回落（回落慢就是 LOH 段没压）。
+
+## 6. 待决策的三个杠杆
 
 | 杠杆 | 预期收益 | 阻塞 |
 | --- | --- | --- |
@@ -68,7 +83,7 @@ WS 峰值 1824MB，稳态 1345–1425MB。9 分钟长跑首尾 +3.5MB ⇒ **不�
 | 四个尖峰页离页即释放（saves 666 / changes 350 / downloadstats 270 / content 140） | 峰值 1824→约 900MB | 同上 + `src/CkanUI.Plugin.Saves/*` |
 | 页面驻留预算（最近 N 页，其余摘舞台） | 常驻再砍一半 | PageStage 在 `src/CkanUI.App/MainWindow.axaml.cs` |
 
-## 6. 已落地
+## 7. 已落地
 
 - `7f2149a` 存档头按字节封顶（`HeaderByteBudget=256KB`），不再把 ArrayPool 顶到 512MB
 - `905de7b` 缩略图缓存 64MB 字节预算 LRU（旗帜页滚动掉帧 9→3→0）
