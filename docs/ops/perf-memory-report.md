@@ -145,6 +145,25 @@ UI 线程（采样）自时间排名：`Avalonia.StyledElement.ApplyStyles` **11
 
 同理，之前 24 页表里所有 `assign=-1.0` 的行都要按这个口径重读——它们是 no-op + 3 秒探针超时，不是页面耗时。
 
+### 10.3 修好探针后的干净首进表（3000 模组实例，24 页 + 插件页，r1 首进 / r2 真重进）
+
+| 页面 | r1 assign | r1 layout | r1 paint | r1 maxGap | r2 layout |
+| --- | --- | --- | --- | --- | --- |
+| changes | 444.5ms | **966.7ms** | 511.5ms | 86.1ms | — |
+| modconfig | 220.7ms | **632.0ms** | 408.0ms | 553.1ms | 273.8ms |
+| saves | 81.8ms | **539.9ms** | 305.8ms | 274.5ms | 42ms |
+| settings | 24.7ms | **434.6ms** | 405.6ms | 323.1ms | 42.5ms |
+| logs | 38.5ms | 341.5ms | 304.8ms | 288.4ms | — |
+| modtext | 54.7ms | 332.7ms | 198.4ms | — | — |
+| rp1-career | 142.5ms | 317.9ms | 160.2ms | 22.1ms | 54.0ms |
+| mods | 180.2ms | 363.0ms | 145.1ms | 244.3ms | 264.3ms |
+| instances | 57.6ms | 235.5ms | 176.4ms | 36.7ms | — |
+| ships | 89.8ms | 203.5ms | 64.4ms | 11.3ms | — |
+
+重进（r2）最差是 modconfig 273.8ms、mods 264.3ms，其余都在 110ms 以内；settings 重进只要 42.5ms。
+
+⇒ 结论定稿：**首进成本是真实存在的（changes 0.97s、modconfig 0.63s、saves 0.54s、settings 0.43s），重进基本不掉帧**。用户体感的「进页面卡一下」属于首进，不是稳态缺陷；把这批页面预热（已有 PageWarmup 机制）或把首进的重活挪到后台，是把 0.4–1s 抹掉的唯一路径。
+
 ## 11. 已落地
 
 - `7f2149a` 存档头按字节封顶（`HeaderByteBudget=256KB`），不再把 ArrayPool 顶到 512MB
