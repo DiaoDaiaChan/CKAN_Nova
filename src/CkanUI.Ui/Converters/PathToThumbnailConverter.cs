@@ -34,11 +34,32 @@ public sealed class PathToThumbnailConverter : IValueConverter
     /// <summary>允许的目标宽度上限。</summary>
     private const int MaxWidth = 1024;
 
-    /// <summary>缓存上限：一屏 12 张 × 几页，够用且不会无限增长。</summary>
-    private const int MaxEntries = 64;
+    /// <summary>
+    /// 缓存预算：按解码后的像素字节算，不按条数。
+    /// </summary>
+    /// <remarks>
+    /// 按条数定额会误伤：旗帜页 200 张（160px，约 11MB）和截图页（640px，每张 0.9MB）差着量级，
+    /// 64 条的定额会让预热把前面解好的图挤出去——预热的 200 张里只有最后 64 张活到绑定，
+    /// 剩下 136 张绑定的时候在 UI 线程重解一遍，滚动回去还要再解。
+    /// </remarks>
+    private const long MaxCacheBytes = 64L * 1024 * 1024;
 
-    private static readonly Dictionary<string, Bitmap?> Cache = new(StringComparer.Ordinal);
-    private static readonly Queue<string> CacheOrder = new();
+    /// <summary>解码失败的负缓存占用（位图为 null 时没有像素可算，给个固定值防止无限增长）。</summary>
+    private const long FailedEntryBytes = 4 * 1024;
+
+    private static readonly Dictionary<string, Entry> Cache = new(StringComparer.Ordinal);
+    private static readonly LinkedList<string> CacheLru = new();
+    private static long _cachedBytes;
+
+    /// <summary>一条缓存：位图 + 像素字节数 + LRU 链节点（命中时挪到队首）。</summary>
+    private sealed class Entry(Bitmap? bitmap, long bytes, LinkedListNode<string> node)
+    {
+        public Bitmap? Bitmap { get; } = bitmap;
+
+        public long Bytes { get; } = bytes;
+
+        public LinkedListNode<string> Node { get; } = node;
+    }
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
@@ -68,7 +89,8 @@ public sealed class PathToThumbnailConverter : IValueConverter
         {
             if (Cache.TryGetValue(key, out var cached))
             {
-                return cached;
+                Touch(cached);
+                return cached.Bitmap;
             }
         }
 
@@ -87,7 +109,7 @@ public sealed class PathToThumbnailConverter : IValueConverter
         lock (Cache)
         {
             // 并发解码同一张图：留先到的那份，后来者丢弃。
-            return Cache.TryGetValue(key, out var stored) ? stored : bitmap;
+            return Cache.TryGetValue(key, out var stored) ? stored.Bitmap : bitmap;
         }
     }
 
@@ -174,9 +196,13 @@ public sealed class PathToThumbnailConverter : IValueConverter
             : DecodeWithAvalonia(path, width);
     }
 
-    /// <summary>写入缓存并按上限淘汰最老的键。</summary>
+    /// <summary>写入缓存，按字节预算从队尾淘汰。</summary>
     private static void Store(string key, Bitmap? bitmap)
     {
+        var bytes = bitmap is null
+            ? FailedEntryBytes
+            : (long)bitmap.PixelSize.Width * bitmap.PixelSize.Height * 4;
+
         lock (Cache)
         {
             if (Cache.ContainsKey(key))
@@ -184,15 +210,33 @@ public sealed class PathToThumbnailConverter : IValueConverter
                 return;
             }
 
-            if (CacheOrder.Count >= MaxEntries && CacheOrder.Count > 0)
+            while (_cachedBytes + bytes > MaxCacheBytes && CacheLru.Last is { } oldest)
             {
-                // 只把键移出索引，不 Dispose：已绑到控件上的位图可能还在渲染。
-                Cache.Remove(CacheOrder.Dequeue());
+                // 只把键移出索引，不 Dispose：已绑到控件上的位图可能还在渲染，交给 GC 收。
+                if (Cache.Remove(oldest.Value, out var evicted))
+                {
+                    _cachedBytes -= evicted.Bytes;
+                }
+
+                CacheLru.RemoveLast();
             }
 
-            Cache[key] = bitmap;
-            CacheOrder.Enqueue(key);
+            var node = CacheLru.AddFirst(key);
+            Cache[key] = new Entry(bitmap, bytes, node);
+            _cachedBytes += bytes;
         }
+    }
+
+    /// <summary>命中即刷新 LRU 位置：正在用的图不能被刚解出来的图挤掉。</summary>
+    private static void Touch(Entry entry)
+    {
+        if (entry.Node.List is null || CacheLru.First == entry.Node)
+        {
+            return;
+        }
+
+        CacheLru.Remove(entry.Node);
+        CacheLru.AddFirst(entry.Node);
     }
 
     private static Bitmap? DecodeWithAvalonia(string path, int width)
