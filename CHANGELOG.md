@@ -272,6 +272,12 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
   - 17 处全改成 `LocalizationKeys.KspConfigPage*` 常量（`Ui_KspConfigPage_*` 22 条），三处插值 fallback 去掉 `$`（`"保存 {0} 项"`、`"已加载 {0} 项配置（官方词条 {1} 条）"`、`"{0} / {1} 项"` 等），两份语言包同步补齐 22 条（现各 1984 键，键集与占位符一致）。
   - 守卫升级：`PageTextLocalizationTests` 的扫描范围从 `src/CkanUI.ViewModels/Pages` 扩到 `src` 下全部 `.cs`（主程序与首方插件同一套规矩），并新增 `NoSourceUsesALiteralLocalizationKey`——第二参是字符串字面量的 `Text(...)` 直接判红。原守卫只查「包里有常量之外的死键」，缺的正是「代码用了包里没有的键」这一向。基线 800 站点/17 文件抬到 900/20。
   - 回归：`CkanUI.Plugin.KspConfig.Tests` 24/24、`CkanUI.Localization.Tests` 76/76（键集相同、常量全覆盖、占位符一致）、`CkanUI.Architecture.Tests` 28/28（含新守卫）；快照复核状态条已显示中文「已加载 306 项配置（官方词条 12028 条）」。
+
+- KSP 配置页 263 个设置项只能显示原始键名、行又直接压在星空背景上（截图里 `MISSION SHOW CREATE VESSEL WARNING` 就这么铺着）：精选表外的键走 `FormatFriendlyKeyName`，实现只是 `key.Replace('_', ' ')`；游戏自己的 `dictionary.cfg` 只收 `#autoLOC_*`，「显示创建飞行器警告」这类设置文案在里头反查不到。
+  - 设置名改走数据驱动键：`Ui_KspConfigPage_Setting_<KSP 键>`，由 `KspConfigPageViewModel.SettingNameKey(...)` 生成，`LocalizedSettingName` 查语言包、查不到就回退友好名；有 `LocKey` 的精选项继续用官方译文。两份语言包各补 263 条（1984 → 2247 键），中文手工命名，英文按键名首词大写。
+  - 键集来自 settings.cfg 数据而不是源码，因此不建 263 个常量；`LocalizationKeyDriftTests` 新增 `Data_driven_settings_names_are_translated_in_every_pack`（每包 ≥250 条、值非空且不等于键），死键判定加前缀白名单。
+  - 分节换成 `CkanCard` 卡面 + 强调色组头（3×15 竖条 + 图标 + 标题 + 计数，组头底色 `CkanAccentSubtleBrush`），行内边距 `12,6`——与设置页同一套配色，行不再与背景糊在一起。
+  - 回归：`CkanUI.Plugin.KspConfig.Tests` 30/30（新增设置名本地化与缺键回退、搜索命中中文名）、`CkanUI.Localization.Tests` 77/77；干净签出全量 21 套件 4370 条，仅 1 条既有 hover 红。快照复核：组头输出「图像画质 17」，未收录键显示「额外动作组数量」「最大载具预算上限」。
 - KSP 配置页右半截排版错位（截图：值列输入框漂移、「重置」按钮与操作列对不上），且与设置页不是一套设计语言（截图：仓库与网络 / 认证令牌 / 外观）：
   - 根因：手写表头 `Grid ColumnDefinitions="*,150,210,56"` 与 `xmlns:tbl` 的 `ListTableTools.Enabled/Columns` 自绘表头同时存在（`src/CkanUI.Ui/Tables` 当时还是未跟踪文件），两套列宽各算一遍，编辑器与操作列整体错位。重写时把 `xmlns:tbl` 与两条 attached property 一并去掉，表体不再依赖任何自绘表头。
   - 版式换成设置页那一套：`FilteredItems` 之外由 VM 出 `Sections`（新增 `KspConfigSectionViewModel`，按页签顺序分组、空组不出、选中单分类时只有一节），视图是「无卡片分节平铺」——节头 = 14 px 图标 + 15 px 粗标题 + 11 px 计数，行是 `Border.KspRow` + 底部 hairline，不再用卡片撑高度。
