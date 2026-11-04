@@ -259,6 +259,11 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 修复
 
+- KSP 配置页的布尔开关被切掉下半截（截图：值列只剩胶囊上半、旋钮看不见）：上一版为了压密度给每个编辑器写了 `Height="24"`，而开关模板按 22px 轨道加内边距绘制，塞进 24px 的框里就画到框外被裁；`ComboBox` / `TextBox` 同样写死了高度，只是外框看不出来。
+  - 编辑器不再自己定高：`ToggleSwitch` 去掉 `Height` / `MinHeight`（对齐 `src/CkanUI.App/Views/SettingsPageView.axaml` 的写法，只留 `OnContent="" OffContent=""` 与对齐方式），`ComboBox` / `TextBox` 改 `MinHeight="28"`；`Slider` 不写死高度，改用模板资源压扁（`SliderPreContentMargin` / `SliderPostContentMargin` 归零、`SliderHorizontalHeight` 18、拇指 18 / 内拇指 12），把原本 50px 的滑块收进 24px。
+  - 实测行高：开关 45px、下拉与输入框 41px、滑块 37px，一屏 9-10 行（上一版三行卡片是 58-60px）。
+  - 回归守卫 `KspConfigPageViewLayoutTests.EditorControlsRenderInsideTheirOwnBoxWithoutClipping`：布尔 / 整数 / 预设 / 浮点 / 文本五类编辑器各一行，断言编辑器的 `Height` 未被写死且实测高度 ≥ 24px；把 `ToggleSwitch` 的 `Height="24"` 加回去这条会红（蓝军验证过）。行高上限同步从 40px 调到 46px——开关模板自带 33px 高，不再靠压扁它来凑数。
+  - 回归：`CkanUI.Plugin.KspConfig.Tests` 29/29（新增 1 条）；`ckan-ui.sln` 0 警告 0 错误；干净签出全量 21 套件 4368 条、4352 通过、14 跳过，两条红都不是本次改动：`HoverInteractionTests.ListBoxItem_HoverShiftsRightAndShowsHandCursor` 是既有问题，`CursorAbovePopupTests.CustomCursor_IsStillDrawnOnTopOfAnOpenDropDown` 在全量并行下偶发（单跑 3/3 通过）。
 - KSP 游戏原生配置页「空着、信息密度低」（截图红框是分类页签那一条）：页签模板绑的是 `{Binding Header}`，而 `KspConfigCategoryTabViewModel` 只有 `Title`/`Category`/`Icon`/`Count`，六个分类全渲染成一个空圆角块，下面到表头之间留着一大片空白。
   - 页签改成图标 + 标题 + 计数（`GlyphIcon` + `Count`，计数本来就算好却没地方显示），分类栏收进工具条一行，不再单独占一条横带。
   - 行列表从 58-60px 的三行卡片压到 45px 的两行（`BorderThickness="0,0,0,1"`、`Padding="12,3"`；左列「名称 + 描述」两行、第二列「键名 + 官方词条」两行，编辑控件统一 `Height="24"`），列宽从 `*,180,240,64` 收到 `*,150,210,56`；441px 的列表高度里可见行数从 6 行变成 9 行。无头渲染实测：工具条 `Border.CkanToolbar` 从 160px 高降到 85px（`y=78 h=85`，内含按钮行 34px + 页签行 27px），状态条 26px，表体 471px，行分隔线间距 45px。
