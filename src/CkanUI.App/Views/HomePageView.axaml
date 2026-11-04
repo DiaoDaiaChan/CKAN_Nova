@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="using:CkanUI.App.Converters"
              xmlns:thumb="using:CkanUI.Ui.Converters"
+             xmlns:home="using:CkanUI.ViewModels.Pages.Home"
              x:Class="CkanUI.App.Views.HomePageView"
              x:CompileBindings="False">
 
@@ -12,11 +13,11 @@
     <StreamGeometry x:Key="HomeIconLaunch">M8 5v14l11-7z</StreamGeometry>
     <StreamGeometry x:Key="HomeIconArrow">M8 4l9 8-9 8z</StreamGeometry>
     <StreamGeometry x:Key="HomeIconFolder">M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z</StreamGeometry>
+    <StreamGeometry x:Key="HomeIconGrip">M8 6h2v2H8zm0 5h2v2H8zm0 5h2v2H8zm6-12h2v2h-2zm0 5h2v2h-2zm0 5h2v2h-2z</StreamGeometry>
+    <StreamGeometry x:Key="HomeIconRemove">M6 6l12 12M18 6L6 18</StreamGeometry>
   </UserControl.Resources>
 
   <UserControl.Styles>
-    <!-- 快捷操作卡：一张基类 + 三种形态（大卡 / 普通卡 / 胶囊），层级靠尺寸与留白拉开，不靠更多颜色。
-         hover 只换边框色，不换底色（3 篇 §9 不只靠颜色表达状态）。 -->
     <Style Selector="Button.HomeCard">
       <Setter Property="Background" Value="{DynamicResource CkanLayerCardBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource CkanHairlineBrush}" />
@@ -46,7 +47,6 @@
       <Setter Property="Padding" Value="14,12" />
       <Setter Property="Margin" Value="0,0,12,0" />
     </Style>
-    <!-- 胶囊：工具页不该和功能页一样重，压成一行小按钮 -->
     <Style Selector="Button.HomeCard.Chip">
       <Setter Property="Padding" Value="12,6" />
       <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
@@ -54,7 +54,6 @@
       <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
 
-    <!-- 截图卡：只有图，文件名/时间/体积放进悬停提示，不在页面上铺三行字 -->
     <Style Selector="Border.ScreenshotCard">
       <Setter Property="Width" Value="240" />
       <Setter Property="Margin" Value="0,0,12,0" />
@@ -68,81 +67,457 @@
       <Setter Property="Height" Value="150" />
       <Setter Property="Stretch" Value="UniformToFill" />
     </Style>
+
+    <!-- 部件外框：拖动时只提亮边框，不缩放内容（缩放会让文字在拖动中重排、看起来在抖）。 -->
+    <Style Selector="Border.HomeWidget">
+      <Setter Property="Background" Value="{DynamicResource CkanCardBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanCardBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
+      <Setter Property="Padding" Value="18,14" />
+      <Setter Property="Margin" Value="0,0,0,10" />
+    </Style>
+    <Style Selector="Border.HomeWidget.Dragging">
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="Opacity" Value="0.72" />
+    </Style>
+    <Style Selector="Border.HomeWidgetGrip">
+      <Setter Property="Cursor" Value="SizeAll" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="0,2,10,2" />
+    </Style>
+    <Style Selector="Border.HomeWidgetGrip:pointerover">
+      <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    </Style>
+    <Style Selector="Button.HomeWidgetAction">
+      <Setter Property="Padding" Value="6,2" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+    </Style>
+    <Style Selector="Border.HomeMetric">
+      <Setter Property="Background" Value="{DynamicResource CkanLayerCardBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="Margin" Value="0,0,8,8" />
+      <Setter Property="MinWidth" Value="96" />
+    </Style>
   </UserControl.Styles>
 
-  <!-- 单页纵向滚动：快捷操作与最近截图同屏可见，截图不需要再点任何页签 -->
+  <UserControl.DataTemplates>
+    <!-- 实例概览 -->
+    <DataTemplate DataType="home:InstanceHomeWidgetViewModel">
+      <Border Classes="HomeWidget" Classes.Dragging="{Binding IsDragging}">
+        <StackPanel Spacing="10">
+          <Border Classes="HomeWidgetGrip" ToolTip.Tip="{DynamicResource Ui_Home_WidgetDragTip}"
+                  PointerPressed="OnWidgetDragPressed" PointerMoved="OnWidgetDragMoved"
+                  PointerReleased="OnWidgetDragReleased" PointerCaptureLost="OnWidgetDragCaptureLost">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <PathIcon Grid.Column="0" Data="{StaticResource HomeIconGrip}" Width="14" Height="14"
+                        Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="4,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Title}" Classes="CkanSectionTitle" VerticalAlignment="Center" />
+                <Border Classes="CkanBadge" IsVisible="{Binding IsPlugin}" VerticalAlignment="Center">
+                  <TextBlock Text="{DynamicResource Ui_Plugin_Badge}" />
+                </Border>
+              </StackPanel>
+            </Grid>
+          </Border>
+          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+            <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6" IsVisible="{Binding Page.HasInstance}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="{DynamicResource Ui_NavRail_Instances}" Classes="CkanEyebrow" VerticalAlignment="Center" />
+                <Border Classes="CkanBadge" IsVisible="{Binding Page.ShowDefaultBadge}" VerticalAlignment="Center">
+                  <TextBlock Text="{DynamicResource Ui_Home_DefaultBadge}" />
+                </Border>
+              </StackPanel>
+              <TextBlock Text="{Binding Page.InstanceName}" Classes="CkanTitle" TextWrapping="Wrap" />
+              <StackPanel Orientation="Horizontal" Spacing="14">
+                <TextBlock Text="{Binding Page.InstanceVersionText}" Classes="CkanCaption" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Page.ModuleCountText}" Classes="CkanCaption" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Page.GameDirText}" Classes="CkanCaption" VerticalAlignment="Center"
+                           MaxWidth="460" TextTrimming="CharacterEllipsis"
+                           ToolTip.Tip="{Binding Page.GameDirText}" />
+              </StackPanel>
+              <TextBlock Text="{DynamicResource Ui_Home_LockedHint}" Classes="CkanCaption"
+                         Foreground="{DynamicResource CkanWarningBrush}"
+                         TextWrapping="Wrap" IsVisible="{Binding Page.ShowLockedHint}" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6" IsVisible="{Binding Page.ShowNoInstance}">
+              <TextBlock Text="{DynamicResource Ui_Home_NoInstanceTitle}" Classes="CkanTitle" TextWrapping="Wrap" />
+              <TextBlock Text="{DynamicResource Ui_Home_NoInstanceSubtitle}" Classes="CkanCaption" TextWrapping="Wrap" MaxWidth="620" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                        VerticalAlignment="Center" Margin="16,0,0,0">
+              <Button Classes="CkanPrimary" Command="{Binding Page.LaunchGameCommand}" IsVisible="{Binding Page.HasInstance}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <PathIcon Data="{StaticResource HomeIconLaunch}" Width="14" Height="14" />
+                  <TextBlock Text="{DynamicResource Ui_Home_LaunchGame}" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <Button Classes="CkanSecondary" Command="{Binding Page.OpenGameFolderCommand}" IsVisible="{Binding Page.HasInstance}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <PathIcon Data="{StaticResource HomeIconFolder}" Width="14" Height="14" />
+                  <TextBlock Text="{DynamicResource Ui_Home_OpenGameFolder}" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <Button Classes="CkanSecondary" Command="{Binding Page.NavigateCommand}" CommandParameter="kspconfig" IsVisible="{Binding Page.HasInstance}"
+                      ToolTip.Tip="{DynamicResource Ui_NavRail_KspConfig}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <PathIcon Data="{StaticResource CkanIconSettings}" Width="14" Height="14" />
+                  <TextBlock Text="{DynamicResource Ui_NavRail_KspConfig}" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <Button Classes="CkanSecondary" Command="{Binding Page.NavigateCommand}" CommandParameter="instances">
+                <TextBlock Text="{DynamicResource Ui_Home_SwitchInstance}" VerticalAlignment="Center" />
+              </Button>
+            </StackPanel>
+
+            <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Classes="CkanSecondary"
+                    Margin="0,12,0,0" HorizontalAlignment="Left"
+                    IsVisible="{Binding Page.ShowNoInstance}"
+                    Command="{Binding Page.NavigateCommand}" CommandParameter="instances">
+              <TextBlock Text="{DynamicResource Ui_Home_GoToInstances}" VerticalAlignment="Center" />
+            </Button>
+          </Grid>
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+
+    <!-- 快捷操作 -->
+    <DataTemplate DataType="home:QuickActionsHomeWidgetViewModel">
+      <Border Classes="HomeWidget" Classes.Dragging="{Binding IsDragging}">
+        <StackPanel Spacing="10">
+          <Border Classes="HomeWidgetGrip" ToolTip.Tip="{DynamicResource Ui_Home_WidgetDragTip}"
+                  PointerPressed="OnWidgetDragPressed" PointerMoved="OnWidgetDragMoved"
+                  PointerReleased="OnWidgetDragReleased" PointerCaptureLost="OnWidgetDragCaptureLost">
+            <Grid ColumnDefinitions="Auto,*">
+              <PathIcon Grid.Column="0" Data="{StaticResource HomeIconGrip}" Width="14" Height="14"
+                        Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Text="{Binding Title}" Classes="CkanSectionTitle" Margin="4,0,0,0" VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+
+          <ItemsControl ItemsSource="{Binding Page.PrimaryActions}" Margin="0,0,-12,0">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <UniformGrid Columns="2" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Button Classes="HomeCard Hero" Command="{Binding Command}" ToolTip.Tip="{Binding Description}">
+                  <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Border Grid.Column="0" Classes="CkanIconTile">
+                      <PathIcon Data="{Binding Glyph, Converter={StaticResource NavGlyph}}" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Spacing="2" Margin="14,0,12,0" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Title}" FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding Description}" Classes="CkanCaption" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <PathIcon Grid.Column="2" Data="{StaticResource HomeIconArrow}" Width="12" Height="12"
+                              Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
+                  </Grid>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <ItemsControl ItemsSource="{Binding Page.PageActions}" Margin="0,0,-12,0">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <UniformGrid Columns="3" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Button Classes="HomeCard Tile" Command="{Binding Command}" ToolTip.Tip="{Binding Description}">
+                  <Grid ColumnDefinitions="Auto,*">
+                    <Border Grid.Column="0" Classes="CkanIconTile Muted" Width="32" Height="32">
+                      <PathIcon Data="{Binding Glyph, Converter={StaticResource NavGlyph}}" Width="16" Height="16" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Spacing="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Description}" Classes="CkanCaption" MaxLines="1" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                  </Grid>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <ItemsControl ItemsSource="{Binding Page.ToolActions}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Button Classes="HomeCard Chip" Command="{Binding Command}" Margin="0,0,8,0" ToolTip.Tip="{Binding Description}">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <PathIcon Data="{Binding Glyph, Converter={StaticResource NavGlyph}}" Width="14" Height="14"
+                              Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Title}" FontSize="{DynamicResource CkanFontSizeCaption}" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+
+    <!-- 最近截图 -->
+    <DataTemplate DataType="home:ScreenshotsHomeWidgetViewModel">
+      <Border Classes="HomeWidget" Classes.Dragging="{Binding IsDragging}">
+        <StackPanel Spacing="10">
+          <Border Classes="HomeWidgetGrip" ToolTip.Tip="{DynamicResource Ui_Home_WidgetDragTip}"
+                  PointerPressed="OnWidgetDragPressed" PointerMoved="OnWidgetDragMoved"
+                  PointerReleased="OnWidgetDragReleased" PointerCaptureLost="OnWidgetDragCaptureLost">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <PathIcon Grid.Column="0" Data="{StaticResource HomeIconGrip}" Width="14" Height="14"
+                        Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" Margin="4,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Title}" Classes="CkanSectionTitle" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Page.ScreenshotCountText}" Classes="CkanCaption" VerticalAlignment="Center"
+                           IsVisible="{Binding Page.ShowScreenshotRail}" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <Button Classes="CkanSecondary" Command="{Binding Page.OpenScreenshotsFolderCommand}"
+                        IsVisible="{Binding Page.HasInstance}" ToolTip.Tip="{Binding Page.ScreenshotFolderText}">
+                  <TextBlock Text="{DynamicResource Ui_Home_OpenScreenshotsFolder}" VerticalAlignment="Center" />
+                </Button>
+                <Button Classes="CkanSecondary" Command="{Binding Page.RefreshScreenshotsCommand}">
+                  <TextBlock Text="{DynamicResource Ui_Home_ScreenshotRefresh}" VerticalAlignment="Center" />
+                </Button>
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <ScrollViewer x:Name="ScreenshotRail" Height="158"
+                        HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
+                        IsVisible="{Binding Page.ShowScreenshotRail}">
+            <ItemsControl ItemsSource="{Binding Page.Screenshots}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Classes="ScreenshotCard">
+                    <ToolTip.Tip>
+                      <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding FileName}" />
+                        <TextBlock Text="{Binding CapturedText}" />
+                        <TextBlock Text="{Binding SizeText}" />
+                      </StackPanel>
+                    </ToolTip.Tip>
+                    <Image Source="{Binding FilePath, Converter={StaticResource ScreenshotThumb}}" />
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+
+          <Border Classes="CkanEmptyStateCard Flat" IsVisible="{Binding Page.ShowEmptyScreenshots}"
+                  Padding="20,16" HorizontalAlignment="Left">
+            <TextBlock Text="{DynamicResource Ui_Home_EmptyScreenshotsTitle}" Classes="CkanTitle" />
+          </Border>
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+
+    <!-- 插件提供的部件 -->
+    <DataTemplate DataType="home:PluginHomeWidgetViewModel">
+      <Border Classes="HomeWidget" Classes.Dragging="{Binding IsDragging}">
+        <StackPanel Spacing="10">
+          <Border Classes="HomeWidgetGrip" ToolTip.Tip="{DynamicResource Ui_Home_WidgetDragTip}"
+                  PointerPressed="OnWidgetDragPressed" PointerMoved="OnWidgetDragMoved"
+                  PointerReleased="OnWidgetDragReleased" PointerCaptureLost="OnWidgetDragCaptureLost">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <PathIcon Grid.Column="0" Data="{StaticResource HomeIconGrip}" Width="14" Height="14"
+                        Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="4,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Title}" Classes="CkanSectionTitle" VerticalAlignment="Center" />
+                <Border Classes="CkanBadge" IsVisible="{Binding IsPlugin}" VerticalAlignment="Center">
+                  <TextBlock Text="{DynamicResource Ui_Plugin_Badge}" />
+                </Border>
+                <TextBlock Text="{Binding PluginName}" Classes="CkanCaption" VerticalAlignment="Center" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                <Button Classes="CkanGhost HomeWidgetAction" Content="{DynamicResource Ui_Home_WidgetRefresh}"
+                        Command="{Binding Page.RefreshWidgetsCommand}" ToolTip.Tip="{DynamicResource Ui_Home_WidgetLoadFailed}" />
+                <Button Classes="CkanSecondary" Content="{DynamicResource Ui_Home_Open}"
+                        Command="{Binding Page.NavigateCommand}" CommandParameter="{Binding PageKey}"
+                        IsVisible="{Binding CanOpen}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <TextBlock Text="{Binding Subtitle}" Classes="CkanCaption" TextWrapping="Wrap" IsVisible="{Binding HasSubtitle}" />
+          <TextBlock Text="{Binding StatusText}" Classes="CkanCaption" IsVisible="{Binding IsLoading}" />
+
+          <ItemsControl ItemsSource="{Binding Metrics}" IsVisible="{Binding HasMetrics}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Classes="HomeMetric">
+                  <StackPanel Spacing="1">
+                    <TextBlock Text="{Binding Label}" Classes="CkanCaption" />
+                    <TextBlock Text="{Binding Value}" FontWeight="SemiBold" FontSize="{DynamicResource CkanFontSizeSubtitle}" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <ItemsControl ItemsSource="{Binding Lines}" IsVisible="{Binding HasLines}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                  <StackPanel Grid.Column="0" Spacing="1">
+                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Detail}" Classes="CkanCaption" TextWrapping="Wrap"
+                               IsVisible="{Binding Detail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                  </StackPanel>
+                  <Border Grid.Column="1" Classes="CkanBadge" IsVisible="{Binding Badge, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                          VerticalAlignment="Center" Margin="8,0,0,0">
+                    <TextBlock Text="{Binding Badge}" />
+                  </Border>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <TextBlock Text="{DynamicResource Ui_Home_WidgetNoData}" Classes="CkanCaption"
+                     IsVisible="{Binding ShowPlaceholder}" />
+          <TextBlock Text="{Binding ErrorText}" Classes="CkanCaption" TextWrapping="Wrap"
+                     Foreground="{DynamicResource CkanDangerBrush}" IsVisible="{Binding HasError}" />
+          <TextBlock Text="{Binding FooterText}" Classes="CkanCaption" TextWrapping="Wrap" IsVisible="{Binding HasFooter}" />
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+
+    <!-- 宿主自带的数据部件（模组更新 / 安装历史 / 缓存 / 存档 / 后台任务） -->
+    <DataTemplate DataType="home:FeedHomeWidgetViewModel">
+      <Border Classes="HomeWidget" Classes.Dragging="{Binding IsDragging}">
+        <StackPanel Spacing="10">
+          <Border Classes="HomeWidgetGrip" ToolTip.Tip="{DynamicResource Ui_Home_WidgetDragTip}"
+                  PointerPressed="OnWidgetDragPressed" PointerMoved="OnWidgetDragMoved"
+                  PointerReleased="OnWidgetDragReleased" PointerCaptureLost="OnWidgetDragCaptureLost">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <PathIcon Grid.Column="0" Data="{StaticResource HomeIconGrip}" Width="14" Height="14"
+                        Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Text="{Binding Title}" Classes="CkanSectionTitle"
+                         Margin="4,0,0,0" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                <Button Classes="CkanGhost HomeWidgetAction" Content="{DynamicResource Ui_Home_WidgetRefresh}"
+                        Command="{Binding Page.RefreshWidgetsCommand}" ToolTip.Tip="{DynamicResource Ui_Home_WidgetLoadFailed}" />
+                <Button Classes="CkanSecondary" Content="{DynamicResource Ui_Home_Open}"
+                        Command="{Binding Page.NavigateCommand}" CommandParameter="{Binding PageKey}"
+                        IsVisible="{Binding CanOpen}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <TextBlock Text="{Binding Subtitle}" Classes="CkanCaption" TextWrapping="Wrap" IsVisible="{Binding HasSubtitle}" />
+          <TextBlock Text="{Binding StatusText}" Classes="CkanCaption" IsVisible="{Binding IsLoading}" />
+
+          <ItemsControl ItemsSource="{Binding Metrics}" IsVisible="{Binding HasMetrics}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Classes="HomeMetric">
+                  <StackPanel Spacing="1">
+                    <TextBlock Text="{Binding Label}" Classes="CkanCaption" />
+                    <TextBlock Text="{Binding Value}" FontWeight="SemiBold" FontSize="{DynamicResource CkanFontSizeSubtitle}" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <ItemsControl ItemsSource="{Binding Lines}" IsVisible="{Binding HasLines}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                  <StackPanel Grid.Column="0" Spacing="1">
+                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Detail}" Classes="CkanCaption" TextWrapping="Wrap"
+                               IsVisible="{Binding Detail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                  </StackPanel>
+                  <Border Grid.Column="1" Classes="CkanBadge" IsVisible="{Binding Badge, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                          VerticalAlignment="Center" Margin="8,0,0,0">
+                    <TextBlock Text="{Binding Badge}" />
+                  </Border>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <TextBlock Text="{DynamicResource Ui_Home_WidgetNoData}" Classes="CkanCaption"
+                     IsVisible="{Binding ShowPlaceholder}" />
+          <TextBlock Text="{Binding ErrorText}" Classes="CkanCaption" TextWrapping="Wrap"
+                     Foreground="{DynamicResource CkanDangerBrush}" IsVisible="{Binding HasError}" />
+          <TextBlock Text="{Binding FooterText}" Classes="CkanCaption" TextWrapping="Wrap" IsVisible="{Binding HasFooter}" />
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+  </UserControl.DataTemplates>
+
+  <!-- 单页纵向滚动：部件板按用户顺序排列，截图带仍在同一屏内自动滚动 -->
   <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent">
     <StackPanel Margin="{DynamicResource CkanPagePadding}">
 
-      <!-- 页头：标题 + 一句说明（与其它页面同一套页头骨架） -->
       <StackPanel Spacing="4" Margin="0,0,0,12">
         <TextBlock Text="{DynamicResource Ui_NavRail_Home}" Classes="CkanPageTitle" />
         <TextBlock Text="{DynamicResource Ui_Home_Subtitle}" Classes="CkanCaption" TextWrapping="Wrap" />
       </StackPanel>
 
-      <!-- 实例概览：一眼看到「在哪个实例上」，右侧动作是这一页最常用的入口 -->
-      <Border Classes="CkanCard" Padding="18,16" Margin="0,0,0,10">
-        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-
-          <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6" IsVisible="{Binding HasInstance}">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <TextBlock Text="{DynamicResource Ui_NavRail_Instances}" Classes="CkanEyebrow" VerticalAlignment="Center" />
-              <Border Classes="CkanBadge" IsVisible="{Binding ShowDefaultBadge}" VerticalAlignment="Center">
-                <TextBlock Text="{DynamicResource Ui_Home_DefaultBadge}" />
-              </Border>
-            </StackPanel>
-            <TextBlock Text="{Binding InstanceName}" Classes="CkanTitle" TextWrapping="Wrap" />
-            <StackPanel Orientation="Horizontal" Spacing="14">
-              <TextBlock Text="{Binding InstanceVersionText}" Classes="CkanCaption" VerticalAlignment="Center" />
-              <TextBlock Text="{Binding ModuleCountText}" Classes="CkanCaption" VerticalAlignment="Center" />
-              <TextBlock Text="{Binding GameDirText}" Classes="CkanCaption" VerticalAlignment="Center"
-                         MaxWidth="460" TextTrimming="CharacterEllipsis"
-                         ToolTip.Tip="{Binding GameDirText}" />
-            </StackPanel>
-            <TextBlock Text="{DynamicResource Ui_Home_LockedHint}" Classes="CkanCaption"
-                       Foreground="{DynamicResource CkanWarningBrush}"
-                       TextWrapping="Wrap" IsVisible="{Binding ShowLockedHint}" />
+      <!-- 自定义工具条：加/减部件与恢复默认；顺序交给拖动与上下移动 -->
+      <Border Classes="CkanCard" Padding="14,10" Margin="0,0,0,12">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+            <TextBlock Text="{DynamicResource Ui_Home_WidgetCustomize}" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding WidgetCountText}" Classes="CkanCaption" />
           </StackPanel>
-
-          <!-- 没有实例时的空态：说明 + 直达实例管理 -->
-          <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6" IsVisible="{Binding ShowNoInstance}">
-            <TextBlock Text="{DynamicResource Ui_Home_NoInstanceTitle}" Classes="CkanTitle" TextWrapping="Wrap" />
-            <TextBlock Text="{DynamicResource Ui_Home_NoInstanceSubtitle}" Classes="CkanCaption" TextWrapping="Wrap" MaxWidth="620" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <ComboBox Width="260" ItemsSource="{Binding AvailableWidgets}"
+                      SelectedItem="{Binding SelectedAvailableWidget, Mode=TwoWay}"
+                      IsVisible="{Binding HasAvailableWidgets}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding Title}" />
+                    <Border Classes="CkanBadge" IsVisible="{Binding IsPlugin}" VerticalAlignment="Center">
+                      <TextBlock Text="{DynamicResource Ui_Plugin_Badge}" />
+                    </Border>
+                  </StackPanel>
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <Button Classes="CkanPrimary" Command="{Binding AddSelectedWidgetCommand}"
+                    Content="{DynamicResource Ui_Home_WidgetAdd}"
+                    ToolTip.Tip="{DynamicResource Ui_Home_WidgetAddTip}" />
+            <Button Classes="CkanSecondary" Command="{Binding ResetWidgetsCommand}"
+                    Content="{DynamicResource Ui_Home_WidgetReset}"
+                    ToolTip.Tip="{DynamicResource Ui_Home_WidgetResetTip}" />
           </StackPanel>
-
-          <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8"
-                      VerticalAlignment="Center" Margin="16,0,0,0">
-            <Button Classes="CkanPrimary" Command="{Binding LaunchGameCommand}" IsVisible="{Binding HasInstance}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Data="{StaticResource HomeIconLaunch}" Width="14" Height="14" />
-                <TextBlock Text="{DynamicResource Ui_Home_LaunchGame}" VerticalAlignment="Center" />
-              </StackPanel>
-            </Button>
-            <Button Classes="CkanSecondary" Command="{Binding OpenGameFolderCommand}" IsVisible="{Binding HasInstance}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Data="{StaticResource HomeIconFolder}" Width="14" Height="14" />
-                <TextBlock Text="{DynamicResource Ui_Home_OpenGameFolder}" VerticalAlignment="Center" />
-              </StackPanel>
-            </Button>
-            <Button Classes="CkanSecondary" Command="{Binding NavigateCommand}" CommandParameter="kspconfig" IsVisible="{Binding HasInstance}"
-                    ToolTip.Tip="{DynamicResource Ui_NavRail_KspConfig}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Data="{StaticResource CkanIconSettings}" Width="14" Height="14" />
-                <TextBlock Text="{DynamicResource Ui_NavRail_KspConfig}" VerticalAlignment="Center" />
-              </StackPanel>
-            </Button>
-            <Button Classes="CkanSecondary" Command="{Binding NavigateCommand}" CommandParameter="instances">
-              <TextBlock Text="{DynamicResource Ui_Home_SwitchInstance}" VerticalAlignment="Center" />
-            </Button>
-          </StackPanel>
-
-          <!-- 空态下的唯一动作：去实例管理 -->
-          <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Classes="CkanSecondary"
-                  Margin="0,12,0,0" HorizontalAlignment="Left"
-                  IsVisible="{Binding ShowNoInstance}"
-                  Command="{Binding NavigateCommand}" CommandParameter="instances">
-            <TextBlock Text="{DynamicResource Ui_Home_GoToInstances}" VerticalAlignment="Center" />
-          </Button>
         </Grid>
       </Border>
 
@@ -158,7 +533,6 @@
         </Grid>
       </Border>
 
-      <!-- 状态条：启动成功等一次性反馈 -->
       <Border Margin="0,0,0,8" Classes="CkanInfoBanner"
               Background="{DynamicResource CkanSuccessBackgroundBrush}"
               BorderBrush="{DynamicResource CkanSuccessBrush}" BorderThickness="1"
@@ -166,124 +540,14 @@
         <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
       </Border>
 
-      <!-- 快捷操作：主次三层——两张大卡（核心工作流）→ 三张普通卡（常用页面）→ 两个胶囊（工具页） -->
-      <TextBlock Text="{DynamicResource Ui_Home_Tab_QuickActions}" Classes="CkanSectionTitle" Margin="0,10,0,10" />
+      <ItemsControl x:Name="HomeWidgetsHost" ItemsSource="{Binding Widgets}" />
 
-      <ItemsControl ItemsSource="{Binding PrimaryActions}" Margin="0,0,-12,0">
-        <ItemsControl.ItemsPanel>
-          <ItemsPanelTemplate>
-            <UniformGrid Columns="2" />
-          </ItemsPanelTemplate>
-        </ItemsControl.ItemsPanel>
-        <ItemsControl.ItemTemplate>
-          <DataTemplate>
-            <Button Classes="HomeCard Hero" Command="{Binding Command}" ToolTip.Tip="{Binding Description}">
-              <Grid ColumnDefinitions="Auto,*,Auto">
-                <Border Grid.Column="0" Classes="CkanIconTile">
-                  <PathIcon Data="{Binding Glyph, Converter={StaticResource NavGlyph}}" />
-                </Border>
-                <StackPanel Grid.Column="1" Spacing="2" Margin="14,0,12,0" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding Title}" FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold" />
-                  <TextBlock Text="{Binding Description}" Classes="CkanCaption" TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-                <PathIcon Grid.Column="2" Data="{StaticResource HomeIconArrow}" Width="12" Height="12"
-                          Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
-              </Grid>
-            </Button>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-
-      <ItemsControl ItemsSource="{Binding PageActions}" Margin="0,10,-12,0">
-        <ItemsControl.ItemsPanel>
-          <ItemsPanelTemplate>
-            <UniformGrid Columns="3" />
-          </ItemsPanelTemplate>
-        </ItemsControl.ItemsPanel>
-        <ItemsControl.ItemTemplate>
-          <DataTemplate>
-            <Button Classes="HomeCard Tile" Command="{Binding Command}" ToolTip.Tip="{Binding Description}">
-              <Grid ColumnDefinitions="Auto,*">
-                <Border Grid.Column="0" Classes="CkanIconTile Muted" Width="32" Height="32">
-                  <PathIcon Data="{Binding Glyph, Converter={StaticResource NavGlyph}}" Width="16" Height="16" />
-                </Border>
-                <StackPanel Grid.Column="1" Spacing="1" Margin="12,0,0,0" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                  <TextBlock Text="{Binding Description}" Classes="CkanCaption" MaxLines="1" TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-              </Grid>
-            </Button>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-
-      <ItemsControl ItemsSource="{Binding ToolActions}" Margin="0,10,0,0">
-        <ItemsControl.ItemsPanel>
-          <ItemsPanelTemplate>
-            <StackPanel Orientation="Horizontal" />
-          </ItemsPanelTemplate>
-        </ItemsControl.ItemsPanel>
-        <ItemsControl.ItemTemplate>
-          <DataTemplate>
-            <Button Classes="HomeCard Chip" Command="{Binding Command}" Margin="0,0,8,0" ToolTip.Tip="{Binding Description}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Data="{Binding Glyph, Converter={StaticResource NavGlyph}}" Width="14" Height="14"
-                          Foreground="{DynamicResource CkanTextSecondaryBrush}" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding Title}" FontSize="{DynamicResource CkanFontSizeCaption}" VerticalAlignment="Center" />
-              </StackPanel>
-            </Button>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-
-      <!-- 最近截图：一条自动横向滚动的胶片带，鼠标悬停暂停，不需要切页签 -->
-      <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,10">
-        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-          <TextBlock Text="{DynamicResource Ui_Home_Tab_Screenshots}" Classes="CkanSectionTitle" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding ScreenshotCountText}" Classes="CkanCaption" VerticalAlignment="Center"
-                     IsVisible="{Binding ShowScreenshotRail}" />
+      <Border x:Name="HomeWidgetEmptyState" Classes="CkanEmptyStateCard Flat" IsVisible="{Binding ShowNoWidgets}"
+              Padding="20,18" HorizontalAlignment="Left">
+        <StackPanel Spacing="4">
+          <TextBlock Text="{DynamicResource Ui_Home_WidgetEmpty}" Classes="CkanTitle" />
+          <TextBlock Text="{DynamicResource Ui_Home_WidgetEmptyHint}" Classes="CkanCaption" TextWrapping="Wrap" MaxWidth="560" />
         </StackPanel>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-          <Button Classes="CkanSecondary" Command="{Binding OpenScreenshotsFolderCommand}"
-                  IsVisible="{Binding HasInstance}" ToolTip.Tip="{Binding ScreenshotFolderText}">
-            <TextBlock Text="{DynamicResource Ui_Home_OpenScreenshotsFolder}" VerticalAlignment="Center" />
-          </Button>
-          <Button Classes="CkanSecondary" Command="{Binding RefreshScreenshotsCommand}">
-            <TextBlock Text="{DynamicResource Ui_Home_ScreenshotRefresh}" VerticalAlignment="Center" />
-          </Button>
-        </StackPanel>
-      </Grid>
-
-      <ScrollViewer x:Name="ScreenshotRail" Height="158"
-                    HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
-                    IsVisible="{Binding ShowScreenshotRail}">
-        <ItemsControl ItemsSource="{Binding Screenshots}">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <StackPanel Orientation="Horizontal" />
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate>
-              <Border Classes="ScreenshotCard">
-                <ToolTip.Tip>
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="{Binding FileName}" />
-                    <TextBlock Text="{Binding CapturedText}" />
-                    <TextBlock Text="{Binding SizeText}" />
-                  </StackPanel>
-                </ToolTip.Tip>
-                <Image Source="{Binding FilePath, Converter={StaticResource ScreenshotThumb}}" />
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </ScrollViewer>
-
-      <!-- 空态：只留一句状态，取舍说明与目录路径都不在这里重复 -->
-      <Border Classes="CkanEmptyStateCard Flat" IsVisible="{Binding ShowEmptyScreenshots}"
-              Padding="20,16" HorizontalAlignment="Left" Margin="0,0,0,10">
-        <TextBlock Text="{DynamicResource Ui_Home_EmptyScreenshotsTitle}" Classes="CkanTitle" />
       </Border>
     </StackPanel>
   </ScrollViewer>

@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.Services.Abstractions.Home;
 using CkanUI.ViewModels.Pages;
 using CkanUI.ViewModels.Pages.Plugins;
 using NUnit.Framework;
@@ -655,6 +656,35 @@ internal sealed class FakePluginService : IPluginService
         DormantItems.Add(PluginsFixtures.Plugin("com.example.added"));
         return Task.FromResult(
             PluginLoadResult.Ok(PluginsFixtures.Plugin("com.example.added"), "已加载插件「示例插件 - 1.0.0」（未激活）。"));
+    }
+
+    /// <summary>激活插件声明的主页部件（默认空，测试按需填）。</summary>
+    public List<PluginHomeWidgetBinding> HomeWidgetBindings { get; } = new();
+
+    /// <summary>主页部件数据钩子；null 时返回一条最小快照。</summary>
+    public Func<string, string, PluginHomeWidgetContext, Task<OperationResult<PluginHomeWidgetSnapshot>>>? HomeWidgetHandler { get; set; }
+
+    /// <summary>被请求过的主页部件键，按顺序。</summary>
+    public List<string> HomeWidgetRequests { get; } = new();
+
+    /// <inheritdoc />
+    public IReadOnlyList<PluginHomeWidgetBinding> ActiveHomeWidgets => HomeWidgetBindings;
+
+    /// <inheritdoc />
+    public Task<OperationResult<PluginHomeWidgetSnapshot>> GetHomeWidgetAsync(
+        string pluginId,
+        string widgetKey,
+        PluginHomeWidgetContext context,
+        CancellationToken ct = default)
+    {
+        HomeWidgetRequests.Add(pluginId + ":" + widgetKey);
+        if (HomeWidgetHandler is not null)
+        {
+            return HomeWidgetHandler(pluginId, widgetKey, context);
+        }
+
+        return Task.FromResult(OperationResult<PluginHomeWidgetSnapshot>.Ok(
+            new PluginHomeWidgetSnapshot("快照", "副标题")));
     }
 
     private static void Move(string pluginId, List<PluginInfo> from, List<PluginInfo> to, PluginState state)

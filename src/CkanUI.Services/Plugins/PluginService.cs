@@ -1,5 +1,6 @@
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.Services.Abstractions.Home;
 using log4net;
 
 namespace CkanUI.Services.Plugins;
@@ -300,6 +301,78 @@ public sealed class PluginService : IPluginService
         return InvokeToolItemCoreAsync(entry, item, ct);
     }
 
+    /// <inheritdoc />
+    public IReadOnlyList<PluginHomeWidgetBinding> ActiveHomeWidgets
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _loaded.Values
+                    .Where(entry => entry.Info.State == PluginState.Active)
+                    .SelectMany(entry => (entry.Info.HomeWidgets ?? Array.Empty<PluginHomeWidgetDescriptor>())
+                        .Where(widget => widget is not null && !string.IsNullOrWhiteSpace(widget.Key))
+                        .Select(widget => new PluginHomeWidgetBinding(entry.Info.Id, entry.Info.DisplayName, widget)))
+                    .OrderBy(binding => binding.PluginName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(binding => binding.Widget.Title, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<OperationResult<PluginHomeWidgetSnapshot>> GetHomeWidgetAsync(
+        string pluginId,
+        string widgetKey,
+        PluginHomeWidgetContext context,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(pluginId) || string.IsNullOrWhiteSpace(widgetKey))
+        {
+            return OperationResult<PluginHomeWidgetSnapshot>.Fail("插件标识与部件键都不能为空。");
+        }
+
+        var entry = Find(pluginId.Trim());
+        if (entry is null)
+        {
+            return OperationResult<PluginHomeWidgetSnapshot>.Fail("插件「" + pluginId + "」还没有加载。");
+        }
+
+        if (entry.Info.State != PluginState.Active)
+        {
+            return OperationResult<PluginHomeWidgetSnapshot>.Fail("插件「" + entry.Info.DisplayName + "」未激活，主页部件不可用。");
+        }
+
+        var widget = entry.Info.HomeWidgets
+            .FirstOrDefault(candidate => candidate is not null &&
+                string.Equals(candidate.Key, widgetKey.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (widget is null)
+        {
+            return OperationResult<PluginHomeWidgetSnapshot>.Fail(
+                "插件「" + entry.Info.DisplayName + "」没有声明键为「" + widgetKey + "」的主页部件。");
+        }
+
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            var result = await entry.Load.Plugin.GetHomeWidgetAsync(widget.Key, context ?? new PluginHomeWidgetContext(), ct)
+                .ConfigureAwait(false);
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            return OperationResult<PluginHomeWidgetSnapshot>.Fail("主页部件「" + widget.Title + "」已取消。");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("插件主页部件读取失败：" + entry.Info.Id + "/" + widget.Key, ex);
+            return OperationResult<PluginHomeWidgetSnapshot>.Fail(
+                "主页部件「" + widget.Title + "」读取失败：" + ex.Message,
+                ex.ToString(),
+                retryable: true);
+        }
+    }
+
     private async Task<OperationResult> InvokeToolItemCoreAsync(
         PluginEntry entry,
         PluginToolItemDescriptor item,
@@ -517,6 +590,7 @@ public sealed class PluginService : IPluginService
         PluginInfo info;
         IReadOnlyList<PluginPageDescriptor> pages;
         IReadOnlyList<PluginToolItemDescriptor> toolItems;
+        IReadOnlyList<PluginHomeWidgetDescriptor> homeWidgets;
         try
         {
             var plugin = load.Plugin;
@@ -534,6 +608,7 @@ public sealed class PluginService : IPluginService
             };
             pages = plugin.Pages ?? Array.Empty<PluginPageDescriptor>();
             toolItems = plugin.ToolItems ?? Array.Empty<PluginToolItemDescriptor>();
+            homeWidgets = plugin.HomeWidgets ?? Array.Empty<PluginHomeWidgetDescriptor>();
         }
         catch (Exception ex)
         {
@@ -579,7 +654,7 @@ public sealed class PluginService : IPluginService
                     plugin: duplicate.Info);
             }
 
-            entry = new PluginEntry(info with { Pages = pages, ToolItems = toolItems }, load, fullPath);
+            entry = new PluginEntry(info with { Pages = pages, ToolItems = toolItems, HomeWidgets = homeWidgets }, load, fullPath);
             _loaded[info.Id] = entry;
             _failures.RemoveAll(failure => string.Equals(failure.AssemblyPath, fullPath, StringComparison.OrdinalIgnoreCase));
         }

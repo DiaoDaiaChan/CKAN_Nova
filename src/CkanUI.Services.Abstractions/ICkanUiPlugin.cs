@@ -1,4 +1,5 @@
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.Services.Abstractions.Home;
 
 namespace CkanUI.Services.Abstractions;
 
@@ -48,6 +49,25 @@ public interface ICkanUiPlugin
     /// 插件只要实现一个方法，不必为了一个按钮再写一个空页面。
     /// </remarks>
     IReadOnlyList<PluginToolItemDescriptor> ToolItems => Array.Empty<PluginToolItemDescriptor>();
+
+    /// <summary>
+    /// 插件能在宿主主页上提供的部件（默认空列表）。声明只表示「可添加」，不会自动占位。
+    /// </summary>
+    IReadOnlyList<PluginHomeWidgetDescriptor> HomeWidgets => Array.Empty<PluginHomeWidgetDescriptor>();
+
+    /// <summary>
+    /// 拉取一块主页部件的数据。宿主在 UI 线程之外调用，并在 try/catch 里包住。
+    /// </summary>
+    /// <param name="key">部件键（<see cref="PluginHomeWidgetDescriptor.Key"/>；忽略大小写）。</param>
+    /// <param name="context">当前实例上下文。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>失败时返回带原因的 <see cref="OperationResult{T}.Fail"/>，不要为了「看起来有数据」编造 0。</returns>
+    Task<OperationResult<PluginHomeWidgetSnapshot>> GetHomeWidgetAsync(
+        string key,
+        PluginHomeWidgetContext context,
+        CancellationToken ct = default) =>
+        Task.FromResult(OperationResult<PluginHomeWidgetSnapshot>.Fail("插件未实现主页部件数据。", retryable: false));
+
 
     /// <summary>
     /// 执行一个工具项。宿主保证在 UI 线程之外调用，并在 try/catch 里包住（抛异常只会让这次点击报错）。

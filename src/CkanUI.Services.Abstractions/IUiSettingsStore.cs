@@ -133,6 +133,17 @@ public sealed record UiSettings
     public IReadOnlyDictionary<string, double> ColumnWidths { get; init; } =
         new Dictionary<string, double>();
 
+    /// <summary>
+    /// 主页部件布局：按顺序存放部件 id（<c>instance</c> / <c>quick-actions</c> / <c>screenshots</c> /
+    /// <c>plugin:&lt;插件Id&gt;:&lt;部件键&gt;</c>）。
+    /// </summary>
+    /// <remarks>
+    /// <para><c>null</c> 表示「用户还没动过」——宿主用默认布局，而不是当成「一个部件都不要」；
+    /// 空数组才是用户明确清空。这两种状态必须分开，否则升级后主页会突然空掉。</para>
+    /// <para>停用插件时它的 id 仍留在列表里：重新启用后回到原来的位置，而不是被挤到末尾。</para>
+    /// </remarks>
+    public IReadOnlyList<string>? HomeWidgets { get; init; }
+
     // record 合成的 Equals 对 ColumnWidths 走引用比较（IReadOnlyDictionary 不是 record 友好的值类型），
     // 会让「内容完全相同的两份设置」判为不等。这里改成按列名序数比较的结构相等：
     // 一是让测试与 UI 层能可靠断言默认值，二是给后续「设置未变更就跳过落盘」的脏检查用。
@@ -174,6 +185,7 @@ public sealed record UiSettings
         && string.Equals(AiBaseUrl, other.AiBaseUrl, StringComparison.Ordinal)
         && string.Equals(AiModel, other.AiModel, StringComparison.Ordinal)
         && string.Equals(AiApiKeyProtected, other.AiApiKeyProtected, StringComparison.Ordinal)
+        && HomeWidgetsEqual(HomeWidgets, other.HomeWidgets)
         && ColumnWidthsEqual(ColumnWidths, other.ColumnWidths);
 
     public override int GetHashCode()
@@ -213,6 +225,13 @@ public sealed record UiSettings
         hash.Add(AiBaseUrl, StringComparer.Ordinal);
         hash.Add(AiModel, StringComparer.Ordinal);
         hash.Add(AiApiKeyProtected, StringComparer.Ordinal);
+        if (HomeWidgets is not null)
+        {
+            foreach (var widget in HomeWidgets)
+            {
+                hash.Add(widget, StringComparer.Ordinal);
+            }
+        }
 
         // 字典无序：逐项哈希异或，保证顺序无关。
         var columns = 0;
@@ -233,6 +252,29 @@ public sealed record UiSettings
 
         hash.Add(columns);
         return hash.ToHashCode();
+    }
+
+    private static bool HomeWidgetsEqual(IReadOnlyList<string>? left, IReadOnlyList<string>? right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null || left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < left.Count; index++)
+        {
+            if (!string.Equals(left[index], right[index], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool BackgroundsEqual(

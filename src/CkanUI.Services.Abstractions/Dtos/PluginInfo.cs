@@ -1,3 +1,5 @@
+using CkanUI.Services.Abstractions.Home;
+
 namespace CkanUI.Services.Abstractions.Dtos;
 
 /// <summary>
@@ -33,6 +35,9 @@ public sealed record PluginInfo(
 
     /// <summary>插件声明的工具项（挂到宿主既有页面工具条上的按钮）；默认空列表。</summary>
     public IReadOnlyList<PluginToolItemDescriptor> ToolItems { get; init; } = Array.Empty<PluginToolItemDescriptor>();
+
+    /// <summary>插件能提供的主页部件；默认空列表（不声明部件的插件是合法的）。</summary>
+    public IReadOnlyList<PluginHomeWidgetDescriptor> HomeWidgets { get; init; } = Array.Empty<PluginHomeWidgetDescriptor>();
 
     /// <summary>
     /// 是否来自宿主随包携带的内置（首方）插件目录（<c>AppContext.BaseDirectory/plugins</c>）。

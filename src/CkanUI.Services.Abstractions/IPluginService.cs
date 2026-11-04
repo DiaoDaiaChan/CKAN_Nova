@@ -1,4 +1,5 @@
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.Services.Abstractions.Home;
 
 namespace CkanUI.Services.Abstractions;
 
@@ -106,4 +107,22 @@ public interface IPluginService
     /// 让「没接线」的替身不必跟着改（工程约定 §12 第 9 条）。</remarks>
     Task<OperationResult> InvokeToolItemAsync(string pluginId, string itemKey, CancellationToken ct = default) =>
         Task.FromResult(OperationResult.Fail("当前实现未提供插件工具项调用能力。"));
+
+    /// <summary>所有已激活插件声明的主页部件（默认空列表）。</summary>
+    /// <remarks>只列 Active：停用的插件不该继续出现在主页的「添加部件」菜单里。默认实现返回空，既有替身不必跟着改。</remarks>
+    IReadOnlyList<PluginHomeWidgetBinding> ActiveHomeWidgets => Array.Empty<PluginHomeWidgetBinding>();
+
+    /// <summary>拉取一块插件主页部件的数据。</summary>
+    /// <param name="pluginId">插件标识。</param>
+    /// <param name="widgetKey">部件键。</param>
+    /// <param name="context">当前实例上下文。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <remarks>只有插件已激活且确实声明了该键时才回调插件；插件抛异常会变成带原因的失败，不会冒泡。
+    /// 默认实现返回不可重试失败，既有替身不必跟着改。</remarks>
+    Task<OperationResult<PluginHomeWidgetSnapshot>> GetHomeWidgetAsync(
+        string pluginId,
+        string widgetKey,
+        PluginHomeWidgetContext context,
+        CancellationToken ct = default) =>
+        Task.FromResult(OperationResult<PluginHomeWidgetSnapshot>.Fail("当前实现未提供插件主页部件。"));
 }

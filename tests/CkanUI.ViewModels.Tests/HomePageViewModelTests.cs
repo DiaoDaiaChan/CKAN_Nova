@@ -6,8 +6,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.Services.Abstractions.Home;
 using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Pages;
+using CkanUI.ViewModels.Pages.Home;
 using CommunityToolkit.Mvvm.Input;
 using NUnit.Framework;
 
@@ -184,6 +186,158 @@ public sealed class HomePageViewModelTests
 
         Assert.That(vm.Screenshots, Is.Empty, "切走实例后旧的截图不能落到新实例的页签里。");
         Assert.That(vm.IsBusy, Is.False);
+    }
+
+    [Test]
+    public void Widgets_StartWithTheDefaultThree_AndAddingRemovingPersists()
+    {
+        var settings = new FakeUiSettingsStore();
+        var vm = new HomePageViewModel(null, null, null, null, settings);
+        vm.Activate();
+
+        Assert.That(vm.Widgets.Select(widget => widget.Id), Is.EqualTo(new[]
+        {
+            HomePageViewModel.InstanceWidgetId,
+            HomePageViewModel.QuickActionsWidgetId,
+            HomePageViewModel.ScreenshotsWidgetId,
+        }), "第一次打开主页应该是实例概览、快捷操作、最近截图三块。");
+        Assert.That(vm.AvailableWidgets.Select(option => option.Id), Is.EquivalentTo(new[]
+        {
+            HomePageViewModel.ModUpdatesWidgetId,
+            HomePageViewModel.InstallHistoryWidgetId,
+            HomePageViewModel.CacheWidgetId,
+            HomePageViewModel.SavesWidgetId,
+            HomePageViewModel.OperationsWidgetId,
+        }), "模板自带的数据部件一开始全部在「可添加」里。");
+
+        vm.RemoveWidgetCommand.Execute(HomePageViewModel.ScreenshotsWidgetId);
+
+        Assert.That(vm.Widgets.Select(widget => widget.Id), Is.EqualTo(new[]
+        {
+            HomePageViewModel.InstanceWidgetId,
+            HomePageViewModel.QuickActionsWidgetId,
+        }));
+        Assert.That(vm.AvailableWidgets.Select(option => option.Id), Does.Contain(HomePageViewModel.ScreenshotsWidgetId));
+        Assert.That(settings.Current.HomeWidgets, Is.EqualTo(new[]
+        {
+            HomePageViewModel.InstanceWidgetId,
+            HomePageViewModel.QuickActionsWidgetId,
+        }), "布局要立刻落盘，不能等退出应用。");
+
+        vm.AddWidgetById(HomePageViewModel.ScreenshotsWidgetId);
+
+        Assert.That(vm.Widgets[^1].Id, Is.EqualTo(HomePageViewModel.ScreenshotsWidgetId), "添加的部件放在末尾。");
+    }
+
+    [Test]
+    public void Widgets_AddBuiltInDataWidget_ProducesAFeedWidget()
+    {
+        var settings = new FakeUiSettingsStore();
+        var vm = new HomePageViewModel(null, null, null, null, settings);
+        vm.Activate();
+
+        vm.AddWidgetById(HomePageViewModel.CacheWidgetId);
+
+        var widget = vm.Widgets.OfType<FeedHomeWidgetViewModel>().SingleOrDefault();
+        Assert.That(widget, Is.Not.Null);
+        Assert.That(widget!.Id, Is.EqualTo(HomePageViewModel.CacheWidgetId));
+        Assert.That(widget.Title, Is.EqualTo("下载缓存"));
+        Assert.That(widget.CanOpen, Is.True);
+        Assert.That(settings.Current.HomeWidgets, Does.Contain(HomePageViewModel.CacheWidgetId));
+        Assert.That(vm.AvailableWidgets.Select(option => option.Id), Does.Not.Contain(HomePageViewModel.CacheWidgetId));
+    }
+
+    [Test]
+    public void Widgets_MoveBeforeAndAfter_RewritesTheSavedOrder()
+    {
+        var settings = new FakeUiSettingsStore();
+        var vm = new HomePageViewModel(null, null, null, null, settings);
+        vm.Activate();
+
+        vm.MoveWidgetAfter(HomePageViewModel.InstanceWidgetId, HomePageViewModel.ScreenshotsWidgetId);
+
+        Assert.That(vm.Widgets.Select(widget => widget.Id), Is.EqualTo(new[]
+        {
+            HomePageViewModel.QuickActionsWidgetId,
+            HomePageViewModel.ScreenshotsWidgetId,
+            HomePageViewModel.InstanceWidgetId,
+        }));
+        Assert.That(settings.Current.HomeWidgets![^1], Is.EqualTo(HomePageViewModel.InstanceWidgetId));
+
+        vm.MoveWidgetBefore(HomePageViewModel.InstanceWidgetId, HomePageViewModel.QuickActionsWidgetId);
+
+        Assert.That(vm.Widgets[0].Id, Is.EqualTo(HomePageViewModel.InstanceWidgetId));
+        Assert.That(settings.Current.HomeWidgets![0], Is.EqualTo(HomePageViewModel.InstanceWidgetId));
+    }
+
+    [Test]
+    public async Task PluginWidget_ShowsTheSnapshot_AndKeepsItsSlotWhenThePluginGoesAway()
+    {
+        var previous = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(null);
+        try
+        {
+            var settings = new FakeUiSettingsStore().With(new UiSettings
+            {
+                HomeWidgets = new[] { "plugin:com.example.rp1:career" },
+            });
+            var plugins = new FakePluginService();
+            plugins.HomeWidgetBindings.Add(new PluginHomeWidgetBinding(
+                "com.example.rp1",
+                "RP-1 示例",
+                new PluginHomeWidgetDescriptor("career", "生涯日志", "desc", "History", "rp1-career")));
+            plugins.HomeWidgetHandler = (_, _, _) => Task.FromResult(OperationResult<PluginHomeWidgetSnapshot>.Ok(
+                new PluginHomeWidgetSnapshot(
+                    "生涯日志",
+                    "DSC · RP-1 4.7.0.0",
+                    new[] { new PluginHomeWidgetMetric("当前日期", "1988-08-01") },
+                    new[] { new PluginHomeWidgetLine("第一次轨道飞行", "1961-04-12", "里程碑") },
+                    "存档更新于 2026-11-04 07:10")));
+            var vm = new HomePageViewModel(null, null, null, plugins, settings);
+
+            vm.Activate();
+            var widget = await WaitForPluginWidgetAsync(vm, HasSnapshot);
+
+            Assert.That(widget.IsPlugin, Is.True);
+            Assert.That(widget.PluginName, Is.EqualTo("RP-1 示例"));
+            Assert.That(widget.Metrics.Select(metric => metric.Label), Is.EqualTo(new[] { "当前日期" }));
+            Assert.That(widget.Lines[0].Badge, Is.EqualTo("里程碑"));
+            Assert.That(plugins.HomeWidgetRequests, Is.EqualTo(new[] { "com.example.rp1:career" }));
+
+            // 插件被停用：声明消失，但布局里的 plugin: 槽位要留着，重新启用后回原位。
+            plugins.HomeWidgetBindings.Clear();
+            plugins.RaiseChanged();
+
+            Assert.That(vm.Widgets.OfType<PluginHomeWidgetViewModel>(), Is.Empty, "停用后不再显示插件部件。");
+            Assert.That(settings.Current.HomeWidgets, Does.Contain("plugin:com.example.rp1:career"),
+                "停用不等于删布局，槽位要留给重新启用。");
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+    }
+
+    private static bool HasSnapshot(PluginHomeWidgetViewModel widget)
+        => !widget.IsLoading && (widget.HasMetrics || widget.HasLines || widget.HasError || !string.IsNullOrWhiteSpace(widget.StatusText));
+
+    private static async Task<PluginHomeWidgetViewModel> WaitForPluginWidgetAsync(
+        HomePageViewModel page,
+        Func<PluginHomeWidgetViewModel, bool> ready)
+    {
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            var widget = page.Widgets.OfType<PluginHomeWidgetViewModel>().FirstOrDefault();
+            if (widget is not null && ready(widget))
+            {
+                return widget;
+            }
+
+            await Task.Delay(10);
+        }
+
+        Assert.Fail("插件部件没有在 2 秒内拿到数据。");
+        throw new InvalidOperationException();
     }
 
     /// <summary>只记录跳转请求的导航替身：可以精确断言"先试目标页、失败再退分节"。</summary>

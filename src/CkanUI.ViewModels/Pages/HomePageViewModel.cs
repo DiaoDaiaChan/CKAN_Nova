@@ -1,11 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.Services.Abstractions.Home;
 using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Pages.Home;
 using CkanUI.ViewModels.Pages.Instances;
@@ -30,9 +33,67 @@ public sealed partial class HomePageViewModel : PageViewModel
     /// <summary>截图页签一次取多少张：首屏一屏能看完，又不至于把大目录整个读进来。</summary>
     private const int ScreenshotLimit = 12;
 
+    /// <summary>实例概览部件的布局身份。</summary>
+    public const string InstanceWidgetId = "instance";
+
+    /// <summary>快捷操作部件的布局身份。</summary>
+    public const string QuickActionsWidgetId = "quick-actions";
+
+    /// <summary>最近截图部件的布局身份。</summary>
+    public const string ScreenshotsWidgetId = "screenshots";
+
+    /// <summary>模组更新部件的布局身份。</summary>
+    public const string ModUpdatesWidgetId = "mod-updates";
+
+    /// <summary>安装历史部件的布局身份。</summary>
+    public const string InstallHistoryWidgetId = "install-history";
+
+    /// <summary>下载缓存部件的布局身份。</summary>
+    public const string CacheWidgetId = "cache";
+
+    /// <summary>存档部件的布局身份。</summary>
+    public const string SavesWidgetId = "saves";
+
+    /// <summary>后台任务部件的布局身份。</summary>
+    public const string OperationsWidgetId = "operations";
+
+    /// <summary>宿主自带的数据部件清单：添加菜单的顺序就是这里的顺序。</summary>
+    private static readonly HomeWidgetSpec[] FeedWidgetSpecs =
+    {
+        new(ModUpdatesWidgetId, "模组更新", LocalizationKeys.HomeWidgetModUpdates, "有更新的已安装模组。", LocalizationKeys.HomeWidgetModUpdatesDesc, "Sync", "mods"),
+        new(InstallHistoryWidgetId, "安装历史", LocalizationKeys.HomeWidgetInstallHistory, "最近的安装、升级与卸载。", LocalizationKeys.HomeWidgetInstallHistoryDesc, "History", "installhistory"),
+        new(CacheWidgetId, "下载缓存", LocalizationKeys.HomeWidgetCache, "缓存条目、占用与上限。", LocalizationKeys.HomeWidgetCacheDesc, "Storage", "cache"),
+        new(SavesWidgetId, "存档", LocalizationKeys.HomeWidgetSaves, "最近存档、备份与写前快照。", LocalizationKeys.HomeWidgetSavesDesc, "Archive", "saves"),
+        new(OperationsWidgetId, "后台任务", LocalizationKeys.HomeWidgetOperations, "正在跑与排队中的操作。", LocalizationKeys.HomeWidgetOperationsDesc, "Clock", null),
+    };
+
+    private static readonly string[] DefaultWidgetLayout =
+    {
+        InstanceWidgetId,
+        QuickActionsWidgetId,
+        ScreenshotsWidgetId,
+    };
+
     private readonly IInstanceService? _instances;
     private readonly IGameScreenshotService? _screenshots;
     private readonly INavigationService? _navigation;
+    private readonly IPluginService? _plugins;
+    private readonly IUiSettingsStore? _settings;
+    private readonly IRepositoryService? _repository;
+    private readonly IInstallHistoryService? _history;
+    private readonly ICacheService? _cache;
+    private readonly ISaveFileService? _saves;
+    private readonly IOperationQueue? _queue;
+    private readonly SynchronizationContext? _sync = SynchronizationContext.Current;
+    private readonly Dictionary<string, HomeWidgetViewModel> _builtInWidgets = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PluginHomeWidgetViewModel> _pluginWidgets = new(StringComparer.OrdinalIgnoreCase);
+
+    private List<string> _layoutIds = new(DefaultWidgetLayout);
+    private bool _widgetsInitialized;
+    private bool _widgetsSubscribed;
+    private bool _queueSubscribed;
+    private int _widgetRefreshGeneration;
+    private int _dataWidgetRefreshGeneration;
 
     private bool _subscribed;
 
@@ -49,11 +110,25 @@ public sealed partial class HomePageViewModel : PageViewModel
     public HomePageViewModel(
         IInstanceService? instances,
         IGameScreenshotService? screenshots,
-        INavigationService? navigation = null)
+        INavigationService? navigation = null,
+        IPluginService? plugins = null,
+        IUiSettingsStore? settings = null,
+        IRepositoryService? repository = null,
+        IInstallHistoryService? history = null,
+        ICacheService? cache = null,
+        ISaveFileService? saves = null,
+        IOperationQueue? queue = null)
     {
         _instances = instances;
         _screenshots = screenshots;
         _navigation = navigation;
+        _plugins = plugins;
+        _settings = settings;
+        _repository = repository;
+        _history = history;
+        _cache = cache;
+        _saves = saves;
+        _queue = queue;
         Instance = instances?.Current;
         BuildQuickActions();
     }
@@ -78,6 +153,28 @@ public sealed partial class HomePageViewModel : PageViewModel
 
     /// <summary>截图列表（按拍摄时间倒序，最多 <see cref="ScreenshotLimit"/> 张）。</summary>
     public ObservableCollection<HomeScreenshotRowViewModel> Screenshots { get; } = new();
+
+    /// <summary>当前主页上的部件（顺序即布局顺序，只含此刻可用的部件）。</summary>
+    public ObservableCollection<HomeWidgetViewModel> Widgets { get; } = new();
+
+    /// <summary>还没放到主页上的部件（内置三项 + 已激活插件声明且尚未添加的部件）。</summary>
+    public ObservableCollection<HomeWidgetOptionViewModel> AvailableWidgets { get; } = new();
+
+    /// <summary>「添加部件」下拉当前选中项。</summary>
+    [ObservableProperty]
+    private HomeWidgetOptionViewModel? _selectedAvailableWidget;
+
+    /// <summary>有没有可添加的部件。</summary>
+    public bool HasAvailableWidgets => AvailableWidgets.Count > 0;
+
+    /// <summary>主页是否一个部件都没有（用户可以把它们全部移除）。</summary>
+    public bool ShowNoWidgets => Widgets.Count == 0;
+
+    /// <summary>部件数量文案。</summary>
+    public string WidgetCountText => Text("{0} 个部件", LocalizationKeys.HomeWidgetCount, Widgets.Count);
+
+    /// <summary>是否至少有一个可用部件可以添加。</summary>
+    public bool CanAddWidget => SelectedAvailableWidget is not null;
 
     /// <summary>当前实例；没有实例时为 null。</summary>
     [ObservableProperty]
@@ -157,7 +254,11 @@ public sealed partial class HomePageViewModel : PageViewModel
 
         SyncInstance(_instances?.Current);
         BuildQuickActions();
+        EnsureWidgetsInitialized();
+        SubscribePluginWidgets();
+        SubscribeQueue();
         RefreshScreenshotsCommand.Execute(null);
+        _ = RefreshWidgetsAsync();
     }
 
     /// <inheritdoc />
@@ -168,6 +269,18 @@ public sealed partial class HomePageViewModel : PageViewModel
             _instances.CurrentChanged -= OnCurrentChanged;
             _subscribed = false;
         }
+
+        if (_plugins is not null && _widgetsSubscribed)
+        {
+            _plugins.Changed -= OnPluginsChanged;
+            _widgetsSubscribed = false;
+        }
+
+        if (_queue is not null && _queueSubscribed)
+        {
+            _queue.Updated -= OnQueueUpdated;
+            _queueSubscribed = false;
+        }
     }
 
     /// <summary>切换实例后：概览区与截图一起换成本实例的。</summary>
@@ -175,6 +288,7 @@ public sealed partial class HomePageViewModel : PageViewModel
     {
         SyncInstance(current);
         RefreshScreenshotsCommand.Execute(null);
+        _ = RefreshWidgetsAsync();
     }
 
     /// <summary>把当前实例写进可绑定字段（派生属性由 <see cref="OnInstanceChanged"/> 统一通知）。</summary>
@@ -420,6 +534,649 @@ public sealed partial class HomePageViewModel : PageViewModel
             Text(descriptionFallback, descriptionKey),
             glyph,
             new AsyncRelayCommand(() => NavigateAsync(pageKey)));
+
+    /// <summary>首次进入主页时装载布局；之后每次进入只重建当前可用的部件。</summary>
+    private void EnsureWidgetsInitialized()
+    {
+        if (_widgetsInitialized)
+        {
+            RebuildWidgets();
+            return;
+        }
+
+        _widgetsInitialized = true;
+        IReadOnlyList<string>? stored = null;
+        try
+        {
+            stored = _settings?.Load().HomeWidgets;
+        }
+        catch (Exception)
+        {
+            // 设置文件读不出来不是主页不能用的理由：退回默认布局，下一次保存会覆盖坏值。
+            stored = null;
+        }
+
+        _layoutIds = stored is null
+            ? new List<string>(DefaultWidgetLayout)
+            : SanitizeLayout(stored);
+        RebuildWidgets();
+    }
+
+    /// <summary>去空、去重、丢掉不认识的内置键；插件键保留（插件停用期间也要保住它的位置）。</summary>
+    private static List<string> SanitizeLayout(IEnumerable<string> stored)
+    {
+        var result = new List<string>();
+        foreach (var raw in stored)
+        {
+            var id = raw?.Trim();
+            if (string.IsNullOrEmpty(id))
+            {
+                continue;
+            }
+
+            var isKnownBuiltIn = IsFeedWidgetId(id) || id is InstanceWidgetId or QuickActionsWidgetId or ScreenshotsWidgetId;
+            var isPlugin = id.StartsWith("plugin:", StringComparison.OrdinalIgnoreCase)
+                && id.Split(':').Length == 3;
+            if (!isKnownBuiltIn && !isPlugin)
+            {
+                continue;
+            }
+
+            if (result.Any(existing => string.Equals(existing, id, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            result.Add(id);
+        }
+
+        return result;
+    }
+
+    /// <summary>按布局身份重建可见部件；插件部件对象尽量复用，避免每次插件状态变化都闪一下。</summary>
+    private void RebuildWidgets()
+    {
+        var bindings = new Dictionary<string, PluginHomeWidgetBinding>(StringComparer.OrdinalIgnoreCase);
+        if (_plugins is not null)
+        {
+            foreach (var binding in _plugins.ActiveHomeWidgets)
+            {
+                if (binding?.Widget is null || string.IsNullOrWhiteSpace(binding.PluginId))
+                {
+                    continue;
+                }
+
+                bindings[PluginWidgetId(binding.PluginId, binding.Widget.Key)] = binding;
+            }
+        }
+
+        Widgets.Clear();
+        foreach (var id in _layoutIds)
+        {
+            switch (id)
+            {
+                case InstanceWidgetId:
+                    Widgets.Add(GetBuiltInWidget(id, () => new InstanceHomeWidgetViewModel(this, Text("实例概览", LocalizationKeys.HomeWidgetInstance))));
+                    break;
+                case QuickActionsWidgetId:
+                    Widgets.Add(GetBuiltInWidget(id, () => new QuickActionsHomeWidgetViewModel(this, Text("快捷操作", LocalizationKeys.HomeTabQuickActions))));
+                    break;
+                case ScreenshotsWidgetId:
+                    Widgets.Add(GetBuiltInWidget(id, () => new ScreenshotsHomeWidgetViewModel(this, Text("游戏截图", LocalizationKeys.HomeTabScreenshots))));
+                    break;
+                case ModUpdatesWidgetId:
+                case InstallHistoryWidgetId:
+                case CacheWidgetId:
+                case SavesWidgetId:
+                case OperationsWidgetId:
+                    Widgets.Add(GetFeedWidget(id));
+                    break;
+                default:
+                    if (bindings.TryGetValue(id, out var binding))
+                    {
+                        if (!_pluginWidgets.TryGetValue(id, out var widget))
+                        {
+                            widget = new PluginHomeWidgetViewModel(this, binding.PluginId, binding.PluginName, binding.Widget);
+                            _pluginWidgets[id] = widget;
+                        }
+
+                        if (!Widgets.Contains(widget))
+                        {
+                            Widgets.Add(widget);
+                        }
+                    }
+
+                    break;
+            }
+        }
+
+        // 插件被卸载后它的对象没有复用价值；只保留仍在布局里的。
+        foreach (var stale in _pluginWidgets.Keys
+                     .Where(key => !_layoutIds.Contains(key, StringComparer.OrdinalIgnoreCase))
+                     .ToArray())
+        {
+            _pluginWidgets.Remove(stale);
+        }
+
+        RefreshAvailableWidgets();
+        OnPropertyChanged(nameof(ShowNoWidgets));
+        OnPropertyChanged(nameof(WidgetCountText));
+    }
+
+    private HomeWidgetViewModel GetBuiltInWidget(string id, Func<HomeWidgetViewModel> factory)
+    {
+        if (!_builtInWidgets.TryGetValue(id, out var widget))
+        {
+            widget = factory();
+            _builtInWidgets[id] = widget;
+        }
+
+        return widget;
+    }
+
+    private void RefreshAvailableWidgets()
+    {
+        var selectedId = SelectedAvailableWidget?.Id;
+        AvailableWidgets.Clear();
+
+        if (!_layoutIds.Contains(InstanceWidgetId, StringComparer.OrdinalIgnoreCase))
+        {
+            AvailableWidgets.Add(new HomeWidgetOptionViewModel(
+                InstanceWidgetId,
+                Text("实例概览", LocalizationKeys.HomeWidgetInstance),
+                Text("当前实例、启动游戏与打开目录。", LocalizationKeys.HomeWidgetInstanceDesc),
+                "Folder",
+                IsPlugin: false));
+        }
+
+        if (!_layoutIds.Contains(QuickActionsWidgetId, StringComparer.OrdinalIgnoreCase))
+        {
+            AvailableWidgets.Add(new HomeWidgetOptionViewModel(
+                QuickActionsWidgetId,
+                Text("快捷操作", LocalizationKeys.HomeTabQuickActions),
+                Text("模组库、变更集与常用页面入口。", LocalizationKeys.HomeWidgetQuickActionsDesc),
+                "Apps",
+                IsPlugin: false));
+        }
+
+        if (!_layoutIds.Contains(ScreenshotsWidgetId, StringComparer.OrdinalIgnoreCase))
+        {
+            AvailableWidgets.Add(new HomeWidgetOptionViewModel(
+                ScreenshotsWidgetId,
+                Text("游戏截图", LocalizationKeys.HomeTabScreenshots),
+                Text("当前实例最近 12 张游戏截图。", LocalizationKeys.HomeWidgetScreenshotsDesc),
+                "Image",
+                IsPlugin: false));
+        }
+
+        foreach (var spec in FeedWidgetSpecs)
+        {
+            if (_layoutIds.Contains(spec.Id, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            AvailableWidgets.Add(new HomeWidgetOptionViewModel(
+                spec.Id,
+                Text(spec.TitleFallback, spec.TitleKey),
+                Text(spec.DescriptionFallback, spec.DescriptionKey),
+                spec.Glyph,
+                IsPlugin: false));
+        }
+
+        if (_plugins is not null)
+        {
+            foreach (var binding in _plugins.ActiveHomeWidgets)
+            {
+                if (binding?.Widget is null || string.IsNullOrWhiteSpace(binding.PluginId))
+                {
+                    continue;
+                }
+
+                var id = PluginWidgetId(binding.PluginId, binding.Widget.Key);
+                if (_layoutIds.Contains(id, StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                AvailableWidgets.Add(new HomeWidgetOptionViewModel(
+                    id,
+                    string.IsNullOrWhiteSpace(binding.Widget.Title) ? binding.PluginName : binding.Widget.Title,
+                    string.IsNullOrWhiteSpace(binding.Widget.Description)
+                        ? Text("由插件「{0}」提供。", LocalizationKeys.HomeWidgetPluginDesc, binding.PluginName)
+                        : binding.Widget.Description!,
+                    string.IsNullOrWhiteSpace(binding.Widget.Glyph) ? "Puzzle" : binding.Widget.Glyph!,
+                    IsPlugin: true));
+            }
+        }
+
+        SelectedAvailableWidget = selectedId is null
+            ? AvailableWidgets.FirstOrDefault()
+            : AvailableWidgets.FirstOrDefault(option => string.Equals(option.Id, selectedId, StringComparison.OrdinalIgnoreCase))
+              ?? AvailableWidgets.FirstOrDefault();
+        OnPropertyChanged(nameof(HasAvailableWidgets));
+        OnPropertyChanged(nameof(CanAddWidget));
+        AddSelectedWidgetCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>把「添加部件」下拉里选中的那一块追加到布局末尾。</summary>
+    [RelayCommand(CanExecute = nameof(CanAddWidget))]
+    private void AddSelectedWidget()
+    {
+        if (SelectedAvailableWidget is not { } option)
+        {
+            return;
+        }
+
+        AddWidgetById(option.Id);
+    }
+
+    /// <summary>按布局身份添加（供拖拽/测试直接调用）。</summary>
+    public void AddWidgetById(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id) || _layoutIds.Contains(id, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _layoutIds.Add(id);
+        SaveLayout();
+        RebuildWidgets();
+        _ = RefreshWidgetsAsync();
+    }
+
+    /// <summary>移除一块部件。允许移除到空——主页是用户的，不强迫保留任何一块。</summary>
+    [RelayCommand]
+    private void RemoveWidget(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return;
+        }
+
+        var removed = _layoutIds.RemoveAll(existing =>
+            string.Equals(existing, id, StringComparison.OrdinalIgnoreCase));
+        if (removed == 0)
+        {
+            return;
+        }
+
+        SaveLayout();
+        RebuildWidgets();
+    }
+
+    /// <summary>把一块部件上移一位（只与相邻的可见部件交换，跳过当前不可用的插件槽位）。</summary>
+    [RelayCommand]
+    private void MoveWidgetUp(string? id) => MoveWidget(id, -1);
+
+    /// <summary>把一块部件下移一位。</summary>
+    [RelayCommand]
+    private void MoveWidgetDown(string? id) => MoveWidget(id, 1);
+
+    /// <summary>拖拽落点：把 <paramref name="id"/> 放到 <paramref name="targetId"/> 之前。</summary>
+    public void MoveWidgetBefore(string id, string targetId)
+    {
+        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(targetId)
+            || string.Equals(id, targetId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var from = IndexOfLayoutId(id);
+        var target = IndexOfLayoutId(targetId);
+        if (from < 0 || target < 0)
+        {
+            return;
+        }
+
+        var moving = _layoutIds[from];
+        _layoutIds.RemoveAt(from);
+        target = IndexOfLayoutId(targetId);
+        if (target < 0)
+        {
+            target = _layoutIds.Count;
+        }
+
+        _layoutIds.Insert(target, moving);
+        SaveLayout();
+        RebuildWidgets();
+    }
+
+    /// <summary>拖拽落点：把 <paramref name="id"/> 放到 <paramref name="targetId"/> 之后。</summary>
+    public void MoveWidgetAfter(string id, string targetId)
+    {
+        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(targetId)
+            || string.Equals(id, targetId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var from = IndexOfLayoutId(id);
+        if (from < 0 || IndexOfLayoutId(targetId) < 0)
+        {
+            return;
+        }
+
+        var moving = _layoutIds[from];
+        _layoutIds.RemoveAt(from);
+        var target = IndexOfLayoutId(targetId);
+        _layoutIds.Insert(target < 0 ? _layoutIds.Count : target + 1, moving);
+        SaveLayout();
+        RebuildWidgets();
+    }
+
+    /// <summary>重新拉一遍所有部件的数据。</summary>
+    [RelayCommand]
+    private Task RefreshWidgets() => RefreshWidgetsAsync();
+
+    /// <summary>恢复默认三块（不会动插件部件曾经的位置记录之外的东西）。</summary>
+    [RelayCommand]
+    private void ResetWidgets()
+    {
+        _layoutIds = new List<string>(DefaultWidgetLayout);
+        SaveLayout();
+        RebuildWidgets();
+        _ = RefreshWidgetsAsync();
+    }
+
+    private void MoveWidget(string? id, int delta)
+    {
+        if (string.IsNullOrWhiteSpace(id) || delta == 0)
+        {
+            return;
+        }
+
+        var visible = Widgets.Select(widget => widget.Id).ToList();
+        var index = visible.FindIndex(candidate => string.Equals(candidate, id, StringComparison.OrdinalIgnoreCase));
+        var targetIndex = index + delta;
+        if (index < 0 || targetIndex < 0 || targetIndex >= visible.Count)
+        {
+            return;
+        }
+
+        var targetId = visible[targetIndex];
+        var from = IndexOfLayoutId(id);
+        var to = IndexOfLayoutId(targetId);
+        if (from < 0 || to < 0)
+        {
+            return;
+        }
+
+        var moving = _layoutIds[from];
+        _layoutIds.RemoveAt(from);
+        to = IndexOfLayoutId(targetId);
+        if (delta < 0)
+        {
+            _layoutIds.Insert(to, moving);
+        }
+        else
+        {
+            _layoutIds.Insert(to + 1, moving);
+        }
+
+        SaveLayout();
+        RebuildWidgets();
+    }
+
+    private int IndexOfLayoutId(string id)
+        => _layoutIds.FindIndex(candidate => string.Equals(candidate, id, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>把布局写回设置；写失败只提示，不回滚内存里的布局。</summary>
+    private void SaveLayout()
+    {
+        if (_settings is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var current = _settings.Load();
+            var result = _settings.Save(current with { HomeWidgets = _layoutIds.ToArray() });
+            if (!result.IsSuccess)
+            {
+                StatusText = Text("主页布局已生效，但没能保存：{0}", LocalizationKeys.HomeWidgetSaveFailed, result.Message);
+            }
+        }
+        catch (Exception exception)
+        {
+            StatusText = Text("主页布局已生效，但没能保存：{0}", LocalizationKeys.HomeWidgetSaveFailed, exception.Message);
+        }
+    }
+
+    /// <summary>插件启停会改变可用部件：重建「添加部件」菜单，已放上去的插件部件该消失就消失。</summary>
+    private void OnPluginsChanged(object? sender, EventArgs e)
+    {
+        void ApplyChange()
+        {
+            RebuildWidgets();
+            _ = RefreshPluginWidgetsAsync();
+        }
+
+        if (_sync is null || ReferenceEquals(SynchronizationContext.Current, _sync))
+        {
+            ApplyChange();
+            return;
+        }
+
+        _sync.Post(_ => ApplyChange(), null);
+    }
+
+    private void SubscribePluginWidgets()
+    {
+        if (_plugins is null || _widgetsSubscribed)
+        {
+            return;
+        }
+
+        _plugins.Changed += OnPluginsChanged;
+        _widgetsSubscribed = true;
+    }
+
+    private HomeWidgetViewModel GetFeedWidget(string id)
+    {
+        if (_builtInWidgets.TryGetValue(id, out var existing))
+        {
+            return existing;
+        }
+
+        var spec = FeedWidgetSpecs.First(item => string.Equals(item.Id, id, StringComparison.Ordinal));
+        var widget = new FeedHomeWidgetViewModel(
+            this,
+            spec.Id,
+            Text(spec.TitleFallback, spec.TitleKey),
+            spec.Glyph,
+            spec.PageKey,
+            cancellationToken => LoadFeedAsync(spec.Id, cancellationToken));
+        _builtInWidgets[id] = widget;
+        return widget;
+    }
+
+    private async Task<HomeWidgetFeed> LoadFeedAsync(string id, CancellationToken cancellationToken)
+    {
+        switch (id)
+        {
+            case ModUpdatesWidgetId:
+                return HomeWidgetFeeds.ModUpdates(_repository?.Current);
+
+            case InstallHistoryWidgetId:
+            {
+                if (_history is null)
+                {
+                    return new HomeWidgetFeed(Footer: "安装历史服务不可用。");
+                }
+
+                var result = await _history.LoadAsync(5, cancellationToken).ConfigureAwait(true);
+                if (!result.IsSuccess)
+                {
+                    throw new InvalidOperationException(result.Message ?? "读取安装历史失败。");
+                }
+
+                return HomeWidgetFeeds.InstallHistory(result.Value);
+            }
+
+            case CacheWidgetId:
+            {
+                if (_cache is null)
+                {
+                    return new HomeWidgetFeed(Footer: "下载缓存服务不可用。");
+                }
+
+                var result = await _cache.GetSnapshotAsync(cancellationToken).ConfigureAwait(true);
+                if (!result.IsSuccess)
+                {
+                    throw new InvalidOperationException(result.Message ?? "读取下载缓存失败。");
+                }
+
+                return HomeWidgetFeeds.Cache(result.Value);
+            }
+
+            case SavesWidgetId:
+            {
+                if (_saves is null || Instance?.GameDir is not { Length: > 0 } gameDir)
+                {
+                    return new HomeWidgetFeed(Footer: "先选择一个实例；有实例后这里会列出最近存档。");
+                }
+
+                var result = await _saves.ListSavesAsync(gameDir, cancellationToken).ConfigureAwait(true);
+                if (!result.IsSuccess)
+                {
+                    throw new InvalidOperationException(result.Message ?? "读取存档失败。");
+                }
+
+                return HomeWidgetFeeds.Saves(result.Value);
+            }
+
+            case OperationsWidgetId:
+                return HomeWidgetFeeds.Operations(_queue?.Operations);
+
+            default:
+                return new HomeWidgetFeed(Footer: "未知的主页部件。");
+        }
+    }
+
+    /// <summary>拉一遍所有部件：宿主数据部件与插件部件并行，互不阻塞。</summary>
+    private Task RefreshWidgetsAsync() => Task.WhenAll(RefreshDataWidgetsAsync(), RefreshPluginWidgetsAsync());
+
+    /// <summary>按当前实例拉取宿主数据部件。</summary>
+    private async Task RefreshDataWidgetsAsync()
+    {
+        var generation = ++_dataWidgetRefreshGeneration;
+        var instance = Instance;
+        var widgets = Widgets.OfType<FeedHomeWidgetViewModel>().ToArray();
+        if (widgets.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var widget in widgets)
+        {
+            if (generation != _dataWidgetRefreshGeneration || !ReferenceEquals(instance, Instance))
+            {
+                return;
+            }
+
+            await widget.LoadAsync().ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>底栏任务队列变化时只重画「后台任务」这一块，不动其他部件。</summary>
+    private void OnQueueUpdated(IReadOnlyList<OperationProgress> operations)
+    {
+        var widget = Widgets.OfType<FeedHomeWidgetViewModel>()
+            .FirstOrDefault(item => string.Equals(item.Id, OperationsWidgetId, StringComparison.Ordinal));
+        widget?.Apply(HomeWidgetFeeds.Operations(operations));
+    }
+
+    private void SubscribeQueue()
+    {
+        if (_queue is null || _queueSubscribed)
+        {
+            return;
+        }
+
+        _queue.Updated += OnQueueUpdated;
+        _queueSubscribed = true;
+    }
+
+    private static bool IsFeedWidgetId(string id)
+        => FeedWidgetSpecs.Any(spec => string.Equals(spec.Id, id, StringComparison.Ordinal));
+
+    private sealed record HomeWidgetSpec(
+        string Id,
+        string TitleFallback,
+        string TitleKey,
+        string DescriptionFallback,
+        string DescriptionKey,
+        string Glyph,
+        string? PageKey);
+
+    /// <summary>按当前实例拉取所有插件部件的数据；切实例/换插件时旧结果直接丢弃。</summary>
+    private async Task RefreshPluginWidgetsAsync()
+    {
+        if (_plugins is null)
+        {
+            return;
+        }
+
+        var generation = ++_widgetRefreshGeneration;
+        var instance = Instance;
+        var context = new PluginHomeWidgetContext(instance?.DisplayName, instance?.GameDir, instance?.GameVersion);
+        var widgets = Widgets.OfType<PluginHomeWidgetViewModel>().ToArray();
+        if (widgets.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var widget in widgets)
+        {
+            widget.BeginLoad();
+        }
+
+        foreach (var widget in widgets)
+        {
+            try
+            {
+                var result = await _plugins.GetHomeWidgetAsync(widget.PluginId, widget.Descriptor.Key, context)
+                    .ConfigureAwait(true);
+                if (generation != _widgetRefreshGeneration || !ReferenceEquals(instance, Instance))
+                {
+                    return;
+                }
+
+                if (!result.IsSuccess || result.Value is null)
+                {
+                    widget.Fail(result.Message ?? Text("读取插件部件失败。", LocalizationKeys.HomeWidgetLoadFailed));
+                    continue;
+                }
+
+                widget.Apply(result.Value);
+                if (!widget.HasMetrics && !widget.HasLines && !widget.HasError)
+                {
+                    widget.Empty(string.IsNullOrWhiteSpace(result.Value.Subtitle)
+                        ? Text("暂时没有可显示的数据。", LocalizationKeys.HomeWidgetNoData)
+                        : result.Value.Subtitle!);
+                }
+            }
+            catch (Exception exception)
+            {
+                if (generation == _widgetRefreshGeneration)
+                {
+                    widget.Fail(exception.Message);
+                }
+            }
+        }
+    }
+
+    /// <summary>插件部件的布局身份。</summary>
+    public static string PluginWidgetId(string pluginId, string widgetKey)
+        => "plugin:" + pluginId.Trim() + ":" + widgetKey.Trim();
+
+    partial void OnSelectedAvailableWidgetChanged(HomeWidgetOptionViewModel? value)
+    {
+        OnPropertyChanged(nameof(CanAddWidget));
+        AddSelectedWidgetCommand.NotifyCanExecuteChanged();
+    }
 
     private void NotifyScreenshotState()
     {

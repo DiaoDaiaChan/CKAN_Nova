@@ -267,7 +267,7 @@ public sealed class DemoPlugin : ICkanUiPlugin
 | AI 助手 | `src/CkanUI.Plugin.Ai` | `com.ckanui.ai` | `Sparkle`（星芒） | 「AI 助手」页签（`ai-assistant`，`Section=plugins`、`Order=10`）+ 底栏常驻按钮（与后台任务胶囊同一行，点开右侧抽屉）：问答 + 8 个工具（7 个 `ckan_*`：查询/导航 + 一个必须过用户确认的安装，`web_search` 走 MCP），数据与写权限都经契约 `IAiCkanBridge` 由宿主实现；设计与实测见 [ai-assistant.md](ai-assistant.md) |
 | 音乐 | `src/CkanUI.Plugin.Soundtrack` | `com.ckanui.soundtrack` | `Music`（音符） | 「音乐」页签（`music`，`Section=plugins`、`Order=20`）：读写 KSP 根目录 `Playlists/playlists.cfg`（增删曲目、排序、开关播放列表、备份后保存），乐曲库扫 `<游戏目录>/Music` 与 `GameData`；不做试听。文件契约与已知缺口见 [soundtrack.md](soundtrack.md) |
 | kOS 脚本 | `src/CkanUI.Plugin.Kos` | `com.ckanui.kos` | `Code`（尖括号） | 「kOS 脚本」页签（`kos`，`Section=plugins`、`Order=30`）：读写 KSP 根目录 `Ships/Script/*.ks`（kOS 的 Archive 卷），左侧列表 + 右侧纯文本编辑器，保存前自动备份、外部改动检测；不做语法高亮与执行。文件契约见 [kos.md](kos.md) |
-| RP-1 生涯日志 | `src/CkanUI.Plugin.Rp1` | `com.ckanui.rp1` | `History`（时钟箭头） | 「RP-1 生涯日志」页签（`rp1-career`，`Section=plugins`、`Order=40`）：只读当前实例 `saves/<存档>/persistent.sfs`，合并 `RP1ContractTracker` / `CareerLog` / `MilestoneHandler` / `ProgramHandler` / `CrewHandler` 的合同、里程碑、项目、人员与预算周期，按游戏时间排序；标题读 `GameData/RP-1` 的定义文件。文件契约与实测见 [rp1-career.md](rp1-career.md) |
+| RP-1 生涯日志 | `src/CkanUI.Plugin.Rp1` | `com.ckanui.rp1` | `History`（时钟箭头） | 「RP-1 生涯日志」页签（`rp1-career`，`Section=plugins`、`Order=40`）：只读当前实例 `saves/<存档>/persistent.sfs`，合并 `RP1ContractTracker` / `CareerLog` / `MilestoneHandler` / `ProgramHandler` / `CrewHandler` 的合同、里程碑、项目、人员与预算周期，按游戏时间排序；标题读 `GameData/RP-1` 的定义文件。文件契约与实测见 [rp1-career.md](rp1-career.md)；同时声明主页部件 `career`，见 [home-widgets.md](home-widgets.md) |
 | Mod 配置 | `src/CkanUI.Plugin.ModConfig` | `com.ckanui.modconfig` | `Sliders`（滑块） | 「Mod 配置」页签（`modconfig`，`Section=mods`、`Order=50`）：解耦为内置插件，嵌入「模组」分节内；提供适配器高级配置模式与通用 ConfigNode（`*.cfg`）自动扫描、就地编辑与安全写回模式；通用模式支持宽松扫描（自定义根/扁平键值/视觉配置，见 [mod-config-generic.md](mod-config-generic.md)） |
 
 宿主侧不改一行就能拿到这个页签：插件只引用 `CkanUI.Services.Abstractions` + `Avalonia`（视图里用到缩略图/骨架屏这类共享基元的，再引 `CkanUI.Ui`），
@@ -726,3 +726,26 @@ RP-1 的生涯记录不在一个日志文件里，而是散在 `persistent.sfs` 
 用例：`tests/CkanUI.Plugin.Rp1.Tests` 20 条（日期与文本、存档切片、时间线合并、服务校验、插件入口、页面模型），
 `tests/CkanUI.App.Tests` 另有 1 条真实 Avalonia 视图加载、1 条真实插件 dll + 宿主 DI 接线，以及 `ViewLocatorTests` 的插件视图解析断言。
 真实存档实测见 [rp1-career.md](rp1-career.md) §5。
+
+### 11.18 把「RP-1 生涯日志」放上主页：插件声明部件，主页只认身份（0.2）
+
+主页从一张写死的长图改成部件板：宿主提供八块内置部件（实例概览、快捷操作、最近截图，
+外加模组更新、安装历史、下载缓存、存档、后台任务五块数据部件），
+插件用 `ICkanUiPlugin.HomeWidgets` 声明额外部件，用 `GetHomeWidgetAsync` 按需给快照。
+契约、布局持久化、拖拽实现与边界见 [home-widgets.md](home-widgets.md)。
+
+- **布局存身份不存内容**：`UiSettings.HomeWidgets` 是 `instance` / `quick-actions` / `screenshots`
+  / `mod-updates` / `install-history` / `cache` / `saves` / `operations`
+  或 `plugin:<插件 Id>:<部件键>`；`null` 表示没动过（用默认三块），空数组表示用户明确清空。
+  插件停用不会把槽位从布局里删掉，重新启用回原位。
+- **声明不等于占位**：`HomeWidgets` 只是「可添加」，用户在下拉里选了才进布局。这样插件装上不会
+  偷偷改用户的主页。
+- **插件服务在锁外调用**：`PluginService.GetHomeWidgetAsync` 校验插件存在、已激活、确实声明了键，
+  再调用插件；异常转可重试失败，取消原样转「已取消」。`ActiveHomeWidgets` 只列 `State == Active`。
+- **旧插件不用改**：两个成员都有默认实现，默认失败文案是「插件未实现主页部件数据。」。
+- **RP-1 是第一块**：`career` 部件读当前实例最近的 `persistent.sfs`，给当前日期/资金/科技/声望/合同/里程碑
+  与最近 5 条非财务事件；没有实例或没有存档时给可执行的下一步，不显示 0。
+- **拖拽不实时重排**：`ItemsControl` 重建会摘掉正在被捕获的把手，`PointerCaptureLost` 会中断拖动；
+  所以拖动中只算落点，松手才改布局。阈值 8 px。
+- **无头用例要挂窗口**：只 `Measure/Arrange` 一个没有视觉根的 `UserControl`，`ScrollViewer` 不会实例化内容，
+  `ItemsControl` 容器数为 0；用 `HeadlessAppHost.CreateTestWindow`（不 `ForceRenderTimerTick`）。

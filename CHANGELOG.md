@@ -12,6 +12,14 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 新增
 
+- 自定义主页部件（`HomePageViewModel` + `HomePageView`）：主页从写死的长图改成可增删、可拖动排序的部件板。
+  - 内置三块（实例概览、快捷操作、最近截图）可以移除再添加；「添加部件」下拉只列还没在布局里的块，允许清空主页。
+  - 另加五块宿主数据部件：模组更新（仓库快照）、安装历史、下载缓存、存档、后台任务（订阅队列变化，只重画这一块）。没有数据时给下一步说明，不用 0 冒充；读取失败显示错误文案，部件不整块消失。
+  - 布局存进 `UiSettings.HomeWidgets`（`%LocalAppData%/CKAN/ckan-ui.json`）：`null` 表示没动过用默认三块，空数组表示用户明确清空；插件块用 `plugin:<插件 Id>:<部件键>` 存身份，插件停用后槽位保留。
+  - 拖动把手按下后超过 8 px 才算拖动，用容器中点判断落在目标上半还是下半，松手才重排（拖动中重建 `ItemsControl` 会摘掉被捕获的把手，`PointerCaptureLost` 会中断拖动）。
+  - 插件主页部件契约：`ICkanUiPlugin.HomeWidgets`（声明可添加）+ `GetHomeWidgetAsync`（按上下文给快照），两者都有默认实现，旧插件不用改；`IPluginService.ActiveHomeWidgets` 只列已激活插件，调用在锁外，异常转可重试失败。
+  - RP-1 生涯日志是第一款部件（`com.ckanui.rp1` 的 `career`）：当前日期、资金、科技、声望、合同/里程碑计数与最近 5 条非财务事件；没有实例或没有存档时给可执行的下一步，不显示 0。
+  - 测试：`HomePageViewModelTests` 14 条（默认布局/增删/上下移/拖放顺序/持久化/插件快照/停用保留槽位/五块数据部件可添加）、`HomeWidgetFeedTests` 7 条（空数据、计数、排序、上限与剩余、字节单位、运行中优先）、`HomeWidgetPluginServiceTests` 3 条、`Rp1PluginTests` 22 条、`HomePageViewWidgetTests` 4 条（真实 Avalonia 生成实体卡片、空态、插件模板、数据部件模板）。
 - RP-1 生涯日志插件（`src/CkanUI.Plugin.Rp1`，`com.ckanui.rp1`）：工具分节下的「RP-1 生涯日志」页签，把当前实例存档里的生涯记录折成一条时间线。
   - 只读 `saves/<存档>/persistent.sfs`，合并 `RP1ContractTracker`（合同完成时间）、`CareerLog`（合同备用来源/预算周期/乘员损失）、`MilestoneHandler`（里程碑）、`ProgramHandler`（项目启动/完成）、`CrewHandler`（人员退役）。
   - 大文件不整树解析：先用流式扫描定位 `SCENARIO` 行区间，再只解析九个目标场景；当前资金/科技/声望/信心读 `Funding` 等场景，不用最后一条预算周期的 0 冒充。
