@@ -45,12 +45,15 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
   - 插件主页部件契约：`ICkanUiPlugin.HomeWidgets`（声明可添加）+ `GetHomeWidgetAsync`（按上下文给快照），两者都有默认实现，旧插件不用改；`IPluginService.ActiveHomeWidgets` 只列已激活插件，调用在锁外，异常转可重试失败。
   - RP-1 生涯日志是第一款部件（`com.ckanui.rp1` 的 `career`）：当前日期、资金、科技、声望、合同/里程碑计数与最近 5 条非财务事件；没有实例或没有存档时给可执行的下一步，不显示 0。
   - 测试：`HomePageViewModelTests` 14 条（默认布局/增删/上下移/拖放顺序/持久化/插件快照/停用保留槽位/五块数据部件可添加）、`HomeWidgetFeedTests` 7 条（空数据、计数、排序、上限与剩余、字节单位、运行中优先）、`HomeWidgetPluginServiceTests` 3 条、`Rp1PluginTests` 22 条、`HomePageViewWidgetTests` 4 条（真实 Avalonia 生成实体卡片、空态、插件模板、数据部件模板）。
-- RP-1 生涯日志插件（`src/CkanUI.Plugin.Rp1`，`com.ckanui.rp1`）：工具分节下的「RP-1 生涯日志」页签，把当前实例存档里的生涯记录折成一条时间线。
+- RP-1 生涯日志插件（`src/CkanUI.Plugin.Rp1`，`com.ckanui.rp1`）：独立侧栏入口「RP-1 生涯日志」页签（独立为单个 Tab，不落入工具分节），把当前实例存档里的生涯记录折成一条时间线。
   - 只读 `saves/<存档>/persistent.sfs`，合并 `RP1ContractTracker`（合同完成时间）、`CareerLog`（合同备用来源/预算周期/乘员损失）、`MilestoneHandler`（里程碑）、`ProgramHandler`（项目启动/完成）、`CrewHandler`（人员退役）。
   - 大文件不整树解析：先用流式扫描定位 `SCENARIO` 行区间，再只解析九个目标场景；当前资金/科技/声望/信心读 `Funding` 等场景，不用最后一条预算周期的 0 冒充。
   - 时间显示按 RP-1 的 1951-01-01 纪元与 365 天年（真实存档 UT=1,186,012,800 → 1988-08-01 00:00）；标题从 `GameData/RP-1` 的合同/里程碑/项目定义读取，映射不到就保留内部名。
-  - 页面：存档下拉 + 搜索 + 筛选 + 时间线，右栏统计卡与「事件详情 / 预算周期」；空态分四层，缺数据不用示例冒充。
-  - 测试 20 条（日期/文本、存档切片、时间线合并、服务、插件入口、页面模型）+ 1 条真实 Avalonia 视图加载 + 1 条真实插件 dll + 宿主 DI 接线。
+  - 页面交互与表头优化：表头精简紧凑化，消除多行说明与大横条通知，垂直空间释放约 180px；时间线增加纵向导轨与分类节点（里程碑金黄星标强调），新增带计数筛选胶囊与统计卡点击联动筛选、时间线事件前后步进与曲线指标直达。
+  - 时间轴与生涯曲线双向联动：
+    - 正向联动：在时间轴选中任意事件时，右侧详情卡自动反查该事件所处的预算周期与宏观经济指标（资金、科技、信心、声望），并提供「在曲线上查看」一键切换到趋势图；
+    - 逆向联动：`CurveChart` 支持高亮指示线 `HighlightedIndex` 与点击命令 `PointClickCommand`，在图表上点击任意数据点或在预算周期列表中点击某一行，时间轴自动滚动并高亮该期内或临近事件；支持「最近 12 期 / 联动事件前后 / 全部周期」视窗切换。
+  - 测试 32 条（日期/文本、存档切片、时间线合并、服务、插件入口、页面模型、交互时间线与曲线双向联动）+ 1 条真实 Avalonia 视图加载 + 1 条真实插件 dll + 宿主 DI 接线；`CurveChart` 增加高亮与点击测试（`CkanUI.Ui.Tests` 共 32 条全绿）。
 - kOS 脚本插件（`src/CkanUI.Plugin.Kos`，`com.ckanui.kos`）：工具分节下的「kOS 脚本」页签，直接管理 kOS 的 Archive 卷。
   - 读写 KSP 根目录 `Ships/Script/*.ks`（kOS 官方文档明确 Archive 卷就是这些真实文件，不是打包格式）。左栏搜索与脚本列表（大小/修改时间/行数/`boot.ks` 标记），右栏纯文本编辑器。
   - 写盘安全：保存前备份 `<名>.bak-yyyyMMdd-HHmmss`，同目录临时文件 + 原子替换，UTF-8 无 BOM、按原换行还原；`expectedLastWriteUtc` 与磁盘相差超过 1 秒即拒绝覆盖（外部编辑器同时改）。
@@ -237,6 +240,117 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
   （`UI18n.Runtime/Update/UpdateWorkflow.cs:261`），与 ckan-ui 自己的运行时目录是两份；实测把实例从 99 包补到 100 包
   （多出 `CKANMeta.jsonl` 4807 行 / 1,780,151 字节），`--check --dest <实例>` 16 项全绿，同步逐文件原子替换、覆盖层只增不减。
 
+- 模组页新增「联动模组」：把能与内置 GUI 插件配合的模组识别出来，用户不用再靠猜「装 kOS 到底为了什么」。
+  - 对应关系收在一张纯静态表 `src/CkanUI.ViewModels/Pages/Mods/ModsCompanionCatalog.cs`（`IsCompanion` / `TryGet` / `GetLinks`，标识符比较忽略大小写）：
+    `kOS` → kOS 脚本（`GameData/kOS`）、`RP-1` → RP-1 生涯日志（`GameData/RP-1`）、`KSPPerformanceProfiler` → 性能（`GameData/KSPPerformanceProfiler`）、
+    `Soundtrack` / `SoundtrackEditor` / `SoundtrackEditorForked` → 音乐（三种播放列表目录）。目录名来自插件源码里的硬编码常量，不猜。
+  - 工具条新增「联动模组」开关（`CompanionOnly`）：只留清单内的模组，生效时带强调色指示点；`ModsListPipeline.Apply` 新增末位可选参数 `companionOnly`，
+    不传时行为与改前逐字节一致（既有 10 处调用点无需改动）。开关计入 `HasActiveFilters`，「重置筛选」一并清掉。
+  - 名称列新增「联动」徽章（`ShowCompanionBadge` / `CompanionTip`，悬停说明「与「kOS 脚本」联动：在「kOS 脚本」页里新建、重命名、删除与备份 Archive 脚本」），
+    只对清单内的模组出现，普通模组零视觉噪音。
+  - 详情面板新增联动卡（`HasCompanionLink` / `CompanionPluginName` / `CompanionBenefit` / `CompanionHint`）：说明这个模组点亮哪个插件、能做什么；
+    未安装时给「推荐安装」口径，已安装则改为「可在「X」页里直接使用」。无联动的模组整张卡不渲染。
+  - 打开「联动模组」不再依赖仓库快照：原来的实现只有过滤器 + 行徽章，仓库索引为空（首次启动、未刷新索引、离线）时表格 0 行，
+    打开开关看到的是一片空白——清单本身是静态表，没有理由被索引状态拖累。现在多加一层**独立面板**（`ModsPageView.axaml` 主区 `Grid.Row="2"`、
+    `IsVisible="{Binding CompanionOnly}"`），数据源是 VM 侧 `CompanionItems`（`ModsCompanionItemViewModel`，由 `RebuildCompanionItems()` 从 `ModsCompanionCatalog.All` 投影，
+    再按仓库快照标注状态），索引为空时也照常列出六个模组，状态显示「仓库索引未加载」。
+  - 面板每行给三样东西：模组标识 + 对应插件徽章（如 `kOS` + 「kOS 脚本」）+ 收益一句话；状态分四档「已安装 / 可安装 / 不在 CKAN 仓库 / 仓库索引未加载」；
+    可安装的行右侧带「加入变更集」按钮（`AddCompanionToChangesCommand`），点了直接把该模组塞进变更集并在底部状态栏说明点亮了哪个插件页。
+  - 面板与表格互斥：新增 `ShowModsTable => !ShowEmptyState && !CompanionOnly` 与 `ShowEmptyStateCard => ShowEmptyState && !CompanionOnly`，
+    否则空态卡会透在面板下面；面板头有「共 N 个 · 可装 N 个 · 已装 N 个」摘要与关闭按钮（`CloseCompanionPanelCommand`）。
+  - 新增语言包键 `Ui_ModsPage_CompanionFilter`（联动模组 / Companion mods）、`Ui_ModsPage_CompanionFilter_Tip`、`Ui_ModsPage_TagCompanion`（联动 / Companion），
+    以及面板用的 `Ui_ModsPage_Companion{PanelTitle, PanelHint, Summary, StatusInstalled, StatusInstalledInline, StatusAvailable, StatusMissing, StatusMissingInline, StatusNoIndex, AddToChanges, Close_Tip, Added}`，
+    中英两包各 2001 条、键集与占位符完全对齐；`LocalizationKeys` 同步新增十三个常量。
+  - 测试：`ModsCompanionCatalogTests` 5 条（清单内容、插件 id/名与插件源码一致、每条都有收益说明、大小写与空值、`TryGet`）、
+    `ModsCompanionSurfaceTests` 10 条（管线只留联动行 / 关闭后恢复全集 / 行徽章只对联动模组亮 / 详情面板给推荐安装 / 无联动时静默 /
+    索引为空时清单仍列六项 / 快照里区分已装与可装 / 加入变更集并说明对应插件 / 已装与未知模组不重复加入 / 开关与关闭命令清筛选）——15/15 通过；
+    `ViewModels` 1490/1490、`Localization` 76/76 全绿。
+  - 无头取证：仓外探针以真实 DI（`ServiceRegistration.Build`）+ 空仓库索引渲染 1056×794，面板照常出六行、摘要「共 6 个 · 可装 6 个 · 已装 0 个」，
+    快照 `artifacts/snapshots/mods-companion-panel.png`。
+- 存档列表按文件夹分组：同一个存档文件夹里的槽位挨在一起，组头只露文件夹名与条数，不再让 `M6_FlightUI`、`默认`、`RLV_*` 的槽位按时间互相穿插。
+  - `SaveRowViewModel` 从槽位名切出 `FolderPath` / `LeafName`（分隔符是 ` / `，Windows 文件名不含 `/`，切分可靠；根目录的 `FolderPath` 为空串、`FolderText` 回落显示 `saves/`），
+    分组后首列只显示尾段（`SlotDisplay`），完整槽位名留在 `SlotText` 供悬停提示，选中态标题仍用完整槽位名。
+  - `SavesPageViewModel.ApplyRowFilter` 末尾接 `GroupByFolder`：按 `StringComparer.OrdinalIgnoreCase` 分桶、文件夹名排序（父目录与 `Backup` 子目录因此相邻），
+    组内保持服务层「最近修改在前」；只有一个文件夹时整页不建组头。分组只做在 VM 层——`SaveFileService.Scan` 的排序与 `SaveGameInfo` DTO 一行未动。
+  - 组头不新增行类型：给每组首行打 `IsGroupStart`、组内其余行打 `IsGrouped`，行模板在首行上方画一条通栏灰底（`Classes="SavesFolderHeader"`，左文件夹名 / 右「共 N 个存档」），
+    `ListBox` 仍是单一 `SaveRowViewModel` + `VirtualizingStackPanel`，虚拟化不受影响；条数文案复用既有语言包键 `SavesCountText`，不新增键。
+  - 视觉对齐：`ListBox.SaveList` 把 `ListBoxItem` 的 `Margin` / `CornerRadius` / `Padding` 归零，内边距下放到行内容与组头的 `Padding="8,…"`，
+    组头文字与行首列文字左缘逐像素对齐（实测同为 x=13 / x=14）；共享 `Rectangle#SelectionIndicator` 的选中底色只覆盖行本身（y=209..242），不再从组头底部漏出，视图不画自有选中条。
+  - 测试：`SavesPageViewModelTests` 增两条（7 个文件夹的分组顺序 / 组头计数 / 尾段显示 / 选中保持，单文件夹不分组），
+    `SavesPageViewGroupHeaderTests` 在真实无头可视树上核对「组头每组只出现一次、文案真的落在树上」——`CkanUI.Plugin.Saves.Tests` 47/47 全绿，`CkanUI.Ui.Tests` 25/25。
+- 飞船页从「只看根目录」扩到「根目录 + 每个存档自己的 Ships」，并支持跨库复制与移动：
+  - 工具条左侧新增载具库选择器（`Libraries` / `SelectedLibrary`）：第一项固定「根目录（所有存档共用）」，其后按文件夹名排序列出 `saves/<存档名>`。
+    存档来源是 `ISaveFileService.ListSavesAsync`，按 `FilePath` 父目录名去重（同一存档的 `persistent` 与 `Backup` 槽位只算一个库）；实例切换后按 `ShipsRoot` 恢复原选中，拿不到存档列表时降级为只剩根库并落到错误条。
+  - 选中载具后可「复制到…」「移动到…」（`CopyToLibraryCommand` / `MoveToLibraryCommand`）：弹窗只列**当前库以外**的库，走服务层 `TransferAsync` 把 `.craft` + 同名 `.loadmeta` + `@thumbs` 缩略图一起搬；
+    目标重名不覆盖，按既有 `UniqueName` 规则落成 `Alpha (2)`；源与目标同一目录直接失败并说明，不产生空操作。没有第二个库时不弹空选择框，直接提示「没有别的载具库可以放。」
+  - 服务层把「库根」抽成参数：新增 `ScanLibraryAsync(shipsRoot)` / `ImportToLibraryAsync(shipsRoot, …)` / `TransferAsync(craft, targetShipsRoot, targetKind, move)`；
+    原 `ScanAsync` / `ImportAsync` / `DuplicateAsync` / `RenameAsync` 保留 `gameDir` 语义（内部换算成 `<game>/Ships`），既有调用方与测试不受影响。
+    顺带修掉一处旧缺陷：存档库里的载具做重命名/复制时，缩略图路径现在按载具自身所在的 `Ships` 根计算，不再误写进根库的 `@thumbs`。
+  - 新增语言包键 `Ui_Ships_Library_{Root,Label}`、`Ui_Ships_Action_{CopyTo,MoveTo}`、`Ui_Ships_Transfer_{Title,Target,Copy_Done,Move_Done,NoTarget,Failed}`，中英两包同序同步，`LocalizationKeys` 补十个常量。
+  - 测试：`CkanUI.Services.Tests` 增五条（存档级 `Ships` 扫描与缩略图归属、根→存档复制三件套、移动后源消失、目标重名落 `Alpha (2)`、同目录拒绝），
+    `CkanUI.Plugin.Assets.Tests` 增六条（库列表去重与根库置顶、切库改扫存档目录、复制/移动落盘参数与状态文案、没有别的库时不弹空选择框、
+    以及在无头窗口里核对下拉框真的绑到 `Libraries`、界面换库会写回 VM 并改扫存档目录）；服务层 1420/1421（1 条既有跳过）、插件 30/30。
+- Mod 配置页从「有页面没数据」变成真能用：适配器随包发布、页面能看见适配器加载问题、内置适配器从 2 份扩到 6 份。
+  - 修掉一处会让整页空掉的打包缺口：`adapters/` 以前只存在仓库里，既不进 `bin` 也不进发布包，实机装完 `AdapterCatalog` 必然报
+    `adapter-dir-missing`、左侧 mod 列表全空。`CkanUI.App.csproj` 新增 `../../adapters/**` 的 `Content`（`Link` 保持一级子目录结构，
+    因为目录扫描只认一级），输出与发布目录都 `PreserveNewest`；实测 `src/CkanUI.App/bin/Debug/net10.0/adapters/` 出现 6 个适配器目录。
+  - 适配器模式下新增页面级诊断条（`ModConfigPageView.axaml` 根 Grid 由 6 行扩到 7 行，新增 `Grid.Row="3"` 的 `CkanInfoBanner Warning`）：
+    以前 `ModConfigInstanceModel.Diagnostics` / `catalog.Diagnostics` 只挂在单个 mod 卡片和通用模式状态栏上，适配器清单为空时整页
+    没有任何线索。现在 `ModConfigPageViewModel.PageDiagnostics` 汇总全部诊断消息，`HasPageDiagnostics` 控制可见性，空态文案也按
+    `HasAdapterDirectoryProblem`（`adapter-dir*` 码）分流成「没有配置适配器目录」与「没有已适配的 mod」两种——原实现错用了
+    `ModConfigNoSelectionHint`（「选中一个 mod 后…」），在空列表里指向一个不存在的操作。
+  - 清掉两个**幽灵键**：`adapters/ksp-community-fixes/adapter.json` 原先声明的 `Language`(enum 6 值) 与 `MaxPhysicsDelta`(float)
+    在真实 `Settings.cfg` 里根本不存在（来自规格文档而非真机），页面永远显示空白，真去写会报「文件里没有键」。现按实测文件重写为
+    21 个根节点直属键（主要修复 8 / 次要修复 6 / 性能 4 / 体验 3，全部 `requiresRestart`），模板 `fixtures/settings.default.cfg` 同步重写。
+  - 新增 4 份内置适配器，全部键名/类型/默认值在本机实例 `D:/Kerbal Space Program_newmod/GameData/` 的配置文件里逐行核对
+    （脚本按「最小缩进 = 顶层键」判定，21/9/1/2/3 条全部命中顶层，无一误收嵌套键）：
+    `dynamic-battery-storage`（9 键：7 个 `Debug*` + `MinimumWarpFactor` + `BufferScaling`）、`ksp-wheel`（`powerConversion`，risk medium）、
+    `textures-unlimited`（`logReplacements`/`logErrors`）、`real-fuels-mfs`（`BatteryMultiplier`/`basemassUseTotalVolume`/`radiatorMinTempMult`）。
+    四份都用 `onMissing: readonly`（不凭模板造出用户没装的文件）、`unlisted: preserve`、`descriptionFromComment: true`，各配 README 写明取证来源与未收录原因。
+    新增第五份 `parallax-continued`（`ParallaxGlobal` 下 6 个子节点共 19 键），用 `onMissing: readonly` 而不是模板——默认值与贴图包配套，猜错会让画面直接崩。
+  - 新增语言包键 `Ui_ModConfig_AdapterlessCount`（`⊘ {0} 个 mod 无适配器`，原来是硬编码中文）与 `Ui_ModConfig_PageDiagnosticsTitle`
+    （`配置适配器加载时发现问题：`），中英两包同步，`LocalizationKeys` 补两个常量。
+  - `fields[].nodePath`：adapter 现在能声明**子节点里的键**。`ModConfigFieldDescription` 新增位置参数 `NodePath` 与
+    `ResolveNodePath(file)`——相对名（`CHILD`）拼到 `rootNode` 后面、前导 `/` 视为绝对名链（用于 `rootNode` 之外的节点）、
+    已自带根名时不再重复拼接（否则会拼成 `ROOT/ROOT/CHILD`、查找永远落空、字段永远空白这种静默失败）；
+    读取器拒绝 `flat`/`custom` 文件上写 `nodePath`、拒绝 `A//B` 这类空节点名，判重按解析后的名链而不是原文；
+    读侧 `ModConfigService.ReadFields` 与写侧 `AdapterWriter`（含写后校验 `VerifyWritten`）走同一条解析规则，
+    写请求的 `ModConfigFieldChange` 也带上 `NodePath`，页面草稿键由「文件 + 键」改为「文件 + 节点 + 键」——
+    否则同一文件里两个子节点的同名键会互相顶掉草稿。同名键散在多个节点又没给 `nodePath` 时**拒绝写入**，不猜第一个。
+  - 有了 `nodePath` 之后补齐原先定位不到的键：`ksp-community-fixes` 21 → **29** 字段（`MANEUVER_TOOL_DEFAULTS` 2、
+    `MEMORY_LEAKS_DEBUGGING` 4、`COMMNET_THROTTLING_SETTINGS` 2，模板同步补三个子节点）、
+    `textures-unlimited` 2 → **7**（`UV_EXPORT` 5）、`real-fuels-mfs` 3 → **11**（`IgnoreFuelsForFill` 8）；
+    内置适配器 6 → **7** 份，字段合计 36 → **76**。DynamicBatteryStorage 的 `HANDLERCATEGORY` 出现 14 次、名链无法唯一定位，仍只做根层 9 键。
+  - 回归门禁：`AdapterCatalogTests` 由 9 条增到 11 条——`Adapters_RepoBuiltinDirectory_LoadsEveryBundledAdapter` 断言内置目录恰为
+    6 份且按名排序，新增 `Adapters_CreateFromTemplateFixtures_ContainEveryDeclaredKey`（模板必须含每个声明键，防"声明有、模板无"漂移）
+    与 `Adapters_BundledFields_PointAtKeysThatExistInRealConfigFiles`；`ModConfigPageViewModelTests` 增两条诊断链路用例
+    （目录缺失时诊断条与空态文案 / 无诊断时保持安静）；`AdapterJsonReaderTests` 增 6 条 `nodePath` 解析用例（相对/绝对/同节点同名/重复声明/空段/非 node 布局）、
+    `AdapterWriterTests` 增 4 条（只改指定子节点 / 绝对名链改到 rootNode 之外 / 节点名写错且文件字节不变 / 歧义拒绝猜）、
+    新建 `ModConfigServiceTests` 补读侧此前零测试的缺口（子节点取值不拿根层同名键顶替）、
+    `ModConfigPageEditingTests` 增 1 条（同 key 不同节点各存一份草稿、写盘带正确 `NodePath`）；
+    `CkanUI.Services.Tests` 1435/1436（1 条既有跳过）、`ModConfig` 插件 173/173（含一条无头渲染用例：诊断条标题与目录级诊断原文
+    真的落在可视树上）、
+    `tools/verify-layout` 的 H-08（`docs/design/adapter.schema.json` 校验 7 份 adapter）PASS。
+  - 文档：`docs/design/mod-config-adapters.md` §4.2 补 `nodePath` 写法与限制表，§8 现状表重写为 7 行并补「取证口径」「第一版的历史教训」两段，
+    §10 测试用例数与覆盖范围同步更新。
+- Mod 配置用 336 个 mod 的大整合包反推能力缺口：适配器 7 → **19 份**（字段 76 → **256**），`match.paths` 从死字段变成真判定，并统一了「已修改」的比较口径。
+  - 语料审计（`D:/SteamLibrary/steamapps/common/Kerbal Space Program`，16,775 个 `.cfg`）：按文件名过滤只能覆盖 66 个 mod，改为解析 ConfigNode 结构、筛「根层标量键 ≥ 5 且没有更大的子节点」，得到 6 个候选，
+    排除本地化词条文件后 5 个全部做成适配器：`rcs-build-aid`(19)、`waypoint-manager`(13)、`memgraph`(10，`layout: flat`)、`too-many-orbits`(5)、`lunar-transfer-planner`(5)。
+  - 另 7 份按同一口径新增：`system-heat`(24)、`ferram-aerospace-research`(17，`FARConfig` 下 4 个子节点走 `nodePath`)、`time-control`(10)、`krpc`(11)、`space-dust`(15)、`real-chute`(5)、`vab-organizer`(5)；
+    `kerbalism` 由 0 字段只读骨架重写为可编辑的 41 字段（12 个玩法开关 + 28 个系数 + `Profile`，risk=high）。
+    所有默认值取文件原文（含 `2.7f`、`True` 这类写法），并用脚本在真实实例上逐键比对——19 份 / 256 键，新增部分全部命中。
+  - `match.paths` 以前只在读取器里被解析、没有任何消费点，现在参与安装判定：CKAN 注册表没命中时按声明路径在实例里找（`caseInsensitive` 生效），
+    命中就出卡片并附 Warning `matched-by-path`（说明版本无法确认）；文件路径解析同样按 `caseInsensitive` 逐级匹配（`ResolvePath`/`Exists`），
+    不再因为大小写差异直接判「文件不存在」。`match.resolveByInstalledFiles` 已是默认行为，声明它只发 Warning `adapter-option-deprecated`。
+  - 新增 `ModConfigValueComparer`（`Services.Abstractions/ModConfig`）：bool 忽略大小写、float 剥 `f/F` 后缀按数值比较。
+    「已修改计数」与行级 `IsModified` 都改走它——原来 `True`/`true`、`2.7`/`2.7f` 会把没动过的字段标成「已修改」；顺带修掉 `ModConfigDetector` 的 float 校验拒收 `2.7f`（词法合法却报「需要数字」）。
+  - 测试：`ModConfigDetectorTests` 增 float 后缀用例，`ModConfigServiceTests` 增「注册表无命中但 `match.paths` 命中」「声明的路径在磁盘上不存在」两例，
+    `AdapterJsonReaderTests` 把 Kerbalism 的「骨架」断言改成「可编辑 41 字段」；`CkanUI.Services.Tests` 的 ModConfig 子集 **229/229**，`CkanUI.Plugin.ModConfig.Tests` **173/173**。
+  - 文档：`docs/design/mod-config-adapters.md` §4.2 补 `match.paths`/`caseInsensitive`/弃用字段三条规则，§4.3 补 `adapter-option-deprecated` 与 `matched-by-path`，
+    §5 状态机加「注册表没装但路径命中」一行，§8 重写为 19 行现状表并新增「语料审计方法」「明确排除的候选与理由」两节，
+    §10 用例数与语料门禁同步，§11 补「同名重复子节点无法定位」并把已过时的「页面还没有导入 adapter 入口」改成实际实现。
+
+
 ### 变更
 
 - 安装与出包体验重做：安装程序改为原生 Win32 图形向导，出包多了一条「双击即出」的入口。
@@ -256,14 +370,35 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 - 新增「当前页有未保存改动」的底部提示条，跟随设置、模组包编辑、Mod 配置与模组变更清单四处的脏状态显隐。
 - 8 个高流量页面按新样式重写：仓库、模组（含搜索面板）、内容、缓存、下载统计、去重、安装历史、存档。
 - 页面运行期文案接入本地化：页面 ViewModel 里拼出来的标题、状态栏、空态、校验反馈、对话框正文改走 `Text(中文原文, 键)`，有译文取译文、没译文回落中文原文；17 个页面的标题与正文共 852 处已迁移（设置页 197、实例页 105、模组页 71、安装历史 62、未托管 55、缓存 51、变更 43、整合包 42、仓库 38、存档 38、去重 32、模组翻译 26、插件 20、日志 18、整合包编辑器 18、内容 15、时长 12、下载统计 9），文案键 76 → 930，中英两套包严格同步，并由架构测试钉住「代码 fallback 与 zh-CN 译文逐字一致」。排障用的诊断码、日志上下文与字段名刻意不翻译——它们要能被 grep 到；子 VM 与静态格式化器（`ChangesFormatter`、`ModPackEditorText`、`LogGlyphs` 等）留下轮。
+- 设置页信息密度重做（`SettingsPageView.axaml`）：38 项设置此前每项一张 `FASettingsExpander` 卡（标题 + 独立描述行 + 右下控件），1282×802 一屏只看得到 4 项。
+  - 改成两列紧凑行：左侧「名称 + 单行说明」并排（说明超长省略、悬停看全文），右侧固定 240 px 编辑器列 + 行内辅助按钮 + 「重启后生效」提示，行间 1 px 细线分隔。改前每项一张 expander 卡（标题 / 描述 / 控件三行，约 110-120 px），改后单行项 39-43 px、多行项 110 px。
+  - 分组卡片化：8 个分组各包一张 `CkanCard`（组头 + 组内行，`ClipToBounds`），组与组靠卡片边界分开——改前整页只有通栏发丝线，38 行连成一片看不出归属。
+  - 三列固定宽度对齐：名称列固定 200 px（说明起点不再随名称长短漂移）、编辑器列固定 240 px、辅助动作槽固定 96 px 且按钮右对齐（没有按钮的行也占位）。实测编辑器右边缘落在 x=1135/1239（240 px 列与占满整行的多行框），辅助按钮右边缘统一 1239，右列成一条竖线。
+  - 分组标题与分组说明合并成一行（8 个分组省掉 8 行）；内容右侧留白 14 px，竖直滚动条不再压住「重启后生效」与「立即检查更新」。
+  - 卡片留白收紧（组间距 12→8 px、组头内边距 14,9→12,6、行内边距 0,4→0,3）后，38 项 8 组内容总高 **2596 px**（视口 613 px ⇒ 一屏 7 行 + 4 个组头，4 屏看完）。
+  - 工具条由 6 个同权重按钮收敛为「重新读取」+「未保存时放弃修改」+「更多」下拉（重试失败项 / 打开配置目录 / KSP 游戏设置 / 首次启动指引）。
+  - 面向用户的设置文案去掉内部设计条目号（`（P-01）`～`（P-10）`，中英两包与 C# fallback 各 13-15 处），排障编号不进用户界面。
+  - 保留 `stagger-card` 入场锚点（架构测试 `MotionSkeletonTests.PrimaryCards_CarryStaggerAnchors` 钉住）；设置相关 VM 测试 206 条全绿。
+  - 分组区分度（返工第二轮，用户反馈「区分功能不是很明显」）：组头改成强调色带（`CkanAccentSubtleBrush` 底色 + 左侧 3 px 强调条），标题 15 px **Bold**、行名回落 13 px 常规字重——改前组头与行名同为 SemiBold 主色、同底色，38 行扫下来分不清哪行是分组；卡间距 8 → 16 px，卡片边框换成实色 `CkanBorderBrush`（不再用渐变边框）。深色 1004×758 实测：8 个组头统一 34 px 高、底色 RGB(20,43,72)，卡体 RGB(32,34,41)，页面底 RGB(32,32,32)，三张滚动截图各检出 4-5 条 33 px 色带。
 
 ### 修复
 
-- KSP 配置页的布尔开关被切掉下半截（截图：值列只剩胶囊上半、旋钮看不见）：上一版为了压密度给每个编辑器写了 `Height="24"`，而开关模板按 22px 轨道加内边距绘制，塞进 24px 的框里就画到框外被裁；`ComboBox` / `TextBox` 同样写死了高度，只是外框看不出来。
-  - 编辑器不再自己定高：`ToggleSwitch` 去掉 `Height` / `MinHeight`（对齐 `src/CkanUI.App/Views/SettingsPageView.axaml` 的写法，只留 `OnContent="" OffContent=""` 与对齐方式），`ComboBox` / `TextBox` 改 `MinHeight="28"`；`Slider` 不写死高度，改用模板资源压扁（`SliderPreContentMargin` / `SliderPostContentMargin` 归零、`SliderHorizontalHeight` 18、拇指 18 / 内拇指 12），把原本 50px 的滑块收进 24px。
-  - 实测行高：开关 45px、下拉与输入框 41px、滑块 37px，一屏 9-10 行（上一版三行卡片是 58-60px）。
-  - 回归守卫 `KspConfigPageViewLayoutTests.EditorControlsRenderInsideTheirOwnBoxWithoutClipping`：布尔 / 整数 / 预设 / 浮点 / 文本五类编辑器各一行，断言编辑器的 `Height` 未被写死且实测高度 ≥ 24px；把 `ToggleSwitch` 的 `Height="24"` 加回去这条会红（蓝军验证过）。行高上限同步从 40px 调到 46px——开关模板自带 33px 高，不再靠压扁它来凑数。
-  - 回归：`CkanUI.Plugin.KspConfig.Tests` 29/29（新增 1 条）；`ckan-ui.sln` 0 警告 0 错误；干净签出全量 21 套件 4368 条、4352 通过、14 跳过，两条红都不是本次改动：`HoverInteractionTests.ListBoxItem_HoverShiftsRightAndShowsHandCursor` 是既有问题，`CursorAbovePopupTests.CustomCursor_IsStillDrawnOnTopOfAnOpenDropDown` 在全量并行下偶发（单跑 3/3 通过）。
+- 进一次存档页或载具页就涨 500 MB 以上，且涨上去不还：`src/CkanUI.Services/Saves/SaveMetaReader.cs` 的 `ReadHeaderText` 用 `StreamReader.ReadLine` 读「头部 200 行」，可真实大存档里单行能上百 MB，`ReadLine` 在 `StringBuilder` 里一路翻倍，缓冲最后落进 `ArrayPool<char>.Shared` 常驻在线程上。ClrMD 实测这两页有 506 个 `Char[]` 共 512 MB（256/128/64…MB 全零，反向引用就是 `SharedArrayPoolThreadLocalArray[]`），载具页中招是因为它顺带列存档。
+  - 改成 `FileStream` 读固定 256 KB → `Encoding.UTF8.GetString` → 截到行边界 → 取前 200 行，不再用 `StreamReader`/`StringBuilder`。
+  - 实测：孤立页托管堆 saves/ships 都是 753 MB → 238/256 MB；全 24 页 × 2 轮遍历（336 模组）峰值工作集 3346 MB → 1180 MB，托管堆全程 711–716 MB 平稳（此前 211 → 2013 MB 单调爬升不回落）。
+- 旗帜页滚动掉帧：缩略图缓存按「64 条」定额，可旗帜页一次就 200 张（160 px 约 11 MB）、截图页 640 px 每张 0.9 MB，量级差十几倍。预热把 200 张全解进缓存，前 136 张被自己的定额挤掉，绑定时在 UI 线程重解一遍，滚回去还要再解（`src/CkanUI.Ui/Converters/PathToThumbnailConverter.cs`）。
+  - 改成按解码后像素字节算的 64 MB 预算 + 命中挪队首的 LRU；解码失败的负缓存给 4 KB 固定占用，不会无限增长。
+  - 实测（59 帧滚动窗口）：第一批掉帧 9 → 3、maxGap 62.9 → 49.3 ms、p95 19.4 → 16.2 ms；第二批 5 → 2；第三批 0 掉帧（max 16.4 ms）。
+- 超长列表拖动滚动条时整片行「消失」：`ScrollRevealMotion` 把每次露头的行都当成「从底边浮上来」，先瞬间把 `Opacity` 打成 0 再弹簧回 1（`src/CkanUI.App/Animations/ScrollRevealMotion.cs`）。拖动滚动条时视口每帧整片换行、行容器全是新实化的，于是每一帧都在把所有可见行归零，屏幕只剩表头和页脚；无头探针实测每次大跨度跳转要 ~14 帧才淡回来（`minOp` 0→0.046→0.261→0.489→…→0.995），连续拖动就永远回不来。
+  - 判定改成「整片跳转 vs 从边缘露头」：本次偏移与上次相差超过视口 1.5 倍（`JumpViewportRatio`），或新露头的行 ≥3 且过半（`JumpFreshRows`）时，这一遍只记「已看过」、不动 `Opacity`；顺带修掉 `MarkSeen` 把演过的行从 `LastTop` 摘掉、导致小步滚动被误判成跳转的问题。
+  - 回归：`ScrollRevealJumpTests` 3 条（12 步大跳转后每步所有已实化行 `Opacity ≥ 0.99`、静态长列表远跳不淡入、滚轮一小步仍然浮入）+ 既有 `ScrollRevealMotionTests` 8 条全绿。
+- 竖直滚动条的拇指被裁掉一多半：`ScrollBar Thumb` 同时写 `MinHeight/MinWidth=28`，竖直条的拇指被撑成 28 宽、横向溢出 10px 轨道（探针实测 `-9,0,28,30`，只有三分之一落在轨道里）。改成按方向给（竖条只约束高度、横条只约束宽度），轨道内实测 `1,0,8,28`。
+- 滚动条的交互补完：指针压上去拇指本身换成强调色（以前只有整条变亮，看不出可拖）；按住拖动时 FluentAvalonia 的主题按下触发器会把灰底刷回来，得单独补一条模板内 `Rectangle` 的 `:pressed` 规则；滚动期间挂 `is-scrolling` 类把整条提到不透明，松手 0.7 s 后摘掉（`src/CkanUI.App/Animations/ScrollBarActivityMotion.cs`，跟 `ScrollRevealMotion` 同一批根挂载）。
+  - 无头宿主不推进 `DispatcherTimer`（`RunJobs` 只排空作业队列），门禁换成注入 `ScrollBarActivityMotion.Scheduler` 手动触发，才能确定性地验「亮起来 → 停手 → 收回 0.7」。
+  - 回归：`ScrollBarInteractionTests` 4 条（拇指不外溢、悬停强调色、按下保持强调色、滚动加亮后收回）+ 既有 `ScrollBarAffordanceTests` 2 条全绿。
+- 生涯时间线等「部分列表」滚动后整片空白：`TransformSpring` 收敛后不摘 `RenderTransform`，于是每一条被入场动画或滚动揭示动过的行都永久背着一个恒等 `TransformGroup`（`src/CkanUI.App/Animations/TransformSpring.cs`）。恒等变换一样会让控件单独成一层合成层，滚动条快速拖动时这些层来不及失效，屏幕上就留下一大片「行还在、就是没画出来」的空白——与「残影行」那条（页面缩放区的恒等 `ScaleTransform`）同一类根因。
+  - 停到恒等姿态就把变换摘掉（新增 `ReleaseIdentityTransform()`，在 `Advance` 的收敛分支、以及「`MoveTo` 的目标正好等于当前姿态、这一枪根本不会跑」的分支调用；判据是 x/y/缩放/skew/旋转全为恒等值且当前挂的仍是自己那组）；`MoveTo` 的目标正好落在当前姿态时不再重新挂回去，否则「刚摘掉又被下一枪挂上」。下一次真正要动时由 `ReclaimRenderTransform()` 收回，样式抢走的变换照旧抢回。
+  - 回归：`TransformSpringLayerTests` 2 条（收敛到恒等后 `RenderTransform` 为 null、再次起跑能收回变换）+ `TransformSpringTests` 既有用例全绿。
 - KSP 游戏原生配置页「空着、信息密度低」（截图红框是分类页签那一条）：页签模板绑的是 `{Binding Header}`，而 `KspConfigCategoryTabViewModel` 只有 `Title`/`Category`/`Icon`/`Count`，六个分类全渲染成一个空圆角块，下面到表头之间留着一大片空白。
   - 页签改成图标 + 标题 + 计数（`GlyphIcon` + `Count`，计数本来就算好却没地方显示），分类栏收进工具条一行，不再单独占一条横带。
   - 行列表从 58-60px 的三行卡片压到 45px 的两行（`BorderThickness="0,0,0,1"`、`Padding="12,3"`；左列「名称 + 描述」两行、第二列「键名 + 官方词条」两行，编辑控件统一 `Height="24"`），列宽从 `*,180,240,64` 收到 `*,150,210,56`；441px 的列表高度里可见行数从 6 行变成 9 行。无头渲染实测：工具条 `Border.CkanToolbar` 从 160px 高降到 85px（`y=78 h=85`，内含按钮行 34px + 页签行 27px），状态条 26px，表体 471px，行分隔线间距 45px。
@@ -273,18 +408,30 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
   - 守卫升级：`PageTextLocalizationTests` 的扫描范围从 `src/CkanUI.ViewModels/Pages` 扩到 `src` 下全部 `.cs`（主程序与首方插件同一套规矩），并新增 `NoSourceUsesALiteralLocalizationKey`——第二参是字符串字面量的 `Text(...)` 直接判红。原守卫只查「包里有常量之外的死键」，缺的正是「代码用了包里没有的键」这一向。基线 800 站点/17 文件抬到 900/20。
   - 回归：`CkanUI.Plugin.KspConfig.Tests` 24/24、`CkanUI.Localization.Tests` 76/76（键集相同、常量全覆盖、占位符一致）、`CkanUI.Architecture.Tests` 28/28（含新守卫）；快照复核状态条已显示中文「已加载 306 项配置（官方词条 12028 条）」。
 
-- KSP 配置页 263 个设置项只能显示原始键名、行又直接压在星空背景上（截图里 `MISSION SHOW CREATE VESSEL WARNING` 就这么铺着）：精选表外的键走 `FormatFriendlyKeyName`，实现只是 `key.Replace('_', ' ')`；游戏自己的 `dictionary.cfg` 只收 `#autoLOC_*`，「显示创建飞行器警告」这类设置文案在里头反查不到。
-  - 设置名改走数据驱动键：`Ui_KspConfigPage_Setting_<KSP 键>`，由 `KspConfigPageViewModel.SettingNameKey(...)` 生成，`LocalizedSettingName` 查语言包、查不到就回退友好名；有 `LocKey` 的精选项继续用官方译文。两份语言包各补 263 条（1984 → 2247 键），中文手工命名，英文按键名首词大写。
-  - 键集来自 settings.cfg 数据而不是源码，因此不建 263 个常量；`LocalizationKeyDriftTests` 新增 `Data_driven_settings_names_are_translated_in_every_pack`（每包 ≥250 条、值非空且不等于键），死键判定加前缀白名单。
-  - 分节换成 `CkanCard` 卡面 + 强调色组头（3×15 竖条 + 图标 + 标题 + 计数，组头底色 `CkanAccentSubtleBrush`），行内边距 `12,6`——与设置页同一套配色，行不再与背景糊在一起。
-  - 回归：`CkanUI.Plugin.KspConfig.Tests` 30/30（新增设置名本地化与缺键回退、搜索命中中文名）、`CkanUI.Localization.Tests` 77/77；干净签出全量 21 套件 4370 条，仅 1 条既有 hover 红。快照复核：组头输出「图像画质 17」，未收录键显示「额外动作组数量」「最大载具预算上限」。
-- KSP 配置页右半截排版错位（截图：值列输入框漂移、「重置」按钮与操作列对不上），且与设置页不是一套设计语言（截图：仓库与网络 / 认证令牌 / 外观）：
-  - 根因：手写表头 `Grid ColumnDefinitions="*,150,210,56"` 与 `xmlns:tbl` 的 `ListTableTools.Enabled/Columns` 自绘表头同时存在（`src/CkanUI.Ui/Tables` 当时还是未跟踪文件），两套列宽各算一遍，编辑器与操作列整体错位。重写时把 `xmlns:tbl` 与两条 attached property 一并去掉，表体不再依赖任何自绘表头。
-  - 版式换成设置页那一套：`FilteredItems` 之外由 VM 出 `Sections`（新增 `KspConfigSectionViewModel`，按页签顺序分组、空组不出、选中单分类时只有一节），视图是「无卡片分节平铺」——节头 = 14 px 图标 + 15 px 粗标题 + 11 px 计数，行是 `Border.KspRow` + 底部 hairline，不再用卡片撑高度。
-  - 三列定点对齐：名称列 200 px（描述 11 px 单行省略）、编辑槽固定 240 px、操作槽固定 96 px 右对齐；值输入框、「重置」按钮、ToggleSwitch 全部落在同一条右缘上（1280×800 实测右缘 1150，滚动条留 14 px 不压按钮），行距 45 px、一屏 10 行。
-  - 取舍：布尔项去掉「开/关」文案（`OnContent="" OffContent=""`），否则 240 px 槽会把它裁掉；原始键名不再常驻列里，改挂在名称的悬停提示上（`ToolTip.Tip="{Binding Key}"`），需要时仍能对着 `settings.cfg` 查。
-  - 回归：`KspConfigPageViewModelTests` 新增 3 条（分节按页签顺序且计数求和等于筛选结果、选中分类只剩一节、搜索跟着分节收敛）；`KspConfigPageViewLayoutTests` 改成按 `Border.KspRow` 与 `.KspSectionHeader/.KspSectionTitle` 断言，新增分节标题顺序用例，行高上限 40 px（旧版 45 px 卡片）。套件 28/28；`ckan-ui.sln` 0 警告 0 错误；干净签出全量 21 套件 4367 条、4353 通过、13 跳过，唯一红是既有的 `HoverInteractionTests.ListBoxItem_HoverShiftsRightAndShowsHandCursor`（与本页无关）。
+- 「变更集 → 安装」这条链路上的 9 处误报与死路（截图 KSP_newmod 实例复现）：
+  - 冲突被算成两条：Core 的 `RelationshipResolver` 对同一对模组同时记 `(A,B)` 与 `(B,A)` 两条冲突描述，字符串方向相反去不掉。适配层 `CoreChangeSetPlanner` 改成按「两个 identifier 排序后的二元组」做无序键去重，`ChangeSetPreview` 新增 `ConflictEntries`（结构化：说明 + identifier + 名称），`Conflicts` 由其派生，条数严格一一对应。回归：`ConflictEntryDedupTests`。
+  - 冲突行只有一句「A 与 B 冲突」，看不到是哪个模组、也没有出口：冲突区改绑 `ConflictRows`，行内显示「名称（identifier）」，并新增「去模组页处理」按钮（`GoToModsCommand` → 模组页）与可执行的提示文案；对话框同步吃结构化条目。
+  - 只有提示（Warnings）也被判「部分失败」并给「重试」：`InstallReport.IsFullSuccess` 与安装历史 `RecordRestore` 只看 `Failed`，警告不参与成败；结果文案改成「全部成功（含 N 条提示）」，警告原文照常列出。回归：`ApplyWarningsOnly_EndsInDoneWithoutRetry`、`Restore_WithWarningsButNoFailures_RecordsSucceededOutcome`。
+  - 下载阶段百分比长期 0%：后端此前从 40% 起报、下载器没接进度。现在订阅 `NetAsyncModulesDownloader` 的下载进度，按字节加权映射 8%→35%，安装段 35%→99%，并带阶段标签（「下载 3/12」「安装 2/5」）；状态栏新增独立阶段徽标，百分比不再重复写进状态文字。回归：`ApplyAsync_BackendProgressCarriesPhaseAndItemCounts`、`Applying_ProgressStageLabelBecomesItsOwnBadge`。
+  - 进度条横穿状态文字、执行完就消失：状态栏改成两行（文字换行不再被压，进度条独占一行），进度条可见性由 `IsProgressVisible`（执行中 + 结束后的 Done/Failed/Cancelled）决定，保留最终 100%。回归：`ChangesPageStatusBarLayoutTests` 用无头渲染真量 Bounds，钉住「文字与进度条矩形不相交」「Done 后进度条仍在」。
+  - 缓存目录警告只喊不给出路：警告区在缓存类提示出现时给「打开缓存设置」按钮，非缓存类提示（如「已忽略卸载请求」）不显示，避免误导。
+  - 迟到的旧进度会把百分比拽回去（线程池回调乱序）：`OnProgressReported` 在 Applying 状态下丢弃百分比更低的过期进度。回归：`LateOlderProgress_DoesNotRewindPercentOrStage`。
+  - 明细表「版本变化」列只显示「0.10.0 0.11.0」两个数字并排，中间没有箭头，读起来像两个并列版本号：单元格补上 `→` 分隔，与列头「从版本 → 到版本」对齐。
+  - 像素证据：`ChangesPageVisualEvidenceTests` 把修好后的页面渲染成 `artifacts/visual-probe/changes-after-fix.png`。
 
+- 变更页失败态把同一件事说了四遍，还把 Core 的提问句当成「执行结果」显示（截图：AIES 依赖有两个提供者）：
+  - 根因一：`CkanInstallerBackend` 把 `TooManyModsProvideKraken` 降级成硬失败，`InstallerService.Failure` 又把「依赖解析失败」和 `result.Message` 用空格拼成一句，状态栏与错误栏因此各挂一条同义长句；`ApplyInstallResultAsync` 还把 `result.Detail`（kraken 的提问原文）写进 `ResultText`，界面上就多出一个不是结果的「执行结果」。
+  - 提供者歧义改走选择而不是失败：后端新增 `InstallerBackendStatus.NeedsChoice` 与 `InstallerBackendResult.PendingChoice`（`VirtualModuleRequest`，候选按「已缓存 → 与请求同名 → 名称」排序），`OperationResult<T>.PendingChoice` 把它带到页面层；变更页收到就弹已有的模组选择框，选完在同一个取消令牌下自动重试，取消则回到「就绪」且磁盘没动过。`ApplyAsync` 改成循环而不是递归，一次点击仍只算一次逻辑操作。
+  - 失败只说一次：`Failure()` 不再拼接（`result.Message` 优先），`StateText` 改由 `_failureHeadline` 给出各阶段准确措辞（计算失败 / 应用失败 / 部分失败 / 异常），`StatusText` 一律清空；失败原因只进错误栏，`ResultText` 不再放 Detail 或异常消息。
+  - 同屏重复一并收口：摘要卡不再重复说「预计下载 X」（体积由摘要卡下面那一行专管）；失败态只剩错误栏里一个「重试」（状态栏那个删掉），`CanApply` 排除 Failed 并新增 `ShowApplyButton`，避免「重试」与「开始」并排却做同一件事。
+  - 后台任务浮层不再谎报完成：`IOperationQueue.Enqueue` 新增返回 `OperationOutcome` 的重载，安装服务与 AI 桥如实上报 Succeeded/Failed/Cancelled，失败任务在浮层显示「失败」并计入 `HasFailures`，不再一边页面报错一边「全部完成 100%」。待用户选提供者仍记为成功——磁盘没动，选完原样重跑。
+  - 新增本地化键 `Ui_Changes_Error_Apply_Exception_Detail` / `Ui_Changes_Error_Apply_Partial_Failed` / `Ui_Changes_Error_UnknownReason` / `Ui_Changes_Status_Virtual_Module_Needs_Attention`，两份语言包同步。
+  - 回归：`EveryFailurePath_SaysTheReasonOnlyInTheErrorBar`、`PendingChoice_PromptsUserThenRetriesWithoutSecondClick`、`PendingChoice_UserCancels_ReturnsToReadyWithoutError`、`Failure_IsSaidOnceAndDetailDoesNotImpersonateResult`、`FailedState_OffersExactlyOneRetryAndHidesStart`、`Summary_LeavesDownloadVolumeToItsOwnLine`、`ApplyAsync_Failure_MarksQueueItemFailedInsteadOfCompleted`、`ApplyAsync_Success_MarksQueueItemSucceededAtFullProgress`。
+  - 像素证据：失败态样本重出 `artifacts/visual-probe/changes-failure-after-fix.png`——错误栏一条原因 + 一个重试，状态栏一行，执行结果区消失。
+- 侧栏底部的「设置」齿轮首次启动时看不见，点一次展开按钮才回来（截图 KSP_newmod 实例）：
+  - 根因：FluentAvalonia 的 `heightForMenuItems()` 用 arrange 期的 `_leftNavFooterContentBorder.Bounds.Height` 切分菜单区与页脚区，页脚可用高度则取 `LayoutHelper.MeasureChild(_leftNavFooterMenuRepeater, ...)` 的结果——首次排版时页脚项还没实例化齐，只量到一行 40 px，于是 `FooterItemsScrollViewer.MaxHeight = 40`，第二项「设置」被排到 y=791（窗口 802 px 高，底栏再占 28 px），整个落在窗口外。展开一次会切 `PaneDisplayMode`，触发 FA 自己的重算，页脚回到 80 px——这就是「点一下展开才出现」。
+  - 修法：`MainWindow` 加 `EnsureNavFooterVisible()` 兜底。按名从模板取 `FooterItemsScrollViewer`/`FooterMenuItemsHost`/`MenuItemsScrollViewer`/`MenuItemsHost`，等页脚项实例化齐全后，若实测内容高度大于当前上限、且菜单区腾得出这段空间，就把 `MaxHeight` 放宽到内容高度（窗口太矮时宁可让页脚滚动，也不挤占菜单）。模板部件还没长好时最多重试 3 次（`DispatcherPriority.Background`）。调用点：`RebuildNavigation()` 末尾、`ApplyPaneState()` 末尾、收起动画把 `PaneDisplayMode` 落回 `LeftCompact` 之后、以及 `NavView.Loaded`。
+  - 回归：`NavFooterVisibilityTests` 两条（首帧两项都在窗口内且上限 ≥ 内容高度；把上限人为压成一行后，重建导航能纠正回来）。像素证据：`artifacts/visual-probe/nav-footer-first.png` 与 `nav-footer-broken.png`（复刻用户截图：底部只剩「?」「›」和 Bug 图标）、`nav-footer-recovered.png`（齿轮回来）。
 - 存档工作台在大存档上「找不到东西」：拿真实生涯存档（45.9 MB / 98.9 万键值 / 65.6 万块）复现后，问题不是文件读不出来，而是列表把差异藏了起来。
   - 左栏不再出现一屏「模组数据」：同名分区自动加 `#1`/`#2`，`SCENARIO` 的副标题改成可读的「场景 #N」；分区、键值、块三栏各加就地筛选，计数写明「筛出 2 / 9」「已列 3 / 23349」，不再让人把「界面只列了一部分」误读成「文件里只有这么多」。
   - 「已截断」不再每个分区都挂：只有自己的字段/块列表真被预算裁掉的分区才标，21/21 的存档信息不会再喊截断；顶部提示说明未列出的内容要用搜索定位。
