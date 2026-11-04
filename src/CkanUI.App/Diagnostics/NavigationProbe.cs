@@ -195,6 +195,11 @@ internal static class NavigationProbe
                 await ClickCommandsAsync(window, shell, path, key).ConfigureAwait(true);
             }
 
+            if (round == 1 && Environment.GetEnvironmentVariable("CKANUI_NAV_TABS") == "1")
+            {
+                await SwitchTabsAsync(window, path, key).ConfigureAwait(true);
+            }
+
             if (Environment.GetEnvironmentVariable("CKANUI_NAV_SCROLL") == "1")
             {
                 await ScrollWindowAsync(window, path, round, key).ConfigureAwait(true);
@@ -261,6 +266,60 @@ internal static class NavigationProbe
                 path,
                 string.Create(CultureInfo.InvariantCulture, $"[click] {key} {property.Name} sync={sync:F1}ms free={free:F1}ms frames={frames} maxGap={maxGap:F1}ms over50={over50}"));
             await Task.Delay(120).ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>
+    /// 逐个切页面内部的页签（TabControl），记录「设定选中 → 布局落地」与随后 600ms 的帧窗口。
+    /// </summary>
+    /// <remarks>
+    /// 用户说的「点 tab 掉帧」多数不在命令体，而在切换后整块内容第一次 Measure/Arrange：
+    /// 页签内容是懒建的，切过去才建视图、才做投影，同步部分就落在 UI 线程上。
+    /// 这里只改 SelectedIndex，不触发任何安装/卸载类命令。
+    /// </remarks>
+    private static async Task SwitchTabsAsync(TopLevel window, string path, string key)
+    {
+        if (window is not MainWindow { ActivePageView: { } page })
+        {
+            TryWrite(path, $"[tab] {key} no-page");
+            return;
+        }
+
+        var tabs = page.GetVisualDescendants().OfType<TabControl>().Where(t => t.ItemCount > 1).ToArray();
+        if (tabs.Length == 0)
+        {
+            TryWrite(path, $"[tab] {key} none");
+            return;
+        }
+
+        for (var t = 0; t < tabs.Length; t++)
+        {
+            var tab = tabs[t];
+            var original = tab.SelectedIndex;
+            for (var i = 0; i < tab.ItemCount; i++)
+            {
+                if (i == tab.SelectedIndex)
+                {
+                    continue;
+                }
+
+                var watch = Stopwatch.StartNew();
+                tab.SelectedIndex = i;
+                await WaitForLayoutAsync(watch).ConfigureAwait(true);
+                var free = watch.Elapsed.TotalMilliseconds;
+                var (frames, maxGap, over50) = await SampleFramesAsync(window, 600).ConfigureAwait(true);
+                TryWrite(
+                    path,
+                    string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"[tab] {key} #{t}:{i} free={free:F1}ms frames={frames} maxGap={maxGap:F1}ms over50={over50} nodes={ActiveNodeCount(window)}"));
+                await Task.Delay(100).ConfigureAwait(true);
+            }
+
+            if (original >= 0 && original < tab.ItemCount)
+            {
+                tab.SelectedIndex = original;
+            }
         }
     }
 
