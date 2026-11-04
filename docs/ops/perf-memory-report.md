@@ -128,6 +128,23 @@ UI 线程（采样）自时间排名：`Avalonia.StyledElement.ApplyStyles` **11
 
 动作归属：`ModsPageView.axaml` / `ModsPageViewModel.cs` 都是他人 WIP，需要授权。
 
+### 10.2 更正：所谓「每次进入 3 秒」是探针假象，真实重进 28ms
+
+`CKANUI_NAV_ONLY=mods` 之前每轮的第 2 次那条 `assign=-1.0 layout=3004ms` 不是页面成本，而是**探针自己制造的空转**：同一页面重复导航会被 Shell 当成 no-op（`CurrentPage` 不变），探针等满 `NavigateAsync` 里的 `Task.Delay(3000)` 才继续。
+
+修法（已提交）：重复 key 时先跳到另一个页面再回来。
+
+修好后实测（336 模组，同一进程）：
+
+| 轮次 | assign | layout | paint | maxGap | nodes |
+| --- | --- | --- | --- | --- | --- |
+| r1 首进 | 421.1ms | 2007.4ms | 2022.0ms | 1572.8ms | 2333 |
+| r2 真重进 | 10.6ms | 28.2ms | 29.9ms | 24.4ms | 2441 |
+
+⇒ mods 页只有**进程内首进**约 2 秒（JIT + 建视图 + 首次套样式），重进 28ms，稳态 60fps。上一轮「每次进入都卡 3 秒」的结论作废；`ApplyStyles` 递归那部分仍然成立，但它只发生在首进那一次。
+
+同理，之前 24 页表里所有 `assign=-1.0` 的行都要按这个口径重读——它们是 no-op + 3 秒探针超时，不是页面耗时。
+
 ## 11. 已落地
 
 - `7f2149a` 存档头按字节封顶（`HeaderByteBudget=256KB`），不再把 ArrayPool 顶到 512MB

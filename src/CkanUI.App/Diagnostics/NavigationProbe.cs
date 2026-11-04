@@ -142,9 +142,19 @@ internal static class NavigationProbe
             .ToArray();
         TryWrite(path, $"[nav] start keys={keys.Length}");
 
+        var previousKey = string.Empty;
         for (var round = 1; round <= 2; round++)
         foreach (var key in keys)
         {
+            // 同一页面重复导航会被 Shell 当成 no-op（CurrentPage 不变），
+            // 那样量到的只是探针自己的 3 秒超时。先跳到一个别的页面再回来。
+            if (string.Equals(previousKey, key, StringComparison.Ordinal))
+            {
+                shell.NavigateCommand.Execute(keys.FirstOrDefault(item => !string.Equals(item, key, StringComparison.Ordinal)) ?? "home");
+                await Task.Delay(250).ConfigureAwait(true);
+            }
+
+            previousKey = key;
             var frames = new List<double>();
             var stop = false;
             var sw = Stopwatch.StartNew();
