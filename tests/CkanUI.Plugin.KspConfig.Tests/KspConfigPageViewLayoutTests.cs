@@ -179,8 +179,8 @@ public sealed class KspConfigPageViewLayoutTests
             Assert.That(rows, Has.Length.EqualTo(5), "加载 5 项后就要有 5 行。");
 
             var tallest = rows.Max(row => row.Bounds.Height);
-            Assert.That(tallest, Is.LessThanOrEqualTo(40),
-                "行高必须收进 40px 以内（实测 34px 左右）：旧版三行堆叠 + 卡片内边距是 58-60px，一屏只放得下 6 行；" +
+            Assert.That(tallest, Is.LessThanOrEqualTo(46),
+                "行高必须收进 46px 以内（下拉/输入框 41px、滑块 37px、开关 45px：开关模板自带 33px 高，不再压扁它）：旧版三行堆叠 + 卡片内边距是 58-60px，一屏只放得下 6 行；" +
                 "放宽就等于允许退回旧密度，这条守卫也就白写了。");
             Assert.That(rows.All(row => row.Bounds.Width > 0), Is.True, "行宽不能被压成 0。");
             Assert.That(rows.All(row => row.Bounds.Height > 24), Is.True, "行不能被压到放不下 24px 的编辑控件。");
@@ -224,6 +224,60 @@ public sealed class KspConfigPageViewLayoutTests
         {
             window.Close();
         }
+    }
+
+    [Test]
+    public async Task EditorControlsRenderInsideTheirOwnBoxWithoutClipping()
+    {
+        UiTestHost.EnsureInitialized();
+        RequireWindowAffinity();
+
+        // 五类编辑器各一行。模板里给控件写死 Height 会把按更高尺寸绘制的内部轨道/边框裁掉——
+        // 布尔开关被切掉下半截就是这么来的（轨道 22px 塞进 24px 的框里，还要减去边框与内边距）。
+        var settings = new List<KspSettingItem>
+        {
+            new() { Key = "FULLSCREEN", Value = "True", OriginalValue = "True", DisplayName = "全屏显示", Description = "以全屏模式启动游戏。", Category = KspSettingCategory.Graphics, SettingType = KspSettingType.Boolean, Priority = 100 },
+            new() { Key = "SCREEN_RESOLUTION_WIDTH", Value = "1920", OriginalValue = "1920", DisplayName = "屏幕分辨率（宽）", Description = "屏幕水平分辨率（像素）。", Category = KspSettingCategory.Graphics, SettingType = KspSettingType.Integer, MinValue = 800, MaxValue = 3840, Priority = 99 },
+            new() { Key = "QUALITY_PRESET", Value = "2", OriginalValue = "2", DisplayName = "渲染质量", Description = "整体画质预设档位。", Category = KspSettingCategory.Graphics, SettingType = KspSettingType.Preset, Options = new[] { new KspOptionEntry("0", "低"), new KspOptionEntry("2", "极佳 (Beautiful)") }, Priority = 98 },
+            new() { Key = "MASTER_VOLUME", Value = "0.8", OriginalValue = "0.8", DisplayName = "主音量", Description = "整体音量。", Category = KspSettingCategory.Audio, SettingType = KspSettingType.Float, MinValue = 0, MaxValue = 1, Step = 0.05 },
+            new() { Key = "INPUT_DEVICE", Value = "Keyboard", OriginalValue = "Keyboard", DisplayName = "输入设备", Description = "首选输入设备。", Category = KspSettingCategory.Gameplay, SettingType = KspSettingType.Text },
+        };
+
+        var viewModel = new KspConfigPageViewModel(new FakeKspConfigService { Document = FakeKspConfigService.Build(settings) });
+        await viewModel.LoadConfigAsync();
+
+        var window = Show(viewModel);
+        try
+        {
+            var editors = window.GetVisualDescendants().OfType<Control>()
+                .Where(control => control.IsEffectivelyVisible
+                    && (control is ToggleSwitch || control is ComboBox || control is TextBox || control is Slider))
+                .ToArray();
+
+            Assert.That(editors, Is.Not.Empty, "表体里得看得见编辑器，否则这条断言什么也没栅住。");
+            foreach (var editor in editors)
+            {
+                AssertEditorIsNotHeightCapped(editor);
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>
+    /// 编辑器不能自己写死 Height：模板（开关轨道、下拉边框）按内容需要的高度往往比 24 更高，
+    /// 被父级 Height 卡住就会画到框外被裁——布尔开关只剩上半截、旋钮被切就是这么来的。
+    /// 判据用「Height 未设置 + 实际高度够用」，比逐层比对包围盒稳（下拉的浮层内容不在行内坐标系里）。
+    /// </summary>
+    private static void AssertEditorIsNotHeightCapped(Control control)
+    {
+        var label = control.GetType().Name;
+        Assert.That(double.IsNaN(control.Height), Is.True,
+            $"{label} 写死了 Height={control.Height:F0}，模板需要更高时会被裁；交给内容自己决定高度。");
+        Assert.That(control.Bounds.Height, Is.GreaterThanOrEqualTo(24),
+            $"{label} 实测只有 {control.Bounds.Height:F1}px 高，放不下它自己的轨道/边框。");
     }
 
     /// <summary>分节头里可见的分类标题，按视觉顺序。</summary>
