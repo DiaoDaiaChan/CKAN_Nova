@@ -259,6 +259,15 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 修复
 
+- KSP 游戏原生配置页「空着、信息密度低」（截图红框是分类页签那一条）：页签模板绑的是 `{Binding Header}`，而 `KspConfigCategoryTabViewModel` 只有 `Title`/`Category`/`Icon`/`Count`，六个分类全渲染成一个空圆角块，下面到表头之间留着一大片空白。
+  - 页签改成图标 + 标题 + 计数（`GlyphIcon` + `Count`，计数本来就算好却没地方显示），分类栏收进工具条一行，不再单独占一条横带。
+  - 行列表从 58-60px 的三行卡片压到 45px 的两行（`BorderThickness="0,0,0,1"`、`Padding="12,3"`；左列「名称 + 描述」两行、第二列「键名 + 官方词条」两行，编辑控件统一 `Height="24"`），列宽从 `*,180,240,64` 收到 `*,150,210,56`；441px 的列表高度里可见行数从 6 行变成 9 行。无头渲染实测：工具条 `Border.CkanToolbar` 从 160px 高降到 85px（`y=78 h=85`，内含按钮行 34px + 页签行 27px），状态条 26px，表体 471px，行分隔线间距 45px。
+  - 回归：`KspConfigPageViewLayoutTests` 4 条（工具条按钮与页签都绑到真实成员、状态条为空时不留空行——用表头位置上移判定而不是读 `Bounds`、空结果给说明卡而不是白板、行高比旧版紧凑）；`KspConfigPageViewModelTests` 新增 10 条（页签的标题/图标/计数、仅看已改与空态文案、`VisibleCountText`、`SaveButtonText` 带待保存数等）。
+- KSP 配置插件页在真机上把本地化键名当译文显示（状态条里是 `Pages.KspConfig.LoadedSu…`）：`KspConfigPageViewModel` 有 17 处 `Text("中文原文", "Pages.KspConfig.*")` 把键写成字符串字面量，而两份语言包（各 1962 键）与 `LocalizationKeys` 一条都没有；宿主导航时会挂上 `ILocalizer.Get`，`Text(fallback, key)` 因此走真翻译而不是回退，键查不到就把键名原样吐出来。
+  - 17 处全改成 `LocalizationKeys.KspConfigPage*` 常量（`Ui_KspConfigPage_*` 22 条），三处插值 fallback 去掉 `$`（`"保存 {0} 项"`、`"已加载 {0} 项配置（官方词条 {1} 条）"`、`"{0} / {1} 项"` 等），两份语言包同步补齐 22 条（现各 1984 键，键集与占位符一致）。
+  - 守卫升级：`PageTextLocalizationTests` 的扫描范围从 `src/CkanUI.ViewModels/Pages` 扩到 `src` 下全部 `.cs`（主程序与首方插件同一套规矩），并新增 `NoSourceUsesALiteralLocalizationKey`——第二参是字符串字面量的 `Text(...)` 直接判红。原守卫只查「包里有常量之外的死键」，缺的正是「代码用了包里没有的键」这一向。基线 800 站点/17 文件抬到 900/20。
+  - 回归：`CkanUI.Plugin.KspConfig.Tests` 24/24、`CkanUI.Localization.Tests` 76/76（键集相同、常量全覆盖、占位符一致）、`CkanUI.Architecture.Tests` 28/28（含新守卫）；快照复核状态条已显示中文「已加载 306 项配置（官方词条 12028 条）」。
+
 - 存档工作台在大存档上「找不到东西」：拿真实生涯存档（45.9 MB / 98.9 万键值 / 65.6 万块）复现后，问题不是文件读不出来，而是列表把差异藏了起来。
   - 左栏不再出现一屏「模组数据」：同名分区自动加 `#1`/`#2`，`SCENARIO` 的副标题改成可读的「场景 #N」；分区、键值、块三栏各加就地筛选，计数写明「筛出 2 / 9」「已列 3 / 23349」，不再让人把「界面只列了一部分」误读成「文件里只有这么多」。
   - 「已截断」不再每个分区都挂：只有自己的字段/块列表真被预算裁掉的分区才标，21/21 的存档信息不会再喊截断；顶部提示说明未列出的内容要用搜索定位。
