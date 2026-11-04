@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using Avalonia.Threading;
+using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.KspConfig;
 using CkanUI.ViewModels;
@@ -45,7 +47,7 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
     }
 
     /// <inheritdoc />
-    public override string Title => Text("KSP 游戏原生设置", "Pages.KspConfig.Title");
+    public override string Title => Text("KSP 游戏原生设置", LocalizationKeys.KspConfigPageTitle);
 
     /// <summary>
     /// 分类页签集合。
@@ -57,6 +59,7 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
 
     partial void OnSelectedTabChanged(KspConfigCategoryTabViewModel? value)
     {
+        OnPropertyChanged(nameof(CanResetFilters));
         ApplyFilter();
     }
 
@@ -66,18 +69,66 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
     public ObservableCollection<KspSettingItemViewModel> FilteredItems { get; } = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSearchText))]
     private string _searchText = string.Empty;
+
+    /// <summary>搜索框里是否有内容（「清除」按钮的可用性）。</summary>
+    public bool HasSearchText => !string.IsNullOrWhiteSpace(SearchText);
 
     partial void OnSearchTextChanged(string value)
     {
+        OnPropertyChanged(nameof(CanResetFilters));
+        ApplyFilter();
+    }
+
+    /// <summary>
+    /// 只显示已修改项。勾上之后列表立刻只剩改动过的行，改回去的行会即时消失。
+    /// </summary>
+    [ObservableProperty]
+    private bool _showOnlyModified;
+
+    partial void OnShowOnlyModifiedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanResetFilters));
         ApplyFilter();
     }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasEmptyResult))]
     private bool _isLoading;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStatus))]
     private string _statusMessage = string.Empty;
+
+    /// <summary>是否有需要展示的状态文案；没话说时整条 banner 不占高度。</summary>
+    public bool HasStatus => !string.IsNullOrWhiteSpace(StatusMessage);
+
+    /// <summary>清空搜索词；搜索框是空的就什么都不做。</summary>
+    [RelayCommand]
+    private void ClearSearch()
+    {
+        if (!string.IsNullOrEmpty(SearchText))
+        {
+            SearchText = string.Empty;
+        }
+    }
+
+    /// <summary>空结果卡上的一键复原：搜索、仅看已改、分类三样一起退回默认。</summary>
+    [RelayCommand]
+    private void ResetFilters()
+    {
+        ShowOnlyModified = false;
+        SearchText = string.Empty;
+        if (SelectedTab != Tabs[0])
+        {
+            SelectedTab = Tabs[0];
+        }
+        else
+        {
+            ApplyFilter();
+        }
+    }
 
     [ObservableProperty]
     private string _filePath = string.Empty;
@@ -90,7 +141,13 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasUnsavedChanges))]
+    [NotifyPropertyChangedFor(nameof(SaveButtonText))]
     private int _modifiedCount;
+
+    /// <summary>保存按钮文案：有待保存项时把数量写进按钮，用户不用回头数徽章。</summary>
+    public string SaveButtonText => ModifiedCount > 0
+        ? Text("保存 {0} 项", LocalizationKeys.KspConfigPageSaveWithCount, ModifiedCount)
+        : Text("保存修改", LocalizationKeys.KspConfigPageSave);
 
     /// <inheritdoc />
     public bool HasUnsavedChanges => ModifiedCount > 0;
@@ -119,7 +176,7 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
         if (IsLoading) return;
 
         IsLoading = true;
-        StatusMessage = Text("正在读取 KSP 原生配置与官方本地化字典...", "Pages.KspConfig.Loading");
+        StatusMessage = Text("正在读取 KSP 原生配置与官方本地化字典...", LocalizationKeys.KspConfigPageLoading);
 
         try
         {
@@ -141,14 +198,14 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
             UpdateModifiedCount();
 
             StatusMessage = Text(
-                $"已加载 {_allItems.Count} 项配置（官方词条 {_document.LocalizationTable.Count} 条）",
-                "Pages.KspConfig.LoadedSummary",
+                "已加载 {0} 项配置（官方词条 {1} 条）",
+                LocalizationKeys.KspConfigPageLoadedSummary,
                 _allItems.Count,
                 _document.LocalizationTable.Count);
         }
         catch (Exception ex)
         {
-            StatusMessage = Text("加载配置失败: {0}", "Pages.KspConfig.LoadFailed", ex.Message);
+            StatusMessage = Text("加载配置失败: {0}", LocalizationKeys.KspConfigPageLoadFailed, ex.Message);
             _errorReporter?.Report(ex, "KspConfigPageViewModel", "读取 KSP 原生设置异常");
         }
         finally
@@ -168,12 +225,12 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
         var modified = _allItems.Where(i => i.IsModified).Select(i => i.Model).ToList();
         if (modified.Count == 0)
         {
-            StatusMessage = Text("没有待保存的修改项。", "Pages.KspConfig.NoModifications");
+            StatusMessage = Text("没有待保存的修改项。", LocalizationKeys.KspConfigPageNoModifications);
             return;
         }
 
         IsLoading = true;
-        StatusMessage = Text("正在保存 {0} 项设置并生成备份...", "Pages.KspConfig.Saving", modified.Count);
+        StatusMessage = Text("正在保存 {0} 项设置并生成备份...", LocalizationKeys.KspConfigPageSaving, modified.Count);
 
         try
         {
@@ -191,16 +248,16 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
                 // 重新加载以确保读盘一致性与最新备份状态
                 await LoadConfigAsync().ConfigureAwait(true);
 
-                StatusMessage = Text("成功保存 {0} 项设置到 settings.cfg，并已创建 .bak 备份。", "Pages.KspConfig.SaveSuccess", modified.Count);
+                StatusMessage = Text("成功保存 {0} 项设置到 settings.cfg，并已创建 .bak 备份。", LocalizationKeys.KspConfigPageSaveSuccess, modified.Count);
             }
             else
             {
-                StatusMessage = Text("保存设置失败，请查看日志获取详细信息。", "Pages.KspConfig.SaveFailed");
+                StatusMessage = Text("保存设置失败，请查看日志获取详细信息。", LocalizationKeys.KspConfigPageSaveFailed);
             }
         }
         catch (Exception ex)
         {
-            StatusMessage = Text("保存设置失败: {0}", "Pages.KspConfig.SaveError", ex.Message);
+            StatusMessage = Text("保存设置失败: {0}", LocalizationKeys.KspConfigPageSaveError, ex.Message);
             _errorReporter?.Report(ex, "KspConfigPageViewModel", "写入 settings.cfg 失败");
         }
         finally
@@ -223,7 +280,7 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
             }
         }
         UpdateModifiedCount();
-        StatusMessage = Text("已撤回所有修改。", "Pages.KspConfig.Discarded");
+        StatusMessage = Text("已撤回所有修改。", LocalizationKeys.KspConfigPageDiscarded);
     }
 
     /// <summary>
@@ -235,7 +292,7 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
         if (IsLoading) return;
 
         IsLoading = true;
-        StatusMessage = Text("正在从 settings.cfg.bak 恢复...", "Pages.KspConfig.Restoring");
+        StatusMessage = Text("正在从 settings.cfg.bak 恢复...", LocalizationKeys.KspConfigPageRestoring);
 
         try
         {
@@ -244,16 +301,16 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
             if (success)
             {
                 await LoadConfigAsync().ConfigureAwait(true);
-                StatusMessage = Text("已成功从 .bak 备份恢复 settings.cfg！", "Pages.KspConfig.RestoreSuccess");
+                StatusMessage = Text("已成功从 .bak 备份恢复 settings.cfg！", LocalizationKeys.KspConfigPageRestoreSuccess);
             }
             else
             {
-                StatusMessage = Text("未找到 settings.cfg.bak 备份文件或恢复失败。", "Pages.KspConfig.RestoreFailed");
+                StatusMessage = Text("未找到 settings.cfg.bak 备份文件或恢复失败。", LocalizationKeys.KspConfigPageRestoreFailed);
             }
         }
         catch (Exception ex)
         {
-            StatusMessage = Text("恢复备份失败: {0}", "Pages.KspConfig.RestoreError", ex.Message);
+            StatusMessage = Text("恢复备份失败: {0}", LocalizationKeys.KspConfigPageRestoreError, ex.Message);
             _errorReporter?.Report(ex, "KspConfigPageViewModel", "恢复 settings.cfg 备份失败");
         }
         finally
@@ -266,12 +323,12 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
 
     private void InitTabs()
     {
-        Tabs.Add(new("全部", null, "All"));
-        Tabs.Add(new("图像画质", KspSettingCategory.Graphics, "Display"));
+        Tabs.Add(new("全部", null, "Layers"));
+        Tabs.Add(new("图像画质", KspSettingCategory.Graphics, "Monitor"));
         Tabs.Add(new("声音音效", KspSettingCategory.Audio, "Volume"));
         Tabs.Add(new("游戏常规", KspSettingCategory.Gameplay, "Gamepad"));
         Tabs.Add(new("高级调试", KspSettingCategory.Advanced, "Wrench"));
-        Tabs.Add(new("其它项", KspSettingCategory.Other, "Settings"));
+        Tabs.Add(new("其它项", KspSettingCategory.Other, "More"));
 
         SelectedTab = Tabs[0];
     }
@@ -303,6 +360,11 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
             filtered = filtered.Where(i => i.Category == category.Value);
         }
 
+        if (ShowOnlyModified)
+        {
+            filtered = filtered.Where(i => i.IsModified);
+        }
+
         if (!string.IsNullOrWhiteSpace(query))
         {
             filtered = filtered.Where(i =>
@@ -322,16 +384,93 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
         {
             FilteredItems.Add(item);
         }
+
+        RaiseListSummaryChanged();
     }
+
+    // ---- 列表摘要（工具条右侧的计数条 + 空结果说明） -----------------------
+
+    /// <summary>配置项总数（不随筛选变化）。</summary>
+    public int TotalCount => _allItems.Count;
+
+    /// <summary>精选常用项数量。</summary>
+    public int CommonCount => _allItems.Count(i => i.IsCommon);
+
+    /// <summary>当前列表条数 / 总数，放在页签行右侧当状态条用。</summary>
+    public string VisibleCountText => Text(
+        "{0} / {1} 项",
+        LocalizationKeys.KspConfigPageVisibleCount,
+        FilteredItems.Count,
+        _allItems.Count);
+
+    private void RaiseListSummaryChanged()
+    {
+        OnPropertyChanged(nameof(TotalCount));
+        OnPropertyChanged(nameof(CommonCount));
+        OnPropertyChanged(nameof(VisibleCountText));
+        OnPropertyChanged(nameof(CanResetFilters));
+        RaiseEmptyResultChanged();
+    }
+
+    private void RaiseEmptyResultChanged()
+    {
+        OnPropertyChanged(nameof(HasEmptyResult));
+        OnPropertyChanged(nameof(EmptyResultText));
+    }
+
+    /// <summary>
+    /// 当前视图为空时的说明：区分「本来就没有这类设置」与「被搜索/仅看已改筛掉了」。
+    /// </summary>
+    public string EmptyResultText
+    {
+        get
+        {
+            if (_allItems.Count == 0)
+            {
+                return Text("这个实例还没有读到任何 KSP 原生设置项。", LocalizationKeys.KspConfigPageEmptyNoItems);
+            }
+
+            if (ShowOnlyModified && ModifiedCount == 0)
+            {
+                return Text("还没有任何改动；勾选「仅看已改」后这里只会列出改动过的项。", LocalizationKeys.KspConfigPageEmptyNoModifications);
+            }
+
+            var query = SearchText?.Trim();
+            if (!string.IsNullOrEmpty(query))
+            {
+                return Text("没有匹配「{0}」的配置项。", LocalizationKeys.KspConfigPageEmptyNoMatch, query);
+            }
+
+            return SelectedTab?.Category is null
+                ? Text("没有可显示的配置项。", LocalizationKeys.KspConfigPageEmptyGeneric)
+                : Text("「{0}」分类下没有配置项。", LocalizationKeys.KspConfigPageEmptyCategory, SelectedTab.Title);
+        }
+    }
+
+    /// <summary>列表为空时展示说明卡而不是一片空白。</summary>
+    public bool HasEmptyResult => !IsLoading && FilteredItems.Count == 0;
+
+    /// <summary>空结果卡上的复原按钮是否可用（什么都没筛的时候不该出现一个按不动的按钮）。</summary>
+    public bool CanResetFilters => ShowOnlyModified
+        || !string.IsNullOrWhiteSpace(SearchText)
+        || SelectedTab?.Category is not null;
 
     private void OnItemModifiedStateChanged()
     {
         UpdateModifiedCount();
+
+        if (ShowOnlyModified)
+        {
+            // 「仅看已改」下要把改回去的行摘掉；重建列表会移除正在派发事件的控件，
+            // 所以投递到下一轮再重算。
+            Dispatcher.UIThread.Post(ApplyFilter, DispatcherPriority.Background);
+        }
     }
 
     private void UpdateModifiedCount()
     {
         ModifiedCount = _allItems.Count(i => i.IsModified);
+        RaiseEmptyResultChanged();
     }
 
     // ---- 设计时 Mock -------------------------------------------------------

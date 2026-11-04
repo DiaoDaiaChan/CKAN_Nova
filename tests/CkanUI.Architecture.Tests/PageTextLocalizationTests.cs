@@ -10,7 +10,9 @@ using NUnit.Framework;
 namespace CkanUI.Architecture.Tests;
 
 /// <summary>
-/// 页面 ViewModel 文案层的源码级约束（缺口 ⑧ 收口后的守卫）。
+/// 页面文案层的源码级约束（缺口 ⑧ 收口后的守卫）。扫描范围是 <c>src</c> 下全部 .cs，
+/// 主程序页面与首方插件页面用同一套规矩——插件曾经用 <c>"Pages.KspConfig.*"</c> 这类字面量键，
+/// 键不在语言包里，真机上状态条直接把键名当译文显示出来，这条守卫就是用来堵那个洞的。
 /// 页面里的 <c>Text("中文原文", LocalizationKeys.X)</c> 有两个契约：
 /// ① 第一个参数必须与 <c>i18n/packs/zh-CN.json</c> 里那条键的译文逐字相同——否则切到中文时看到的是 A，
 ///    回退时看到的是 B，同一句话两种写法；② 常量名必须真的对应一个存在的键。
@@ -20,10 +22,10 @@ namespace CkanUI.Architecture.Tests;
 public sealed class PageTextLocalizationTests
 {
     /// <summary>已迁移的 <c>Text(...)</c> 站点下限：只许变多，不许被改回硬编码。</summary>
-    private const int BaselineSites = 800;
+    private const int BaselineSites = 900;
 
-    /// <summary>带站点的页面文件数下限（Pages 下跨子目录合计）。</summary>
-    private const int BaselineFiles = 17;
+    /// <summary>带站点的源码文件数下限（src 下跨项目、跨子目录合计）。</summary>
+    private const int BaselineFiles = 20;
 
     private static readonly Regex ConstantPattern = new(
         "public const string (\\w+)\\s*=\\s*\"(Ui_[^\"]+)\";",
@@ -31,6 +33,11 @@ public sealed class PageTextLocalizationTests
 
     private static readonly Regex CallPattern = new(
         "\\bText\\(\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*,\\s*LocalizationKeys\\.(\\w+)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    /// <summary>第二参是字符串字面量的 <c>Text(...)</c>：键不经过常量表，语言包里多半没有这条键。</summary>
+    private static readonly Regex LiteralKeyPattern = new(
+        "\\bText\\(\\s*\"(?:[^\"\\\\]|\\\\.)*\"\\s*,\\s*\"",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     [Test]
@@ -41,7 +48,7 @@ public sealed class PageTextLocalizationTests
         var failures = new List<string>();
         var sites = 0;
 
-        foreach (var (file, source) in ReadPageSources())
+        foreach (var (file, source) in ReadSources())
         {
             foreach (Match match in CallPattern.Matches(source))
             {
@@ -78,7 +85,7 @@ public sealed class PageTextLocalizationTests
         var files = 0;
         var sites = 0;
 
-        foreach (var (_, source) in ReadPageSources())
+        foreach (var (_, source) in ReadSources())
         {
             var count = CallPattern.Matches(source).Count;
             if (count == 0)
@@ -99,7 +106,7 @@ public sealed class PageTextLocalizationTests
     {
         var offenders = new List<string>();
 
-        foreach (var (file, source) in ReadPageSources())
+        foreach (var (file, source) in ReadSources())
         {
             // 插值串当 fallback：译文没法逐字核对，等于把文案层架空。
             if (source.Contains("$Text(", StringComparison.Ordinal) ||
@@ -111,6 +118,24 @@ public sealed class PageTextLocalizationTests
 
         Assert.That(offenders, Is.Empty, "以下页面把插值字符串当 fallback 传给 Text(...)：\n" + string.Join("\n", offenders));
     }
+
+    [Test]
+    public void NoSourceUsesALiteralLocalizationKey()
+    {
+        var offenders = new List<string>();
+
+        foreach (var (file, source) in ReadSources())
+        {
+            if (LiteralKeyPattern.IsMatch(source))
+            {
+                offenders.Add(file);
+            }
+        }
+
+        Assert.That(offenders, Is.Empty,
+            "以下文件把本地化键写成字符串字面量（应改成 LocalizationKeys 常量，键才会被语言包守卫覆盖）：\n" + string.Join("\n", offenders));
+    }
+
 
     private static Dictionary<string, string> ReadChinesePack()
     {
@@ -139,10 +164,10 @@ public sealed class PageTextLocalizationTests
         return result;
     }
 
-    private static IEnumerable<(string File, string Source)> ReadPageSources()
+    private static IEnumerable<(string File, string Source)> ReadSources()
     {
-        var pages = Path.Combine(RepoRoot.Path, "src", "CkanUI.ViewModels", "Pages");
-        foreach (var path in Directory.EnumerateFiles(pages, "*.cs", SearchOption.AllDirectories))
+        var src = Path.Combine(RepoRoot.Path, "src");
+        foreach (var path in Directory.EnumerateFiles(src, "*.cs", SearchOption.AllDirectories))
         {
             var normalized = path.Replace('\\', '/');
             if (normalized.Contains("/obj/") || normalized.Contains("/bin/"))
@@ -150,7 +175,7 @@ public sealed class PageTextLocalizationTests
                 continue;
             }
 
-            yield return (Path.GetFileName(path), File.ReadAllText(path));
+            yield return (Path.GetRelativePath(src, path).Replace('\\', '/'), File.ReadAllText(path));
         }
     }
 

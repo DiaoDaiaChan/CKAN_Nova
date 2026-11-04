@@ -13,8 +13,10 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="NUnit" />
     <PackageReference Include="NUnit3TestAdapter" />
-    <!-- 视图用例要真的解析一遍 XAML（x:Class / xmlns 搬家后写错会红），所以需要无头 Avalonia 运行时。 -->
+    <!-- 视图用例要真的解析一遍 XAML（x:Class / xmlns 搬家后写错会红），所以需要无头 Avalonia 运行时。
+         FluentTheme 是宿主样式表的底座：没有它连 Border/TextBlock 的默认样式都拿不到。 -->
     <PackageReference Include="Avalonia.Headless" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
   </ItemGroup>
 
   <ItemGroup>

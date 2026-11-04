@@ -20,8 +20,10 @@ public sealed class GlyphCatalogTests
         "Speed", "Timer", "Percent", "Pulse", "Chart", "Cpu", "Program", "Memory", "Gpu", "Curve",
         // RP-1 页：八块统计卡 + 曲线指标切换。
         "Contract", "Milestone", "Crew", "Money", "Science", "Confidence", "Reputation",
+        // KSP 配置页：六个分类页签。
+        "Layers", "Monitor", "Volume", "Gamepad", "Wrench", "More",
         // 通用。
-        "Calendar", "Clock", "Warning", "Check", "Bug",
+        "Calendar", "Clock", "Warning", "Check", "Bug", "Folder", "File",
     ];
 
     [OneTimeSetUp]

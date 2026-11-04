@@ -273,4 +273,144 @@ public sealed class KspConfigPageViewModelTests
         Assert.That(vm.TextValue, Is.EqualTo("CustomText"));
         Assert.That(vm.Value, Is.EqualTo("CustomText"));
     }
+
+    // ---- 工具条与列表摘要（原本这些都绑在不存在的属性上，界面上是死按钮与死空白） ----
+
+    [Test]
+    public void Tabs_CarryTitleIconAndCountForEveryCategory()
+    {
+        var vm = new KspConfigPageViewModel(new FakeKspConfigService());
+
+        Assert.That(vm.Tabs.Select(tab => tab.Title), Is.All.Not.Empty, "六个分类页签都得有标题：绑到不存在的 Header 上会渲染成一排空圆角块。");
+        Assert.That(vm.Tabs.Select(tab => tab.Icon), Is.All.Not.Empty);
+        Assert.That(vm.Tabs.Select(tab => tab.Title).Distinct().Count(), Is.EqualTo(vm.Tabs.Count), "页签标题不能重名。");
+        Assert.That(vm.Tabs[0].Category, Is.Null, "第一个页签是「全部」，不该挂分类。");
+        Assert.That(vm.SelectedTab, Is.SameAs(vm.Tabs[0]), "默认选中「全部」。");
+    }
+
+    [Test]
+    public async Task ShowOnlyModified_FiltersToChangedItems_AndExplainsEmptyState()
+    {
+        var vm = new KspConfigPageViewModel(new FakeKspConfigService());
+        await vm.LoadConfigAsync();
+
+        // 一条都没改：勾上「仅看已改」应当空列表 + 说明，而不是让人以为页面坏了。
+        vm.ShowOnlyModified = true;
+        Assert.That(vm.FilteredItems, Is.Empty);
+        Assert.That(vm.HasEmptyResult, Is.True);
+        Assert.That(vm.EmptyResultText, Does.Contain("还没有任何改动"));
+        Assert.That(vm.CanResetFilters, Is.True);
+
+        // 改一项之后立刻只留这一项。
+        vm.ShowOnlyModified = false;
+        vm.FilteredItems.First(item => item.Key == "MASTER_VOLUME").DoubleValue = 0.5;
+        vm.ShowOnlyModified = true;
+
+        Assert.That(vm.FilteredItems, Has.Count.EqualTo(1));
+        Assert.That(vm.FilteredItems[0].Key, Is.EqualTo("MASTER_VOLUME"));
+        Assert.That(vm.HasEmptyResult, Is.False);
+    }
+
+    [Test]
+    public async Task ClearSearchCommand_EmptiesTheQuery()
+    {
+        var vm = new KspConfigPageViewModel(new FakeKspConfigService());
+        await vm.LoadConfigAsync();
+
+        vm.SearchText = "全屏";
+        Assert.That(vm.FilteredItems, Has.Count.EqualTo(1));
+        Assert.That(vm.HasSearchText, Is.True);
+
+        vm.ClearSearchCommand.Execute(null);
+
+        Assert.That(vm.SearchText, Is.Empty);
+        Assert.That(vm.HasSearchText, Is.False);
+        Assert.That(vm.FilteredItems, Has.Count.EqualTo(5));
+    }
+
+    [Test]
+    public async Task ResetFiltersCommand_RestoresTabSearchAndModifiedOnly()
+    {
+        var vm = new KspConfigPageViewModel(new FakeKspConfigService());
+        await vm.LoadConfigAsync();
+
+        vm.SelectedTab = vm.Tabs.First(tab => tab.Category == KspSettingCategory.Audio);
+        vm.SearchText = "主音量";
+        vm.ShowOnlyModified = true;
+        Assert.That(vm.CanResetFilters, Is.True);
+
+        vm.ResetFiltersCommand.Execute(null);
+
+        Assert.That(vm.SelectedTab, Is.SameAs(vm.Tabs[0]));
+        Assert.That(vm.SearchText, Is.Empty);
+        Assert.That(vm.ShowOnlyModified, Is.False);
+        Assert.That(vm.FilteredItems, Has.Count.EqualTo(5));
+    }
+
+    [Test]
+    public async Task VisibleCountText_ReportsFilteredOverTotal()
+    {
+        var vm = new KspConfigPageViewModel(new FakeKspConfigService());
+        await vm.LoadConfigAsync();
+
+        Assert.That(vm.TotalCount, Is.EqualTo(5));
+        Assert.That(vm.VisibleCountText, Is.EqualTo("5 / 5 项"));
+
+        vm.SelectedTab = vm.Tabs.First(tab => tab.Category == KspSettingCategory.Audio);
+        Assert.That(vm.VisibleCountText, Is.EqualTo("1 / 5 项"));
+    }
+
+    [Test]
+    public async Task SaveButtonText_CarriesPendingCount()
+    {
+        var vm = new KspConfigPageViewModel(new FakeKspConfigService());
+        await vm.LoadConfigAsync();
+
+        Assert.That(vm.SaveButtonText, Is.EqualTo("保存修改"), "没有待保存项时按钮就说「保存修改」。");
+
+        vm.FilteredItems.First(item => item.Key == "MASTER_VOLUME").DoubleValue = 0.5;
+        Assert.That(vm.SaveButtonText, Is.EqualTo("保存 1 项"));
+    }
+
+    [Test]
+    public async Task HasStatus_TracksStatusMessage()
+    {
+        var vm = new KspConfigPageViewModel(new FakeKspConfigService());
+
+        Assert.That(vm.HasStatus, Is.False, "还没说话时状态条不占高度。");
+
+        await vm.LoadConfigAsync();
+
+        Assert.That(vm.StatusMessage, Is.Not.Empty);
+        Assert.That(vm.HasStatus, Is.True);
+    }
+
+    [Test]
+    public async Task EmptyResultText_DistinguishesNoMatchFromEmptyCategory()
+    {
+        var vm = new KspConfigPageViewModel(new FakeKspConfigService());
+        await vm.LoadConfigAsync();
+
+        vm.SelectedTab = vm.Tabs.First(tab => tab.Category == KspSettingCategory.Gameplay);
+        vm.SearchText = "完全不存在的设置";
+
+        Assert.That(vm.HasEmptyResult, Is.True);
+        Assert.That(vm.EmptyResultText, Does.Contain("完全不存在的设置"), "搜索没命中要说明是搜索筛空的。");
+
+        vm.SearchText = string.Empty;
+        vm.SelectedTab = vm.Tabs.First(tab => tab.Category == KspSettingCategory.Other);
+
+        Assert.That(vm.EmptyResultText, Does.Contain("其它项"), "分类下为空要说清是哪个分类。");
+    }
+
+    [Test]
+    public void EmptyResultText_SaysSoWhenNothingWasLoaded()
+    {
+        var fakeService = new FakeKspConfigService();
+        fakeService.Document = fakeService.Document with { Settings = [] };
+        var vm = new KspConfigPageViewModel(fakeService);
+
+        Assert.That(vm.HasEmptyResult, Is.True);
+        Assert.That(vm.EmptyResultText, Does.Contain("还没有读到"));
+    }
 }
