@@ -185,7 +185,7 @@ internal static class NavigationProbe
                 path,
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"[nav] r{round} {key} assign={assign:F1}ms layout={layout:F1}ms paint={paint:F1}ms frames={frames.Count} maxGap={maxGap:F1}ms p50={p50:F1}ms p95={p95:F1}ms dropped={dropped} nodes={ActiveNodeCount(window)} worstAt={worstEnd:F0}ms"));
+                    $"[nav] r{round} {key} assign={assign:F1}ms layout={layout:F1}ms paint={paint:F1}ms frames={frames.Count} maxGap={maxGap:F1}ms p50={p50:F1}ms p95={p95:F1}ms dropped={dropped} nodes={ActiveNodeCount(window)} worstAt={worstEnd:F0}ms{MemorySuffix()}"));
 
             if (Environment.GetEnvironmentVariable("CKANUI_NAV_SCROLL") == "1")
             {
@@ -196,6 +196,23 @@ internal static class NavigationProbe
         }
 
         TryWrite(path, "[nav] done");
+    }
+
+    /// <summary>
+    /// 每个页面切完后的驻留量：工作集 + 托管堆。托管堆走阻塞式完整回收，量的是「这个页面
+    /// 现在真的占着多少」，不是还没回收的垃圾；代价是每次采样停顿几十毫秒，所以只在
+    /// CKANUI_NAV_MEM=1 时才算。
+    /// </summary>
+    private static string MemorySuffix()
+    {
+        if (Environment.GetEnvironmentVariable("CKANUI_NAV_MEM") != "1")
+        {
+            return string.Empty;
+        }
+
+        var managed = GC.GetTotalMemory(forceFullCollection: true) / (1024d * 1024d);
+        var working = Environment.WorkingSet / (1024d * 1024d);
+        return string.Create(CultureInfo.InvariantCulture, $" ws={working:F0}MB heap={managed:F0}MB");
     }
 
     /// <summary>滚动主力列表 60 帧，量滚动期间的帧间隔（用户感知的「滚起来卡」）。</summary>
