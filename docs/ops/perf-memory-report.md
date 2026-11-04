@@ -100,7 +100,21 @@ node tools/perf-probe/measure-instance.mjs
 
 saves 页滚动偶发 `max=1107.6ms`（4 轮复现 1 次）：`SavesPageViewModel.KickValidate()` 在 `OnSelectedRowChanged` 里无条件 `_ = ValidateCoreAsync(row)`（src/CkanUI.Plugin.Saves/SavesPageViewModel.cs:645/847），选中一个 120MB 存档就整文件 `File.ReadAllBytes` 解析一次。热缓存后不再出现。
 
-## 9. 已落地
+## 10. mods 页每次进入 1–3 秒的归因（dotnet-trace 采样）
+
+方法：`CKANUI_NAV_ONLY=mods` + `CKANUI_NAV_WARMUP_MS=12000`，第 10 秒起 `dotnet-trace collect -p <pid> --providers Microsoft-DotNETCore-SampleProfiler --duration 00:00:10`，再 `dotnet-trace convert --format speedscope`。
+
+UI 线程（采样）自时间排名：`Avalonia.StyledElement.ApplyStyles` **1105 次采样**，第二 `Layoutable.MeasureCore` 只有 567 次；`ApplyStyles` 的调用者统计里 1053 次是**自己递归自己**（`ApplyStyles <- ApplyStyles`），外层只有 26 次来自 `OnAttachedToLogicalTreeCore`。
+
+⇒ 进入 mods 页的卡顿不是数据量，是**整棵可视子树被重新套一遍样式**（2333 个节点 × 样式匹配 ≈ 0.5ms/节点）。这解释了为什么 336 模组与 3000 模组的 `layout` 完全一样（3015.3ms / 3003.4ms）、`nodes` 都是 2333。
+
+可疑触发点（都在他人未提交的改动里，不动）：
+- `src/CkanUI.App/Views/ModsPageView.axaml:16` 在页面根上写了 `<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />` —— 视图每次进树都带着整套 DataGrid 样式重新套用；
+- `ModsPageViewModel.OnActivated`（src/CkanUI.ViewModels/Pages/ModsPageViewModel.cs:1066-1090）每次都先改 `IsDetailsPaneVisible` 再 `ReloadFromSnapshots()`，属性变化会再触发一次子树样式失效。
+
+验证这两条只需要把 StyleInclude 移到 App 级、把密度/详情窗格属性改成「与当前值不同才赋值」，但两个文件都是别人的 WIP。
+
+## 11. 已落地
 
 - `7f2149a` 存档头按字节封顶（`HeaderByteBudget=256KB`），不再把 ArrayPool 顶到 512MB
 - `905de7b` 缩略图缓存 64MB 字节预算 LRU（旗帜页滚动掉帧 9→3→0）
