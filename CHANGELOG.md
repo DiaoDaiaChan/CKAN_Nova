@@ -383,6 +383,8 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 修复
 
+- 内容预览页在没有几个控件的空页面上也在掉帧：`src/CkanUI.Services/Content/ContentService.cs` 在 UI 线程上 `new ZipArchive(stream, ZipArchiveMode.Read)`——`.NET` 的 `ZipArchive` 构造函数会同步读完整个中央目录，大整合包里单个 ZIP 上万条目；随后 `src/CkanUI.ViewModels/Pages/ContentPageViewModel.cs` 又把最多 20000 个条目逐个建成节点 VM 再拼树，全在 UI 线程上（实测这一段抢占 UI 线程 480 ms，而页面只有 89 个视觉节点）。
+  - ZIP 读取整体移到线程池（`Task.Run` + `ConfigureAwait(false)`，DTO 建好再回 UI 线程）；条目投影与建树同样挪到线程池，节点 VM 不碰控件，建完整体换上去。
 - 进一次存档页或载具页就涨 500 MB 以上，且涨上去不还：`src/CkanUI.Services/Saves/SaveMetaReader.cs` 的 `ReadHeaderText` 用 `StreamReader.ReadLine` 读「头部 200 行」，可真实大存档里单行能上百 MB，`ReadLine` 在 `StringBuilder` 里一路翻倍，缓冲最后落进 `ArrayPool<char>.Shared` 常驻在线程上。ClrMD 实测这两页有 506 个 `Char[]` 共 512 MB（256/128/64…MB 全零，反向引用就是 `SharedArrayPoolThreadLocalArray[]`），载具页中招是因为它顺带列存档。
   - 改成 `FileStream` 读固定 256 KB → `Encoding.UTF8.GetString` → 截到行边界 → 取前 200 行，不再用 `StreamReader`/`StringBuilder`。
   - 实测：孤立页托管堆 saves/ships 都是 753 MB → 238/256 MB；全 24 页 × 2 轮遍历（336 模组）峰值工作集 3346 MB → 1180 MB，托管堆全程 711–716 MB 平稳（此前 211 → 2013 MB 单调爬升不回落）。

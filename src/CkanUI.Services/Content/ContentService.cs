@@ -11,7 +11,15 @@ public sealed class ContentService(IContentZipStore store) : IContentService
     private const long MaxDisplayedFileSize = 1L << 50;
     private readonly IContentZipStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
-    public async Task<OperationResult<ContentPreview>> PreviewAsync(string identifier, CancellationToken ct = default)
+    /// <remarks>
+    /// ZIP 中央目录是同步 I/O：<see cref="ZipArchive"/> 的构造函数会在调用线程上把整个中央目录读进来，
+    /// 大整合包里单个 ZIP 上千条目，放在 UI 线程上跑就是整页掉帧（内容预览页只有 89 个视觉节点却丢 40 帧）。
+    /// 这里整体挪到线程池，DTO 在后台建好再回 UI 线程，和缓存页的处理一致。
+    /// </remarks>
+    public Task<OperationResult<ContentPreview>> PreviewAsync(string identifier, CancellationToken ct = default)
+        => Task.Run(async () => await PreviewCore(identifier, ct).ConfigureAwait(false));
+
+    private async Task<OperationResult<ContentPreview>> PreviewCore(string identifier, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(identifier)) return OperationResult<ContentPreview>.Fail("未指定模组标识符。");
         var entries = new Dictionary<string, ContentEntry>(StringComparer.Ordinal);
