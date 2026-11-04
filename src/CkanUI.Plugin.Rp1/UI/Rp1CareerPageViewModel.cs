@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using Avalonia.Media;
 using CkanUI.Plugin.Rp1.Career;
+using CkanUI.Ui.Charts;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -19,7 +21,14 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
 {
     private readonly IInstanceService? _instances;
     private readonly IRp1CareerService? _career;
+    // 曲线填充色住在 CareerSeriesBuilder 里（那一层是纯函数，能脱离视图单测）。
+
     private readonly List<Rp1CareerEvent> _allEvents = [];
+    private IReadOnlyList<Rp1CareerPeriod> _periods = [];
+    private IReadOnlyList<ChartSeries> _careerSeries = Array.Empty<ChartSeries>();
+    private bool _hasCareerSeries;
+    private string _careerSeriesSummary = string.Empty;
+    private string _careerMetricKey = "funds";
 
     private Rp1SaveSummary? _selectedSave;
     private Rp1CareerEvent? _selectedEvent;
@@ -54,6 +63,66 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
     public ObservableCollection<Rp1CareerEvent> VisibleEvents { get; } = [];
 
     public ObservableCollection<Rp1CareerPeriodRow> Periods { get; } = [];
+
+    /// <summary>曲线指标切换（资金 / 科技 / 信心 / 声望）。</summary>
+    public ObservableCollection<Rp1CareerMetricOption> CareerMetricOptions { get; } =
+    [
+        new("funds", "资金", "Money", true),
+        new("science", "科技", "Science", false),
+        new("confidence", "信心", "Confidence", false),
+        new("reputation", "声望", "Reputation", false),
+    ];
+
+    /// <summary>
+    /// 生涯曲线（全量预算周期，按游戏内时间正序；横轴是期序号而不是日期——
+    /// 期与期之间的真实间隔在存档里不等长，等距画点会假造节奏）。
+    /// </summary>
+    public IReadOnlyList<ChartSeries> CareerSeries
+    {
+        get => _careerSeries;
+        private set
+        {
+            if (SetProperty(ref _careerSeries, value))
+            {
+                OnPropertyChanged(nameof(HasCareerSeries));
+            }
+        }
+    }
+
+    /// <summary>是否有可画的生涯曲线。</summary>
+    public bool HasCareerSeries => _hasCareerSeries && _careerSeries.Count > 0;
+
+    /// <summary>曲线数据说明（期数、取值口径、单位）。</summary>
+    public string CareerSeriesSummary
+    {
+        get => _careerSeriesSummary;
+        private set => SetProperty(ref _careerSeriesSummary, value);
+    }
+
+    /// <summary>当前曲线指标键（funds / science / confidence / reputation）。</summary>
+    public string CareerMetricKey
+    {
+        get => _careerMetricKey;
+        private set
+        {
+            if (SetProperty(ref _careerMetricKey, value))
+            {
+                OnPropertyChanged(nameof(CareerSeriesSuffix));
+            }
+        }
+    }
+
+    /// <summary>曲线 Y 轴单位后缀。</summary>
+    public string CareerSeriesSuffix
+    {
+        get => _careerMetricKey switch
+        {
+            "science" => " 点",
+            "confidence" => string.Empty,
+            "reputation" => string.Empty,
+            _ => " 资金",
+        };
+    }
 
     public IReadOnlyList<string> FilterOptions { get; } = ["全部", "里程碑", "合同", "项目", "人员"];
 
@@ -401,11 +470,14 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
         CurrentReputationText = FormatNumber(timeline.CurrentReputation, "0.0");
         PeriodCountText = timeline.Periods.Count + " 期";
 
+        _periods = timeline.Periods.OrderBy(static period => period.StartUt).ToArray();
         Periods.Clear();
-        foreach (var period in timeline.Periods.OrderByDescending(period => period.StartUt).Take(12))
+        foreach (var period in _periods.TakeLast(12).Reverse())
         {
             Periods.Add(new Rp1CareerPeriodRow(period));
         }
+
+        BuildCareerSeries();
 
         HasDiagnostics = timeline.Diagnostics.Count > 0;
         DiagnosticsText = HasDiagnostics ? string.Join("\n", timeline.Diagnostics) : string.Empty;
@@ -416,6 +488,35 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
             ? "存档读到了，但还没有生涯事件。"
             : $"已读取 {timeline.Events.Count} 条事件。";
         ApplyFilter();
+    }
+
+    private void BuildCareerSeries()
+    {
+        var result = CareerSeriesBuilder.Build(_periods, CareerMetricKey, CurrentMetricLabel());
+        _hasCareerSeries = result.HasData;
+        CareerSeries = result.Series;
+        CareerSeriesSummary = result.Summary;
+        OnPropertyChanged(nameof(HasCareerSeries));
+    }
+
+    private string CurrentMetricLabel()
+        => CareerMetricOptions.FirstOrDefault(option => option.Key == CareerMetricKey)?.Label ?? "指标";
+
+    [RelayCommand]
+    private void SelectCareerMetric(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key) || key == _careerMetricKey)
+        {
+            return;
+        }
+
+        CareerMetricKey = key;
+        foreach (var option in CareerMetricOptions)
+        {
+            option.IsSelected = string.Equals(option.Key, key, StringComparison.Ordinal);
+        }
+
+        BuildCareerSeries();
     }
 
     private void ApplyFilter()
@@ -487,9 +588,14 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
         _allEvents.Clear();
         VisibleEvents.Clear();
         Periods.Clear();
+        _periods = [];
+        _hasCareerSeries = false;
+        CareerSeries = Array.Empty<ChartSeries>();
+        CareerSeriesSummary = "还没有读到存档，不画曲线";
         SelectedEvent = null;
         EventCountText = "0 条事件";
         OnPropertyChanged(nameof(HasNoVisibleEvents));
+        OnPropertyChanged(nameof(HasCareerSeries));
     }
 
     private void ApplyInstance(InstanceInfo? instance)
@@ -549,4 +655,28 @@ public sealed class Rp1CareerPeriodRow
     public string CrewLostText => Period.CrewLost <= 0 ? string.Empty : $"损失 {Period.CrewLost} 人";
 
     public bool HasCrewLost => Period.CrewLost > 0;
+}
+
+/// <summary>曲线指标切换项（视图里是一排分段按钮）。</summary>
+public sealed partial class Rp1CareerMetricOption : ObservableObject
+{
+    public Rp1CareerMetricOption(string key, string label, string glyph, bool isSelected)
+    {
+        Key = key;
+        Label = label;
+        Glyph = glyph;
+        _isSelected = isSelected;
+    }
+
+    /// <summary>指标键（funds / science / confidence / reputation）。</summary>
+    public string Key { get; }
+
+    /// <summary>显示名。</summary>
+    public string Label { get; }
+
+    /// <summary>图标名（见 CkanUI.Ui.Icons.GlyphCatalog）。</summary>
+    public string Glyph { get; }
+
+    [ObservableProperty]
+    private bool _isSelected;
 }

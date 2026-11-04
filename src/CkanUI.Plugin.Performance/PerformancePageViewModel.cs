@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Threading;
 using CkanUI.Plugin.Performance.Telemetry;
+using CkanUI.Ui.Charts;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 
@@ -33,6 +34,13 @@ public sealed class PerformancePageViewModel : PerformanceObservable, IPluginPag
     private readonly KppCommandClient _commandClient;
     private readonly SynchronizationContext? _uiContext;
     private readonly PerformanceAsyncCommand[] _buttons;
+
+    // 曲线填充色在 FrameSeriesBuilder 里（那一层是纯函数，能脱离视图单测）。
+
+    private IReadOnlyList<ChartSeries> _frameCostSeries = Array.Empty<ChartSeries>();
+    private IReadOnlyList<ChartSeries> _fpsSeries = Array.Empty<ChartSeries>();
+    private bool _hasFrameSeries;
+    private string _frameSeriesSummary = NotAvailable;
 
     private bool _disposed;
     private string _lastRebuildSignature = string.Empty;
@@ -265,6 +273,34 @@ public sealed class PerformancePageViewModel : PerformanceObservable, IPluginPag
     {
         get => _timelineSummaryText;
         private set => SetProperty(ref _timelineSummaryText, value);
+    }
+
+    /// <summary>帧耗时曲线（毫秒，单序列；缺失帧处断线）。</summary>
+    public IReadOnlyList<ChartSeries> FrameCostSeries
+    {
+        get => _frameCostSeries;
+        private set => SetProperty(ref _frameCostSeries, value);
+    }
+
+    /// <summary>帧率曲线（FPS，单序列）。与帧耗时分成两张图——两个量纲共用一根 Y 轴等于编造对照。</summary>
+    public IReadOnlyList<ChartSeries> FpsSeries
+    {
+        get => _fpsSeries;
+        private set => SetProperty(ref _fpsSeries, value);
+    }
+
+    /// <summary>是否有可画的帧时间曲线（false 时页面给原因，不画空图）。</summary>
+    public bool HasFrameSeries
+    {
+        get => _hasFrameSeries;
+        private set => SetProperty(ref _hasFrameSeries, value);
+    }
+
+    /// <summary>曲线卡的数据说明（样本数 / 窗口 / 横轴口径）。</summary>
+    public string FrameSeriesSummary
+    {
+        get => _frameSeriesSummary;
+        private set => SetProperty(ref _frameSeriesSummary, value);
     }
 
     // ── 分解条 ────────────────────────────────────────────────────────────────
@@ -795,6 +831,10 @@ public sealed class PerformancePageViewModel : PerformanceObservable, IPluginPag
         AgeText = NotAvailable;
         UpdatedAtText = NotAvailable;
         TimelineSummaryText = NotAvailable;
+        FrameCostSeries = Array.Empty<ChartSeries>();
+        FpsSeries = Array.Empty<ChartSeries>();
+        HasFrameSeries = false;
+        FrameSeriesSummary = NotAvailable;
         Metrics = Array.Empty<PerformanceMetricRow>();
         BreakdownRows = Array.Empty<PerformanceBreakdownRow>();
         BreakdownTotalText = NotAvailable;
@@ -848,6 +888,7 @@ public sealed class PerformancePageViewModel : PerformanceObservable, IPluginPag
             : "时间线不可用";
 
         Metrics = BuildMetrics(snapshot);
+        BuildFrameSeries(snapshot);
         BuildBreakdown(snapshot);
         BuildGpu(snapshot);
         BuildHotspots(snapshot);
@@ -873,36 +914,50 @@ public sealed class PerformancePageViewModel : PerformanceObservable, IPluginPag
                 "平均 " + (Format(frame?.AvgFps, "0.0") ?? NotAvailable) + " · dt " + (Format(frame?.Dt, "0.000") ?? NotAvailable),
                 fpsTrend,
                 fpsTrend.Count > 1,
-                "走势来源 timeline[].fps"),
+                "走势来源 timeline[].fps",
+                "Speed"),
             new PerformanceMetricRow(
                 "帧耗时",
                 Ms(frame?.FrameMs),
                 "平均 " + Ms(frame?.AvgFrameMs) + " · 物理步 " + (Format(frame?.PhysSteps, "0") ?? NotAvailable),
                 frameTrend,
                 frameTrend.Count > 1,
-                "走势来源 timeline[].frameMs"),
+                "走势来源 timeline[].frameMs",
+                "Timer"),
             new PerformanceMetricRow(
                 "1% Low",
                 Format(frame?.OnePercentLowFps, "0.0") ?? NotAvailable,
                 "0.1% Low " + (Format(frame?.PointOnePercentLowFps, "0.0") ?? NotAvailable),
                 Array.Empty<double>(),
                 false,
-                "契约未提供该指标的序列，不画走势"),
+                "契约未提供该指标的序列，不画走势",
+                "Percent"),
             new PerformanceMetricRow(
                 "PTR",
                 Format(frame?.Ptr, "0.000") ?? NotAvailable,
                 "契约字段 frame.ptr（由 KPP 计算，本页不二次解释）",
                 Array.Empty<double>(),
                 false,
-                "契约未提供该指标的序列，不画走势"),
+                "契约未提供该指标的序列，不画走势",
+                "Pulse"),
             new PerformanceMetricRow(
                 "帧抖动",
                 Ms(frame?.JitterMs),
                 "相邻帧耗时差分的近期均值",
                 jitterTrend,
                 jitterTrend.Count > 1,
-                "走势来源 timeline[].frameMs 的一阶差分"),
+                "走势来源 timeline[].frameMs 的一阶差分",
+                "Chart"),
         };
+    }
+
+    private void BuildFrameSeries(KppTelemetrySnapshot snapshot)
+    {
+        var result = FrameSeriesBuilder.Build(snapshot);
+        FrameCostSeries = result.CostSeries;
+        FpsSeries = result.FpsSeries;
+        HasFrameSeries = result.HasData;
+        FrameSeriesSummary = result.Summary;
     }
 
     private void BuildBreakdown(KppTelemetrySnapshot snapshot)
@@ -916,27 +971,28 @@ public sealed class PerformancePageViewModel : PerformanceObservable, IPluginPag
         }
 
         var tufx = Sum(breakdown.TufxPostFx, breakdown.TufxCpu);
-        var segments = new (string Title, double? Ms)[]
+        var segments = new (string Title, string Glyph, double? Ms)[]
         {
-            ("模块脚本", breakdown.ModuleScripts),
-            ("插件脚本", breakdown.PluginScripts),
-            ("物理", breakdown.Physx),
-            ("渲染残差", breakdown.RenderResidual),
-            ("相机", breakdown.Camera),
-            ("TUFX", tufx),
-            ("GC", breakdown.Gc),
+            ("模块脚本", "Cpu", breakdown.ModuleScripts),
+            ("插件脚本", "Program", breakdown.PluginScripts),
+            ("物理", "Pulse", breakdown.Physx),
+            ("渲染残差", "Gpu", breakdown.RenderResidual),
+            ("相机", "Curve", breakdown.Camera),
+            ("TUFX", "Chart", tufx),
+            ("GC", "Memory", breakdown.Gc),
         };
 
         var total = segments.Sum(static s => s.Ms ?? 0d);
         var rows = new List<PerformanceBreakdownRow>(segments.Length);
-        foreach (var (title, ms) in segments)
+        foreach (var (title, glyph, ms) in segments)
         {
             var fraction = ms is { } value && total > 0 ? Math.Clamp(value / total, 0d, 1d) : 0d;
             rows.Add(new PerformanceBreakdownRow(
                 title,
                 Ms(ms),
                 ms is not null && total > 0 ? Format(ms.Value / total * 100d, "0.0") + " %" : NotAvailable,
-                fraction));
+                fraction,
+                glyph));
         }
 
         BreakdownRows = rows;

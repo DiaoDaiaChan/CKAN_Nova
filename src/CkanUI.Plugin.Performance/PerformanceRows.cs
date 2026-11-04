@@ -11,20 +11,23 @@ namespace CkanUI.Plugin.Performance;
 /// <param name="Trend">近期序列（可为空）。</param>
 /// <param name="HasTrend">是否有可画走势的数据（false 时视图不画空图）。</param>
 /// <param name="TrendHint">走势来源说明。</param>
+/// <param name="Glyph">指标图标名（见 CkanUI.Ui.Icons.GlyphCatalog；认不出时不画）。</param>
 public sealed record PerformanceMetricRow(
     string Title,
     string ValueText,
     string DetailText,
     IReadOnlyList<double> Trend,
     bool HasTrend,
-    string TrendHint);
+    string TrendHint,
+    string Glyph = "Chart");
 
 /// <summary>分解条的一行。</summary>
 /// <param name="Title">段名。</param>
 /// <param name="MsText">毫秒文本。</param>
 /// <param name="PctText">占比文本。</param>
 /// <param name="Fraction">0–1 的占比（视图按它设条宽）。</param>
-public sealed record PerformanceBreakdownRow(string Title, string MsText, string PctText, double Fraction);
+/// <param name="Glyph">段图标名（见 CkanUI.Ui.Icons.GlyphCatalog；认不出时不画）。</param>
+public sealed record PerformanceBreakdownRow(string Title, string MsText, string PctText, double Fraction, string Glyph = "Chart");
 
 /// <summary>GPU 五段的一行。</summary>
 /// <param name="Label">段名（depth / opaque / … 的中文标签）。</param>

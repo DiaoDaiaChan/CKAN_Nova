@@ -15,10 +15,16 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="NUnit" />
     <PackageReference Include="NUnit3TestAdapter" />
+    <!-- 视图冒烟用例要真的装配可视树：无头平台 + 主题（控件模板与 DynamicResource 的来源）。
+         纯解析用例不需要这两个包，但同程序集共享 csproj，加在一起最省事。 -->
+    <PackageReference Include="Avalonia.Headless" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../../src/CkanUI.Plugin.Performance/CkanUI.Plugin.Performance.csproj" />
+    <!-- CurveChart / GlyphIcon 在共享层；插件虽已传递引用，断言类型时显式引用更稳。 -->
+    <ProjectReference Include="../../src/CkanUI.Ui/CkanUI.Ui.csproj" />
   </ItemGroup>
 
   <ItemGroup>

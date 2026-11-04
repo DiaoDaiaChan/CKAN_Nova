@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- 第三方式插件试点（docs/design/plugins.md §6.1 / docs/design/performance-tab.md）。
-       架构铁律：本程序集只允许引用契约层 CkanUI.Services.Abstractions 与 Avalonia。
+       架构铁律：本程序集只允许引用契约层 CkanUI.Services.Abstractions、共享 UI 层 CkanUI.Ui 与 Avalonia。
        不引用 CkanUI.Services / CkanUI.ViewModels / CkanUI.App / CKAN-core——插件引了宿主实现就被钉死在实现上。
+       CkanUI.Ui 只放无宿主依赖的控件与工具（图标、曲线），宿主与插件共用一份。
        包版本全部来自 Directory.Packages.props 的中央包管理，这里只写不带版本的 PackageReference。 -->
   <PropertyGroup>
     <RootNamespace>CkanUI.Plugin.Performance</RootNamespace>
@@ -18,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
+    <ProjectReference Include="../CkanUI.Ui/CkanUI.Ui.csproj" />
   </ItemGroup>
 
 </Project>

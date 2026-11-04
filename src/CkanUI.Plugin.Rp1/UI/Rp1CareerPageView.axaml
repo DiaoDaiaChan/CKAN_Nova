@@ -1,5 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:CkanUI.Ui.Icons"
+             xmlns:charts="using:CkanUI.Ui.Charts"
              x:Class="CkanUI.Plugin.Rp1.UI.Rp1CareerPageView"
              x:CompileBindings="False">
   <UserControl.Styles>
@@ -20,6 +22,17 @@
       <Setter Property="Padding" Value="10,7" />
       <Setter Property="Margin" Value="0,0,8,8" />
       <Setter Property="MinWidth" Value="104" />
+    </Style>
+    <Style Selector="Button.rp1-metric-tab">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="9,3" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusPill}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button.rp1-metric-tab.selected">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
     </Style>
   </UserControl.Styles>
 
@@ -184,49 +197,81 @@
             <WrapPanel Orientation="Horizontal" Margin="0,8,0,0">
               <Border Classes="rp1-stat">
                 <StackPanel Spacing="1">
-                  <TextBlock Text="合同" Classes="CkanCaption" />
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <ui:GlyphIcon Glyph="Contract" Size="12" VerticalAlignment="Center"
+                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    <TextBlock Text="合同" Classes="CkanCaption" />
+                  </StackPanel>
                   <TextBlock Text="{Binding ContractCountText}" FontWeight="SemiBold" FontSize="16" />
                 </StackPanel>
               </Border>
               <Border Classes="rp1-stat">
                 <StackPanel Spacing="1">
-                  <TextBlock Text="里程碑" Classes="CkanCaption" />
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <ui:GlyphIcon Glyph="Milestone" Size="12" VerticalAlignment="Center"
+                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    <TextBlock Text="里程碑" Classes="CkanCaption" />
+                  </StackPanel>
                   <TextBlock Text="{Binding MilestoneCountText}" FontWeight="SemiBold" FontSize="16" />
                 </StackPanel>
               </Border>
               <Border Classes="rp1-stat">
                 <StackPanel Spacing="1">
-                  <TextBlock Text="项目" Classes="CkanCaption" />
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <ui:GlyphIcon Glyph="Program" Size="12" VerticalAlignment="Center"
+                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    <TextBlock Text="项目" Classes="CkanCaption" />
+                  </StackPanel>
                   <TextBlock Text="{Binding ProgramCountText}" FontWeight="SemiBold" FontSize="16" />
                 </StackPanel>
               </Border>
               <Border Classes="rp1-stat">
                 <StackPanel Spacing="1">
-                  <TextBlock Text="退役 / 损失" Classes="CkanCaption" />
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <ui:GlyphIcon Glyph="Crew" Size="12" VerticalAlignment="Center"
+                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    <TextBlock Text="退役 / 损失" Classes="CkanCaption" />
+                  </StackPanel>
                   <TextBlock Text="{Binding CrewCountText}" FontWeight="SemiBold" FontSize="16" />
                 </StackPanel>
               </Border>
               <Border Classes="rp1-stat">
                 <StackPanel Spacing="1">
-                  <TextBlock Text="资金" Classes="CkanCaption" />
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <ui:GlyphIcon Glyph="Money" Size="12" VerticalAlignment="Center"
+                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    <TextBlock Text="资金" Classes="CkanCaption" />
+                  </StackPanel>
                   <TextBlock Text="{Binding CurrentFundsText}" FontWeight="SemiBold" FontSize="16" />
                 </StackPanel>
               </Border>
               <Border Classes="rp1-stat">
                 <StackPanel Spacing="1">
-                  <TextBlock Text="科技" Classes="CkanCaption" />
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <ui:GlyphIcon Glyph="Science" Size="12" VerticalAlignment="Center"
+                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    <TextBlock Text="科技" Classes="CkanCaption" />
+                  </StackPanel>
                   <TextBlock Text="{Binding CurrentScienceText}" FontWeight="SemiBold" FontSize="16" />
                 </StackPanel>
               </Border>
               <Border Classes="rp1-stat">
                 <StackPanel Spacing="1">
-                  <TextBlock Text="信心" Classes="CkanCaption" />
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <ui:GlyphIcon Glyph="Confidence" Size="12" VerticalAlignment="Center"
+                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    <TextBlock Text="信心" Classes="CkanCaption" />
+                  </StackPanel>
                   <TextBlock Text="{Binding CurrentConfidenceText}" FontWeight="SemiBold" FontSize="16" />
                 </StackPanel>
               </Border>
               <Border Classes="rp1-stat">
                 <StackPanel Spacing="1">
-                  <TextBlock Text="声望" Classes="CkanCaption" />
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <ui:GlyphIcon Glyph="Reputation" Size="12" VerticalAlignment="Center"
+                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    <TextBlock Text="声望" Classes="CkanCaption" />
+                  </StackPanel>
                   <TextBlock Text="{Binding CurrentReputationText}" FontWeight="SemiBold" FontSize="16" />
                 </StackPanel>
               </Border>
@@ -266,8 +311,55 @@
             </TabItem>
 
             <TabItem Header="预算周期">
-              <Grid RowDefinitions="*,Auto">
-                <ScrollViewer>
+              <Grid RowDefinitions="Auto,*,Auto">
+                <!-- 生涯曲线：全量周期（不止最近 12 期），一次只画一个量纲 -->
+                <Border Grid.Row="0"
+                        Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+                        BorderBrush="{DynamicResource CkanGlassBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                        Padding="10,8"
+                        Margin="2,8,8,4">
+                  <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="Auto,*">
+                      <TextBlock Grid.Column="0" Text="生涯曲线" Classes="CkanSectionTitle" />
+                      <TextBlock Grid.Column="1"
+                                 Text="{Binding CareerSeriesSummary}"
+                                 Classes="CkanCaption"
+                                 HorizontalAlignment="Right"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                 TextWrapping="Wrap" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding CareerMetricOptions}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Button Classes="rp1-metric-tab"
+                                  Classes.selected="{Binding IsSelected}"
+                                  Command="{Binding $parent[UserControl].DataContext.SelectCareerMetricCommand}"
+                                  CommandParameter="{Binding Key}"
+                                  Margin="0,0,4,0">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                              <ui:GlyphIcon Glyph="{Binding Glyph}" Size="12" VerticalAlignment="Center" />
+                              <TextBlock Text="{Binding Label}" />
+                            </StackPanel>
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <charts:CurveChart Height="150"
+                                       Series="{Binding CareerSeries}"
+                                       IncludeZero="False"
+                                       ValueFormat="0.#"
+                                       ValueSuffix="{Binding CareerSeriesSuffix}"
+                                       Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                  </StackPanel>
+                </Border>
+                <ScrollViewer Grid.Row="1">
                   <ItemsControl ItemsSource="{Binding Periods}" Margin="2,8,8,8">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate>
@@ -291,7 +383,7 @@
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
                 </ScrollViewer>
-                <TextBlock Grid.Row="1" Text="只显示最近 12 期；完整周期数见工具条右侧。" Classes="CkanCaption"
+                <TextBlock Grid.Row="2" Text="列表只显示最近 12 期；完整周期数见工具条右侧，曲线画的是全部周期。" Classes="CkanCaption"
                            Foreground="{DynamicResource CkanTextTertiaryBrush}" Margin="2,4,0,0" />
               </Grid>
             </TabItem>

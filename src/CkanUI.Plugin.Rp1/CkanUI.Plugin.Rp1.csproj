@@ -17,6 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
     <ProjectReference Include="../CkanUI.Sfs/CkanUI.Sfs.csproj" />
+    <ProjectReference Include="../CkanUI.Ui/CkanUI.Ui.csproj" />
   </ItemGroup>
 
 </Project>

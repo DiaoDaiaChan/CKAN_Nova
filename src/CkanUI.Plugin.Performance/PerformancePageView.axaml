@@ -1,12 +1,14 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="using:CkanUI.Plugin.Performance"
+             xmlns:ui="using:CkanUI.Ui.Icons"
+             xmlns:charts="using:CkanUI.Ui.Charts"
              x:Class="CkanUI.Plugin.Performance.PerformancePageView"
              x:CompileBindings="False">
   <!--
     第三方式插件页：只依赖 Avalonia 与 CkanUI.Services.Abstractions，因此这里
     用宿主 App 级资源 token（Ckan*）与样式类，不引用任何宿主控件程序集。
-    图表是 local:PerfSparkline / local:PerfBar 自绘控件——不新增 NuGet 包。
+    图表是 local:PerfSparkline / local:PerfBar 自绘控件，曲线与图标来自共享层 CkanUI.Ui——不新增 NuGet 包。
   -->
   <UserControl.Resources>
     <DataTemplate x:Key="PerfKeyValueTemplate">
@@ -218,9 +220,15 @@
                   <DataTemplate>
                     <Border Classes="perf-metric" Width="200" Margin="0,0,10,10">
                       <StackPanel Spacing="4">
-                        <TextBlock Text="{Binding Title}"
-                                   Classes="CkanCaption"
-                                   Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                          <ui:GlyphIcon Glyph="{Binding Glyph}"
+                                        Size="13"
+                                        VerticalAlignment="Center"
+                                        Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                          <TextBlock Text="{Binding Title}"
+                                     Classes="CkanCaption"
+                                     Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                        </StackPanel>
                         <TextBlock Text="{Binding ValueText}"
                                    Classes="CkanNumericLarge"
                                    Foreground="{DynamicResource CkanTextPrimaryBrush}" />
@@ -249,6 +257,48 @@
             </StackPanel>
           </Border>
 
+          <!-- 帧时间曲线：帧耗时与帧率量纲不同，分两张图，不共用一根 Y 轴 -->
+          <Border Classes="perf-card">
+            <StackPanel Spacing="8">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="帧时间曲线" Classes="CkanSectionTitle" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding FrameSeriesSummary}"
+                           Classes="CkanCaption"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              </Grid>
+              <Grid ColumnDefinitions="*,*" IsVisible="{Binding HasFrameSeries}">
+                <StackPanel Grid.Column="0" Spacing="3" Margin="0,0,8,0">
+                  <TextBlock Text="帧耗时 (ms)"
+                             Classes="CkanCaption"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <charts:CurveChart Height="150"
+                                     Series="{Binding FrameCostSeries}"
+                                     IncludeZero="False"
+                                     ValueFormat="0.0"
+                                     ValueSuffix="ms"
+                                     Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="3" Margin="8,0,0,0">
+                  <TextBlock Text="帧率 (FPS)"
+                             Classes="CkanCaption"
+                             Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                  <charts:CurveChart Height="150"
+                                     Series="{Binding FpsSeries}"
+                                     IncludeZero="False"
+                                     ValueFormat="0.0"
+                                     ValueSuffix="fps"
+                                     Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                </StackPanel>
+              </Grid>
+              <TextBlock Text="时间线里没有绘制所需的点，因此不画曲线（不补 0、不外推）。"
+                         Classes="CkanCaption"
+                         IsVisible="{Binding !HasFrameSeries}"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
           <!-- 耗时分解 -->
           <Border Classes="perf-card">
             <StackPanel Spacing="6">
@@ -262,24 +312,30 @@
               <ItemsControl ItemsSource="{Binding BreakdownRows}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
-                    <Grid ColumnDefinitions="110,78,*,62" Margin="0,2">
-                      <TextBlock Grid.Column="0"
+                    <Grid ColumnDefinitions="Auto,104,78,*,62" Margin="0,2">
+                      <ui:GlyphIcon Grid.Column="0"
+                                    Glyph="{Binding Glyph}"
+                                    Size="12"
+                                    Margin="0,0,5,0"
+                                    VerticalAlignment="Center"
+                                    Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                      <TextBlock Grid.Column="1"
                                  Text="{Binding Title}"
                                  Classes="CkanCaption"
                                  Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                      <TextBlock Grid.Column="1"
+                      <TextBlock Grid.Column="2"
                                  Text="{Binding MsText}"
                                  Classes="CkanNumeric"
                                  HorizontalAlignment="Right"
                                  Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                      <local:PerfBar Grid.Column="2"
+                      <local:PerfBar Grid.Column="3"
                                      Height="8"
                                      Margin="10,0"
                                      VerticalAlignment="Center"
                                      Fraction="{Binding Fraction}"
                                      Fill="{DynamicResource CkanAccentBrush}"
                                      Track="{DynamicResource CkanMutedBackgroundBrush}" />
-                      <TextBlock Grid.Column="3"
+                      <TextBlock Grid.Column="4"
                                  Text="{Binding PctText}"
                                  Classes="CkanNumeric"
                                  HorizontalAlignment="Right"
