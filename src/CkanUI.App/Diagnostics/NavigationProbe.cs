@@ -409,7 +409,10 @@ internal static class NavigationProbe
 
         var managed = GC.GetTotalMemory(forceFullCollection: true) / (1024d * 1024d);
         var working = Environment.WorkingSet / (1024d * 1024d);
-        return string.Create(CultureInfo.InvariantCulture, $" ws={working:F0}MB heap={managed:F0}MB");
+        using var process = Process.GetCurrentProcess();
+        // private = 已提交但不一定常驻的部分（JIT、显卡驱动映射、Skia 位图）；ws - heap 的缺口主要落在这里。
+        var priv = process.PrivateMemorySize64 / (1024d * 1024d);
+        return string.Create(CultureInfo.InvariantCulture, $" ws={working:F0}MB private={priv:F0}MB heap={managed:F0}MB");
     }
 
     /// <summary>滚动主力列表 60 帧，量滚动期间的帧间隔（用户感知的「滚起来卡」）。</summary>
