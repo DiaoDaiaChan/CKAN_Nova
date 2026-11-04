@@ -83,7 +83,24 @@ node tools/perf-probe/measure-instance.mjs
 | 四个尖峰页离页即释放（saves 666 / changes 350 / downloadstats 270 / content 140） | 峰值 1824→约 900MB | 同上 + `src/CkanUI.Plugin.Saves/*` |
 | 页面驻留预算（最近 N 页，其余摘舞台） | 常驻再砍一半 | PageStage 在 `src/CkanUI.App/MainWindow.axaml.cs` |
 
-## 7. 已落地
+## 8. 滚动与「每次进入」实测（3000 模组实例）
+
+滚动窗口 60 帧、步进 24px、取最大可见 ScrollViewer（`CKANUI_NAV_ONLY=<key> CKANUI_NAV_SCROLL=1`）：
+
+| 页面 | p50 | p95 | max | dropped |
+| --- | --- | --- | --- | --- |
+| settings | 5.6 / 5.4ms | 10.8 / 7.2ms | 11.6 / 11.1ms | 0 / 0 |
+| logs | 0.1 / 0.0ms | 11.2 / 0.1ms | 16.6 / 0.1ms | 0 / 0 |
+| modconfig | 10.6 / 6.1ms | 16.6 / 16.9ms | 22.0 / 22.1ms | 2 / 5 |
+| saves | — / 5.7ms | — / 13.8ms | — / 17.5ms | — / 2 |
+
+⇒ 稳态滚动已经不掉帧；mods / kspconfig / downloadstats 的滚动量不到（`[scroll] skip … reason=no-scroller`，虚拟化列表 Extent 未展开），这三页的滚动缺口仍在。
+
+真正被感知的卡顿是**每次进入 mods 页**：`CKANUI_NAV_ONLY=mods` 两轮都是 `layout≈3003ms`，且 336 模组与 3000 模组完全一样（`layout=3015.3ms`、`nodes=2333` 两者相同）⇒ 与模组数无关，是 DataGrid 建容器/套主题的一次性成本，不是数据量问题。稳态帧 `maxGap=37.0ms`，帧间隔 p50 16.8ms。
+
+saves 页滚动偶发 `max=1107.6ms`（4 轮复现 1 次）：`SavesPageViewModel.KickValidate()` 在 `OnSelectedRowChanged` 里无条件 `_ = ValidateCoreAsync(row)`（src/CkanUI.Plugin.Saves/SavesPageViewModel.cs:645/847），选中一个 120MB 存档就整文件 `File.ReadAllBytes` 解析一次。热缓存后不再出现。
+
+## 9. 已落地
 
 - `7f2149a` 存档头按字节封顶（`HeaderByteBudget=256KB`），不再把 ArrayPool 顶到 512MB
 - `905de7b` 缩略图缓存 64MB 字节预算 LRU（旗帜页滚动掉帧 9→3→0）
