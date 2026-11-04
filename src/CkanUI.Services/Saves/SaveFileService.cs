@@ -273,6 +273,9 @@ public sealed class SaveFileService : ISaveFileService
 
     // ---- 校验 -------------------------------------------------------------
 
+    /// <summary>超过这个体积的存档解析完要请 GC 压一次 LOH（32MB 以上才值得）。</summary>
+    private const long LargeSaveCompactionThresholdBytes = 32L * 1024 * 1024;
+
     private static SaveValidationReport? BuildReport(string filePath)
     {
         var info = new FileInfo(filePath);
@@ -308,6 +311,15 @@ public sealed class SaveFileService : ISaveFileService
         {
             // 结构完全解析不出来：直接把解析诊断当校验结果，仍然是"有诊断、不抛异常"。
             diagnostics = parsed.Diagnostics;
+        }
+
+        // 大存档（实测最大的 persistent 有 120MB）解析完会把几百 MB 的字符/字节块留在 LOH 上：
+        // 托管堆回收了，但大对象堆默认不压缩，段还挂在进程里，用户看到的就是「任务管理器 4GB」。
+        // 这里只登记一次「下次 GC 压缩 LOH」，不主动 Collect，不占 UI 线程。
+        if (info.Length >= LargeSaveCompactionThresholdBytes)
+        {
+            System.Runtime.GCSettings.LargeObjectHeapCompactionMode =
+                System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
         }
 
         return new SaveValidationReport(

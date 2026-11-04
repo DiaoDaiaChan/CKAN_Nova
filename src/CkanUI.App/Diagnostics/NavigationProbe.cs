@@ -1,5 +1,8 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Reflection;
+using System.Text.RegularExpressions;
+using System.Windows.Input;
 using System.Globalization;
 using System.Text;
 using Avalonia;
@@ -187,6 +190,11 @@ internal static class NavigationProbe
                     CultureInfo.InvariantCulture,
                     $"[nav] r{round} {key} assign={assign:F1}ms layout={layout:F1}ms paint={paint:F1}ms frames={frames.Count} maxGap={maxGap:F1}ms p50={p50:F1}ms p95={p95:F1}ms dropped={dropped} nodes={ActiveNodeCount(window)} worstAt={worstEnd:F0}ms{MemorySuffix()}"));
 
+            if (round == 1 && Environment.GetEnvironmentVariable("CKANUI_NAV_CLICKS") == "1")
+            {
+                await ClickCommandsAsync(window, shell, path, key).ConfigureAwait(true);
+            }
+
             if (Environment.GetEnvironmentVariable("CKANUI_NAV_SCROLL") == "1")
             {
                 await ScrollWindowAsync(window, path, round, key).ConfigureAwait(true);
@@ -196,6 +204,99 @@ internal static class NavigationProbe
         }
 
         TryWrite(path, "[nav] done");
+    }
+
+    /// <summary>
+    /// 安全可点的命令白名单：只点「重新取数」这一类幂等命令，安装/卸载/应用/启动一律不点。
+    /// </summary>
+    private static readonly Regex SafeCommandPattern = new(
+        "^(Refresh|Reload|Recompute|Recheck|Rescan|Validate|Copy)",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    /// <summary>
+    /// 逐个点页面上的安全命令，记录「点到命令体跑完」与「UI 线程重新能响应」各花多久。
+    /// </summary>
+    /// <remarks>
+    /// 用户问的是「点一下按钮会不会卡」：命令体同步执行的时间就是冻结时间，
+    /// 命令里若开了后台任务、只是等它回来，<c>free</c> 也会立刻回落——两个数字合起来
+    /// 才能区分「同步计算卡住 UI」和「异步加载让页面慢慢长出来」。
+    /// </remarks>
+    private static async Task ClickCommandsAsync(TopLevel window, ShellViewModel shell, string path, string key)
+    {
+        var page = shell.CurrentPage;
+        if (page is null)
+        {
+            TryWrite(path, $"[click] {key} no-page");
+            return;
+        }
+
+        foreach (var property in page.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (property.GetIndexParameters().Length > 0 || !SafeCommandPattern.IsMatch(property.Name))
+            {
+                continue;
+            }
+
+            if (property.GetValue(page) is not ICommand command || !command.CanExecute(null))
+            {
+                continue;
+            }
+
+            var watch = Stopwatch.StartNew();
+            try
+            {
+                command.Execute(null);
+            }
+            catch (Exception ex)
+            {
+                TryWrite(path, $"[click] {key} {property.Name} threw={ex.GetType().Name}");
+                continue;
+            }
+
+            var sync = watch.Elapsed.TotalMilliseconds;
+            await WaitForLayoutAsync(watch).ConfigureAwait(true);
+            var free = watch.Elapsed.TotalMilliseconds;
+            var (frames, maxGap, over50) = await SampleFramesAsync(window, 1200).ConfigureAwait(true);
+            TryWrite(
+                path,
+                string.Create(CultureInfo.InvariantCulture, $"[click] {key} {property.Name} sync={sync:F1}ms free={free:F1}ms frames={frames} maxGap={maxGap:F1}ms over50={over50}"));
+            await Task.Delay(120).ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>点完命令后持续采帧：命令体返回不代表不卡，异步加载回来时照样会掉帧。</summary>
+    private static async Task<(int Frames, double MaxGap, int Over50)> SampleFramesAsync(TopLevel window, int durationMs)
+    {
+        var frames = new List<double>();
+        var watch = Stopwatch.StartNew();
+        var stop = false;
+
+        void OnFrame(TimeSpan _)
+        {
+            frames.Add(watch.Elapsed.TotalMilliseconds);
+            if (!stop)
+            {
+                window.RequestAnimationFrame(OnFrame);
+            }
+        }
+
+        window.RequestAnimationFrame(OnFrame);
+        await Task.Delay(durationMs).ConfigureAwait(true);
+        stop = true;
+
+        var maxGap = 0d;
+        var over50 = 0;
+        for (var i = 1; i < frames.Count; i++)
+        {
+            var gap = frames[i] - frames[i - 1];
+            maxGap = Math.Max(maxGap, gap);
+            if (gap > 50)
+            {
+                over50++;
+            }
+        }
+
+        return (frames.Count, maxGap, over50);
     }
 
     /// <summary>
