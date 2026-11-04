@@ -116,6 +116,18 @@ UI 线程（采样）自时间排名：`Avalonia.StyledElement.ApplyStyles` **11
 
 验证这两条只需要把 StyleInclude 移到 App 级、把密度/详情窗格属性改成「与当前值不同才赋值」，但两个文件都是别人的 WIP。
 
+### 10.1 样式表数量不是杠杆（实测否证）
+
+`CKANUI_NAV_STYLES=1` 统计 PageStage 里 31 个页面视图自带的样式表：`[styles] app=2 pages=31 total=148 top=LogPageView=24,SoundtrackPageView=23,Rp1CareerPageView=16,PerformancePageView=14,AiAssistantPageView=9,SavesPageView=9`。全应用只有 2 个 App 级样式表，31 个页面加起来 148 个 Style，ModsPageView 连前 6 都进不去。
+
+⇒ 「每个页面各带一份 DataGrid 主题，样式数量爆炸拖慢 ApplyStyles」这个假设**不成立**，不用去合并 StyleInclude。
+
+剩下的解释只有两条，都指向同一个动作——**减少进树节点或减少重进树次数**：
+1. 单个节点的 `ApplyStyles` 在 Avalonia 12 里要约 0.5ms（2333 节点 ≈ 1.1s），settings 页同样 2338 节点却只要 29ms ⇒ 差异在 DataGrid 行容器的实现方式，不在样式数量；
+2. mods 页每次进入都重跑一遍这 1.1–3.0s，说明视图确实在重新进树（否则 Loaded 优先级的回调不会被饿 3 秒）。
+
+动作归属：`ModsPageView.axaml` / `ModsPageViewModel.cs` 都是他人 WIP，需要授权。
+
 ## 11. 已落地
 
 - `7f2149a` 存档头按字节封顶（`HeaderByteBudget=256KB`），不再把 ArrayPool 顶到 512MB

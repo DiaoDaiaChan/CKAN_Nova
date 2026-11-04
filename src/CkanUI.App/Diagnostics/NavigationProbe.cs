@@ -213,6 +213,11 @@ internal static class NavigationProbe
             await Task.Delay(GapMilliseconds);
         }
 
+        if (Environment.GetEnvironmentVariable("CKANUI_NAV_STYLES") == "1")
+        {
+            ReportStyles(window, path);
+        }
+
         if (Environment.GetEnvironmentVariable("CKANUI_NAV_IDLE_CHECK") == "1")
         {
             // 走完全部页面后静置：让空闲回收器（8 秒轮询 + 12 秒最早回收）有机会跑一轮，看稳态能压到哪。
@@ -288,6 +293,50 @@ internal static class NavigationProbe
     /// 只点 VM 上的白名单命令会漏掉一类按钮：<c>Click</c> 在 code-behind 里接的按钮（窗口镶边、工作台工具条等），
     /// 它们在 VM 上根本没有 ICommand 属性，遍历命令永远看不见。这里按可视树清点，把覆盖率和盲区一起写进日志。
     /// </remarks>
+    /// <summary>统计每个页面自带的样式表规模：视图内的 StyleInclude 会随页面进树重复参与样式匹配。</summary>
+    private static void ReportStyles(TopLevel window, string path)
+    {
+        if (window is not MainWindow { } main)
+        {
+            return;
+        }
+
+        var stage = main.FindControl<Panel>("PageStage");
+        if (stage is null)
+        {
+            TryWrite(path, "[styles] skip reason=no-stage");
+            return;
+        }
+
+        var app = Application.Current?.Styles.Count ?? 0;
+        var rows = new List<(string Name, int Styles, int Nodes)>(stage.Children.Count);
+        foreach (var child in stage.Children)
+        {
+            var name = child.GetType().Name;
+            rows.Add((name, child.Styles.Count, CountVisuals(child)));
+        }
+
+        var total = rows.Sum(row => row.Styles);
+        var top = rows.OrderByDescending(row => row.Styles).Take(6)
+            .Select(row => row.Name + "=" + row.Styles);
+        TryWrite(
+            path,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"[styles] app={app} pages={rows.Count} total={total} top={string.Join(',', top)}"));
+    }
+
+    private static int CountVisuals(Visual visual)
+    {
+        var count = 1;
+        foreach (var child in visual.GetVisualChildren())
+        {
+            count += CountVisuals(child);
+        }
+
+        return count;
+    }
+
     private static void ReportButtons(TopLevel window, string path, string key)
     {
         if (window is not MainWindow { ActivePageView: { } page })
