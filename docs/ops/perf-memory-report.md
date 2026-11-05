@@ -220,6 +220,15 @@ UI 线程（采样）自时间排名：`Avalonia.StyledElement.ApplyStyles` **11
 
 ⇒ 结论定稿：**首进成本是真实存在的（changes 0.97s、modconfig 0.63s、saves 0.54s、settings 0.43s），重进基本不掉帧**。用户体感的「进页面卡一下」属于首进，不是稳态缺陷；把这批页面预热（已有 PageWarmup 机制）或把首进的重活挪到后台，是把 0.4–1s 抹掉的唯一路径。
 
+### 10.4 两条消融实验：晚到的快照刷新不是主因，主题搬迁无收益（都已回退）
+
+真机（336 模组）今天复测：mods 首进 `layout=1221.6 / 1286.3 / 1176.2ms`（同构建三次，`maxGap` 1.0–1.3s，`nodes` 恒 2333），跨构建波动 ±10%，只有 `nodes` 稳定——所以下面两组 A/B 都用同构建、多跑取区间。
+
+1. **快照刷新消融**（临时 `CKANUI_EXP=1` 让 `ModsPageViewModel.Subscribe` 不挂 `_repositories.Updated`/`_registry.Changed`）：`layout=1176.2ms`，与基线 1221.6ms 差在噪声内 ⇒ 启动后晚到的那次 `ReloadFromSnapshots` **不是**首进 1.2s 的主因，别再往订阅/防抖上加机制。
+2. **DataGrid 主题搬迁**（把 `ModsPageView.axaml:16` 与 `DownloadStatsPageView.axaml:13` 的 `StyleInclude avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml` 提到 `App.axaml`，页面内删掉）：`r1 layout=1355.6ms`（比基线差约 10%），`r2 layout=33.4ms`、`nodes` 2333→2441 无功能变化 ⇒ **无收益，已按字节还原**（`ModsPageView.axaml` md5 `b01e259a49fb19c9c19020f1f7539863`、`App.axaml` md5 `fd0be9af070d3edae6d03511545efd76`）。与 10.1 的样式数量否证一致：杠杆不在样式表份数。
+
+⇒ mods 首进 1.2–1.4s 归因保持 10.3 的结论：**进程内第一次把 2333 个节点挂进可视树并首次套样式**，属"加载"，不是交互掉帧；要抹掉只能预热（现在只在窗口失焦时预热，前台不预热，见 12 的取舍）。
+
 ## 11. 已落地
 
 - `7f2149a` 存档头按字节封顶（`HeaderByteBudget=256KB`），不再把 ArrayPool 顶到 512MB
