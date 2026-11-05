@@ -9,7 +9,14 @@ public sealed record InstallReport(
     IReadOnlyList<string> Failed,
     IReadOnlyList<string> Warnings)
 {
-    public bool IsFullSuccess => Failed.Count == 0 && Warnings.Count == 0;
+    /// <summary>
+    /// 全部落盘成功（B1）。警告不是失败：只装了一部分或某项装失败才算不完整，
+    /// 仅出现警告时仍是一次完整成功。
+    /// </summary>
+    public bool IsFullSuccess => Failed.Count == 0;
+
+    /// <summary>这次安装是否带出了警告（警告不等于失败，界面单独提示即可）。</summary>
+    public bool HasWarnings => Warnings.Count > 0;
 
     /// <summary>
     /// 本次卸载/替换留下的残留目录（12 篇 F-43）：相对 <c>&lt;GameDir&gt;/GameData</c>、正斜杠。

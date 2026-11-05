@@ -27,13 +27,12 @@ public sealed class AiPlugin : ICkanUiPlugin
     private static readonly PluginPageDescriptor[] PageList =
     {
         // Glyph 取宿主的「星光」字形（Material auto_awesome）：AI 助手不是工具表也不是齿轮。
-        // Section=plugins：这一页挂在「插件」分节顶部的页签条里，不抢侧栏入口。
+        // 独立侧栏入口落在「扩展」分组。
         new(
             PageKey,
             "AI 助手",
             typeof(AiAssistantPageViewModel).FullName ?? nameof(AiAssistantPageViewModel),
             Glyph: "Sparkle",
-            Section: "plugins",
             Order: 10),
     };
 

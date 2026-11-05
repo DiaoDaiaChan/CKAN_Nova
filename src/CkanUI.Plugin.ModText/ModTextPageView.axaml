@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:CkanUI.Plugin.ModText"
              xmlns:modtext="using:CkanUI.Plugin.ModText"
+             xmlns:tbl="using:CkanUI.Ui.Tables"
              x:Class="CkanUI.Plugin.ModText.ModTextPageView"
              x:CompileBindings="False">
 
@@ -207,22 +208,24 @@
             <Grid RowDefinitions="Auto,*">
               <Grid Grid.Row="0" ColumnDefinitions="2.5*,3*,3*,Auto" Margin="6,1,6,2">
                 <TextBlock Grid.Column="0" Text="{DynamicResource Ui_ModTextPage_ColumnEntry}"
-                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Classes="CkanCaption"
                            Foreground="{DynamicResource CkanTextTertiaryBrush}" />
                 <TextBlock Grid.Column="1" Text="{DynamicResource Ui_ModTextPage_ColumnSource}"
-                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Classes="CkanCaption"
                            Foreground="{DynamicResource CkanTextTertiaryBrush}" />
                 <TextBlock Grid.Column="2" Text="{DynamicResource Ui_ModTextPage_ColumnTranslation}"
-                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Classes="CkanCaption"
                            Foreground="{DynamicResource CkanTextTertiaryBrush}" />
                 <TextBlock Grid.Column="3" Text="{DynamicResource Ui_ModTextPage_ColumnKind}"
                            IsVisible="{Binding ShowsSourceBadgeColumn}"
-                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Classes="CkanCaption"
                            Foreground="{DynamicResource CkanTextTertiaryBrush}" />
               </Grid>
 
               <ListBox Grid.Row="1" x:Name="ModTextEntryList"
                        ItemsSource="{Binding Entries}"
+                       tbl:ListTableTools.Enabled="True"
+                       tbl:ListTableTools.Columns="DisplayKey,Source,Translation,-"
                        SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
                        Background="Transparent"
                        BorderThickness="0"

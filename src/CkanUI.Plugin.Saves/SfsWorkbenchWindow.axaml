@@ -7,34 +7,84 @@
         Width="1280" Height="860"
         MinWidth="1000" MinHeight="640"
         WindowStartupLocation="CenterOwner"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        WindowDecorations="BorderOnly"
         Background="{DynamicResource CkanCanvasBackgroundBrush}">
+  <Window.Styles>
+    <!-- 自绘窗口按钮：无系统标题栏后由头部承担拖动与最小化/最大化/关闭。 -->
+    <Style Selector="Button.window-caption">
+      <Setter Property="Width" Value="46" />
+      <Setter Property="Height" Value="32" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button.window-caption:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    </Style>
+    <Style Selector="Button.window-caption.close:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource CkanDangerBrush}" />
+    </Style>
+  </Window.Styles>
+
   <!-- SFS 工作台（SFS-05/06/07）：左边分区（常用内容在前），中间键值+就地编辑，右边块树。
        文案与状态全部来自 SfsWorkbenchViewModel；本文件只做绑定和布局。 -->
-  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" Margin="{DynamicResource CkanPagePadding}">
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" Margin="{DynamicResource CkanPagePadding}">
 
-    <!-- 页头：存档名 + 规模摘要 -->
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+    <!-- 页头：存档名 + 规模摘要；无系统标题栏，这一行同时负责拖动窗口。 -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,8"
+          PointerPressed="OnTitleBarPointerPressed">
       <StackPanel Grid.Column="0" Spacing="4">
         <TextBlock Text="{Binding Title}" Classes="CkanPageTitle" />
         <TextBlock Text="{Binding SummaryText}" Classes="CkanCaption" TextWrapping="Wrap" />
       </StackPanel>
-      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
-        <StackPanel Spacing="2">
-          <TextBlock Text="资金" Classes="CkanCaption" HorizontalAlignment="Right" />
-          <TextBlock Text="{Binding FundsText}" FontWeight="SemiBold" HorizontalAlignment="Right" />
-        </StackPanel>
-        <StackPanel Spacing="2">
-          <TextBlock Text="科技" Classes="CkanCaption" HorizontalAlignment="Right" />
-          <TextBlock Text="{Binding ScienceText}" FontWeight="SemiBold" HorizontalAlignment="Right" />
-        </StackPanel>
-        <StackPanel Spacing="2">
-          <TextBlock Text="声望" Classes="CkanCaption" HorizontalAlignment="Right" />
-          <TextBlock Text="{Binding ReputationText}" FontWeight="SemiBold" HorizontalAlignment="Right" />
-        </StackPanel>
-        <StackPanel Spacing="2">
-          <TextBlock Text="游戏时间" Classes="CkanCaption" HorizontalAlignment="Right" />
-          <TextBlock Text="{Binding GameTimeText}" FontWeight="SemiBold" HorizontalAlignment="Right" />
-        </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <Button Classes="CkanSecondary" Command="{Binding ToggleQuickToolsCommand}" VerticalAlignment="Center" Margin="0,0,8,0"
+                ToolTip.Tip="展开/收起常用快捷修改工具箱（资金、科技、声望、乘员救援）">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="⚡ 快捷工具箱" FontWeight="SemiBold" />
+          </StackPanel>
+        </Button>
+        <Button Classes="CkanGhost" Command="{Binding OpenQuickEditFundsCommand}" Padding="8,4" ToolTip.Tip="点击快速修改资金 (Funds)">
+          <StackPanel Spacing="2">
+            <TextBlock Text="资金" Classes="CkanCaption" HorizontalAlignment="Right" />
+            <TextBlock Text="{Binding FundsText}" FontWeight="SemiBold" HorizontalAlignment="Right" Foreground="{DynamicResource CkanAccentTextBrush}" />
+          </StackPanel>
+        </Button>
+        <Button Classes="CkanGhost" Command="{Binding OpenQuickEditScienceCommand}" Padding="8,4" ToolTip.Tip="点击快速修改科技点 (Science)">
+          <StackPanel Spacing="2">
+            <TextBlock Text="科技" Classes="CkanCaption" HorizontalAlignment="Right" />
+            <TextBlock Text="{Binding ScienceText}" FontWeight="SemiBold" HorizontalAlignment="Right" Foreground="{DynamicResource CkanAccentTextBrush}" />
+          </StackPanel>
+        </Button>
+        <Button Classes="CkanGhost" Command="{Binding OpenQuickEditReputationCommand}" Padding="8,4" ToolTip.Tip="点击快速修改声望 (Reputation)">
+          <StackPanel Spacing="2">
+            <TextBlock Text="声望" Classes="CkanCaption" HorizontalAlignment="Right" />
+            <TextBlock Text="{Binding ReputationText}" FontWeight="SemiBold" HorizontalAlignment="Right" Foreground="{DynamicResource CkanAccentTextBrush}" />
+          </StackPanel>
+        </Button>
+        <Button Classes="CkanGhost" Command="{Binding JumpToGameTimeCommand}" Padding="8,4" ToolTip.Tip="点击跳转到游戏时间 (UT)">
+          <StackPanel Spacing="2">
+            <TextBlock Text="游戏时间" Classes="CkanCaption" HorizontalAlignment="Right" />
+            <TextBlock Text="{Binding GameTimeText}" FontWeight="SemiBold" HorizontalAlignment="Right" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top" Margin="10,0,0,0">
+        <Button Classes="window-caption" Click="OnMinimizeClick" ToolTip.Tip="最小化">
+          <PathIcon Data="M4 11h12v1.6H4z" Width="10" Height="10" />
+        </Button>
+        <Button Classes="window-caption" Click="OnMaximizeRestoreClick" ToolTip.Tip="最大化 / 还原">
+          <PathIcon Data="M4.5 4.5h11v11h-11z M6 6v8h8V6z" Width="10" Height="10" />
+        </Button>
+        <Button Classes="window-caption close" Click="OnCloseClick" ToolTip.Tip="关闭">
+          <PathIcon Data="M6.4 5.6L12 11.2l5.6-5.6 1.2 1.2-5.6 5.6 5.6 5.6-1.2 1.2L12 13.6l-5.6 5.6-1.2-1.2 5.6-5.6L5.2 6.8z" Width="10" Height="10" />
+        </Button>
       </StackPanel>
     </Grid>
 
@@ -50,8 +100,99 @@
       </Grid>
     </Border>
 
+    <!-- 常用快捷修改工具箱（生涯属性一键调/乘员一键救） -->
+    <Border Grid.Row="2" Margin="0,10,0,0" Padding="14,12"
+            Background="{DynamicResource CkanCardBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanCardBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+            IsVisible="{Binding IsQuickToolsOpen}">
+      <StackPanel Spacing="10">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="⚡ 常用快捷修改工具" FontWeight="SemiBold" />
+            <TextBlock Text="支持直接输入新值或输入 +10000/-500 增减量；支持一键修改常用游戏数值" Classes="CkanCaption" VerticalAlignment="Center" />
+          </StackPanel>
+          <Button Grid.Column="2" Content="收起工具箱" Command="{Binding ToggleQuickToolsCommand}" Classes="CkanGhost" />
+        </Grid>
+
+        <Grid ColumnDefinitions="*,*,*,Auto" ColumnSpacing="12">
+          <!-- 资金快捷修改 -->
+          <Border Grid.Column="0" Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="10,8">
+            <StackPanel Spacing="6">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="资金 (Funds)" FontWeight="Medium" />
+                <TextBlock Grid.Column="1" Text="{Binding FundsText}" Classes="CkanCaption" Foreground="{DynamicResource CkanAccentTextBrush}" />
+              </Grid>
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <TextBox Grid.Column="0" Text="{Binding QuickFundsInput, Mode=TwoWay}" PlaceholderText="数值或 +增量" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="修改" Command="{Binding QuickApplyFundsCommand}" Classes="CkanPrimary" VerticalAlignment="Center" />
+              </Grid>
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <Button Content="+10万" Command="{Binding QuickApplyFundsCommand}" CommandParameter="+100000" Classes="CkanSecondary" FontSize="11" Padding="6,2" />
+                <Button Content="+100万" Command="{Binding QuickApplyFundsCommand}" CommandParameter="+1000000" Classes="CkanSecondary" FontSize="11" Padding="6,2" />
+                <Button Content="一千万" Command="{Binding QuickApplyFundsCommand}" CommandParameter="10000000" Classes="CkanGhost" FontSize="11" Padding="6,2" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- 科技点快捷修改 -->
+          <Border Grid.Column="1" Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="10,8">
+            <StackPanel Spacing="6">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="科技点 (Science)" FontWeight="Medium" />
+                <TextBlock Grid.Column="1" Text="{Binding ScienceText}" Classes="CkanCaption" Foreground="{DynamicResource CkanAccentTextBrush}" />
+              </Grid>
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <TextBox Grid.Column="0" Text="{Binding QuickScienceInput, Mode=TwoWay}" PlaceholderText="数值或 +增量" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="修改" Command="{Binding QuickApplyScienceCommand}" Classes="CkanPrimary" VerticalAlignment="Center" />
+              </Grid>
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <Button Content="+500" Command="{Binding QuickApplyScienceCommand}" CommandParameter="+500" Classes="CkanSecondary" FontSize="11" Padding="6,2" />
+                <Button Content="+5000" Command="{Binding QuickApplyScienceCommand}" CommandParameter="+5000" Classes="CkanSecondary" FontSize="11" Padding="6,2" />
+                <Button Content="五万点" Command="{Binding QuickApplyScienceCommand}" CommandParameter="50000" Classes="CkanGhost" FontSize="11" Padding="6,2" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- 声望快捷修改 -->
+          <Border Grid.Column="2" Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="10,8">
+            <StackPanel Spacing="6">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="声望 (Reputation)" FontWeight="Medium" />
+                <TextBlock Grid.Column="1" Text="{Binding ReputationText}" Classes="CkanCaption" Foreground="{DynamicResource CkanAccentTextBrush}" />
+              </Grid>
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <TextBox Grid.Column="0" Text="{Binding QuickReputationInput, Mode=TwoWay}" PlaceholderText="数值或 +增量" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="修改" Command="{Binding QuickApplyReputationCommand}" Classes="CkanPrimary" VerticalAlignment="Center" />
+              </Grid>
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <Button Content="+100" Command="{Binding QuickApplyReputationCommand}" CommandParameter="+100" Classes="CkanSecondary" FontSize="11" Padding="6,2" />
+                <Button Content="+500" Command="{Binding QuickApplyReputationCommand}" CommandParameter="+500" Classes="CkanSecondary" FontSize="11" Padding="6,2" />
+                <Button Content="满声望(950)" Command="{Binding QuickApplyReputationCommand}" CommandParameter="950" Classes="CkanGhost" FontSize="11" Padding="6,2" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- 乘员救援复活 -->
+          <Border Grid.Column="3" Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                  CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="12,8" VerticalAlignment="Stretch">
+            <StackPanel Spacing="6" VerticalAlignment="Center">
+              <TextBlock Text="乘员状态管理" FontWeight="Medium" />
+              <Button Content="一键救援所有宇航员" Command="{Binding ReviveDeadKerbalsCommand}"
+                      Classes="CkanSecondary" ToolTip.Tip="扫描 ROSTER 列表，将所有 Dead 或 Missing 的宇航员状态一键重置为 Available 并清除死亡时间" />
+              <TextBlock Text="复活失踪/遇难乘员" Classes="CkanCaption" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </StackPanel>
+    </Border>
+
     <!-- 大文件横幅：流式模式下能做什么、不能做什么，一次说清 -->
-    <Border Grid.Row="2" Margin="0,10,0,0" Padding="12,8"
+    <Border Grid.Row="3" Margin="0,10,0,0" Padding="12,8"
             Background="{DynamicResource CkanAccentSubtleBrush}"
             CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
             IsVisible="{Binding HasLargeFileNote}">
@@ -66,7 +207,7 @@
     </Border>
 
     <!-- 主体 -->
-    <Grid Grid.Row="3" ColumnDefinitions="260,6,*,6,340" Margin="0,8,0,0">
+    <Grid Grid.Row="4" ColumnDefinitions="260,6,*,6,340" Margin="0,8,0,0">
 
       <!-- 分区 -->
       <Border Grid.Column="0" Classes="CkanCard">
@@ -138,23 +279,35 @@
       <!-- 键值 + 就地编辑 -->
       <Border Grid.Column="2" Classes="CkanCard">
         <Grid RowDefinitions="Auto,Auto,*,Auto">
-          <StackPanel Grid.Row="0" Margin="12,8,12,4" Spacing="2">
-            <Grid ColumnDefinitions="*,Auto">
+          <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="12,8,12,4" ColumnSpacing="8">
+            <Button Grid.Column="0" Content="← 返回上一级" Command="{Binding NavigateBackCommand}"
+                    Classes="CkanSecondary" Padding="8,3" FontSize="{DynamicResource CkanFontSizeCaption}"
+                    IsVisible="{Binding CanNavigateBack}" ToolTip.Tip="返回展开前的上一级父块/分区结构" />
+            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
               <TextBlock Text="{Binding BreadcrumbText}" Classes="CkanCaption" TextTrimming="CharacterEllipsis"
                          ToolTip.Tip="{Binding BreadcrumbText}" />
-              <TextBlock Grid.Column="1" Text="{Binding FieldCountText}" Classes="CkanCaption" Margin="8,0,0,0" />
-            </Grid>
-            <TextBlock Text="{Binding SectionRangeText}" Classes="CkanCaption" />
-            <TextBlock Text="{Binding TruncationHint}" Classes="CkanCaption" TextWrapping="Wrap"
-                       Foreground="{DynamicResource CkanWarningBrush}"
-                       IsVisible="{Binding IsCurrentSectionTruncated}" />
-          </StackPanel>
+              <TextBlock Text="{Binding SectionRangeText}" Classes="CkanCaption" />
+              <TextBlock Text="{Binding TruncationHint}" Classes="CkanCaption" TextWrapping="Wrap"
+                         Foreground="{DynamicResource CkanWarningBrush}"
+                         IsVisible="{Binding IsCurrentSectionTruncated}" />
+            </StackPanel>
+            <TextBlock Grid.Column="2" Text="{Binding FieldCountText}" Classes="CkanCaption" VerticalAlignment="Center" />
+          </Grid>
 
           <TextBox Grid.Row="1" Margin="12,0,12,6" Text="{Binding FieldFilterText, Mode=TwoWay}"
                    PlaceholderText="筛选键值（标签 / 键名 / 值 / 行号）…" />
 
           <ListBox Grid.Row="2" ItemsSource="{Binding VisibleFields}" SelectedItem="{Binding SelectedField, Mode=TwoWay}"
                    Background="Transparent" BorderThickness="0">
+            <ListBox.ContextMenu>
+              <ContextMenu>
+                <MenuItem Header="复制键名" Command="{Binding CopyFieldKeyCommand}" IsEnabled="{Binding CanEditField}" />
+                <MenuItem Header="复制值" Command="{Binding CopyFieldValueCommand}" IsEnabled="{Binding CanEditField}" />
+                <MenuItem Header="复制完整路径" Command="{Binding CopyFieldPathCommand}" IsEnabled="{Binding CanEditField}" />
+                <Separator />
+                <MenuItem Header="还原为文件值" Command="{Binding RevertEditCommand}" IsEnabled="{Binding HasPendingEdit}" />
+              </ContextMenu>
+            </ListBox.ContextMenu>
             <ListBox.Styles>
               <Style Selector="ListBoxItem">
                 <Setter Property="Padding" Value="10,4" />
@@ -213,12 +366,23 @@
                 </Grid>
               </Grid>
               <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                <TextBox Grid.Column="0" Text="{Binding EditValue, Mode=TwoWay}" VerticalAlignment="Center" />
+                <TextBox Grid.Column="0" Text="{Binding EditValue, Mode=TwoWay}" VerticalAlignment="Center"
+                         KeyDown="OnEditValueKeyDown" />
                 <Button Grid.Column="1" Content="还原" Command="{Binding RevertEditCommand}" Classes="CkanGhost"
                         IsEnabled="{Binding HasPendingEdit}" />
                 <Button Grid.Column="2" Content="保存改动" Command="{Binding ApplyValueCommand}"
-                        Classes="CkanPrimary" IsEnabled="{Binding CanApplyValue}" />
+                        Classes="CkanPrimary" IsEnabled="{Binding CanApplyValue}"
+                        ToolTip.Tip="按 Enter 键可直接保存改动" />
               </Grid>
+              <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,2,0,0" IsVisible="{Binding IsNumericField}">
+                <TextBlock Text="数值微调:" Classes="CkanCaption" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <Button Content="+100" Command="{Binding QuickStepNumericValueCommand}" CommandParameter="+100" Classes="CkanGhost" FontSize="11" Padding="6,2" />
+                <Button Content="+1000" Command="{Binding QuickStepNumericValueCommand}" CommandParameter="+1000" Classes="CkanGhost" FontSize="11" Padding="6,2" />
+                <Button Content="+10000" Command="{Binding QuickStepNumericValueCommand}" CommandParameter="+10000" Classes="CkanGhost" FontSize="11" Padding="6,2" />
+                <Button Content="×10" Command="{Binding QuickStepNumericValueCommand}" CommandParameter="*10" Classes="CkanGhost" FontSize="11" Padding="6,2" />
+                <Button Content="÷2" Command="{Binding QuickStepNumericValueCommand}" CommandParameter="/2" Classes="CkanGhost" FontSize="11" Padding="6,2" />
+                <Button Content="归零" Command="{Binding QuickStepNumericValueCommand}" CommandParameter="0" Classes="CkanGhost" FontSize="11" Padding="6,2" />
+              </StackPanel>
             </StackPanel>
           </Border>
         </Grid>
@@ -237,14 +401,26 @@
           <TextBox Grid.Row="1" Margin="12,0,12,6" Text="{Binding NodeFilterText, Mode=TwoWay}"
                    PlaceholderText="筛选块（名称 / 摘要 / 行号）…" />
 
-          <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="12,0,12,6">
-            <TextBlock Grid.Column="0" Text="双击块也能展开" Classes="CkanCaption" VerticalAlignment="Center" />
-            <Button Grid.Column="1" Content="展开块" Command="{Binding ExpandNodeCommand}"
+          <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="12,0,12,6">
+            <Button Grid.Column="0" Content="← 返回" Command="{Binding NavigateBackCommand}"
+                    Classes="CkanSecondary" Padding="8,3" FontSize="{DynamicResource CkanFontSizeCaption}"
+                    IsVisible="{Binding CanNavigateBack}" ToolTip.Tip="返回上一级已展开的块" />
+            <TextBlock Grid.Column="1" Text="双击块也能展开" Classes="CkanCaption" VerticalAlignment="Center" />
+            <Button Grid.Column="2" Content="展开块" Command="{Binding ExpandNodeCommand}"
                     Classes="CkanSecondary" IsEnabled="{Binding CanExpandNode}" />
           </Grid>
 
           <ListBox Grid.Row="3" ItemsSource="{Binding VisibleNodes}" SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
                    Background="Transparent" BorderThickness="0" DoubleTapped="OnNodeDoubleTapped">
+            <ListBox.ContextMenu>
+              <ContextMenu>
+                <MenuItem Header="展开此块" Command="{Binding ExpandNodeCommand}" IsEnabled="{Binding CanExpandNode}" />
+                <MenuItem Header="复制块路径" Command="{Binding CopyNodePathCommand}" IsEnabled="{Binding CanTouchNode}" />
+                <Separator />
+                <MenuItem Header="复制整个块 (Duplicate)" Command="{Binding DuplicateNodeCommand}" IsEnabled="{Binding CanTouchNode}" />
+                <MenuItem Header="删除此块 (Delete)" Command="{Binding ArmDeleteCommand}" IsEnabled="{Binding CanTouchNode}" />
+              </ContextMenu>
+            </ListBox.ContextMenu>
             <ListBox.Styles>
               <Style Selector="ListBoxItem">
                 <Setter Property="Padding" Value="10,4" />
@@ -290,7 +466,7 @@
     </Grid>
 
     <!-- 删除确认条：先上膛再确认，避免误删整块 -->
-    <Border Grid.Row="4" Margin="0,10,0,0" Padding="12,8"
+    <Border Grid.Row="5" Margin="0,10,0,0" Padding="12,8"
             Background="{DynamicResource CkanDangerBackgroundBrush}"
             CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
             IsVisible="{Binding HasPendingDelete}">
@@ -302,7 +478,7 @@
     </Border>
 
     <!-- 错误条 -->
-    <Border Grid.Row="5" Margin="0,10,0,0" Padding="12,8"
+    <Border Grid.Row="6" Margin="0,10,0,0" Padding="12,8"
             Background="{DynamicResource CkanDangerBackgroundBrush}"
             CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
             IsVisible="{Binding HasError}">
@@ -310,7 +486,7 @@
     </Border>
 
     <!-- 状态栏 -->
-    <Border Grid.Row="6" Margin="0,10,0,0" Padding="12,6"
+    <Border Grid.Row="7" Margin="0,10,0,0" Padding="12,6"
             Background="{DynamicResource CkanStatusBarBackgroundBrush}"
             CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
             IsVisible="{Binding HasStatus}">

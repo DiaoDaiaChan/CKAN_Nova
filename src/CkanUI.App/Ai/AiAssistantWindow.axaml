@@ -1,0 +1,63 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CkanUI.App.Ai.AiAssistantWindow"
+        Title="CKAN - AI 助手"
+        Width="540" Height="780"
+        MinWidth="420" MinHeight="520"
+        CanResize="True"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource CkanSurfaceBackgroundBrush}">
+
+  <Grid RowDefinitions="Auto,*">
+    <!-- 独立窗口顶栏工具条：标题、标识与「嵌入主窗口」按钮 -->
+    <Border Grid.Row="0"
+            Padding="14,10"
+            BorderBrush="{DynamicResource CkanGlassBorderBrush}"
+            BorderThickness="0,0,0,1"
+            Background="{DynamicResource CkanLayerRecessedBrush}">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <PathIcon Data="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"
+                    Width="14" Height="14"
+                    Foreground="{DynamicResource CkanAccentBrush}"
+                    VerticalAlignment="Center" />
+          <TextBlock Text="AI 助手 (独立窗口)"
+                     FontSize="13"
+                     FontWeight="SemiBold"
+                     VerticalAlignment="Center"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+          <Border Background="{DynamicResource CkanAccentSubtleBrush}"
+                  CornerRadius="3"
+                  Padding="5,1"
+                  VerticalAlignment="Center">
+            <TextBlock Text="浮动模式"
+                       FontSize="9"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource CkanAccentBrush}" />
+          </Border>
+        </StackPanel>
+
+        <!-- 嵌入主窗口操作按钮 -->
+        <Button Grid.Column="1"
+                Classes="CkanSecondary"
+                Padding="8,4"
+                Click="OnDockBackClick"
+                ToolTip.Tip="将 AI 助手嵌入回主窗口侧边栏">
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <!-- 嵌入图标 (箭头收回框中) -->
+            <PathIcon Data="M4 4h16v16H4V4zm2 2v12h12V6H6zm7 3l-3 3 3 3v-2h4v-2h-4V9z"
+                      Width="12" Height="12"
+                      VerticalAlignment="Center" />
+            <TextBlock Text="嵌入主窗口"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </Grid>
+    </Border>
+
+    <!-- 视图承载区 -->
+    <ContentControl Grid.Row="1" x:Name="ViewHost" />
+  </Grid>
+</Window>

@@ -2,7 +2,7 @@ using System;
 
 namespace CkanUI.App.Animations;
 
-/// <summary>转动的支点：中心转是"晃"，贴着顶边转是"挂"。</summary>
+/// <summary>转动的支点：中心转是"晃"，贴着顶边转是"挂"，贴着底边转是"掀"。</summary>
 internal enum IconPivot
 {
     /// <summary>绕图标中心转。</summary>
@@ -10,6 +10,9 @@ internal enum IconPivot
 
     /// <summary>绕上沿转：像挂在钉子上的小牌子。</summary>
     TopHinge = 1,
+
+    /// <summary>绕下沿转：像在桌面上掀开文件夹翻盖。</summary>
+    BottomHinge = 2,
 }
 
 /// <summary>一帧的目标位姿：只说"要摆成什么样"，不说弹簧怎么追过去。</summary>
@@ -18,7 +21,8 @@ internal readonly record struct IconHoverPose(
     double Scale,
     double Slide,
     double Lift,
-    bool ExactTilt = false)
+    bool ExactTilt = false,
+    double ScaleY = 0d)
 {
     /// <summary>原点：不转、原大、不偏。</summary>
     public static IconHoverPose Neutral => new(0d, 1d, 0d, 0d);
@@ -100,6 +104,10 @@ internal static class IconHoverMotions
         IconHoverShape.Nudge => new NudgeChoreography(),
         IconHoverShape.Pulse => new PulseChoreography(),
         IconHoverShape.Snap => new SnapChoreography(),
+        IconHoverShape.Unfold => new UnfoldChoreography(),
+        IconHoverShape.Rack => new RackChoreography(),
+        IconHoverShape.Shuttle => new ShuttleChoreography(),
+        IconHoverShape.Bounce => new BounceChoreography(),
         _ => new WaggleChoreography(),
     };
 }
@@ -276,4 +284,138 @@ internal sealed class SnapChoreography : IconHoverChoreography
 
     /// <inheritdoc/>
     public override IconHoverPose Sustain(IconHoverBeat beat) => IconHoverPose.Neutral;
+}
+
+/// <summary>展开翻阅：微浮起势，均匀展开呼吸，专为文件夹（实例）定制，零倾斜无畸变。</summary>
+internal sealed class UnfoldChoreography : IconHoverChoreography
+{
+    /// <inheritdoc/>
+    public override IconPivot Pivot => IconPivot.Center;
+
+    /// <inheritdoc/>
+    public override IconHoverEntry Enter(IconHoverBeat beat) => new(
+        IconPivot.Center,
+        new IconHoverPose(
+            0d,
+            beat.Scaled(IconHoverTrack.UnfoldEntranceScaleX),
+            0d,
+            -beat.Jittered(IconHoverTrack.UnfoldEntranceLiftPixels),
+            ExactTilt: false,
+            ScaleY: beat.Scaled(IconHoverTrack.UnfoldEntranceScaleY)),
+        ImpulseX: 0d,
+        ImpulseY: 0.04d * beat.Amplitude);
+
+    /// <inheritdoc/>
+    public override IconHoverPose Sustain(IconHoverBeat beat)
+    {
+        var wave = beat.Wave(beat.JitteredPeriod(IconHoverTrack.UnfoldPeriodSeconds));
+        var bobLift = beat.Jittered(IconHoverTrack.UnfoldEntranceLiftPixels) + (wave * 0.25d * beat.Amplitude);
+        var scale = beat.Scaled(IconHoverTrack.UnfoldEntranceScaleX) + (wave * 0.015d * beat.Amplitude);
+        return new IconHoverPose(
+            0d,
+            scale,
+            0d,
+            -bobLift,
+            ExactTilt: false,
+            ScaleY: scale);
+    }
+}
+
+/// <summary>机架抽屉：水平滑出如硬盘仓抽出，叠加快节奏寻道读写微脉冲，专为数据（三条杠）定制，零旋转。</summary>
+internal sealed class RackChoreography : IconHoverChoreography
+{
+    /// <inheritdoc/>
+    public override IconPivot Pivot => IconPivot.Center;
+
+    /// <inheritdoc/>
+    public override IconHoverEntry Enter(IconHoverBeat beat) => new(
+        IconPivot.Center,
+        new IconHoverPose(
+            0d,
+            beat.Scaled(IconHoverTrack.RackEntranceScale),
+            beat.Jittered(IconHoverTrack.RackSlidePixels),
+            beat.Jittered(IconHoverTrack.RackLiftPixels)),
+        ImpulseX: 0.04d * beat.Amplitude,
+        ImpulseY: 0d);
+
+    /// <inheritdoc/>
+    public override IconHoverPose Sustain(IconHoverBeat beat)
+    {
+        var period = beat.JitteredPeriod(IconHoverTrack.RackPeriodSeconds);
+        var cycle = beat.Elapsed % period;
+        var seekWindow = period * 0.28d;
+        var seek = cycle < seekWindow ? Math.Sin(4d * Math.PI * cycle / seekWindow) : 0d;
+        var slide = beat.Jittered(IconHoverTrack.RackSlidePixels) + (seek * 0.25d * beat.Amplitude);
+        var pulseScale = beat.Scaled(IconHoverTrack.RackEntranceScale) + (Math.Abs(seek) * 0.02d * beat.Amplitude);
+        return new IconHoverPose(
+            0d,
+            pulseScale,
+            slide,
+            beat.Jittered(IconHoverTrack.RackLiftPixels));
+    }
+}
+
+/// <summary>双向穿梭：沿水平轴左右往返对流穿梭，专为双向箭头（整合包/交换）定制，零旋转。</summary>
+internal sealed class ShuttleChoreography : IconHoverChoreography
+{
+    /// <inheritdoc/>
+    public override IconPivot Pivot => IconPivot.Center;
+
+    /// <inheritdoc/>
+    public override IconHoverEntry Enter(IconHoverBeat beat) => new(
+        IconPivot.Center,
+        new IconHoverPose(
+            0d,
+            beat.Scaled(IconHoverTrack.ShuttleEntranceScale),
+            beat.Jittered(IconHoverTrack.ShuttleSlidePixels),
+            0d),
+        ImpulseX: 0.04d * beat.Amplitude,
+        ImpulseY: 0d);
+
+    /// <inheritdoc/>
+    public override IconHoverPose Sustain(IconHoverBeat beat)
+    {
+        var wave = beat.Wave(beat.JitteredPeriod(IconHoverTrack.ShuttlePeriodSeconds));
+        var slide = wave * beat.Jittered(IconHoverTrack.ShuttleSlidePixels);
+        var stretch = 1d + (Math.Abs(wave) * 0.015d * beat.Amplitude);
+        return new IconHoverPose(
+            0d,
+            beat.Scaled(IconHoverTrack.ShuttleEntranceScale) * stretch,
+            slide,
+            0d);
+    }
+}
+
+/// <summary>雀跃轻跳：向上轻盈小跳伴随对流语意微摆，专为语种翻译（文A）定制，零死板倾斜。</summary>
+internal sealed class BounceChoreography : IconHoverChoreography
+{
+    /// <inheritdoc/>
+    public override IconPivot Pivot => IconPivot.Center;
+
+    /// <inheritdoc/>
+    public override IconHoverEntry Enter(IconHoverBeat beat) => new(
+        IconPivot.Center,
+        new IconHoverPose(
+            -2.0d * beat.Amplitude,
+            beat.Scaled(IconHoverTrack.BounceEntranceScale),
+            0d,
+            -beat.Jittered(IconHoverTrack.BounceLiftPixels)),
+        ImpulseX: 0.01d * beat.Amplitude,
+        ImpulseY: 0.04d * beat.Amplitude);
+
+    /// <inheritdoc/>
+    public override IconHoverPose Sustain(IconHoverBeat beat)
+    {
+        var period = beat.JitteredPeriod(IconHoverTrack.BouncePeriodSeconds);
+        var wave = beat.Wave(period);
+        var tilt = wave * 2.8d * beat.Amplitude;
+        var hopWave = Math.Abs(Math.Sin(2d * Math.PI * beat.Elapsed / period));
+        var lift = beat.Jittered(IconHoverTrack.BounceLiftPixels * 0.85d) + (hopWave * 0.35d * beat.Amplitude);
+        var scale = beat.Scaled(IconHoverTrack.BounceEntranceScale) + (hopWave * 0.015d * beat.Amplitude);
+        return new IconHoverPose(
+            tilt,
+            scale,
+            0d,
+            -lift);
+    }
 }

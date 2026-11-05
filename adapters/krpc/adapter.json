@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "id": "krpc",
+  "name": "kRPC",
+  "homepage": "https://github.com/krpc/krpc",
+  "match": {
+    "ckanIdentifiers": [
+      "kRPC"
+    ],
+    "paths": [
+      "GameData/kRPC/PluginData/settings.cfg"
+    ],
+    "caseInsensitive": true
+  },
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/kRPC/PluginData/settings.cfg",
+      "layout": "node",
+      "rootNode": "KRPCConfiguration",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "settings.cfg"
+    }
+  ],
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+  "fields": [
+    {
+      "file": "settings",
+      "key": "autoStartServers",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "启动游戏时自动开启服务器"
+    },
+    {
+      "file": "settings",
+      "key": "autoAcceptConnections",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "自动接受客户端连接（不弹确认）"
+    },
+    {
+      "file": "settings",
+      "key": "confirmRemoveClient",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "移除客户端时弹确认"
+    },
+    {
+      "file": "settings",
+      "key": "pauseServerWithGame",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "随游戏暂停而暂停服务器"
+    },
+    {
+      "file": "settings",
+      "key": "logLevel",
+      "type": "string",
+      "default": "Info",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "日志级别（枚举值未取证，用 string）"
+    },
+    {
+      "file": "settings",
+      "key": "verboseErrors",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "RPC 异常里返回完整堆栈"
+    },
+    {
+      "file": "settings",
+      "key": "oneRPCPerUpdate",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "每帧只处理一个 RPC（牺牲吞吐换稳定）"
+    },
+    {
+      "file": "settings",
+      "key": "maxTimePerUpdate",
+      "type": "int",
+      "default": "5000",
+      "min": 1,
+      "max": 100000,
+      "unit": "us",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "每帧用于处理 RPC 的最大时间"
+    },
+    {
+      "file": "settings",
+      "key": "adaptiveRateControl",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "按帧时间自适应调节 RPC 处理速率"
+    },
+    {
+      "file": "settings",
+      "key": "blockingRecv",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "接收端使用阻塞模式"
+    },
+    {
+      "file": "settings",
+      "key": "recvTimeout",
+      "type": "int",
+      "default": "1000",
+      "min": 1,
+      "max": 60000,
+      "unit": "ms",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "接收超时"
+    }
+  ]
+}

@@ -62,6 +62,22 @@ public sealed class CurveChart : Control
     public static readonly StyledProperty<double> YAxisLabelWidthProperty =
         AvaloniaProperty.Register<CurveChart, double>(nameof(YAxisLabelWidth), 40d);
 
+    /// <summary>外部指定的高亮索引（如时间线选中的事件在曲线上的对应期序号；小于 0 不画）。</summary>
+    public static readonly StyledProperty<int> HighlightedIndexProperty =
+        AvaloniaProperty.Register<CurveChart, int>(nameof(HighlightedIndex), -1);
+
+    /// <summary>高亮标记的说明文案（如「当前事件 1956-03-26」）。</summary>
+    public static readonly StyledProperty<string?> HighlightedLabelProperty =
+        AvaloniaProperty.Register<CurveChart, string?>(nameof(HighlightedLabel));
+
+    /// <summary>高亮指示线和节点的笔刷（默认金色/警告色）。</summary>
+    public static readonly StyledProperty<IBrush?> HighlightedStrokeProperty =
+        AvaloniaProperty.Register<CurveChart, IBrush?>(nameof(HighlightedStroke));
+
+    /// <summary>点击图表点时触发的命令，参数为被点击的索引 index。</summary>
+    public static readonly StyledProperty<System.Windows.Input.ICommand?> PointClickCommandProperty =
+        AvaloniaProperty.Register<CurveChart, System.Windows.Input.ICommand?>(nameof(PointClickCommand));
+
     private static readonly IBrush DefaultForeground = new SolidColorBrush(Color.Parse("#8A8F98"));
 
     private static readonly Color[] PaletteColors =
@@ -81,6 +97,9 @@ public sealed class CurveChart : Control
 
     private int _hoverIndex = -1;
 
+    private static readonly IBrush DefaultHighlightStroke = new SolidColorBrush(Color.Parse("#F5A524"));
+    private static readonly IBrush HighlightGlow = new SolidColorBrush(Color.Parse("#33F5A524"));
+
     static CurveChart()
     {
         AffectsRender<CurveChart>(
@@ -94,7 +113,10 @@ public sealed class CurveChart : Control
             MaxYProperty,
             ValueFormatProperty,
             ValueSuffixProperty,
-            YAxisLabelWidthProperty);
+            YAxisLabelWidthProperty,
+            HighlightedIndexProperty,
+            HighlightedLabelProperty,
+            HighlightedStrokeProperty);
     }
 
     /// <summary>创建曲线图。</summary>
@@ -180,6 +202,34 @@ public sealed class CurveChart : Control
         set => SetValue(YAxisLabelWidthProperty, value);
     }
 
+    /// <summary>外部指定的高亮索引（如时间线选中的事件在曲线上的对应期序号；小于 0 不画）。</summary>
+    public int HighlightedIndex
+    {
+        get => GetValue(HighlightedIndexProperty);
+        set => SetValue(HighlightedIndexProperty, value);
+    }
+
+    /// <summary>高亮标记的说明文案。</summary>
+    public string? HighlightedLabel
+    {
+        get => GetValue(HighlightedLabelProperty);
+        set => SetValue(HighlightedLabelProperty, value);
+    }
+
+    /// <summary>高亮指示线和节点的笔刷。</summary>
+    public IBrush? HighlightedStroke
+    {
+        get => GetValue(HighlightedStrokeProperty);
+        set => SetValue(HighlightedStrokeProperty, value);
+    }
+
+    /// <summary>点击图表点时触发的命令，参数为被点击的索引 index。</summary>
+    public System.Windows.Input.ICommand? PointClickCommand
+    {
+        get => GetValue(PointClickCommandProperty);
+        set => SetValue(PointClickCommandProperty, value);
+    }
+
     /// <summary>是否至少有一条可绘制的序列。</summary>
     public bool HasData
     {
@@ -257,6 +307,11 @@ public sealed class CurveChart : Control
             DrawSeries(context, series[i], plot, range, i);
         }
 
+        if (HighlightedIndex >= 0 && HighlightedIndex < count)
+        {
+            DrawHighlighted(context, plot, range, series, count);
+        }
+
         if (ShowHover && _hoverIndex >= 0 && _hoverIndex < count)
         {
             DrawHover(context, plot, range, series, count);
@@ -298,6 +353,28 @@ public sealed class CurveChart : Control
         _hoverIndex = -1;
         Cursor = Cursor.Default;
         InvalidateVisual();
+    }
+
+    /// <inheritdoc />
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+
+        if (!HasData)
+        {
+            return;
+        }
+
+        var position = e.GetPosition(this);
+        var index = IndexAt(position);
+        if (index >= 0)
+        {
+            if (PointClickCommand?.CanExecute(index) == true)
+            {
+                PointClickCommand.Execute(index);
+                e.Handled = true;
+            }
+        }
     }
 
     /// <summary>把指针横坐标换算成序列下标；在绘图区外返回 -1。</summary>
@@ -513,6 +590,41 @@ public sealed class CurveChart : Control
         {
             context.DrawText(text, new Point(chip.X + 7, y));
             y += text.Height + 2;
+        }
+    }
+
+    private void DrawHighlighted(DrawingContext context, Rect plot, CurveRange range, IReadOnlyList<ChartSeries> series, int count)
+    {
+        var index = HighlightedIndex;
+        var step = count > 1 ? plot.Width / (count - 1) : 0d;
+        var x = plot.X + (index * step);
+        var strokeBrush = HighlightedStroke ?? DefaultHighlightStroke;
+        var pen = new Pen(strokeBrush, 1.5, DashStyle.Dash);
+        context.DrawLine(pen, new Point(x, plot.Top), new Point(x, plot.Bottom));
+
+        for (var i = 0; i < series.Count; i++)
+        {
+            var item = series[i];
+            if (item?.Values is null || index >= item.Values.Count || item.Values[index] is not { } value)
+            {
+                continue;
+            }
+
+            var point = new Point(x, plot.Bottom - (((value - range.Min) / range.Span) * plot.Height));
+            point = new Point(point.X, Math.Clamp(point.Y, plot.Top, plot.Bottom));
+            context.DrawEllipse(HighlightGlow, null, point, 8, 8);
+            context.DrawEllipse(strokeBrush, new Pen(new SolidColorBrush(Colors.White), 1.5), point, 4, 4);
+        }
+
+        if (HighlightedLabel is { Length: > 0 } label)
+        {
+            var text = Text(label, 10, strokeBrush);
+            var chipWidth = text.Width + 12;
+            var chipHeight = text.Height + 6;
+            var chipX = Math.Clamp(x - (chipWidth / 2), plot.Left, Math.Max(plot.Right - chipWidth, plot.Left));
+            var chip = new Rect(chipX, plot.Top + 2, chipWidth, chipHeight);
+            context.DrawRectangle(HoverChipBackground, new Pen(strokeBrush, 1), chip, 4, 4);
+            context.DrawText(text, new Point(chip.X + 6, chip.Y + 3));
         }
     }
 

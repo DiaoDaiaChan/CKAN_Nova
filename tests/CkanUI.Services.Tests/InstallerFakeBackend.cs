@@ -28,6 +28,19 @@ internal sealed class InstallerFakeBackend : IInstallerBackend
 
     public int RollbackCalls { get; private set; }
 
+    /// <summary>后端上报过的每一条进度（按上报顺序），用于断言 Phase/ItemIndex/ItemTotal 与单调性。</summary>
+    public List<InstallerBackendProgress> SentProgress { get; } = new();
+
+    private void Send(IProgress<InstallerBackendProgress>? progress, InstallerBackendProgress value)
+    {
+        lock (SentProgress)
+        {
+            SentProgress.Add(value);
+        }
+
+        progress?.Report(value);
+    }
+
     /// <summary>卸载/安装已被调用（用于测试里等后台线程走到那一步）。</summary>
     public ManualResetEventSlim RemoveStarted { get; } = new(false);
 
@@ -94,7 +107,15 @@ internal sealed class InstallerFakeBackend : IInstallerBackend
             return InstallerBackendResult.Cancelled();
         }
 
-        progress?.Report(new InstallerBackendProgress("正在卸载…", 20));
+        // 双段契约：卸载段带 Phase/ItemIndex/ItemTotal（B3 下载阶段进度）
+        var removeTotal = Math.Max(plan.ToRemove.Count, 1);
+        Send(progress, new InstallerBackendProgress(
+            $"正在卸载 1/{removeTotal}：{(plan.ToRemove.Count > 0 ? plan.ToRemove[0] : "?")}", 20)
+        {
+            Phase = InstallerPhase.Remove,
+            ItemIndex = 1,
+            ItemTotal = removeTotal,
+        });
         lock (Installed)
         {
             foreach (var identifier in plan.ToRemove)
@@ -124,7 +145,21 @@ internal sealed class InstallerFakeBackend : IInstallerBackend
             return InstallerBackendResult.Cancelled();
         }
 
-        progress?.Report(new InstallerBackendProgress("正在安装…", 50));
+        // 双段契约：安装段带 Phase/ItemIndex/ItemTotal（B3 下载阶段进度）
+        var total = Math.Max(plan.ToInstall.Count, 1);
+        var first = plan.ToInstall.Count > 0 ? plan.ToInstall[0] : "?";
+        Send(progress, new InstallerBackendProgress($"正在下载 1/{total}：{first}", 20)
+        {
+            Phase = InstallerPhase.Download,
+            ItemIndex = 1,
+            ItemTotal = total,
+        });
+        Send(progress, new InstallerBackendProgress($"正在安装 1/{total}：{first}", 50)
+        {
+            Phase = InstallerPhase.Install,
+            ItemIndex = 1,
+            ItemTotal = total,
+        });
         lock (Installed)
         {
             Installed.AddRange(plan.ToInstall);
@@ -161,7 +196,7 @@ internal sealed class InstallerFakeBackend : IInstallerBackend
             }
         }
 
-        progress?.Report(new InstallerBackendProgress("正在回滚…", 95));
+        Send(progress, new InstallerBackendProgress("正在回滚…", 95) { Phase = InstallerPhase.Rollback });
         return RollbackResult ?? InstallerBackendResult.Ok();
     }
 }

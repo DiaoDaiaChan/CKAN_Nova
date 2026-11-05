@@ -1,6 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="using:CkanUI.Ui.Theming"
+             xmlns:icons="using:CkanUI.Ui.Icons"
+             xmlns:ui="using:CkanUI.Ui.Tables"
              x:Class="CkanUI.Plugin.Saves.SavesPageView"
              x:CompileBindings="False">
   <!-- 存档工作台（13 篇 §7 / 03 篇 §14 / 06 篇 E1）：存档列表 + 诊断列表 + 校验与格式化。
@@ -12,25 +14,35 @@
       <Setter Property="Padding" Value="8,0" />
       <Setter Property="MinHeight" Value="{DynamicResource CkanRowHeight}" />
     </Style>
-    <!-- 选中行左侧 3px 强调条（沿用导航栏 navIndicator 的做法） -->
-    <Style Selector="Rectangle.SelectionBar">
-      <Setter Property="Width" Value="3" />
-      <Setter Property="RadiusX" Value="1.5" />
-      <Setter Property="RadiusY" Value="1.5" />
-      <Setter Property="Fill" Value="{DynamicResource CkanAccentBrush}" />
-      <Setter Property="HorizontalAlignment" Value="Left" />
-      <Setter Property="VerticalAlignment" Value="Stretch" />
-      <Setter Property="Margin" Value="2,6" />
-      <Setter Property="Opacity" Value="0" />
-      <Setter Property="IsHitTestVisible" Value="False" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
-        </Transitions>
-      </Setter>
+    <!--
+      存档列表里，组头也是「首行 item」的一部分。
+      为了避免选中组内首行时高亮蔓延到组头或组间间距上，将 ListBoxItem 的高亮设为透明，
+      由行内容容器 Border.SavesRowContent 专门承担悬停与选中高亮；
+      自带的 Rectangle#SelectionIndicator 予以隐藏。
+    -->
+    <Style Selector="ListBox.SaveList ListBoxItem">
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
     </Style>
-    <Style Selector="ListBoxItem:selected Rectangle.SelectionBar">
-      <Setter Property="Opacity" Value="1" />
+    <Style Selector="ListBox.SaveList ListBoxItem:selected">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.SaveList ListBoxItem:selected /template/ Rectangle#SelectionIndicator">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="ListBox.SaveList ListBoxItem Border.SavesRowContent">
+      <Setter Property="CornerRadius" Value="4" />
+    </Style>
+    <Style Selector="ListBox.SaveList ListBoxItem:pointerover Border.SavesRowContent">
+      <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    </Style>
+    <Style Selector="ListBox.SaveList ListBoxItem:selected Border.SavesRowContent">
+      <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
+    </Style>
+    <Style Selector="ListBox.SaveList ListBoxItem:selected:pointerover Border.SavesRowContent">
+      <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
     </Style>
     <!-- 工具条上的过滤勾选项：与日志页的 facet 芯片同一种观感（24px 行高，caption 字号） -->
     <Style Selector="CheckBox.facet">
@@ -155,9 +167,23 @@
                 </Grid>
               </Border>
 
-              <ListBox Grid.Row="1" ItemsSource="{Binding Rows}" Padding="4"
+              <!-- 筛选/排序/拖动列宽由 ListTableTools 补：表头 5 列（槽位/标题/模式/版本/游戏内时间），
+                   `展示路径~排序路径` 让时间与版本列按原始值排序而不是字典序。 -->
+              <ListBox Grid.Row="1" Classes="SaveList" ItemsSource="{Binding Rows}" Padding="4"
+                       ui:ListTableTools.Enabled="True"
+                       ui:ListTableTools.Columns="SlotDisplay~SlotName,TitleText,ModeText,VersionText~GameVersion,UniversalTimeText~UniversalTime"
                        SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                       DoubleTapped="OnSaveListDoubleTapped"
                        BorderThickness="0" Background="Transparent">
+                <ListBox.ContextMenu>
+                  <ContextMenu>
+                    <MenuItem Header="编辑存档内容…" Click="OnOpenWorkbench" IsEnabled="{Binding HasSelection}" />
+                    <MenuItem Header="在文件资源管理器中打开所在目录" Command="{Binding OpenFolderCommand}" IsEnabled="{Binding CanOpenFolder}" />
+                    <Separator />
+                    <MenuItem Header="格式化为副本" Command="{Binding FormatCopyCommand}" IsEnabled="{Binding CanFormatCopy}" />
+                    <MenuItem Header="就地重写格式化" Command="{Binding FormatInPlaceCommand}" IsEnabled="{Binding CanFormatInPlace}" />
+                  </ContextMenu>
+                </ListBox.ContextMenu>
                 <ListBox.ItemsPanel>
                   <ItemsPanelTemplate>
                     <VirtualizingStackPanel />
@@ -165,48 +191,103 @@
                 </ListBox.ItemsPanel>
                 <ListBox.ItemTemplate>
                   <DataTemplate>
-                    <Grid ColumnDefinitions="2.1*,1*,52,60,124"
-                          MinHeight="{DynamicResource CkanRowHeight}">
-                      <Rectangle Grid.ColumnSpan="5" Classes="SelectionBar" />
+                    <StackPanel>
                       <!--
-                        横向 StackPanel 会以无限宽测量子元素，TextTrimming 永远不会生效，
-                        长槽位名会直接压到「标题」列上；用 Grid 的 star 列把宽度约束住。
-                        飞船数 / 资金 / 修改时间 / 快照数已搬到右侧详情面板：9 列定宽在 1000px 窗口下
-                        必须横向滚动才看得见，把低频列让给详情面板后列表在默认宽度下就能读全。
+                        文件夹组头：只在每组首行上方画一次。不插异类行，保持 ListBox 单一类型与虚拟化。
+                        采用卡片式圆角容器与主色强调条，显著增强文件夹分类的层级与视觉区隔。
                       -->
-                      <Grid Grid.Column="0" ColumnDefinitions="*,Auto,Auto" Margin="0,0,8,0"
-                            ToolTip.Tip="{Binding SlotText}">
-                        <TextBlock Grid.Column="0" Text="{Binding SlotText}" TextTrimming="CharacterEllipsis"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                        <Border Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center"
-                                Classes="CkanBadge" IsVisible="{Binding IsStock}">
-                          <TextBlock Text="{DynamicResource Ui_SavesPage_ColStock}" />
-                        </Border>
-                        <Border Grid.Column="2" Margin="6,0,0,0" VerticalAlignment="Center"
-                                Classes="CkanBadge Info" IsVisible="{Binding IsBackup}">
-                          <TextBlock Text="{Binding KindText}" />
-                        </Border>
-                      </Grid>
-                      <TextBlock Grid.Column="1" Text="{Binding TitleText}" TextTrimming="CharacterEllipsis"
-                                 VerticalAlignment="Center" Margin="0,0,8,0"
-                                 ToolTip.Tip="{Binding TitleText}"
-                                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                      <TextBlock Grid.Column="2" Text="{Binding ModeText}" VerticalAlignment="Center"
-                                 TextTrimming="CharacterEllipsis"
-                                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                      <TextBlock Grid.Column="3" Text="{Binding VersionText}" VerticalAlignment="Center"
-                                 TextTrimming="CharacterEllipsis"
-                                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                                 ToolTip.Tip="{Binding VersionText}"
-                                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                      <!-- 体积列已移到右侧详情面板：留在这里会把「游戏内时间」挤成省略号 -->
-                      <TextBlock Grid.Column="4" Text="{Binding UniversalTimeText}" VerticalAlignment="Center"
-                                 TextTrimming="CharacterEllipsis"
-                                 ToolTip.Tip="{Binding UniversalTimeText}"
-                                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                                 Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                    </Grid>
+                      <Border IsVisible="{Binding IsGroupStart}"
+                              Classes="SavesFolderHeader"
+                              Background="{DynamicResource CkanCardBackgroundBrush}"
+                              BorderBrush="{DynamicResource CkanCardBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="6"
+                              Padding="10,6"
+                              Margin="0,10,0,4"
+                              ToolTip.Tip="{Binding FolderText}">
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                          <!-- 主色垂直强调色条 -->
+                          <Border Grid.Column="0"
+                                  Width="3" Height="14"
+                                  CornerRadius="1.5"
+                                  Background="{DynamicResource CkanPrimaryBrush}"
+                                  Margin="0,0,8,0"
+                                  VerticalAlignment="Center" />
+                          <!-- 文件夹矢量图标 -->
+                          <icons:GlyphIcon Grid.Column="1"
+                                           Glyph="Folder"
+                                           Size="14"
+                                           Foreground="{DynamicResource CkanPrimaryBrush}"
+                                           Margin="0,0,8,0"
+                                           VerticalAlignment="Center" />
+                          <!-- 文件夹名称 -->
+                          <TextBlock Grid.Column="2" Text="{Binding FolderText}" TextTrimming="CharacterEllipsis"
+                                     FontWeight="SemiBold"
+                                     FontSize="12"
+                                     VerticalAlignment="Center"
+                                     Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                          <!-- 存档计数徽章 -->
+                          <Border Grid.Column="3"
+                                  Classes="CkanBadge"
+                                  VerticalAlignment="Center"
+                                  Margin="8,0,0,0">
+                            <TextBlock Text="{Binding GroupSubtitle}" />
+                          </Border>
+                        </Grid>
+                      </Border>
+                      <Border Classes="SavesRowContent" Padding="8,0">
+                        <Grid ColumnDefinitions="2.1*,1*,52,60,124"
+                              MinHeight="{DynamicResource CkanRowHeight}">
+                            <!--
+                            横向 StackPanel 会以无限宽测量子元素，TextTrimming 永远不会生效，
+                            长槽位名会直接压到「标题」列上；用 Grid 的 star 列把宽度约束住。
+                            飞船数 / 资金 / 修改时间 / 快照数已搬到右侧详情面板：9 列定宽在 1000px 窗口下
+                            必须横向滚动才看得见，把低频列让给详情面板后列表在默认宽度下就能读全。
+                          -->
+                          <Grid Grid.Column="0" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,8,0"
+                                ToolTip.Tip="{Binding SlotText}">
+                            <!-- 分组时的层级缩进指示器：缩进 16px 并展示文件小图标，一眼识别归属关系 -->
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" IsVisible="{Binding IsGrouped}">
+                              <Border Width="16" />
+                              <icons:GlyphIcon Glyph="File" Size="12"
+                                               Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                               Margin="0,0,6,0"
+                                               VerticalAlignment="Center" />
+                            </StackPanel>
+                            <!-- 分组时文件夹已写在组头上，首列只显示尾段，长备份名才有地方放 -->
+                            <TextBlock Grid.Column="1" Text="{Binding SlotDisplay}" TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+                            <Border Grid.Column="2" Margin="6,0,0,0" VerticalAlignment="Center"
+                                     Classes="CkanBadge" IsVisible="{Binding IsStock}">
+                              <TextBlock Text="{DynamicResource Ui_SavesPage_ColStock}" />
+                            </Border>
+                            <Border Grid.Column="3" Margin="6,0,0,0" VerticalAlignment="Center"
+                                     Classes="CkanBadge Info" IsVisible="{Binding IsBackupItem}">
+                              <TextBlock Text="{Binding KindText}" />
+                            </Border>
+                          </Grid>
+                          <TextBlock Grid.Column="1" Text="{Binding TitleText}" TextTrimming="CharacterEllipsis"
+                                     VerticalAlignment="Center" Margin="0,0,8,0"
+                                     ToolTip.Tip="{Binding TitleText}"
+                                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                          <TextBlock Grid.Column="2" Text="{Binding ModeText}" VerticalAlignment="Center"
+                                     TextTrimming="CharacterEllipsis"
+                                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                          <TextBlock Grid.Column="3" Text="{Binding VersionText}" VerticalAlignment="Center"
+                                     TextTrimming="CharacterEllipsis"
+                                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                                     ToolTip.Tip="{Binding VersionText}"
+                                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                          <!-- 体积列已移到右侧详情面板：留在这里会把「游戏内时间」挤成省略号 -->
+                          <TextBlock Grid.Column="4" Text="{Binding UniversalTimeText}" VerticalAlignment="Center"
+                                     TextTrimming="CharacterEllipsis"
+                                     ToolTip.Tip="{Binding UniversalTimeText}"
+                                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                        </Grid>
+                      </Border>
+                    </StackPanel>
                   </DataTemplate>
                 </ListBox.ItemTemplate>
               </ListBox>
@@ -259,6 +340,16 @@
             <TextBlock Text="{Binding SelectionPath}" TextWrapping="Wrap"
                        FontSize="{DynamicResource CkanFontSizeCaption}"
                        Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+
+            <!-- 快捷主操作条：直接在此处编辑存档或打开目录 -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Margin="0,8,0,0">
+              <Button Grid.Column="0" Content="编辑存档内容…" Click="OnOpenWorkbench" Classes="CkanPrimary"
+                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                      ToolTip.Tip="打开 SFS 工作台：修改资金/科技/声望、展开块树、修改字段、一键救援乘员" />
+              <Button Grid.Column="1" Content="{DynamicResource Ui_Common_ShowInFolder}" Command="{Binding OpenFolderCommand}"
+                      Classes="CkanSecondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                      ToolTip.Tip="{DynamicResource Ui_SavesPage_OpenFolder_Tip}" />
+            </Grid>
           </StackPanel>
 
           <Border Grid.Row="1" Margin="0,8,0,0" Height="1"

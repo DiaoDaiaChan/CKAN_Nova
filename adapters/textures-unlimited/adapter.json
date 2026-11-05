@@ -1,0 +1,53 @@
+// Textures Unlimited 的配置适配器。
+// 取证：<游戏目录>/GameData/000_TexturesUnlimited/GeneralConfiguration.cfg，
+// 根节点 TEXTURES_UNLIMITED 的直属键只有 name / logReplacements / logErrors；
+// 子节点 UV_EXPORT 里的 6 个键用 fields[].nodePath 定位。
+// name（根层与 UV_EXPORT 里各一个）都是身份标识不是开关，不收录——
+// 官方注释写明 UV_EXPORT 必须且只能有一个、名字必须是 default，改它只会让配置失效。
+{
+  "schemaVersion": 1,
+  "id": "textures-unlimited",
+  "name": "Textures Unlimited",
+  "homepage": "https://github.com/shadowmage45/TexturesUnlimited",
+
+  "match": {
+    "ckanIdentifiers": ["TexturesUnlimited"],
+    "paths": ["GameData/000_TexturesUnlimited/GeneralConfiguration.cfg"],
+    "caseInsensitive": true
+  },
+
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/000_TexturesUnlimited/GeneralConfiguration.cfg",
+      "layout": "node",
+      "rootNode": "TEXTURES_UNLIMITED",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "GeneralConfiguration.cfg"
+    }
+  ],
+
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+
+  "fields": [
+    { "file": "settings", "key": "logReplacements", "type": "bool", "default": false,
+      "risk": "low", "requiresRestart": true, "label": "记录材质替换过程（日志会变多）" },
+    { "file": "settings", "key": "logErrors", "type": "bool", "default": false,
+      "risk": "low", "requiresRestart": true, "label": "记录材质替换错误" },
+
+    { "file": "settings", "nodePath": "UV_EXPORT", "key": "exportUVs", "type": "bool", "default": false,
+      "risk": "low", "requiresRestart": true, "label": "导出模型的 UV 贴图（给自己改材质用）" },
+    { "file": "settings", "nodePath": "UV_EXPORT", "key": "exportPath", "type": "string", "default": "exportedUVMaps",
+      "risk": "low", "requiresRestart": true, "label": "UV 导出目录（相对 KSP 可执行文件）" },
+    { "file": "settings", "nodePath": "UV_EXPORT", "key": "width", "type": "int", "min": 16, "max": 8192, "default": 1024,
+      "unit": "px", "risk": "low", "requiresRestart": true, "label": "UV 贴图宽度" },
+    { "file": "settings", "nodePath": "UV_EXPORT", "key": "height", "type": "int", "min": 16, "max": 8192, "default": 1024,
+      "unit": "px", "risk": "low", "requiresRestart": true, "label": "UV 贴图高度" },
+    { "file": "settings", "nodePath": "UV_EXPORT", "key": "thickness", "type": "int", "min": 0, "max": 64, "default": 1,
+      "unit": "px", "risk": "low", "requiresRestart": true, "label": "UV 线框粗细" }
+  ]
+}

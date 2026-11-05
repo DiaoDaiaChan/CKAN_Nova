@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "id": "vab-organizer",
+  "name": "VAB Organizer",
+  "homepage": "https://github.com/post-kerbin-mining-corporation/VABOrganizer",
+  "match": {
+    "ckanIdentifiers": [
+      "VABOrganizer"
+    ],
+    "paths": [
+      "GameData/VABOrganizer/Settings.cfg"
+    ],
+    "caseInsensitive": true
+  },
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/VABOrganizer/Settings.cfg",
+      "layout": "node",
+      "rootNode": "ORGANIZERSETTINGS",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "Settings.cfg"
+    }
+  ],
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+  "fields": [
+    {
+      "file": "settings",
+      "key": "DebugMode",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "输出调试日志（上游默认就是 true）"
+    },
+    {
+      "file": "settings",
+      "key": "KSPDefaultFont",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "用 Noto Sans（否则 Liberation Sans）"
+    },
+    {
+      "file": "settings",
+      "key": "LabelFontSize",
+      "type": "int",
+      "default": "9",
+      "min": 6,
+      "max": 24,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "标签字号"
+    },
+    {
+      "file": "settings",
+      "key": "RDLabelFontSize",
+      "type": "int",
+      "default": "9",
+      "min": 6,
+      "max": 24,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "研发中心标签字号"
+    },
+    {
+      "file": "settings",
+      "key": "LabelAlpha",
+      "type": "float",
+      "default": "0.4",
+      "min": 0,
+      "max": 1,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "标签透明度"
+    }
+  ]
+}

@@ -168,7 +168,9 @@ public static class ModConfigDetector
                 break;
 
             case ModConfigFieldType.Float:
-                if (!double.TryParse(text.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var floatValue)
+                // ConfigNode 里允许 Unity 风格的浮点后缀（实测 SystemHeat 的 "2.7f"），
+                // 词法合法但 double.TryParse 会拒；按共用解析器剥后缀再解析，原文照旧写回。
+                if (!ModConfigValueComparer.TryParseNumber(text, out var floatValue)
                     || double.IsNaN(floatValue) || double.IsInfinity(floatValue))
                 {
                     error = $"字段「{field.Key}」需要数字，实际是「{text}」";

@@ -1,7 +1,11 @@
-// KSP Community Fixes 的配置适配器（首批 CFG-02 示例）。
-// 只声明"已取证"的三个键：键名与默认值来自 docs/plan/15-mod-config-adapters.md §4.1 / §4.2。
-// 该 mod 的 Settings.cfg 实测有 138 条键，其余 135 条待真机核验后补齐（见 README.md），
-// 盲目补键会写坏用户配置——本域的原则是"宁缺勿错"。
+// KSP Community Fixes 的配置适配器。
+// 只声明"已在真机取证"的键：键名、类型与默认值全部对照
+// <游戏目录>/GameData/KSPCommunityFixes/Settings.cfg 实测（137 条顶层键）。
+// 该文件另有 3 个设置子节点（MANEUVER_TOOL_DEFAULTS / MEMORY_LEAKS_DEBUGGING /
+// COMMNET_THROTTLING_SETTINGS），子节点里的 8 个键用 fields[].nodePath 定位
+// （nodePath 相对 rootNode 解析，写盘时拼成 KSP_COMMUNITY_FIXES/<子节点>）。
+// 子节点名在这份文件里各只出现一次，名链可唯一定位；同名重复的节点不能这么写——
+// ConfigNodeDocument.FindPair 只返回第一个匹配。
 {
   "schemaVersion": 1,
   "id": "ksp-community-fixes",
@@ -37,13 +41,71 @@
 
   "fields": [
     { "file": "settings", "key": "RefundingOnRecovery", "type": "bool", "default": true,
-      "risk": "low", "requiresRestart": true, "label": "回收部件时退还全额资金" },
-    { "file": "settings", "key": "Language", "type": "enum",
-      "values": ["en-us", "de", "fr", "ja", "ru", "zh-cn"], "default": "en-us",
-      "risk": "low", "requiresRestart": true, "label": "界面语言" },
-    { "file": "settings", "key": "MaxPhysicsDelta", "type": "float", "min": 0.01, "max": 0.2,
-      "unit": "s", "default": 0.05, "risk": "medium", "requiresRestart": true,
-      "label": "物理步长上限（越大越省 CPU，但可能影响手感）" }
+      "risk": "low", "requiresRestart": true, "label": "回收部件时按 IPartCostModifier 退还资金" },
+    { "file": "settings", "key": "KerbalInventoryPersistence", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "修复 1.12.2 宇航员背包持久化失效" },
+    { "file": "settings", "key": "RoboticsDrift", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "阻止 Breaking Grounds 机械关节位置漂移" },
+    { "file": "settings", "key": "DockingPortRotationDriftAndFixes", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "修复 1.12.3 对接口旋转引起的部件漂移" },
+    { "file": "settings", "key": "AutoStrutDrift", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "自动加固按原始位置建关节（改善物理稳定性）" },
+    { "file": "settings", "key": "ModuleIndexingMismatch", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "装/卸/升级 mod 后不再丢模块持久化状态" },
+    { "file": "settings", "key": "PackedPartsRotation", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "打包非着陆部件时重置旋转" },
+    { "file": "settings", "key": "PartStartStability", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "部件初始化顺序加固（防场景加载时的海妖）" },
+
+    { "file": "settings", "key": "PAWGroupMemory", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "记住部件操作窗分组的展开状态" },
+    { "file": "settings", "key": "PAWItemsOrder", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "修复部件操作窗条目随机跳位/闪烁" },
+    { "file": "settings", "key": "ReactionWheelsPotentialTorque", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "修复反作用轮可用扭矩报错（轮力低于 100% 时）" },
+    { "file": "settings", "key": "CorrectDragForFlags", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "旗帜部件按实际模型尺寸取阻力立方" },
+    { "file": "settings", "key": "RespawnDeadKerbals", "type": "bool", "default": true,
+      "risk": "medium", "requiresRestart": true, "label": "开启重生时把死亡宇航员改判为失踪并开始计时" },
+    { "file": "settings", "key": "StrategyDuration", "type": "bool", "default": false,
+      "risk": "medium", "requiresRestart": true, "label": "让策略遵守 Duration 设置（会改变原版玩法，默认关）" },
+
+    { "file": "settings", "key": "SceneLoadSpeedBoost", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "场景加载提速" },
+    { "file": "settings", "key": "MemoryLeaks", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "清理托管内存泄漏并在切场景时记录" },
+    { "file": "settings", "key": "FewerSaves", "type": "bool", "default": false,
+      "risk": "medium", "requiresRestart": true, "label": "退出纯 UI 建筑/删飞船时不再自动存档" },
+    { "file": "settings", "key": "SkipIndentsOnSavesAndCraftFiles", "type": "bool", "default": false,
+      "risk": "low", "requiresRestart": true, "label": "存档与 craft 文件不写缩进（更快，但人读变差）" },
+
+    { "file": "settings", "key": "DisableNewGameIntro", "type": "bool", "default": false,
+      "risk": "low", "requiresRestart": true, "label": "新战役开局不弹介绍弹窗" },
+    { "file": "settings", "key": "DisableHiddenPortraits", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "不渲染不可见宇航员头像（多人时省性能）" },
+    { "file": "settings", "key": "DebugConsoleDontStealInput", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "调试控制台不再抢输入焦点（Alt+F12）" },
+
+    { "file": "settings", "nodePath": "MANEUVER_TOOL_DEFAULTS", "key": "ManeuverToolEnabledByDefault", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "机动节点工具默认启用（关掉后仍可从 ESC 设置里手动开启）" },
+    { "file": "settings", "nodePath": "MANEUVER_TOOL_DEFAULTS", "key": "ManeuverToolAlwaysDisabled", "type": "bool", "default": false,
+      "risk": "low", "requiresRestart": true, "label": "强制禁用机动节点工具（用户无法再开启）" },
+
+    { "file": "settings", "nodePath": "MEMORY_LEAKS_DEBUGGING", "key": "ForceGCCollect", "type": "bool", "default": false,
+      "risk": "medium", "requiresRestart": true, "label": "切场景时强制 GC 以取得更准的托管内存读数（会卡顿）" },
+    { "file": "settings", "nodePath": "MEMORY_LEAKS_DEBUGGING", "key": "LogDestroyedUnityObjectGameEventsLeaks", "type": "bool", "default": true,
+      "risk": "low", "requiresRestart": true, "label": "记录被销毁 UnityEngine.Object 的 GameEvents 泄漏" },
+    { "file": "settings", "nodePath": "MEMORY_LEAKS_DEBUGGING", "key": "AdvancedGameEventsLeakDetection", "type": "bool", "default": false,
+      "risk": "medium", "requiresRestart": true, "label": "跨场景比对存活 GameEvents 委托（排查泄漏用，日志很多）" },
+    { "file": "settings", "nodePath": "MEMORY_LEAKS_DEBUGGING", "key": "LogGameEventsSubscribers", "type": "bool", "default": false,
+      "risk": "medium", "requiresRestart": true, "label": "记录场景销毁后残留的全部 GameEvents 订阅者" },
+
+    { "file": "settings", "nodePath": "COMMNET_THROTTLING_SETTINGS", "key": "maxGameTimeInterval", "type": "float", "default": 2.5,
+      "min": 0.1, "max": 60, "unit": "s", "risk": "medium", "requiresRestart": true,
+      "label": "CommNet 两次更新的最大游戏时间间隔（再大也不会提帧，只会让断连更迟钝）" },
+    { "file": "settings", "nodePath": "COMMNET_THROTTLING_SETTINGS", "key": "minRealTimeInterval", "type": "float", "default": 20,
+      "min": 1, "max": 2000, "unit": "ms", "risk": "medium", "requiresRestart": true,
+      "label": "CommNet 两次更新的最小真实毫秒间隔（推荐 20 或 500~1000，中间值会掉帧）" }
   ],
 
   "unlisted": "preserve"

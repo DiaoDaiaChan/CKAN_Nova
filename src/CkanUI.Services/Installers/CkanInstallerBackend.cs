@@ -29,6 +29,19 @@ internal sealed class CkanInstallerBackend : IInstallerBackend
     private readonly IConfiguration _configuration;
     private readonly IUser _user;
 
+    /// <summary>跨阶段进度闸门：保护高水位与下面几个事件里的累积字典（事件来自后台线程）。</summary>
+    private readonly object _progressGate = new();
+
+    private double _progressHighWater;
+
+    // 双段进度的分段区间（05 篇 §4）。下载塞在 InstallList 内部，以前这段零上报，百分比会卡在 8%。
+    private const double DownloadFromPercent = 8d;
+    private const double DownloadToPercent = 35d;
+    private const double InstallFromPercent = 35d;
+    private const double InstallToPercent = 99d;
+    private const double RemoveFromPercent = 8d;
+    private const double RemoveToPercent = 30d;
+
     public CkanInstallerBackend(GameInstance instance,
                                 GameInstanceManager instances,
                                 RepositoryDataManager repositoryData,
@@ -128,10 +141,9 @@ internal sealed class CkanInstallerBackend : IInstallerBackend
         }
         catch (TooManyModsProvideKraken ex)
         {
-            return InstallerBackendResult.Fail("有多个模组提供同一依赖，无法自动选择，未执行任何操作。",
-                                               ex.Message,
-                                               toInstall.Select(module => module.identifier).ToArray(),
-                                               warnings);
+            // 这不是失败，是「还差一次用户裁决」：把候选集原样交给 UI 弹选择框，
+            // 用户选完把那个提供者加进待装集合重试即可（对齐上游 GUI/Main/MainInstall.cs）。
+            return InstallerBackendResult.NeedsChoice(BuildPendingChoice(ex, registry), warnings);
         }
         catch (ModuleNotFoundKraken ex)
         {
@@ -168,14 +180,34 @@ internal sealed class CkanInstallerBackend : IInstallerBackend
 
         var registryManager = GetRegistryManager();
         var installer = new ModuleInstaller(_instance, cache, _configuration, _user, ct);
-        var lastPercent = 10d;
-        installer.RemoveProgress += (module, done, total) =>
+        // 卸载段 8→30。UninstallList 不触发 OneComplete（Core/IO/ModuleInstaller.cs:343 只在 Install 内 invoke），
+        // 所以「卸完一个」只能靠 RemoveProgress 的分数到达 1 来判定。
+        var removeTotal = plan.ToRemove.Count;
+        var removeFractions = new Dictionary<string, double>(StringComparer.Ordinal);
+        var removeOrder = new List<string>(removeTotal);
+        var removeCompleted = new HashSet<string>(StringComparer.Ordinal);
+        installer.RemoveProgress += (module, remaining, total) =>
         {
-            lastPercent = Scale(done, total, 10, 40);
-            progress?.Report(new InstallerBackendProgress($"正在卸载 {module.identifier}", lastPercent));
+            var identifier = module.identifier;
+            int index;
+            double percent;
+            bool done;
+            lock (_progressGate)
+            {
+                index = IndexOfOrAdd(removeOrder, identifier);
+                Accumulate(removeFractions, identifier, Fraction(remaining, total));
+                percent = ScaleUnit(removeFractions.Values.Sum(), removeTotal, RemoveFromPercent, RemoveToPercent);
+                done = removeFractions[identifier] >= 1d && removeCompleted.Add(identifier);
+            }
+
+            ReportProgress(progress, new InstallerBackendProgress(
+                $"{(done ? "已卸载" : "正在卸载")} {index}/{removeTotal}：{identifier}", percent, BypassThrottle: done)
+            {
+                Phase = InstallerPhase.Remove,
+                ItemIndex = index,
+                ItemTotal = removeTotal,
+            });
         };
-        installer.OneComplete += module
-            => progress?.Report(new InstallerBackendProgress($"已完成 {module.identifier}", lastPercent, BypassThrottle: true));
 
         var possibleConfigOnlyDirs = new HashSet<string>(StringComparer.Ordinal);
         try
@@ -236,24 +268,58 @@ internal sealed class CkanInstallerBackend : IInstallerBackend
 
         var registryManager = GetRegistryManager();
         var installer = new ModuleInstaller(_instance, cache, _configuration, _user, ct);
-        var lastPercent = 40d;
-        installer.InstallProgress += (module, done, total) =>
+        // 安装段 35→99：按「条目分数」累积，一个模组装完就报 m/M。
+        var installTotal = modules.Count;
+        var installFractions = new Dictionary<string, double>(StringComparer.Ordinal);
+        var installOrder = new List<string>(installTotal);
+        var installCompleted = new HashSet<string>(StringComparer.Ordinal);
+
+        void ReportInstall(InstallerPhase phase, string identifier, string label, string verb, double fraction, bool completed)
         {
-            lastPercent = Scale(done, total, 40, 99);
-            progress?.Report(new InstallerBackendProgress($"正在安装 {module.identifier}", lastPercent));
-        };
-        installer.RemoveProgress += (module, done, total) =>
-        {
-            lastPercent = Scale(done, total, 40, 60);
-            progress?.Report(new InstallerBackendProgress($"正在替换 {module.identifier}", lastPercent));
-        };
+            int index;
+            double percent;
+            int done;
+            lock (_progressGate)
+            {
+                index = IndexOfOrAdd(installOrder, identifier);
+                if (completed)
+                {
+                    installFractions[identifier] = 1d;
+                    installCompleted.Add(identifier);
+                }
+                else
+                {
+                    Accumulate(installFractions, identifier, fraction);
+                }
+
+                percent = ScaleUnit(installFractions.Values.Sum(), installTotal, InstallFromPercent, InstallToPercent);
+                done = installCompleted.Count;
+            }
+
+            var counted = completed ? done : index;
+            ReportProgress(progress, new InstallerBackendProgress(
+                $"{verb} {counted}/{installTotal}：{label}", percent, BypassThrottle: completed)
+            {
+                Phase = phase,
+                ItemIndex = counted,
+                ItemTotal = installTotal,
+            });
+        }
+
+        installer.InstallProgress += (module, remaining, total)
+            => ReportInstall(InstallerPhase.Install, module.identifier, DisplayName(module), "正在安装",
+                             Fraction(remaining, total), completed: false);
+        installer.RemoveProgress += (module, remaining, total)
+            => ReportInstall(InstallerPhase.Remove, module.identifier, DisplayName(module.Module), "正在替换",
+                             Fraction(remaining, total), completed: false);
         installer.OneComplete += module
-            => progress?.Report(new InstallerBackendProgress($"已完成 {module.identifier}", lastPercent, BypassThrottle: true));
+            => ReportInstall(InstallerPhase.Install, module.identifier, DisplayName(module), "已安装", 1d, completed: true);
 
         var possibleConfigOnlyDirs = new HashSet<string>(StringComparer.Ordinal);
         try
         {
             var downloader = new NetAsyncModulesDownloader(_user, cache, userAgent: null, cancelToken: ct);
+            SubscribeDownloadProgress(downloader, cache, modules, progress);
             var deduper = TryCreateDeduplicator();
             // 用户点名的才不是 autoInstalled，其余（依赖/推荐）都要标记，否则以后清理不掉
             var requested = plan.Items
@@ -266,6 +332,13 @@ internal sealed class CkanInstallerBackend : IInstallerBackend
             installer.InstallList(modules, CreateOptions(), registryManager, ref possibleConfigOnlyDirs,
                                   deduper, userAgent: null, downloader: downloader,
                                   autoInstalled: autoInstalled, ConfirmPrompt: false);
+            ReportProgress(progress, new InstallerBackendProgress(
+                $"已安装 {installTotal}/{installTotal}", InstallToPercent, BypassThrottle: true)
+            {
+                Phase = InstallerPhase.Install,
+                ItemIndex = installTotal,
+                ItemTotal = installTotal,
+            });
             // 升级/替换同样会留下旧版本的配置目录，一并上报（12 篇 F-43）。
             return InstallerBackendResult.Ok(plan.ToInstall,
                                              residualDirectories: ResidualDirectoriesOf(possibleConfigOnlyDirs));
@@ -280,8 +353,9 @@ internal sealed class CkanInstallerBackend : IInstallerBackend
         }
         catch (TooManyModsProvideKraken ex)
         {
-            return InstallerBackendResult.Fail("有多个模组提供同一依赖，无法自动选择。", ex.Message,
-                                               failed: plan.ToInstall);
+            // 解析阶段漏掉的情况（仓库在两次调用之间变了、或 InstallList 内部重新解析才撞上）。
+            // 交给上层弹选择框，选完重试；已经下到缓存的文件不会白下。
+            return InstallerBackendResult.NeedsChoice(BuildPendingChoice(ex, GetRegistry()));
         }
         catch (Exception ex)
         {
@@ -395,6 +469,54 @@ internal sealed class CkanInstallerBackend : IInstallerBackend
         return result;
     }
 
+    /// <summary>
+    /// 把 Core 的「多个模组都能提供某依赖」翻译成交互式选择请求（F-34/F-35）。
+    /// <para>
+    /// 排序对齐上游 GUI/Main/MainInstall.cs:348-385：已缓存优先 → 就是指名的那个 → 名字，
+    /// 让用户第一眼看到最省事的候选。
+    /// </para>
+    /// </summary>
+    private VirtualModuleRequest BuildPendingChoice(TooManyModsProvideKraken ex, CKAN.Registry registry)
+    {
+        var cache = GetCache();
+
+        var providers = ex.modules
+            .OrderByDescending(module => IsCached(cache, module))
+            .ThenByDescending(module => string.Equals(module.identifier, ex.requested, StringComparison.OrdinalIgnoreCase))
+            .ThenBy(module => string.IsNullOrWhiteSpace(module.name) ? module.identifier : module.name,
+                    StringComparer.OrdinalIgnoreCase)
+            .Select(module => new VirtualModuleCandidate(
+                module.identifier,
+                string.IsNullOrWhiteSpace(module.name) ? module.identifier : module.name,
+                string.IsNullOrWhiteSpace(module.@abstract) ? null : module.@abstract,
+                IsCached(cache, module),
+                registry.InstalledModule(module.identifier) is not null))
+            .ToArray();
+
+        return new VirtualModuleRequest(
+            $"「{ex.requested}」有 {providers.Length} 个模组可以提供，请选择一个继续。",
+            providers,
+            ex.requested);
+    }
+
+    private static bool IsCached(NetModuleCache? cache, CkanModule module)
+    {
+        if (cache is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return cache.IsCached(module);
+        }
+        catch (Exception)
+        {
+            // 缓存目录读不到时（正是「未能读取下载缓存目录」那条提示的来源）别让选择框跟着炸
+            return false;
+        }
+    }
+
     private NetModuleCache? GetCache() => _instances.Cache;
 
     private RegistryManager GetRegistryManager() => RegistryManager.Instance(_instance, _repositoryData);
@@ -415,8 +537,201 @@ internal sealed class CkanInstallerBackend : IInstallerBackend
         }
     }
 
-    private static double Scale(long done, long total, double from, double to)
+    /// <summary>
+    /// 下载段进度（05 篇 §4）。Core 把下载塞在 <c>InstallList</c> 内部，此前这里零上报，
+    /// 百分比会一直挂在 8% 直到开始安装。订阅 downloader 后按下载字节加权推进 8→35，每条都带 n/N。
+    /// </summary>
+    private void SubscribeDownloadProgress(NetAsyncModulesDownloader downloader,
+                                           NetModuleCache cache,
+                                           IReadOnlyList<CkanModule> modules,
+                                           IProgress<InstallerBackendProgress>? progress)
+    {
+        if (progress is null)
+        {
+            return;
+        }
+
+        var downloadTotal = modules.Count;
+        var order = new List<string>(downloadTotal);
+        var fractions = new Dictionary<string, double>(StringComparer.Ordinal);
+        var weights = new Dictionary<string, double>(StringComparer.Ordinal);
+        var completed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var module in modules)
+        {
+            weights[module.identifier] = Math.Max(module.download_size, 0);
+        }
+
+        var weightTotal = weights.Values.Sum();
+        // 元数据里全没有下载大小时退化成「每个模组 1 份」的计数进度。
+        if (weightTotal <= 0d)
+        {
+            foreach (var identifier in weights.Keys.ToArray())
+            {
+                weights[identifier] = 1d;
+            }
+
+            weightTotal = downloadTotal;
+        }
+
+        double Percent()
+        {
+            var done = 0d;
+            foreach (var pair in fractions)
+            {
+                done += pair.Value * weights[pair.Key];
+            }
+
+            return ScaleUnit(done, weightTotal, DownloadFromPercent, DownloadToPercent);
+        }
+
+        // 缓存命中不会触发 downloader.OneComplete，先记成已完成，否则 n/N 永远追不平。
+        foreach (var module in modules.Where(cache.IsCached))
+        {
+            fractions[module.identifier] = 1d;
+            completed.Add(module.identifier);
+            order.Add(module.identifier);
+        }
+
+        double startPercent;
+        int cachedCount;
+        lock (_progressGate)
+        {
+            startPercent = Percent();
+            cachedCount = completed.Count;
+        }
+
+        if (cachedCount < downloadTotal)
+        {
+            ReportProgress(progress, new InstallerBackendProgress(
+                $"准备下载 {cachedCount}/{downloadTotal} 个模组…", startPercent, BypassThrottle: true)
+            {
+                Phase = InstallerPhase.Download,
+                ItemIndex = cachedCount,
+                ItemTotal = downloadTotal,
+            });
+        }
+
+        downloader.DownloadProgress += (module, remaining, total) =>
+        {
+            int index;
+            double percent;
+            lock (_progressGate)
+            {
+                // download_size 缺失的模组用实测文件大小补位（只会让分母变大，高水位闸门兜住倒退）。
+                if (total > 0 && weights.TryGetValue(module.identifier, out var weight) && weight <= 0d)
+                {
+                    weights[module.identifier] = total;
+                    weightTotal += total;
+                }
+
+                index = IndexOfOrAdd(order, module.identifier);
+                Accumulate(fractions, module.identifier, Fraction(remaining, total));
+                percent = Percent();
+            }
+
+            ReportProgress(progress, new InstallerBackendProgress(
+                $"正在下载 {index}/{downloadTotal}：{DisplayName(module)}", percent)
+            {
+                Phase = InstallerPhase.Download,
+                ItemIndex = index,
+                ItemTotal = downloadTotal,
+            });
+        };
+
+        downloader.OneComplete += module =>
+        {
+            int count;
+            double percent;
+            lock (_progressGate)
+            {
+                fractions[module.identifier] = 1d;
+                completed.Add(module.identifier);
+                IndexOfOrAdd(order, module.identifier);
+                count = completed.Count;
+                percent = Percent();
+            }
+
+            ReportProgress(progress, new InstallerBackendProgress(
+                $"已下载 {count}/{downloadTotal}：{DisplayName(module)}", percent, BypassThrottle: true)
+            {
+                Phase = InstallerPhase.Download,
+                ItemIndex = count,
+                ItemTotal = downloadTotal,
+            });
+        };
+
+        downloader.AllComplete += () =>
+        {
+            double percent;
+            lock (_progressGate)
+            {
+                percent = Math.Max(Percent(), DownloadToPercent);
+            }
+
+            ReportProgress(progress, new InstallerBackendProgress(
+                $"下载完成 {downloadTotal}/{downloadTotal}", percent, BypassThrottle: true)
+            {
+                Phase = InstallerPhase.Download,
+                ItemIndex = downloadTotal,
+                ItemTotal = downloadTotal,
+            });
+        };
+    }
+
+    /// <summary>
+    /// 进度统一出口：同一实例内跨阶段只增不减。回滚会在同一后端实例上复用 Remove/Install（05 篇 §9），
+    /// 不夹高水位闸门就会出现 96% → 8% 这种倒退。
+    /// </summary>
+    private void ReportProgress(IProgress<InstallerBackendProgress>? progress, InstallerBackendProgress value)
+    {
+        if (progress is null)
+        {
+            return;
+        }
+
+        InstallerBackendProgress monotonic;
+        lock (_progressGate)
+        {
+            monotonic = value.Percent < _progressHighWater
+                ? value with { Percent = _progressHighWater }
+                : value;
+            _progressHighWater = Math.Max(_progressHighWater, value.Percent);
+        }
+
+        progress.Report(monotonic);
+    }
+
+    /// <summary>上游事件的首参是「剩余字节」，完成量要算 total - remaining（Core/IO/ModuleInstaller.cs:1276）。</summary>
+    private static double Fraction(long remaining, long total)
         => total <= 0
-            ? from
-            : from + ((to - from) * Math.Clamp((double)done / total, 0d, 1d));
+            ? 0d
+            : Math.Clamp((double)(total - Math.Max(remaining, 0)) / total, 0d, 1d);
+
+    private static double ScaleUnit(double done, double total, double from, double to)
+        => total <= 0
+            ? to
+            : from + ((to - from) * Math.Clamp(done / total, 0d, 1d));
+
+    /// <summary>条目首次出现时追加，返回 1 起的序号。调用方必须持有 <c>_progressGate</c>。</summary>
+    private static int IndexOfOrAdd(List<string> order, string identifier)
+    {
+        var index = order.IndexOf(identifier);
+        if (index < 0)
+        {
+            order.Add(identifier);
+            index = order.Count - 1;
+        }
+
+        return index + 1;
+    }
+
+    /// <summary>同一模组的分数只保留最大值：事件可能乱序或重复上报。调用方必须持有 <c>_progressGate</c>。</summary>
+    private static void Accumulate(IDictionary<string, double> fractions, string identifier, double fraction)
+    {
+        var previous = fractions.TryGetValue(identifier, out var value) ? value : 0d;
+        fractions[identifier] = Math.Max(previous, fraction);
+    }
+
+    private static string DisplayName(CkanModule module)
+        => string.IsNullOrEmpty(module.name) ? module.identifier : module.name;
 }

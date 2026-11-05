@@ -97,6 +97,17 @@ public sealed record ModsRowView(ModRowData Data)
     /// <summary>是否显示"依赖"徽章。</summary>
     public bool ShowDependencyBadge => Data.IsImplicit;
 
+    /// <summary>是否是与内置 GUI 插件联动的模组（清单见 <see cref="ModsCompanionCatalog"/>）。</summary>
+    public bool IsCompanion => ModsCompanionCatalog.IsCompanion(Data.Identifier);
+
+    /// <summary>是否显示"联动"徽章。</summary>
+    public bool ShowCompanionBadge => IsCompanion;
+
+    /// <summary>"联动"徽章的提示：说清它能点亮哪个插件，而不是只贴一个标签。</summary>
+    public string CompanionTip => ModsCompanionCatalog.TryGet(Data.Identifier, out var link)
+        ? $"与「{link.PluginName}」联动：{link.Benefit}"
+        : string.Empty;
+
     /// <summary>行状态文本（供详情面板与无障碍读屏，不只靠颜色表达状态）。</summary>
     public string StatusText
     {

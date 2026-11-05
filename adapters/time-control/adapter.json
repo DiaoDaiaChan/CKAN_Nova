@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "id": "time-control",
+  "name": "Time Control",
+  "homepage": "https://github.com/hsk1985/TimeControl",
+  "match": {
+    "ckanIdentifiers": [
+      "TimeControl"
+    ],
+    "paths": [
+      "GameData/TimeControl/Plugins/PluginData/GlobalSettings.cfg"
+    ],
+    "caseInsensitive": true
+  },
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/TimeControl/Plugins/PluginData/GlobalSettings.cfg",
+      "layout": "node",
+      "rootNode": "GlobalSettings",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "GlobalSettings.cfg"
+    }
+  ],
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+  "fields": [
+    {
+      "file": "settings",
+      "key": "HyperWarpPhysicsAccuracy",
+      "type": "int",
+      "default": "1",
+      "min": 1,
+      "max": 8,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "超高速跃迁的物理精度（每帧子步数）"
+    },
+    {
+      "file": "settings",
+      "key": "HyperWarpMaxAttemptedRate",
+      "type": "int",
+      "default": "2",
+      "min": 1,
+      "max": 100,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "超高速跃迁尝试的最大时间倍率"
+    },
+    {
+      "file": "settings",
+      "key": "HyperWarpMaximumDeltaTime",
+      "type": "float",
+      "default": "0.0399999991",
+      "min": 0.001,
+      "max": 0.2,
+      "unit": "s",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "超高速跃迁单步最大物理步长"
+    },
+    {
+      "file": "settings",
+      "key": "SlowMoRate",
+      "type": "float",
+      "default": "0.5",
+      "min": 0.01,
+      "max": 0.99,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "慢动作倍率"
+    },
+    {
+      "file": "settings",
+      "key": "DeltaLocked",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "锁定物理步长"
+    },
+    {
+      "file": "settings",
+      "key": "ResetAltitudeToValue",
+      "type": "float",
+      "default": "1000",
+      "unit": "m",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "「重置高度」使用的目标高度"
+    },
+    {
+      "file": "settings",
+      "key": "LoggingLevel",
+      "type": "string",
+      "default": "Warning",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "日志级别（Trace/Debug/Info/Warning/Error/Fatal，枚举值未取证）"
+    },
+    {
+      "file": "settings",
+      "key": "CameraZoomFix",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "相机缩放修复"
+    },
+    {
+      "file": "settings",
+      "key": "KeyRepeatInterval",
+      "type": "int",
+      "default": "15",
+      "min": 1,
+      "max": 500,
+      "unit": "ms",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "按键连发间隔"
+    },
+    {
+      "file": "settings",
+      "key": "KeyRepeatStart",
+      "type": "int",
+      "default": "500",
+      "min": 0,
+      "max": 5000,
+      "unit": "ms",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "按键连发延迟"
+    }
+  ]
+}

@@ -23,7 +23,7 @@ if (!fs.existsSync(exe)) {
 fs.rmSync(log, {force: true});
 const child = spawn(exe, [], {cwd: path.dirname(exe), stdio: "ignore", env: {...process.env,
   CKANUI_NAV_TRACE: log,
-  CKANUI_NAV_MEM: "1",
+  CKANUI_NAV_MEM: process.env.CKANUI_PROBE_MEM || "1",
   CKANUI_PROBE_REAL_CONFIG: "1",
   CKANUI_PROBE_INSTANCE: "1",
   CKANUI_APP_ID: "CkanUIUserInstance"}});

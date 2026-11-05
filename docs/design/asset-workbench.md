@@ -87,7 +87,7 @@ KSP 的「皮」有三类直接摆在同一份游戏目录里：`Ships/**.craft`
 
 | 资产 | 扫描位置 | 伴生文件 | 写入位置 |
 |---|---|---|---|
-| 飞船 | `<game>/Ships/{VAB,SPH,Subassemblies}/*.craft` | 同名 `.loadmeta`；`Ships/@thumbs/<目录名>/<名>.png` | 同目录 |
+| 飞船 | 库根 = `<game>/Ships`（根库）或 `<game>/saves/<存档名>/Ships`（存档库）；每个库下 `{VAB,SPH,Subassemblies}/*.craft` | 同名 `.loadmeta`；`<库根>/@thumbs/<目录名>/<名>.png` | 同库同目录，跨库走 `TransferAsync` |
 | 旗帜 | `<game>/GameData/**/Flags/*.png` | `settings.cfg` 的 `FLAG` 行 | `<game>/GameData/CkanUI/Flags` |
 | 加载图 | 目录清单里的第一层图片（含 ROLoadingImages 的 `PluginData/Screens`、LSM cfg 里的 `path`），已停用的 `*.disabled` 也列出 | `GameData/CkanUI/loading-image-folders.txt` | 清单中的目录（启停 = 改 `.disabled` 后缀） |
 
@@ -106,6 +106,7 @@ KSP 的「皮」有三类直接摆在同一份游戏目录里：`Ships/**.craft`
 | 页容器 | `Grid` + `Margin="{DynamicResource CkanPagePadding}"`，行 `Auto,Auto,Auto,*`；加载图页多一行常驻指引条，行定义顺延为 `Auto,Auto,Auto,Auto,*` |
 | 页标题 | `TextBlock.CkanPageTitle` + 右侧 `Border.CkanBadge` 绑 `StatusText` |
 | 工具条 | `Border.CkanToolbar` + `Classes="stagger-card"`；主操作 `Button.CkanPrimary`，次操作 `.CkanSecondary`，单项操作 `.CkanGhost`，删除 `.CkanDanger` |
+| 库选择器 | 仅飞船页：工具条首位 `ComboBox` 绑 `Libraries` / `SelectedLibrary`，第一项是「根目录（所有存档共用）」，其后是各 `saves/<存档名>`；切库即改扫盘根，选中载具随之重载 |
 | 列表 | `Border` + `Classes="CkanCard"`，卡片内表头与行共用同一套 `ColumnDefinitions` |
 | 选中态 | `ListBoxItem` 内 3px `CkanAccentBrush` 竖条，`opacity` 由选中态驱动 |
 | 空态 | `Border.CkanEmptyStateCard.Elevated` + `Border.CkanIconTile.Lg.Muted` + 一句说明 + 引导按钮 |
@@ -128,6 +129,10 @@ KSP 的「皮」有三类直接摆在同一份游戏目录里：`Ships/**.craft`
 | 扫描失败 | 显示服务层的 `Message`；没有 `Message` 时用「刷新…失败。」兜底 |
 | 游戏正在运行导致文件锁 | 删除 / 重命名失败，错误细节给原始异常消息，提示关游戏 |
 | 导入非图片文件 | 选择器已按扩展名过滤；服务层二次校验并 `Fail` |
+| 跨库搬运时源与目标同一目录 | `Fail`「源与目标是同一个目录，不需要搬运。」，源文件保持不动 |
+| 目标库已有同名载具 | 不覆盖：按 `UniqueName` 落成 `Alpha (2)`，并在状态栏说明落到了哪个库 |
+| 只有根库、没有存档 | 「复制到…」不弹空选择框，直接提示「没有别的载具库可以放。」 |
+| 存档列表读失败 | 保留根库继续可用，错误条给服务层 `Message`，不清空当前列表 |
 | 启停时同名文件已存在（`a.dds` 与 `a.dds.disabled` 同时存在） | `Fail`「同名文件已存在，先处理它再切换启停。」，原文件保持不动 |
 | 启停被拒（`UnauthorizedAccessException` / `SecurityException`） | `Fail`「没有权限改这个文件：确认游戏已关闭、目录可写，或先用「在文件夹中打开」手动改名。」，原始异常消息进 `Detail` |
 | 启停撞上占用或只读目录（`IOException`） | `Fail`「文件正被占用或目录只读：关掉游戏和图片查看器后再试。」 |

@@ -23,18 +23,39 @@ public sealed class InstallHistoryPageViewModelTests
 
     private FakeInstallHistoryService _history = null!;
     private ModPacksFakeErrorReporter _errors = null!;
+    private FakeRepositoryService _repository = null!;
+    private FakeNavigationService _navigation = null!;
 
     [SetUp]
     public void SetUp()
     {
         _history = new FakeInstallHistoryService();
         _errors = new ModPacksFakeErrorReporter();
+        _repository = new FakeRepositoryService();
+        _navigation = new FakeNavigationService();
     }
 
     private InstallHistoryPageViewModel CreateViewModel(params InstallHistoryEntry[] entries)
     {
         _history.Entries = entries;
-        return new InstallHistoryPageViewModel(_history, _errors);
+        return new InstallHistoryPageViewModel(
+            _history,
+            _errors,
+            repositories: _repository,
+            navigation: _navigation);
+    }
+
+    private InstallHistoryPageViewModel CreateViewModelWithResolver(
+        Func<string, object?> pageResolver,
+        params InstallHistoryEntry[] entries)
+    {
+        _history.Entries = entries;
+        return new InstallHistoryPageViewModel(
+            _history,
+            _errors,
+            repositories: _repository,
+            navigation: _navigation,
+            pageResolver: pageResolver);
     }
 
     // ---- 构造数据 ----------------------------------------------------------
@@ -295,6 +316,44 @@ public sealed class InstallHistoryPageViewModelTests
         Assert.That(vm.IsIdle, Is.True);
     }
 
+    /// <summary>B4：重装只有提示、没有失败时，页面必须说"完成"，不能把提示渲染成失败。</summary>
+    [Test]
+    public async Task Restore_WarningOnly_ShowsCompletedStatus_AndKeepsWarningsAsNote()
+    {
+        var vm = CreateViewModel(Entry(1, modules: new[] { Missing("A", "1.0") }));
+        await vm.LoadCommand.ExecuteAsync(null);
+        _history.PreviewResult = OperationResult<InstallHistoryRestorePlan>.Ok(Plan(Item("A", ChangeAction.Install, null, "1.0")));
+        _history.RestoreResult = OperationResult<InstallHistoryRestoreResult>.Ok(
+            new InstallHistoryRestoreResult(
+                Plan(Item("A", ChangeAction.Install, null, "1.0")),
+                new[] { "A" },
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                new[] { "镜像较慢，已重试一次" }));
+
+        await vm.RestoreCommand.ExecuteAsync(null);
+
+        Assert.That(vm.HasError, Is.False, "仅有提示不是失败，不能进错误态");
+        Assert.That(vm.StatusText, Does.Contain("重装完成"),
+            "Failed 为空、Warnings 非空时必须走成功分支；落成\"重装结束：成功 0 个，失败 0 个\"就是把提示当失败");
+        Assert.That(vm.RestoreResultText, Does.Contain("警告"), "提示不能丢，要以备注形式留在结果里");
+        Assert.That(vm.RestoreResultText, Does.Contain("失败 0 个"));
+    }
+
+    /// <summary>B4：历史行只按 Outcome 判失败，警告备注不得让这一行标红。</summary>
+    [Test]
+    public void EntryRow_WarningOnlySucceeded_IsNotMarkedAsFailure()
+    {
+        var entry = Entry(1, outcome: InstallHistoryOutcome.Succeeded, modules: new[] { Installed("A", "1.0") })
+            with { Message = "警告：镜像较慢，已重试一次" };
+
+        var row = new InstallHistoryEntryRowViewModel(entry);
+
+        Assert.That(row.IsFailure, Is.False, "Outcome 是 Succeeded 的行不能因为备注里有\"警告\"就标红");
+        Assert.That(row.OutcomeText, Is.EqualTo("成功"));
+        Assert.That(row.HasMessage, Is.True, "警告仍要展示为备注");
+    }
+
     [Test]
     public async Task Restore_Conflicts_AbortsWithoutCallingRestore()
     {
@@ -391,6 +450,141 @@ public sealed class InstallHistoryPageViewModelTests
         Assert.That(vm.Title, Is.EqualTo("安装历史"));
         Assert.That(vm.HasEntries, Is.False);
         Assert.That(vm.CanRestore, Is.False);
+    }
+
+    // ---- 模组跳转与 CKAN 存在性 --------------------------------------------
+
+    private static ModRowData CreateModRow(string identifier, string version = "1.0.0") =>
+        new(
+            Identifier: identifier,
+            Name: identifier,
+            Author: "Author",
+            InstalledVersion: null,
+            LatestVersion: version,
+            DownloadCount: 0,
+            Tags: Array.Empty<string>(),
+            SizeBytes: 1024,
+            IsInstalled: false,
+            HasUpdate: false,
+            IsCompatible: true,
+            IsAutoInstalled: false,
+            IsSelected: false,
+            IsImplicit: false);
+
+    [Test]
+    public async Task ModuleRow_WhenModExistsInRepository_ExistsInCkanIsTrue_AndCanExecuteNavigate()
+    {
+        _repository.Current = new RepositorySnapshot(
+            new[] { CreateModRow("MechJeb2", "2.14.0") },
+            new[] { "default" },
+            DateTime.UtcNow,
+            false);
+
+        var vm = CreateViewModel(Entry(
+            1,
+            modules: new[]
+            {
+                Installed("MechJeb2", "2.14.0"),
+                Missing("CustomLocalMod", "1.0.0")
+            }));
+
+        await vm.LoadCommand.ExecuteAsync(null);
+
+        Assert.That(vm.InstalledModules, Has.Count.EqualTo(1));
+        Assert.That(vm.MissingModules, Has.Count.EqualTo(1));
+
+        var mechJebRow = vm.InstalledModules[0];
+        Assert.That(mechJebRow.Identifier, Is.EqualTo("MechJeb2"));
+        Assert.That(mechJebRow.ExistsInCkan, Is.True);
+        Assert.That(mechJebRow.NavigateCommand.CanExecute(null), Is.True);
+        Assert.That(mechJebRow.NavigationTooltip, Does.Contain("在模组列表中查看该模组"));
+
+        var customRow = vm.MissingModules[0];
+        Assert.That(customRow.Identifier, Is.EqualTo("CustomLocalMod"));
+        Assert.That(customRow.ExistsInCkan, Is.False);
+        Assert.That(customRow.NavigateCommand.CanExecute(null), Is.False);
+        Assert.That(customRow.NavigationTooltip, Does.Contain("未收录"));
+    }
+
+    [Test]
+    public async Task ModuleRow_NavigateCommand_NavigatesToModsAndCallsShowIdentifier()
+    {
+        _repository.Current = new RepositorySnapshot(
+            new[] { CreateModRow("MechJeb2", "2.14.0") },
+            new[] { "default" },
+            DateTime.UtcNow,
+            false);
+
+        var modsPage = new ModsPageViewModel();
+        var vm = CreateViewModelWithResolver(
+            pageResolver: key => key == "mods" ? modsPage : null,
+            Entry(1, modules: new[] { Installed("MechJeb2", "2.14.0") }));
+
+        await vm.LoadCommand.ExecuteAsync(null);
+
+        var row = vm.InstalledModules[0];
+        await row.NavigateCommand.ExecuteAsync(null);
+
+        Assert.That(_navigation.Requested, Does.Contain("mods"), "必须导航到 mods 页面");
+        Assert.That(modsPage.SearchText, Is.EqualTo("MechJeb2"), "未完全加载模组表时回退设置搜索框");
+    }
+
+    [Test]
+    public async Task ModuleRow_WhenRepositoryUpdated_UpdatesCkanAvailabilityDynamically()
+    {
+        _repository.Current = RepositorySnapshot.Empty;
+
+        var vm = CreateViewModel(Entry(1, modules: new[] { Installed("Scatterer", "0.0838") }));
+        vm.Activate();
+        await vm.LoadCommand.ExecuteAsync(null);
+
+        var row = vm.InstalledModules[0];
+        Assert.That(row.ExistsInCkan, Is.False, "初始仓库为空时不存在");
+        Assert.That(row.NavigateCommand.CanExecute(null), Is.False);
+
+        // 模拟仓库后台刷新完成
+        _repository.RaiseUpdated(new RepositorySnapshot(
+            new[] { CreateModRow("Scatterer", "0.0838") },
+            new[] { "default" },
+            DateTime.UtcNow,
+            false));
+
+        Assert.That(row.ExistsInCkan, Is.True, "仓库刷新后应动态更新为存在");
+        Assert.That(row.NavigateCommand.CanExecute(null), Is.True);
+        Assert.That(row.NavigationTooltip, Does.Contain("在模组列表中查看该模组"));
+    }
+
+    [Test]
+    public async Task NavigateToModCommand_WhenTargetIsEmptyOrWhitespace_DoesNotNavigate()
+    {
+        var vm = CreateViewModel();
+
+        await vm.NavigateToModCommand.ExecuteAsync(null);
+        await vm.NavigateToModCommand.ExecuteAsync("   ");
+
+        Assert.That(_navigation.Requested, Is.Empty);
+    }
+
+    [Test]
+    public void ActivateAndDeactivate_SubscribesAndUnsubscribesFromRepository()
+    {
+        var vm = CreateViewModel(Entry(1, modules: new[] { Installed("ModA", "1.0") }));
+
+        // Activate 订阅
+        vm.Activate();
+
+        // 触发更新不抛异常
+        Assert.DoesNotThrow(() => _repository.RaiseUpdated(new RepositorySnapshot(
+            new[] { CreateModRow("ModA") },
+            new[] { "default" },
+            DateTime.UtcNow,
+            false)));
+
+        // Deactivate 取消订阅
+        vm.Deactivate();
+
+        // 再次触发更新也不应抛异常
+        Assert.DoesNotThrow(() => _repository.RaiseUpdated(RepositorySnapshot.Empty));
     }
 
     // ---- 替身 --------------------------------------------------------------

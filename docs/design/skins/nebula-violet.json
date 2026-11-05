@@ -1,0 +1,32 @@
+{
+  "key": "nebula-violet",
+  "displayName": "星云紫",
+  "accent": "#A78BFA",
+  "tokens": {
+    "CkanCanvasBackgroundBrush": "#0B0814",
+    "CkanSurfaceBackgroundBrush": "#E6120E1F",
+    "CkanSidebarBackgroundBrush": "#C0171229",
+    "CkanStatusBarBackgroundBrush": "#D9151126",
+    "CkanCardBackgroundBrush": "#D81A142E",
+    "CkanElevatedCardHoverBrush": "#2A2145",
+    "CkanRecessedInputBrush": "#08060F",
+    "CkanDialogBackgroundBrush": "#221A38",
+    "CkanSubtleBackgroundBrush": "#C8171330",
+    "CkanMutedBackgroundBrush": "#2B2247",
+    "CkanTextPrimaryBrush": "#EDE9FE",
+    "CkanTextSecondaryBrush": "#B9AEDB",
+    "CkanTextTertiaryBrush": "#8577A8",
+    "CkanBorderBrush": "#3B2F5C",
+    "CkanLayerElevatedBrush": "#2A2145",
+    "CkanSkeletonBrush": "#322857",
+    "CkanAccentBrush": "#A78BFA",
+    "CkanPrimaryBrush": "#A78BFA",
+    "CkanAccentTextBrush": "#17102B"
+  },
+  "contrast": {
+    "textOnCanvas": 16.7,
+    "secondaryOnCanvas": 9.57,
+    "accentOnCanvas": 7.29,
+    "accentTextOnAccent": 6.74
+  }
+}

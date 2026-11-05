@@ -177,20 +177,28 @@ public sealed class PointerAuraLayer : Control
         using (context.PushTransform(matrix.Value))
         using (context.PushClip(new RoundedRect(localBounds, new CornerRadius(_cornerRadius))))
         {
-            DrawSpotlight(context, localCenter, intensity);
-            DrawTexture(context, localCenter, localBounds, intensity);
+            var isCompact = localBounds.Width <= 260d && localBounds.Height <= 64d;
+            var spotlightRadius = isCompact
+                ? Math.Clamp(Math.Min(localBounds.Width, localBounds.Height) * 1.35d, 28d, 64d)
+                : PointerAuraModel.Radius;
 
-            var rimAlpha = PointerAuraModel.PeakAlpha * PointerAuraModel.RimAlpha * intensity;
-            context.DrawRectangle(
-                null,
-                _rimPens[Quantize(rimAlpha)],
-                new RoundedRect(localBounds.Deflate(0.5d), new CornerRadius(_cornerRadius)));
+            DrawSpotlight(context, localCenter, intensity, spotlightRadius);
+            DrawTexture(context, localCenter, localBounds, intensity, spotlightRadius);
+
+            var rimMultiplier = isCompact ? 0.25d : PointerAuraModel.RimAlpha;
+            var rimAlpha = PointerAuraModel.PeakAlpha * rimMultiplier * intensity;
+            if (rimAlpha > 0.005d)
+            {
+                context.DrawRectangle(
+                    null,
+                    _rimPens[Quantize(rimAlpha)],
+                    new RoundedRect(localBounds.Deflate(0.5d), new CornerRadius(_cornerRadius)));
+            }
         }
     }
-    private void DrawSpotlight(DrawingContext context, Point center, double intensity)
+    private void DrawSpotlight(DrawingContext context, Point center, double intensity, double radius)
     {
         var peak = PointerAuraModel.PeakAlpha * intensity;
-        var radius = PointerAuraModel.Radius;
 
         // T(i) 是第 i 圈外沿处的目标不透明度；从外向内画，第 i 个盘的不透明度由相邻两圈的覆盖率反解。
         var outerCoverage = 0d;
@@ -218,9 +226,8 @@ public sealed class PointerAuraLayer : Control
     }
 
     /// <summary>确定性格点：同一格永远同一个值，帧间不闪；按到光标的距离衰减。</summary>
-    private void DrawTexture(DrawingContext context, Point center, Rect localBounds, double intensity)
+    private void DrawTexture(DrawingContext context, Point center, Rect localBounds, double intensity, double radius)
     {
-        var radius = PointerAuraModel.Radius;
         var spacing = PointerAuraModel.TextureSpacing;
 
         // 这里已经在 PushTransform 之后的局部坐标里，只能用目标自身的局部矩形；

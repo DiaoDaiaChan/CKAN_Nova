@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "id": "too-many-orbits",
+  "name": "TooManyOrbits",
+  "homepage": "https://github.com/yalov/TooManyOrbits",
+  "match": {
+    "ckanIdentifiers": [
+      "TooManyOrbits"
+    ],
+    "paths": [
+      "GameData/TooManyOrbits/PluginData/TooManyOrbits.cfg"
+    ],
+    "caseInsensitive": true
+  },
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/TooManyOrbits/PluginData/TooManyOrbits.cfg",
+      "layout": "flat",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "TooManyOrbits.cfg"
+    }
+  ],
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+  "fields": [
+    {
+      "file": "settings",
+      "key": "HideVesselIcons",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "隐藏载具图标"
+    },
+    {
+      "file": "settings",
+      "key": "HideVesselOrbits",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "隐藏载具轨道线"
+    },
+    {
+      "file": "settings",
+      "key": "HideCelestialBodyIcons",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "隐藏天体图标"
+    },
+    {
+      "file": "settings",
+      "key": "HideCelestialBodyOrbits",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "隐藏天体轨道线"
+    },
+    {
+      "file": "settings",
+      "key": "ToggleKey",
+      "type": "keybinding",
+      "default": "F8",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "开/关快捷键"
+    }
+  ]
+}

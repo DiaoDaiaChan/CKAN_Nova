@@ -138,6 +138,114 @@ public sealed class AssetLibraryServiceTests
     }
 
     [Test]
+    public async Task ScanLibraryAsync_ReadsSaveLevelShipsFolder()
+    {
+        Write("saves/M6/Ships/VAB/Delta.craft", "ship");
+        Write("saves/M6/Ships/@thumbs/VAB/Delta.png", "png");
+        var shipsRoot = Path.Combine(_root, "saves", "M6", "Ships");
+
+        var result = await NewCraftLibrary().ScanLibraryAsync(shipsRoot);
+
+        Assert.That(result.IsSuccess, Is.True, result.Message);
+        var delta = result.Value!.Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(delta.Name, Is.EqualTo("Delta"));
+            Assert.That(delta.FilePath, Is.EqualTo(Path.Combine(shipsRoot, "VAB", "Delta.craft")));
+            Assert.That(
+                delta.ThumbnailPath,
+                Is.EqualTo(Path.Combine(shipsRoot, "@thumbs", "VAB", "Delta.png")),
+                "存档库的缩略图要在该存档自己的 @thumbs 下找，不能跑去根库。");
+        });
+    }
+
+    [Test]
+    public async Task Transfer_CopiesCraftAndCompanionsIntoAnotherLibrary()
+    {
+        Write("Ships/VAB/Alpha.craft", "ship");
+        Write("Ships/VAB/Alpha.loadmeta", "version = 1.12.5\npartCount = 7\n");
+        Write("Ships/@thumbs/VAB/Alpha.png", "png");
+        var service = NewCraftLibrary();
+        var alpha = (await service.ScanAsync(_root)).Value!.Single();
+        var saveShips = Path.Combine(_root, "saves", "M6", "Ships");
+
+        var copied = await service.TransferAsync(alpha, saveShips, CraftKind.Vab, move: false);
+
+        Assert.That(copied.IsSuccess, Is.True, copied.Message);
+        Assert.Multiple(() =>
+        {
+            Assert.That(File.Exists(Path.Combine(saveShips, "VAB", "Alpha.craft")), Is.True);
+            Assert.That(File.Exists(Path.Combine(saveShips, "VAB", "Alpha.loadmeta")), Is.True);
+            Assert.That(
+                File.Exists(Path.Combine(saveShips, "@thumbs", "VAB", "Alpha.png")),
+                Is.True,
+                "缩略图要跟着走，否则存档库里的副本是空白卡。");
+            Assert.That(File.Exists(Path.Combine(_root, "Ships", "VAB", "Alpha.craft")), Is.True, "复制不能动源文件。");
+            Assert.That(copied.Value!.PartCount, Is.EqualTo(7));
+            Assert.That(copied.Value!.FilePath, Is.EqualTo(Path.Combine(saveShips, "VAB", "Alpha.craft")));
+        });
+    }
+
+    [Test]
+    public async Task Transfer_Move_RemovesTheSourceCraftAndCompanions()
+    {
+        Write("Ships/VAB/Alpha.craft", "ship");
+        Write("Ships/VAB/Alpha.loadmeta", "version = 1.12.5\n");
+        Write("Ships/@thumbs/VAB/Alpha.png", "png");
+        var service = NewCraftLibrary();
+        var alpha = (await service.ScanAsync(_root)).Value!.Single();
+        var saveShips = Path.Combine(_root, "saves", "M6", "Ships");
+
+        var moved = await service.TransferAsync(alpha, saveShips, CraftKind.Vab, move: true);
+
+        Assert.That(moved.IsSuccess, Is.True, moved.Message);
+        Assert.Multiple(() =>
+        {
+            Assert.That(File.Exists(Path.Combine(saveShips, "VAB", "Alpha.craft")), Is.True);
+            Assert.That(File.Exists(Path.Combine(_root, "Ships", "VAB", "Alpha.craft")), Is.False);
+            Assert.That(File.Exists(Path.Combine(_root, "Ships", "VAB", "Alpha.loadmeta")), Is.False);
+            Assert.That(File.Exists(Path.Combine(_root, "Ships", "@thumbs", "VAB", "Alpha.png")), Is.False);
+        });
+    }
+
+    [Test]
+    public async Task Transfer_WhenTargetHasSameName_AddsSuffixInsteadOfOverwriting()
+    {
+        Write("Ships/VAB/Alpha.craft", "ship");
+        Write("saves/M6/Ships/VAB/Alpha.craft", "existing");
+        var service = NewCraftLibrary();
+        var alpha = (await service.ScanAsync(_root)).Value!.Single();
+        var saveShips = Path.Combine(_root, "saves", "M6", "Ships");
+
+        var copied = await service.TransferAsync(alpha, saveShips, CraftKind.Vab, move: false);
+
+        Assert.That(copied.IsSuccess, Is.True, copied.Message);
+        Assert.Multiple(() =>
+        {
+            Assert.That(copied.Value!.Name, Is.EqualTo("Alpha (2)"));
+            Assert.That(
+                File.ReadAllText(Path.Combine(saveShips, "VAB", "Alpha.craft")),
+                Is.EqualTo("existing"),
+                "目标库里的同名载具不能被覆盖。");
+            Assert.That(File.Exists(Path.Combine(saveShips, "VAB", "Alpha (2).craft")), Is.True);
+        });
+    }
+
+    [Test]
+    public async Task Transfer_IntoTheSameFolder_FailsWithExplanation()
+    {
+        Write("Ships/VAB/Alpha.craft", "ship");
+        var service = NewCraftLibrary();
+        var alpha = (await service.ScanAsync(_root)).Value!.Single();
+
+        var result = await service.TransferAsync(alpha, Path.Combine(_root, "Ships"), CraftKind.Vab, move: true);
+
+        Assert.That(result.IsSuccess, Is.False);
+        Assert.That(result.Message, Is.EqualTo("源与目标是同一个目录，不需要搬运。"));
+        Assert.That(File.Exists(Path.Combine(_root, "Ships", "VAB", "Alpha.craft")), Is.True, "失败不能把源文件弄丢。");
+    }
+
+    [Test]
     public async Task Scan_OnlyTreatsDirectoriesNamedFlagsAsFlags()
     {
         Write("GameData/Squad/Flags/default.png", "png");

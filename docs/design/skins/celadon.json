@@ -1,0 +1,33 @@
+{
+  "key": "celadon",
+  "displayName": "青瓷",
+  "accent": "#6FB7A8",
+  "tokens": {
+    "CkanCanvasBackgroundBrush": "#08110F",
+    "CkanSurfaceBackgroundBrush": "#E60F1A16",
+    "CkanSidebarBackgroundBrush": "#C0111D19",
+    "CkanStatusBarBackgroundBrush": "#D9121F1B",
+    "CkanCardBackgroundBrush": "#D816231E",
+    "CkanElevatedCardHoverBrush": "#24312B",
+    "CkanRecessedInputBrush": "#060D0B",
+    "CkanDialogBackgroundBrush": "#1B2722",
+    "CkanSubtleBackgroundBrush": "#C8121E19",
+    "CkanMutedBackgroundBrush": "#26332D",
+    "CkanTextPrimaryBrush": "#DCE8E4",
+    "CkanTextSecondaryBrush": "#A9BDB6",
+    "CkanTextTertiaryBrush": "#7E948D",
+    "CkanBorderBrush": "#33443E",
+    "CkanLayerElevatedBrush": "#24312B",
+    "CkanSkeletonBrush": "#2C3A34",
+    "CkanAccentBrush": "#6FB7A8",
+    "CkanPrimaryBrush": "#6FB7A8",
+    "CkanAccentTextBrush": "#07110E"
+  },
+  "contrast": {
+    "textOnCanvas": 15.22,
+    "secondaryOnCanvas": 9.7,
+    "accentOnCanvas": 8.21,
+    "accentTextOnAccent": 8.23,
+    "tertiaryOnCanvas": 5.93
+  }
+}

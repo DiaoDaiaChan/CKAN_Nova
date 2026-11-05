@@ -27,6 +27,14 @@ public sealed class ThemeHost : IDisposable
     /// </summary>
     public static readonly ThemeVariant HighContrastVariant = new("HighContrast", ThemeVariant.Dark);
 
+    /// <summary>六套主题皮肤的变体 key，与 Tokens.axaml 的 ThemeDictionaries 对齐；都继承 Dark 兜底。</summary>
+    public static readonly ThemeVariant CoronaGoldVariant = new("skin-corona-gold", ThemeVariant.Dark);
+    public static readonly ThemeVariant LunarGraphiteVariant = new("skin-lunar-graphite", ThemeVariant.Dark);
+    public static readonly ThemeVariant CeladonVariant = new("skin-celadon", ThemeVariant.Dark);
+    public static readonly ThemeVariant CopperVariant = new("skin-copper", ThemeVariant.Dark);
+    public static readonly ThemeVariant NebulaVioletVariant = new("skin-nebula-violet", ThemeVariant.Dark);
+    public static readonly ThemeVariant MonochromeSilverVariant = new("skin-monochrome-silver", ThemeVariant.Dark);
+
     private readonly Func<bool>? _highContrastProbe;
     private bool _installed;
     private bool _forced;
@@ -118,6 +126,48 @@ public sealed class ThemeHost : IDisposable
         };
     }
 
+    /// <summary>
+    /// 主题 + 皮肤 → 最终变体。皮肤只在基础主题为深色且未开高对比度时生效；
+    /// 浅色/高对比度/跟随系统保持原来的语义，避免皮肤在极端对比度下接管可读性。
+    /// </summary>
+    /// <param name="theme">light / dark / high-contrast / system。</param>
+    /// <param name="skin">主题皮肤 key；未知值按默认皮肤处理。</param>
+    /// <param name="forced">系统高对比度是否强制接管。</param>
+    public static ThemeVariant ResolveVariant(string? theme, string? skin, bool forced = false)
+    {
+        if (forced)
+        {
+            return HighContrastVariant;
+        }
+
+        var baseVariant = ToVariant(theme);
+        if (baseVariant != ThemeVariant.Dark)
+        {
+            return baseVariant;
+        }
+
+        return ThemeSkinKinds.Normalize(skin) switch
+        {
+            ThemeSkinKinds.CoronaGold => CoronaGoldVariant,
+            ThemeSkinKinds.LunarGraphite => LunarGraphiteVariant,
+            ThemeSkinKinds.Celadon => CeladonVariant,
+            ThemeSkinKinds.Copper => CopperVariant,
+            ThemeSkinKinds.NebulaViolet => NebulaVioletVariant,
+            ThemeSkinKinds.MonochromeSilver => MonochromeSilverVariant,
+            _ => baseVariant,
+        };
+    }
+
+    /// <summary>判断变体是否属于深色家族（含六套皮肤）；强调色宿主用它决定默认强调色。</summary>
+    public static bool IsDarkVariant(ThemeVariant variant) =>
+        variant == ThemeVariant.Dark
+        || variant == CoronaGoldVariant
+        || variant == LunarGraphiteVariant
+        || variant == CeladonVariant
+        || variant == CopperVariant
+        || variant == NebulaVioletVariant
+        || variant == MonochromeSilverVariant;
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -147,7 +197,7 @@ public sealed class ThemeHost : IDisposable
     {
         // 20 篇 §15：系统高对比度是最高优先级，用户选的主题一律让位（设置页会把这些行置灰并注明「已由系统接管」）。
         var forced = IsHighContrastForced;
-        var variant = forced ? HighContrastVariant : ToVariant(settings.Theme);
+        var variant = ResolveVariant(settings.Theme, settings.ThemeSkin, forced);
         if (_application.RequestedThemeVariant != variant)
         {
             _application.RequestedThemeVariant = variant;

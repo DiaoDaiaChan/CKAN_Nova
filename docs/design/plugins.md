@@ -271,6 +271,7 @@ public sealed class DemoPlugin : ICkanUiPlugin
 | 整合包分享 | `src/CkanUI.Plugin.ModPackShare` | `com.ckanui.modpackshare` | `Archive`（归档盒） | 「整合包配置」页签（`modpack-profiles`，`Section=modpacks`、`Order=10`）：配置档列表、从 GitHub 仓库或本地 `.ckan` 导入、新建并接管当前状态、切换/删除、设为启动档；配置档是 GameData/CKAN 目录换位，不复制 5–20 GB 的游戏本体，见 [instance-profiles.md](instance-profiles.md) |
 | 存储管理 | `src/CkanUI.Plugin.Storage` | `com.ckanui.storage` | `Storage`（磁盘） | 「存储」页签（`storage`，`Section=cache`、`Order=20`）：多实例占用总览（本体/配置档/存档分开计）、卷剩余空间、配置档明细、配置档之间的硬链接去重（dry-run → 确认 → 执行），见 [instance-profiles.md](instance-profiles.md) |
 | Mod 配置 | `src/CkanUI.Plugin.ModConfig` | `com.ckanui.modconfig` | `Sliders`（滑块） | 「Mod 配置」页签（`modconfig`，`Section=mods`、`Order=50`）：解耦为内置插件，嵌入「模组」分节内；提供适配器高级配置模式与通用 ConfigNode（`*.cfg`）自动扫描、就地编辑与安全写回模式；通用模式支持宽松扫描（自定义根/扁平键值/视觉配置，见 [mod-config-generic.md](mod-config-generic.md)） |
+| SpaceDock | `src/CkanUI.Plugin.SpaceDock` | `com.ckanui.spacedock` | `Globe`（地球） | 「SpaceDock 模组」页签（`spacedock`，`Section=mods`、`Order=60`）：匿名浏览 / 搜索 SpaceDock 的 KSP 模组，图片卡片流 + 详情面板；CKAN 已有条目默认隐藏（按 `resources.spacedock` 与规范化名称判重）；下载 ZIP 后由安装适配器识别 GameData / 游戏根目录布局，确认框展示识别结果，安装不写 CKAN 注册表、不做依赖解析 |
 
 宿主侧不改一行就能拿到这个页签：插件只引用 `CkanUI.Services.Abstractions` + `Avalonia`（视图里用到缩略图/骨架屏这类共享基元的，再引 `CkanUI.Ui`），
 构造函数里声明 `IInstanceService` 之类的宿主服务，`PluginPageFactory` 用 `ActivatorUtilities` 注入。

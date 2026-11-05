@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="using:CkanUI.Ui.Theming"
+             xmlns:ui="using:CkanUI.Ui.Tables"
              x:Class="CkanUI.App.Views.CachePageView"
              x:CompileBindings="False">
   <!-- 下载缓存管理页（规格 F-50 / F-40 / 06 篇 UI-19）：容量条 + 条目表 + 三种清理 + ZIP 灌入。
@@ -12,26 +13,6 @@
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Padding" Value="8,0" />
       <Setter Property="MinHeight" Value="{DynamicResource CkanRowHeight}" />
-    </Style>
-    <!-- 选中行左侧 3px 强调条（沿用导航栏 navIndicator 的做法） -->
-    <Style Selector="Rectangle.SelectionBar">
-      <Setter Property="Width" Value="3" />
-      <Setter Property="RadiusX" Value="1.5" />
-      <Setter Property="RadiusY" Value="1.5" />
-      <Setter Property="Fill" Value="{DynamicResource CkanAccentBrush}" />
-      <Setter Property="HorizontalAlignment" Value="Left" />
-      <Setter Property="VerticalAlignment" Value="Stretch" />
-      <Setter Property="Margin" Value="2,6" />
-      <Setter Property="Opacity" Value="0" />
-      <Setter Property="IsHitTestVisible" Value="False" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="ListBoxItem:selected Rectangle.SelectionBar">
-      <Setter Property="Opacity" Value="1" />
     </Style>
   </UserControl.Styles>
 
@@ -145,12 +126,14 @@
               <TextBlock Grid.Column="5" Text="{DynamicResource Ui_Common_Status}" Classes="CkanCaption" FontWeight="SemiBold" />
             </Grid>
           </Border>
+          <!-- 筛选/排序/拖动列宽由 ListTableTools 补：表头 6 列，首列复选框与末列状态不参与。 -->
           <ListBox Grid.Row="1" ItemsSource="{Binding Entries}" Padding="4"
+                   ui:ListTableTools.Enabled="True"
+                   ui:ListTableTools.Columns="-,ModuleLabel,FileName,SizeText~Entry.SizeBytes,ModifiedText~Entry.ModifiedTimeUtc,-"
                    BorderThickness="0" Background="Transparent">
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <Grid ColumnDefinitions="Auto,192,*,88,128,72" MinHeight="{DynamicResource CkanRowHeight}">
-                  <Rectangle Grid.ColumnSpan="6" Classes="SelectionBar" />
                   <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}"
                             Margin="0,0,8,0" VerticalAlignment="Center"
                             ToolTip.Tip="{DynamicResource Ui_CachePage_CheckItem_Tip}" />

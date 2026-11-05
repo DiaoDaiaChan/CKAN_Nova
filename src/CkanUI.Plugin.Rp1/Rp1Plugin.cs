@@ -28,7 +28,6 @@ public sealed class Rp1Plugin : ICkanUiPlugin
             "RP-1 生涯日志",
             ViewModelTypeName,
             Glyph: "History",
-            Section: "plugins",
             Order: 40),
     };
 

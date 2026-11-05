@@ -13,6 +13,12 @@ public sealed record UiSettings
     public string LastPage { get; init; } = "mods";
     public string Theme { get; init; } = "dark";
 
+    /// <summary>
+    /// 主题皮肤（日冕金 / 月白石墨 / 青瓷 / 铜金 / 星云紫 / 单色银）。
+    /// 只在深色主题下生效；浅色与高对比度继续使用基础主题，保证极端对比度下的可读性不被皮肤破坏。
+    /// </summary>
+    public string ThemeSkin { get; init; } = ThemeSkinKinds.Default;
+
     /// <summary>界面密度：compact / standard / comfortable（03 篇 §21、20 篇 P-08）。</summary>
     public string? Density { get; init; } = "standard";
 
@@ -130,6 +136,21 @@ public sealed record UiSettings
     /// </summary>
     public string NavHoverMode { get; init; } = "tabPopout";
 
+    /// <summary>是否开启音效（选中、勾选、错误、警告、ok 等）。默认开启。</summary>
+    public bool SoundEffectsEnabled { get; init; } = true;
+
+    /// <summary>音效音量（0.0 - 1.0）。默认 0.8。</summary>
+    public double SoundEffectsVolume { get; init; } = 0.8;
+
+    /// <summary>是否开启背景音乐播放。默认开启。</summary>
+    public bool MusicEnabled { get; init; } = true;
+
+    /// <summary>音乐音量（0.0 - 1.0）。默认 0.7。</summary>
+    public double MusicVolume { get; init; } = 0.7;
+
+    /// <summary>全局静音（小喇叭快速静音开关）。默认 false。</summary>
+    public bool MasterMuted { get; init; }
+
     public IReadOnlyDictionary<string, double> ColumnWidths { get; init; } =
         new Dictionary<string, double>();
 
@@ -156,6 +177,7 @@ public sealed record UiSettings
         && IsMaximized == other.IsMaximized
         && string.Equals(LastPage, other.LastPage, StringComparison.Ordinal)
         && string.Equals(Theme, other.Theme, StringComparison.Ordinal)
+        && string.Equals(ThemeSkin, other.ThemeSkin, StringComparison.Ordinal)
         && string.Equals(Density, other.Density, StringComparison.Ordinal)
         && string.Equals(Locale, other.Locale, StringComparison.Ordinal)
         && string.Equals(AccentColor, other.AccentColor, StringComparison.Ordinal)
@@ -185,6 +207,11 @@ public sealed record UiSettings
         && string.Equals(AiBaseUrl, other.AiBaseUrl, StringComparison.Ordinal)
         && string.Equals(AiModel, other.AiModel, StringComparison.Ordinal)
         && string.Equals(AiApiKeyProtected, other.AiApiKeyProtected, StringComparison.Ordinal)
+        && SoundEffectsEnabled == other.SoundEffectsEnabled
+        && SoundEffectsVolume.Equals(other.SoundEffectsVolume)
+        && MusicEnabled == other.MusicEnabled
+        && MusicVolume.Equals(other.MusicVolume)
+        && MasterMuted == other.MasterMuted
         && HomeWidgetsEqual(HomeWidgets, other.HomeWidgets)
         && ColumnWidthsEqual(ColumnWidths, other.ColumnWidths);
 
@@ -198,6 +225,7 @@ public sealed record UiSettings
         hash.Add(IsMaximized);
         hash.Add(LastPage, StringComparer.Ordinal);
         hash.Add(Theme, StringComparer.Ordinal);
+        hash.Add(ThemeSkin, StringComparer.Ordinal);
         hash.Add(Density, StringComparer.Ordinal);
         hash.Add(Locale, StringComparer.Ordinal);
         hash.Add(AccentColor, StringComparer.Ordinal);
@@ -225,6 +253,11 @@ public sealed record UiSettings
         hash.Add(AiBaseUrl, StringComparer.Ordinal);
         hash.Add(AiModel, StringComparer.Ordinal);
         hash.Add(AiApiKeyProtected, StringComparer.Ordinal);
+        hash.Add(SoundEffectsEnabled);
+        hash.Add(SoundEffectsVolume);
+        hash.Add(MusicEnabled);
+        hash.Add(MusicVolume);
+        hash.Add(MasterMuted);
         if (HomeWidgets is not null)
         {
             foreach (var widget in HomeWidgets)
@@ -362,6 +395,13 @@ public interface IUiSettingsStore
 
     /// <summary>保存成功后触发，携带新值。供主题/密度/语言这类「写完就要生效」的订阅方使用（03 篇 §21）。</summary>
     event Action<UiSettings>? Changed;
+
+    /// <summary>保存成功后触发别名。</summary>
+    event Action<UiSettings>? Saved
+    {
+        add => Changed += value;
+        remove => Changed -= value;
+    }
 
     /// <summary>原子写回（临时文件 + 替换）。</summary>
     OperationResult<bool> Save(UiSettings settings);

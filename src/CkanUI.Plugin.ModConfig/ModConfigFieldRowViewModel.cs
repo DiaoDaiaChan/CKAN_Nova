@@ -47,7 +47,7 @@ public sealed partial class ModConfigFieldRowViewModel : ObservableObject
         _readonlyReason = readonlyReason;
         HintText = BuildHint(field);
         IsModified = field.DefaultValue is not null
-            && !string.Equals(field.Value?.Trim(), field.DefaultValue.Trim(), StringComparison.Ordinal);
+            && !ModConfigValueComparer.AreEqual(field.Type, field.Value, field.DefaultValue);
         _editValue = ToEditorText(field.Value);
     }
 

@@ -23,6 +23,7 @@ public sealed class HoverStyleContractTests
         "Border.CkanCardInteractive:pointerover",
         "Border.CkanGuideCard:pointerover",
         "Button.CkanGuide:pointerover",
+        "TreeViewItem:pointerover",
     };
 
     [Test]
@@ -65,6 +66,45 @@ public sealed class HoverStyleContractTests
 
         Assert.That(presenterSlides, Has.Count.EqualTo(2),
             "列表行与表格行的悬停位移都要落在模板内的 ContentPresenter 上，行的几何才不跟着动");
+    }
+
+    [Test]
+    public void RowSelection_SwapsInstantly_WithoutAFadingBackground()
+    {
+        var document = LoadStyles();
+
+        var offenders = new[] { "ListBoxItem", "DataGridRow" }
+            .SelectMany(selector => document
+                .Descendants()
+                .Where(element => element.Name.LocalName == "Style"
+                                  && (string?)element.Attribute("Selector") == selector)
+                .SelectMany(style => style.Descendants()
+                    .Where(element => element.Name.LocalName == "BrushTransition"
+                                      && (string?)element.Attribute("Property") == "Background")
+                    .Select(_ => selector)))
+            .ToList();
+
+        Assert.That(offenders, Is.Empty,
+            "行的底色不能做过渡：选中态切走时旧行会继续亮一段，" +
+            "用户看到的就是「A 又高亮了一下」：" + string.Join("；", offenders));
+    }
+
+    [Test]
+    public void KeyboardFocus_DoesNotRepaintTheRowBackground()
+    {
+        var document = LoadStyles();
+
+        var offenders = document
+            .Descendants()
+            .Where(element => element.Name.LocalName == "Style"
+                              && (string?)element.Attribute("Selector") == "ListBoxItem:focus-visible")
+            .SelectMany(style => style.Descendants()
+                .Where(setter => setter.Name.LocalName == "Setter"
+                                 && (string?)setter.Attribute("Property") == "Background"))
+            .ToList();
+
+        Assert.That(offenders, Is.Empty,
+            "键盘焦点只画焦点环；改底色会让焦点迁移看起来像一次选中闪烁");
     }
 
     private static XDocument LoadStyles()

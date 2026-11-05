@@ -452,6 +452,79 @@ public sealed class SavesPageViewModelTests
         Assert.That(vm.SelectedRow, Is.SameAs(firstRows[0]), "刷新不该丢掉用户选中的存档。");
     }
 
+    [Test]
+    public async Task Rows_AreGroupedBySaveFolder_WithHeaderOnFirstRowOfEachGroup()
+    {
+        var (vm, _, _, saves, _) = Create();
+        saves.ListResult = OperationResult<IReadOnlyList<SaveGameInfo>>.Ok(new[]
+        {
+            // 服务层按修改时间全局倒序：不同存档目录的条目是交错的。
+            SavesFixtures.Save(slot: "M6_FlightUI / persistent"),
+            SavesFixtures.Save(slot: "RLV_Houdini_P0_20261103_0250 / persistent"),
+            SavesFixtures.Save(slot: "M6_FlightUI / Backup / persistent (2026_10_31_16_06_27)"),
+            SavesFixtures.Save(slot: "默认 / persistent"),
+            SavesFixtures.Save(slot: "M6_FlightUI / mfp-m6-checkpoint"),
+            SavesFixtures.Save(slot: "默认 / Backup / persistent (2026_10_31_16_06_27)"),
+            SavesFixtures.Save(slot: "persistent"),
+        });
+
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        // 文件夹按名称序数忽略大小写排序；saves/ 根目录（无文件夹）排最前，
+        // 同一存档文件夹的 Backup 子目录紧跟在它后面。
+        Assert.That(
+            vm.Rows.Select(row => row.FolderPath).ToArray(),
+            Is.EqualTo(new[]
+            {
+                "",
+                "M6_FlightUI",
+                "M6_FlightUI",
+                "M6_FlightUI / Backup",
+                "RLV_Houdini_P0_20261103_0250",
+                "默认",
+                "默认 / Backup",
+            }));
+
+        // 每组首行打组头标记，其余行不打；组内保持服务层给的「最近修改在前」。
+        Assert.That(vm.Rows.Select(row => row.IsGroupStart).ToArray(),
+            Is.EqualTo(new[] { true, true, false, true, true, true, true }));
+        Assert.That(vm.Rows.All(row => row.IsGrouped), Is.True);
+        Assert.That(vm.Rows[0].FolderText, Is.EqualTo("saves/"));
+        Assert.That(vm.Rows[3].FolderText, Is.EqualTo("M6_FlightUI / Backup"));
+        Assert.That(vm.Rows[1].GroupSubtitle, Is.EqualTo("共 2 个存档"));
+        Assert.That(vm.Rows[3].GroupSubtitle, Is.EqualTo("共 1 个存档"));
+        Assert.That(vm.Rows[0].GroupSubtitle, Is.EqualTo("共 1 个存档"));
+        // 组内第二行不能带组头文案，否则行模板会在它上面再画一条。
+        Assert.That(vm.Rows[2].GroupSubtitle, Is.Empty);
+
+        // 首列只显示尾段（文件夹已写在组头上），提示与详情面板仍用完整槽位名。
+        Assert.That(vm.Rows[2].SlotDisplay, Is.EqualTo("mfp-m6-checkpoint"));
+        Assert.That(vm.Rows[2].SlotText, Is.EqualTo("M6_FlightUI / mfp-m6-checkpoint"));
+        Assert.That(vm.Rows[3].SlotDisplay, Is.EqualTo("persistent (2026_10_31_16_06_27)"));
+        Assert.That(vm.SelectionTitle, Is.EqualTo("persistent"));
+        // 分组不改变选中语义：首行仍然是最近修改的那一份存档。
+        Assert.That(vm.SelectedRow!.FilePath, Is.EqualTo(vm.Rows[0].FilePath));
+    }
+
+    [Test]
+    public async Task Rows_WithSingleSaveFolder_AreNotGrouped()
+    {
+        var (vm, _, _, saves, _) = Create();
+        saves.ListResult = OperationResult<IReadOnlyList<SaveGameInfo>>.Ok(new[]
+        {
+            SavesFixtures.Save(slot: "M6_FlightUI / persistent"),
+            SavesFixtures.Save(slot: "M6_FlightUI / quicksave"),
+        });
+
+        await vm.RefreshCommand.ExecuteAsync(null);
+
+        // 只有一个文件夹时插组头只是噪音：不分组，首列回到完整槽位名。
+        Assert.That(vm.Rows.Select(row => row.IsGrouped), Is.EqualTo(new[] { false, false }));
+        Assert.That(vm.Rows.Select(row => row.IsGroupStart), Is.EqualTo(new[] { false, false }));
+        Assert.That(vm.Rows[0].SlotDisplay, Is.EqualTo("M6_FlightUI / persistent"));
+        Assert.That(vm.Rows[0].FolderPath, Is.EqualTo("M6_FlightUI"));
+    }
+
     private static (
         SavesPageViewModel ViewModel,
         InstancesFakeDialogs Dialogs,

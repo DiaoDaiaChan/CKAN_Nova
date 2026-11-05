@@ -95,6 +95,12 @@
     <Style Selector="ui|FANavigationView /template/ SplitView Grid#PaneContentGrid">
       <Setter Property="ClipToBounds" Value="True" />
     </Style>
+    <Style Selector="ui|FANavigationView uip|FANavigationViewItemPresenter /template/ Viewbox#IconBox">
+      <Setter Property="ClipToBounds" Value="False" />
+    </Style>
+    <Style Selector="ui|FANavigationView uip|FANavigationViewItemPresenter /template/ ContentPresenter#Icon">
+      <Setter Property="ClipToBounds" Value="False" />
+    </Style>
 
     <!-- 钉住常驻展开时，让 LightDismissLayer 不拦截内容区点击 -->
     <Style Selector="ui|FANavigationView.PanePinned /template/ SplitView /template/ Rectangle#LightDismissLayer">
@@ -155,6 +161,159 @@
     </Style>
     <Style Selector="ui|FANavigationView.PaneOpen uip|FANavigationViewItemPresenter /template/ ContentPresenter#ContentPresenter">
       <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <!-- 底栏默认简洁化：仅显示小图标；鼠标悬停后立体弹出浮动呼出完整文案与缩放控件 -->
+    <Style Selector="Border#StatusBarSurface">
+      <Setter Property="ZIndex" Value="20" />
+      <Setter Property="RenderTransform" Value="translateY(0px)" />
+      <Setter Property="BoxShadow" Value="0 0 0 0 #00000000" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.20" />
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.20" />
+          <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.22" Easing="CubicEaseOut" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.20" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <!-- 悬停呼出时：底栏立体上浮 1px 并向上投射柔和投影，呈现呼出浮岛质感 -->
+    <Style Selector="Border#StatusBarSurface:pointerover, Border#StatusBarSurface.is-expanded">
+      <Setter Property="Background" Value="{DynamicResource CkanCardBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="RenderTransform" Value="translateY(-1px)" />
+      <Setter Property="BoxShadow" Value="0 -2 10 0 #1A000000, 0 -1 3 0 #10000000" />
+    </Style>
+
+    <!-- 状态文案平滑滑出与淡入（配合 translateY 微动，形成从底部优雅浮现） -->
+    <Style Selector="Border#StatusBarSurface TextBlock#ShellStatusText">
+      <Setter Property="MaxWidth" Value="0" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="ClipToBounds" Value="True" />
+      <Setter Property="RenderTransform" Value="translateY(3px)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="MaxWidth" Duration="0:0:0.22" Easing="CubicEaseOut" />
+          <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.20" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border#StatusBarSurface:pointerover TextBlock#ShellStatusText, Border#StatusBarSurface.is-expanded TextBlock#ShellStatusText">
+      <Setter Property="MaxWidth" Value="320" />
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="RenderTransform" Value="translateY(0px)" />
+    </Style>
+
+    <!-- 中间缩放控件组：从下方平滑上升微弹浮现 -->
+    <Style Selector="Border#StatusBarSurface StackPanel#PageZoomCluster">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="RenderTransform" Value="translateY(6px) scale(0.94)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.20" Easing="CubicEaseOut" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.22" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border#StatusBarSurface:pointerover StackPanel#PageZoomCluster, Border#StatusBarSurface.is-expanded StackPanel#PageZoomCluster">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="IsHitTestVisible" Value="True" />
+      <Setter Property="RenderTransform" Value="translateY(0px) scale(1.0)" />
+    </Style>
+
+    <!-- AI 助手文案平滑由左侧展开展开（保持右侧图标锚定不动） -->
+    <Style Selector="Border#StatusBarSurface TextBlock#StatusAiText">
+      <Setter Property="MaxWidth" Value="0" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="ClipToBounds" Value="True" />
+      <Setter Property="RenderTransform" Value="translateY(3px)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="MaxWidth" Duration="0:0:0.22" Easing="CubicEaseOut" />
+          <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+          <ThicknessTransition Property="Margin" Duration="0:0:0.20" Easing="CubicEaseOut" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.20" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border#StatusBarSurface:pointerover TextBlock#StatusAiText, Border#StatusBarSurface.is-expanded TextBlock#StatusAiText">
+      <Setter Property="MaxWidth" Value="120" />
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="Margin" Value="0,0,4,0" />
+      <Setter Property="RenderTransform" Value="translateY(0px)" />
+    </Style>
+
+    <Style Selector="Border#StatusBarSurface Button#StatusAiButton">
+      <Setter Property="Padding" Value="5,2" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <ThicknessTransition Property="Padding" Duration="0:0:0.20" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border#StatusBarSurface:pointerover Button#StatusAiButton, Border#StatusBarSurface.is-expanded Button#StatusAiButton">
+      <Setter Property="Padding" Value="7,2" />
+    </Style>
+
+    <!-- 后台任务胶囊详情平滑展开与微上浮 -->
+    <Style Selector="Border#StatusBarSurface StackPanel#StatusBarTaskDetails">
+      <Setter Property="MaxWidth" Value="0" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="ClipToBounds" Value="True" />
+      <Setter Property="RenderTransform" Value="translateY(3px)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="MaxWidth" Duration="0:0:0.22" Easing="CubicEaseOut" />
+          <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.20" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border#StatusBarSurface:pointerover StackPanel#StatusBarTaskDetails, Border#StatusBarSurface.is-expanded StackPanel#StatusBarTaskDetails">
+      <Setter Property="MaxWidth" Value="320" />
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="RenderTransform" Value="translateY(0px)" />
+    </Style>
+
+    <Style Selector="Border#StatusBarSurface Button#StatusBarTaskPillButton">
+      <Setter Property="Padding" Value="3,2" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <ThicknessTransition Property="Padding" Duration="0:0:0.20" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border#StatusBarSurface:pointerover Button#StatusBarTaskPillButton, Border#StatusBarSurface.is-expanded Button#StatusBarTaskPillButton">
+      <Setter Property="Padding" Value="8,2" />
+    </Style>
+
+    <!-- 版本号标签平滑滑入 -->
+    <Style Selector="Border#StatusBarSurface Border#StatusVersionBorder">
+      <Setter Property="MaxWidth" Value="0" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="ClipToBounds" Value="True" />
+      <Setter Property="RenderTransform" Value="translateY(3px)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="MaxWidth" Duration="0:0:0.22" Easing="CubicEaseOut" />
+          <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+          <ThicknessTransition Property="Margin" Duration="0:0:0.20" Easing="CubicEaseOut" />
+          <ThicknessTransition Property="Padding" Duration="0:0:0.20" Easing="CubicEaseOut" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.20" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border#StatusBarSurface:pointerover Border#StatusVersionBorder, Border#StatusBarSurface.is-expanded Border#StatusVersionBorder">
+      <Setter Property="MaxWidth" Value="150" />
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="Margin" Value="4,0,0,0" />
+      <Setter Property="Padding" Value="6,1" />
+      <Setter Property="RenderTransform" Value="translateY(0px)" />
     </Style>
   </Window.Styles>
 
@@ -380,6 +539,32 @@
                           Spacing="6"
                           VerticalAlignment="Center"
                           Margin="0,0,6,0">
+                <Button x:Name="TopMuteStatusButton"
+                        Classes="CkanGhost"
+                        Command="{Binding ToggleMasterMuteCommand}"
+                        Padding="7,2"
+                        MinHeight="20"
+                        CornerRadius="4"
+                        VerticalAlignment="Center"
+                        Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                        ToolTip.Tip="{Binding MasterMuteToolTip}"
+                        AutomationProperties.Name="{Binding MasterMuteToolTip}">
+                  <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                    <PathIcon Data="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"
+                              Width="10" Height="10"
+                              IsVisible="{Binding !IsMasterMuted}"
+                              Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    <PathIcon Data="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"
+                              Width="10" Height="10"
+                              IsVisible="{Binding IsMasterMuted}"
+                              Foreground="{DynamicResource CkanWarningBrush}" />
+                    <TextBlock Text="{Binding MasterMuteStatusText}"
+                               FontSize="11"
+                               Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                               VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+
                 <Button x:Name="TopLogStatusButton"
                         Classes="CkanGhost"
                         Command="{Binding ToggleLogDrawerCommand}"
@@ -641,8 +826,10 @@
                   Padding="12,0">
             <Grid ColumnDefinitions="Auto,*,Auto">
               <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
-                <Ellipse x:Name="ShellStatusDot" Width="6" Height="6" Fill="{DynamicResource CkanSuccessBrush}" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding StatusText}"
+                <Ellipse x:Name="ShellStatusDot" Width="6" Height="6" Fill="{DynamicResource CkanSuccessBrush}" VerticalAlignment="Center"
+                         ToolTip.Tip="{Binding StatusText}" />
+                <TextBlock x:Name="ShellStatusText"
+                           Text="{Binding StatusText}"
                            Foreground="{DynamicResource CkanTextSecondaryBrush}"
                            FontSize="{DynamicResource CkanFontSizeCaption}"
                            VerticalAlignment="Center"
@@ -714,81 +901,11 @@
                            Foreground="{DynamicResource CkanTextSecondaryBrush}"
                            VerticalAlignment="Center" />
               </StackPanel>
-              <!-- 右侧：后台任务胶囊 + 版本号 -->
-              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                <!-- 底栏 AI 助手入口：与后台任务胶囊同一行，强调色按钮，任何页面都能拉起（面板内容由插件页现造） -->
-              <Border Background="{DynamicResource CkanAccentBrush}"
-                      CornerRadius="4"
-                      VerticalAlignment="Center">
-                <Button x:Name="StatusAiButton"
-                        Classes="CkanGhost"
-                        Padding="8,2"
-                        MinHeight="20"
-                        CornerRadius="4"
-                        Click="OnStatusAiButtonClick"
-                        ToolTip.Tip="{DynamicResource Ui_StatusBar_AiAssistantTip}"
-                        AutomationProperties.Name="{DynamicResource Ui_StatusBar_AiAssistantTip}">
-                  <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <PathIcon Data="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"
-                              Width="10" Height="10"
-                              Foreground="{DynamicResource CkanTextOnAccentBrush}"
-                              VerticalAlignment="Center" />
-                    <TextBlock Text="{DynamicResource Ui_StatusBar_AiAssistant}"
-                               FontSize="11"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource CkanTextOnAccentBrush}"
-                               VerticalAlignment="Center" />
-                  </StackPanel>
-                </Button>
-              </Border>
-
-              <!-- 嵌入底栏的后台任务微件胶囊（悬浮紧凑，点击展开详细卡片） -->
-                <Border x:Name="StatusBarTaskPillBorder"
-                        Background="{DynamicResource CkanSubtleBackgroundBrush}"
-                        BorderBrush="{DynamicResource CkanGlassBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="4"
-                        VerticalAlignment="Center">
-                  <Button x:Name="StatusBarTaskPillButton"
-                          DataContext="{Binding OperationQueue}"
-                          Command="{Binding ToggleExpandCommand}"
-                          Classes="CkanGhost"
-                          Padding="8,2"
-                          MinHeight="20"
-                          CornerRadius="4"
-                          ToolTip.Tip="{DynamicResource Ui_QueueOverlay_CompactTip}"
-                          AutomationProperties.Name="{DynamicResource Ui_QueueOverlay_CompactTip}">
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                      <Border Width="14" Height="14" CornerRadius="7"
-                              Background="{DynamicResource CkanAccentSubtleBrush}"
-                              VerticalAlignment="Center">
-                        <PathIcon Data="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"
-                                  Width="8" Height="8"
-                                  Foreground="{DynamicResource CkanAccentBrush}"
-                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
-                      </Border>
-                      <TextBlock Text="{Binding SummaryText}"
-                                 FontSize="11"
-                                 Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                                 VerticalAlignment="Center"
-                                 MaxWidth="160"
-                                 TextTrimming="CharacterEllipsis" />
-                      <TextBlock Text="{Binding OverallPercentText}"
-                                 FontSize="11"
-                                 FontWeight="SemiBold"
-                                 Foreground="{DynamicResource CkanAccentBrush}"
-                                 IsVisible="{Binding HasActiveOperations}"
-                                 VerticalAlignment="Center" />
-                      <PathIcon Data="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"
-                                Width="8" Height="8"
-                                Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                                VerticalAlignment="Center" />
-                    </StackPanel>
-                  </Button>
-                </Border>
-
+              <!-- 右侧：后台任务胶囊 + 版本号（靠最右对齐，顺序：版本号、后台任务、AI助手最靠右，这样AI助手悬停展开时往左伸展，小图标本身永远钉在右下角不动，绝不出现"弹开逃走"） -->
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">
                 <!-- 软件版本号 -->
-                <Border Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                <Border x:Name="StatusVersionBorder"
+                        Background="{DynamicResource CkanSubtleBackgroundBrush}"
                         CornerRadius="4"
                         Padding="6,1"
                         VerticalAlignment="Center"
@@ -799,11 +916,157 @@
                              FontFamily="{DynamicResource CkanUiFontFamily}"
                              VerticalAlignment="Center" />
                 </Border>
+
+                <!-- 嵌入底栏的后台任务微件胶囊（悬浮紧凑，点击展开详细卡片） -->
+                <Border x:Name="StatusBarTaskPillBorder"
+                        Background="{DynamicResource CkanSubtleBackgroundBrush}"
+                        BorderBrush="{DynamicResource CkanGlassBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        VerticalAlignment="Center">
+                  <Button x:Name="StatusBarTaskPillButton"
+                          DataContext="{Binding OperationQueue}"
+                          Command="{Binding ToggleExpandCommand}"
+                          Classes="CkanGhost"
+                          Padding="4,2"
+                          MinHeight="20"
+                          CornerRadius="4"
+                          ToolTip.Tip="{DynamicResource Ui_QueueOverlay_CompactTip}"
+                          AutomationProperties.Name="{DynamicResource Ui_QueueOverlay_CompactTip}">
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                      <StackPanel x:Name="StatusBarTaskDetails"
+                                  Orientation="Horizontal"
+                                  Spacing="6"
+                                  VerticalAlignment="Center">
+                        <TextBlock Text="{Binding SummaryText}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   MaxWidth="160"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding OverallPercentText}"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource CkanAccentBrush}"
+                                   IsVisible="{Binding HasActiveOperations}"
+                                   VerticalAlignment="Center" />
+                        <PathIcon Data="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"
+                                  Width="8" Height="8"
+                                  Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                  VerticalAlignment="Center" />
+                      </StackPanel>
+                      <Border Width="14" Height="14" CornerRadius="7"
+                              Background="{DynamicResource CkanAccentSubtleBrush}"
+                              VerticalAlignment="Center">
+                        <PathIcon Data="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"
+                                  Width="8" Height="8"
+                                  Foreground="{DynamicResource CkanAccentBrush}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                    </StackPanel>
+                  </Button>
+                </Border>
+
+                <!-- 底栏 AI 助手入口：最靠右常驻，图标在最右侧，文字向左展开，小图标永远钉在右侧 Fitts 定位点 -->
+                <Border Background="{DynamicResource CkanAccentBrush}"
+                        CornerRadius="4"
+                        VerticalAlignment="Center">
+                  <Button x:Name="StatusAiButton"
+                          Classes="CkanGhost"
+                          Padding="6,2"
+                          MinHeight="20"
+                          CornerRadius="4"
+                          Click="OnStatusAiButtonClick"
+                          ToolTip.Tip="{DynamicResource Ui_StatusBar_AiAssistantTip}"
+                          AutomationProperties.Name="{DynamicResource Ui_StatusBar_AiAssistantTip}">
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                      <TextBlock x:Name="StatusAiText"
+                                 Text="{DynamicResource Ui_StatusBar_AiAssistant}"
+                                 FontSize="11"
+                                 FontWeight="SemiBold"
+                                 Foreground="{DynamicResource CkanTextOnAccentBrush}"
+                                 VerticalAlignment="Center" />
+                      <PathIcon Data="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"
+                                Width="10" Height="10"
+                                Foreground="{DynamicResource CkanTextOnAccentBrush}"
+                                VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                </Border>
               </StackPanel>
             </Grid>
           </Border>
         </Grid>
       </ui:FANavigationView>
+
+      <!--
+        AI 助手新功能引导气泡：浮动在右下角底栏 AI 按钮上方，引导用户发现与呼出 AI 助手。
+        支持快捷键 Ctrl+Shift+A 提示、一键体验与关闭。
+      -->
+      <Border x:Name="AiAssistantGuideBubble"
+              IsVisible="False"
+              HorizontalAlignment="Right"
+              VerticalAlignment="Bottom"
+              Margin="0,0,12,38"
+              MaxWidth="340"
+              ZIndex="17"
+              Classes="CkanElevationHigh"
+              Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanAccentBrush}"
+              BorderThickness="1.5"
+              CornerRadius="8"
+              BoxShadow="0 4 16 0 #40000000">
+        <StackPanel Spacing="8" Margin="14,12">
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <Border Grid.Column="0"
+                    Width="24" Height="24"
+                    CornerRadius="12"
+                    Background="{DynamicResource CkanAccentSubtleBrush}"
+                    Margin="0,0,8,0">
+              <PathIcon Data="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"
+                        Width="12" Height="12"
+                        Foreground="{DynamicResource CkanAccentBrush}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center" />
+            </Border>
+            <TextBlock Grid.Column="1"
+                       Text="AI 助手已就绪"
+                       FontWeight="SemiBold"
+                       FontSize="13"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+            <Button Grid.Column="2"
+                    Classes="CkanGhost"
+                    Padding="4"
+                    CornerRadius="4"
+                    Click="OnDismissAiGuideClick"
+                    ToolTip.Tip="{DynamicResource Ui_Cmd_Shortcuts_Close}">
+              <PathIcon Data="M6.4 4.99 12 10.6l5.6-5.6 1.4 1.4-5.6 5.6 5.6 5.6-1.4 1.4-5.6-5.6-5.6 5.6-1.4-1.4 5.6-5.6-5.6-5.6z"
+                        Width="8" Height="8" />
+            </Button>
+          </Grid>
+
+          <TextBlock Text="点击右下角按钮或按 Ctrl+Shift+A 呼出 AI 助手，帮您搜索模组、排查冲突与解答航天疑问。"
+                     FontSize="11"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+
+          <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
+            <TextBlock Grid.Column="0"
+                       Text="快捷键: Ctrl+Shift+A"
+                       FontSize="10"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            <Button Grid.Column="1"
+                    Classes="CkanPrimary"
+                    Content="立即体验"
+                    Padding="10,4"
+                    FontSize="11"
+                    CornerRadius="4"
+                    Click="OnTryAiGuideClick" />
+          </Grid>
+        </StackPanel>
+      </Border>
 
       <!--
         AI 助手抽屉：底栏按钮拉起。内容由插件页视图填充——宿主不引用插件类型，插件被停用时这里
@@ -843,17 +1106,28 @@
                                Foreground="{DynamicResource CkanAccentBrush}" />
                   </Border>
                 </StackPanel>
-                <Button Grid.Column="1"
-                        x:Name="AiAssistantCloseButton"
-                        Classes="CkanGhost"
-                        Padding="6"
-                        CornerRadius="4"
-                        Click="OnAiAssistantCloseClick"
-                        ToolTip.Tip="{DynamicResource Ui_Cmd_Shortcuts_Close}"
-                        AutomationProperties.Name="{DynamicResource Ui_Cmd_Shortcuts_Close}">
-                  <PathIcon Data="M6.4 4.99 12 10.6l5.6-5.6 1.4 1.4-5.6 5.6 5.6 5.6-1.4 1.4-5.6-5.6-5.6 5.6-1.4-1.4 5.6-5.6-5.6-5.6z"
-                            Width="10" Height="10" />
-                </Button>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                  <Button x:Name="AiAssistantDetachButton"
+                          Classes="CkanGhost"
+                          Padding="6"
+                          CornerRadius="4"
+                          Click="OnAiAssistantDetachClick"
+                          ToolTip.Tip="弹出独立窗口 (可任意缩放/浮动)"
+                          AutomationProperties.Name="弹出独立窗口">
+                    <PathIcon Data="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"
+                              Width="10" Height="10" />
+                  </Button>
+                  <Button x:Name="AiAssistantCloseButton"
+                          Classes="CkanGhost"
+                          Padding="6"
+                          CornerRadius="4"
+                          Click="OnAiAssistantCloseClick"
+                          ToolTip.Tip="{DynamicResource Ui_Cmd_Shortcuts_Close}"
+                          AutomationProperties.Name="{DynamicResource Ui_Cmd_Shortcuts_Close}">
+                    <PathIcon Data="M6.4 4.99 12 10.6l5.6-5.6 1.4 1.4-5.6 5.6 5.6 5.6-1.4 1.4-5.6-5.6-5.6 5.6-1.4-1.4 5.6-5.6-5.6-5.6z"
+                              Width="10" Height="10" />
+                  </Button>
+                </StackPanel>
               </Grid>
             </Border>
             <Border Grid.Row="1"

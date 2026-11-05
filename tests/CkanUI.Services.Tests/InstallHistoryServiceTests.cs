@@ -340,6 +340,66 @@ public sealed class InstallHistoryServiceTests
     }
 
     [Test]
+    public void HistoryRecordingInstaller_WarningOnlyApply_RecordsSucceededOutcome()
+    {
+        // B4：Installed 非空 + Failed 为空 + Warnings 非空 = 装成功了但有提示，历史不能标成失败/部分失败。
+        _registry.Set("A", "2.0");
+        var recorder = new InstallHistoryRecorder(_instances, 2000, Next);
+        var recording = new HistoryRecordingInstaller(_installer, recorder, _registry);
+        var changeSet = new ChangeSetPreview(
+            new[]
+            {
+                new ChangeItemDto("A", "A", ChangeAction.Upgrade, "1.0", "2.0", ChangeOrigin.UserRequested, 0),
+            },
+            Array.Empty<string>(),
+            0,
+            Array.Empty<string>());
+        _installer.Result = OperationResult<InstallReport>.Ok(new InstallReport(
+            new[] { "A" },
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            new[] { "校验和不可用，已回退到缓存副本" }));
+
+        var applied = recording.ApplyAsync(changeSet).GetAwaiter().GetResult();
+
+        Assert.That(applied.IsSuccess, Is.True, applied.Message);
+        var entries = Load(_service);
+        Assert.That(entries, Has.Count.EqualTo(1));
+        Assert.That(entries[0].Outcome, Is.EqualTo(InstallHistoryOutcome.Succeeded),
+            "仅提示（Failed 为空、Warnings 非空）必须记成成功；把警告当失败会让历史把正常升级标红");
+        Assert.That(entries[0].Changes.Single().Succeeded, Is.True, "警告不是失败，变更项也应算成功");
+    }
+
+    [Test]
+    public void Restore_WithWarningsButNoFailures_RecordsSucceededOutcome()
+    {
+        // B4：重装路径此前用 Warnings.Count == 0 判成功，警告-only 会落成 PartiallyFailed。
+        _registry.Set("A", "1.0");
+        SeedSnapshot(("A", "1.0"), ("B", "2.0"));
+        _changeSets.Result = OperationResult<ChangeSetPreview>.Ok(new ChangeSetPreview(
+            new[] { new ChangeItemDto("B", "B", ChangeAction.Install, null, "2.0", ChangeOrigin.UserRequested, 2048) },
+            Array.Empty<string>(),
+            2048,
+            Array.Empty<string>()));
+        _installer.Result = OperationResult<InstallReport>.Ok(new InstallReport(
+            new[] { "B" },
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            new[] { "镜像较慢，已超时重试一次" }));
+        var target = Load(_service)[0].Timestamp;
+
+        var restored = _service.RestoreAsync(new InstallHistoryRestoreRequest(target)).GetAwaiter().GetResult();
+
+        Assert.That(restored.IsSuccess, Is.True, restored.Message);
+        Assert.That(restored.Value!.IsFullSuccess, Is.True, "IsFullSuccess 只看失败项，警告不算失败");
+        var entries = Load(_service);
+        Assert.That(entries[0].Operation, Is.EqualTo(InstallHistoryOperation.Restore));
+        Assert.That(entries[0].Outcome, Is.EqualTo(InstallHistoryOutcome.Succeeded),
+            "重装仅有警告时历史必须是成功；把 Warnings 当失败会让 Outcome 变成 PartiallyFailed");
+        Assert.That(entries[0].Message, Does.Contain("警告"), "警告不再决定 Outcome，但仍要留在历史备注里");
+    }
+
+    [Test]
     public void Record_WhenTargetPathIsUnusable_FailsWithRetryableMessage()
     {
         // 在 <ws>/blocked 处放一个文件，于是 <ws>/blocked/CKAN 目录无法创建 —— 模拟不可写路径。

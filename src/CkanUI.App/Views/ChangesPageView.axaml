@@ -1,5 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mods="clr-namespace:CkanUI.ViewModels.Dialogs.Mods;assembly=CkanUI.ViewModels"
+             xmlns:tbl="using:CkanUI.Ui.Tables"
              x:Class="CkanUI.App.Views.ChangesPageView"
              x:CompileBindings="False"
              KeyDown="OnRootKeyDown">
@@ -92,24 +94,35 @@
         <TextBlock Text="{Binding ConflictTitle}"
                    FontSize="{DynamicResource CkanFontSizeSubtitle}"
                    Foreground="{DynamicResource CkanDangerBrush}" TextWrapping="Wrap" />
-        <ItemsControl ItemsSource="{Binding Conflicts}">
+        <ItemsControl ItemsSource="{Binding ConflictRows}">
           <ItemsControl.ItemTemplate>
-            <DataTemplate>
-              <TextBlock Text="{Binding}"
-                         FontSize="{DynamicResource CkanFontSizeBody}"
-                         Foreground="{DynamicResource CkanTextPrimaryBrush}"
-                         TextWrapping="Wrap" Margin="0,1" />
+            <DataTemplate x:DataType="mods:ConflictRowViewModel">
+              <StackPanel Spacing="1" Margin="0,2">
+                <TextBlock Text="{Binding Description}"
+                           FontSize="{DynamicResource CkanFontSizeBody}"
+                           Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ModuleText}"
+                           IsVisible="{Binding HasModule}"
+                           FontSize="{DynamicResource CkanFontSizeCaption}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
         <TextBlock Text="{Binding ConflictHint}"
                    FontSize="{DynamicResource CkanFontSizeCaption}"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" TextWrapping="Wrap" />
-        <Button Content="{Binding ShowConflictDetailsButtonText}"
-                Command="{Binding ShowConflictDetailsCommand}"
-                Classes="CkanSecondary"
-                ToolTip.Tip="{DynamicResource Ui_ChangesPage_ConflictResolution_Tip}"
-                HorizontalAlignment="Left" Margin="0,4,0,0" />
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+          <Button Content="{Binding ShowConflictDetailsButtonText}"
+                  Command="{Binding ShowConflictDetailsCommand}"
+                  Classes="CkanSecondary"
+                  ToolTip.Tip="{DynamicResource Ui_ChangesPage_ConflictResolution_Tip}" />
+          <Button Content="{Binding GoToModsButtonText}"
+                  Command="{Binding GoToModsCommand}"
+                  Classes="CkanSecondary" />
+        </StackPanel>
       </StackPanel>
     </Border>
     </StackPanel>
@@ -134,6 +147,16 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+        <!-- 提示不是死胡同：缓存目录类提示才给可执行出口（E1），别的提示不误导 -->
+        <TextBlock Text="{Binding WarningCacheHint}"
+                   IsVisible="{Binding HasDownloadCacheWarning}"
+                   FontSize="{DynamicResource CkanFontSizeCaption}"
+                   Foreground="{DynamicResource CkanTextSecondaryBrush}" TextWrapping="Wrap" />
+        <Button Content="{Binding OpenCacheSettingsButtonText}"
+                Command="{Binding OpenDownloadCacheCommand}"
+                IsVisible="{Binding HasDownloadCacheWarning}"
+                Classes="CkanSecondary"
+                HorizontalAlignment="Left" Margin="0,4,0,0" />
       </StackPanel>
     </Border>
 
@@ -183,31 +206,22 @@
               Background="{DynamicResource CkanStatusBarBackgroundBrush}"
               BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
         <Grid ColumnDefinitions="3,*,80,190,64,80,72">
-          <TextBlock Grid.Column="1" Text="{Binding ColumnNameHeader}"
-                     FontSize="{DynamicResource CkanFontSizeCaption}"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <TextBlock Grid.Column="2" Text="{Binding ColumnActionHeader}"
-                     FontSize="{DynamicResource CkanFontSizeCaption}"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <TextBlock Grid.Column="3" Text="{Binding ColumnVersionHeader}"
-                     FontSize="{DynamicResource CkanFontSizeCaption}"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <TextBlock Grid.Column="4" Text="{Binding ColumnOriginHeader}"
-                     FontSize="{DynamicResource CkanFontSizeCaption}"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-          <TextBlock Grid.Column="5" Text="{Binding ColumnSizeHeader}"
-                     FontSize="{DynamicResource CkanFontSizeCaption}"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+          <TextBlock Grid.Column="1" Text="{Binding ColumnNameHeader}" Classes="CkanCaption" />
+          <TextBlock Grid.Column="2" Text="{Binding ColumnActionHeader}" Classes="CkanCaption" />
+          <TextBlock Grid.Column="3" Text="{Binding ColumnVersionHeader}" Classes="CkanCaption" />
+          <TextBlock Grid.Column="4" Text="{Binding ColumnOriginHeader}" Classes="CkanCaption" />
+          <TextBlock Grid.Column="5" Text="{Binding ColumnSizeHeader}" Classes="CkanCaption"
                      HorizontalAlignment="Right" />
-          <TextBlock Grid.Column="6" Text="{Binding ColumnOperationsHeader}"
-                     FontSize="{DynamicResource CkanFontSizeCaption}"
-                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+          <TextBlock Grid.Column="6" Text="{Binding ColumnOperationsHeader}" Classes="CkanCaption"
                      HorizontalAlignment="Right" />
         </Grid>
       </Border>
 
+      <!-- 筛选/排序/拖动列宽由 ListTableTools 补：表头 7 列，首列状态条与末列操作按钮不参与。 -->
       <ListBox x:Name="ChangeList"
                Grid.Row="1"
+               tbl:ListTableTools.Enabled="True"
+               tbl:ListTableTools.Columns="-,Name,ActionText,FromVersionText~Data.FromVersion,OriginBadgeText,SizeText~Data.DownloadBytes,-"
                ItemsSource="{Binding Rows}"
                Background="{DynamicResource CkanSurfaceBackgroundBrush}"
                BorderThickness="0">
@@ -235,6 +249,9 @@
                          FontSize="{DynamicResource CkanFontSizeBody}" />
               <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                 <TextBlock Text="{Binding FromVersionText}"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                           FontSize="{DynamicResource CkanFontSizeBody}" />
+                <TextBlock Text="→" VerticalAlignment="Center"
                            Foreground="{DynamicResource CkanTextSecondaryBrush}"
                            FontSize="{DynamicResource CkanFontSizeBody}" />
                 <TextBlock Text="{Binding ToVersionText}"
@@ -308,40 +325,53 @@
             IsVisible="{Binding !ShowEmptyState}"
             Background="{DynamicResource CkanStatusBarBackgroundBrush}"
             AutomationProperties.Name="{Binding StatusRegionName}">
-      <Grid ColumnDefinitions="Auto,140,*,Auto,Auto,Auto,Auto">
-        <!-- 状态文字（双通道：状态徽章之外一定有可读文字） -->
-        <TextBlock Grid.Column="0" Text="{Binding StateText}" MaxWidth="360"
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
+        <!-- 状态文字（双通道：状态徽章之外一定有可读文字）。整列自适应换行，不再被进度条横穿 -->
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding StateText}"
                    FontSize="{DynamicResource CkanFontSizeBody}"
                    Foreground="{DynamicResource CkanTextPrimaryBrush}"
                    VerticalAlignment="Center" TextWrapping="Wrap" />
-        <ProgressBar Grid.Column="1" Minimum="0" Maximum="100"
-                     Value="{Binding ExecutionPercent}"
-                     IsVisible="{Binding IsApplying}"
-                     VerticalAlignment="Center" Margin="8,0,0,0" />
-        <TextBlock Grid.Column="2" Text="{Binding StatusText}" Margin="12,0,0,0"
-                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
-                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-        <Button Grid.Column="3" Content="{Binding RecomputeButtonText}"
+        <Button Grid.Row="0" Grid.Column="1" Content="{Binding RecomputeButtonText}"
                 Command="{Binding RecomputeCommand}"
                 Classes="CkanSecondary"
                 IsEnabled="{Binding IsBusy, Converter={x:Static BoolConverters.Not}}"
                 ToolTip.Tip="{Binding CancelHint}" />
-        <Button Grid.Column="4" Margin="6,0,0,0" Content="{Binding CancelButtonText}"
+        <Button Grid.Row="0" Grid.Column="2" Margin="6,0,0,0" Content="{Binding CancelButtonText}"
                 Command="{Binding CancelCommand}"
                 Classes="CkanDanger"
                 IsVisible="{Binding IsApplying}" />
-        <!-- 重试：执行失败且具备执行前提时显示（06 篇 F-37） -->
-        <Button Grid.Column="5" Margin="6,0,0,0" Content="{Binding RetryButtonText}"
-                Command="{Binding RetryCommand}"
-                Classes="CkanSecondary"
-                IsVisible="{Binding CanRetry}" />
-        <!-- 开始：Command 的 CanExecute=CanApply，冲突时自动禁用（06 篇 UI-04 门禁） -->
-        <Button Grid.Column="6" Margin="6,0,0,0" Content="{Binding ApplyButtonText}"
+        <!-- 开始：Command 的 CanExecute=CanApply，冲突/失败态自动禁用（06 篇 UI-04 门禁）。
+             失败态的「重试」只放在错误栏里（原因旁边那个），状态栏再放一个就是同一动作出现两次。 -->
+        <Button Grid.Row="0" Grid.Column="3" Margin="6,0,0,0" Content="{Binding ApplyButtonText}"
                 Command="{Binding ApplyCommand}"
                 Classes="CkanPrimary"
-                IsVisible="{Binding IsApplying, Converter={x:Static BoolConverters.Not}}"
+                IsVisible="{Binding ShowApplyButton}"
                 ToolTip.Tip="{Binding CancelHint}" />
+
+        <!-- 进度行：单独一行，进度条不再压在文字上；执行结束后保留最终进度（E3） -->
+        <StackPanel Grid.Row="1" Grid.ColumnSpan="4" Spacing="4">
+          <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding IsProgressVisible}">
+            <TextBlock Grid.Column="0" Text="{Binding ProgressStageText}"
+                       IsVisible="{Binding HasProgressStage}"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                       VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ProgressBar Grid.Column="1" Minimum="0" Maximum="100"
+                         Value="{Binding ExecutionPercent}"
+                         VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Text="{Binding ProgressText}" MinWidth="46"
+                       TextAlignment="Right" Margin="8,0,0,0"
+                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                       VerticalAlignment="Center" />
+          </Grid>
+          <!-- 后端实时文案：换行显示，不再被 CharacterEllipsis 截成半句 -->
+          <TextBlock Text="{Binding StatusText}"
+                     IsVisible="{Binding HasStatusText}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                     TextWrapping="Wrap" />
+        </StackPanel>
       </Grid>
     </Border>
   </Grid>

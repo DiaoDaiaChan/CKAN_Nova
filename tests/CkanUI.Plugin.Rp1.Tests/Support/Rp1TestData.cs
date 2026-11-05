@@ -1,5 +1,6 @@
 using CkanUI.Plugin.Rp1.Career;
 using CkanUI.Sfs;
+using CkanUI.TestSupport;
 
 namespace CkanUI.Plugin.Rp1.Tests.Support;
 
@@ -24,10 +25,12 @@ internal static class Rp1TestData
 
 internal sealed class TempGame : IDisposable
 {
+    private readonly TempWorkspace _workspace;
+
     public TempGame(bool withRp1 = true)
     {
-        Root = Path.Combine(Path.GetTempPath(), "ckanui-rp1-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Root);
+        _workspace = new TempWorkspace("ckanui-rp1");
+        Root = _workspace.Path;
         if (withRp1)
         {
             Directory.CreateDirectory(Path.Combine(Root, "GameData", "RP-1"));
@@ -47,13 +50,6 @@ internal sealed class TempGame : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            Directory.Delete(Root, recursive: true);
-        }
-        catch (IOException)
-        {
-            // 临时目录清不掉不影响用例结论。
-        }
+        _workspace.Dispose();
     }
 }

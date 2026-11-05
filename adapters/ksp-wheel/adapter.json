@@ -1,0 +1,38 @@
+// KSP Wheel 的配置适配器。
+// 取证：<游戏目录>/GameData/KSPWheel/KSPWheelConfig.cfg，根节点 KSPWHEELCONFIG 只有
+// 一个直属键 powerConversion（实测值 65，注释写明原版是 65:1）。
+{
+  "schemaVersion": 1,
+  "id": "ksp-wheel",
+  "name": "KSP Wheel",
+  "homepage": "https://github.com/shadowmage45/KSPWheel",
+
+  "match": {
+    "ckanIdentifiers": ["KSPWheel"],
+    "paths": ["GameData/KSPWheel/KSPWheelConfig.cfg"],
+    "caseInsensitive": true
+  },
+
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/KSPWheel/KSPWheelConfig.cfg",
+      "layout": "node",
+      "rootNode": "KSPWHEELCONFIG",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "KSPWheelConfig.cfg"
+    }
+  ],
+
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+
+  "fields": [
+    { "file": "settings", "key": "powerConversion", "type": "int", "min": 1, "max": 1000,
+      "default": 65, "risk": "medium", "requiresRestart": true,
+      "label": "电机功率换算比（原版为 65:1，改动会影响所有轮子手感）" }
+  ]
+}

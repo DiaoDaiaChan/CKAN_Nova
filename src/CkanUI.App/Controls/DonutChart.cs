@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Styling;
 using CkanUI.Services.Abstractions.Dtos;
 
 namespace CkanUI.App.Controls;
@@ -159,15 +160,38 @@ public sealed class DonutChart : Control
 
     private IBrush ResolveThemeBrush(string key)
     {
-        if (this.TryFindResource(key, out var resource) && resource is IBrush brush)
+        var theme = ActualThemeVariant ?? Application.Current?.ActualThemeVariant ?? ThemeVariant.Default;
+        if (this.TryFindResource(key, theme, out var resource) && resource is IBrush brush)
         {
             return brush;
         }
 
-        // 回退至基础语义 token，绝不硬编码灰/黑，若全局均未初始化则退回透明
-        if (key != "CkanTextSecondaryBrush" && this.TryFindResource("CkanTextSecondaryBrush", out var fallback) && fallback is IBrush fb)
+        if (this.TryFindResource(key, out var resourceNoTheme) && resourceNoTheme is IBrush brushNoTheme)
         {
-            return fb;
+            return brushNoTheme;
+        }
+
+        if (Application.Current is not null)
+        {
+            if (Application.Current.TryFindResource(key, theme, out var appRes) && appRes is IBrush appBrush)
+            {
+                return appBrush;
+            }
+
+            if (Application.Current.TryFindResource(key, out var appResNoTheme) && appResNoTheme is IBrush appBrushNoTheme)
+            {
+                return appBrushNoTheme;
+            }
+        }
+
+        // 回退至基础语义 token，绝不硬编码灰/黑，若全局均未初始化则退回透明
+        if (key != "CkanTextSecondaryBrush")
+        {
+            var fallback = ResolveThemeBrush("CkanTextSecondaryBrush");
+            if (!ReferenceEquals(fallback, Brushes.Transparent))
+            {
+                return fallback;
+            }
         }
 
         return Brushes.Transparent;

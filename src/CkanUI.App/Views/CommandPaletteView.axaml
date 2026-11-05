@@ -29,20 +29,6 @@
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
-    <!-- 选中行左侧强调条：与侧栏导航的激活指示条同宽同色（MainWindow.axaml 的 navIndicator） -->
-    <Style Selector="Rectangle.paletteBar">
-      <Setter Property="Width" Value="3" />
-      <Setter Property="Height" Value="18" />
-      <Setter Property="RadiusX" Value="2" />
-      <Setter Property="RadiusY" Value="2" />
-      <Setter Property="HorizontalAlignment" Value="Left" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-      <Setter Property="Fill" Value="Transparent" />
-    </Style>
-    <Style Selector="Rectangle.paletteBar.selected">
-      <Setter Property="Fill" Value="{DynamicResource CkanAccentBrush}" />
-    </Style>
-
     <!-- 行容器：去掉默认内边距，行高对齐 CkanRowHeight（03 篇 §11 控件行高口径） -->
     <Style Selector="ListBox.paletteList > ListBoxItem">
       <Setter Property="Padding" Value="0" />
@@ -109,13 +95,10 @@
               <DataTemplate>
                 <Grid Classes="paletteRow"
                       Classes.disabled="{Binding !IsEnabled}"
-                      ColumnDefinitions="3,*,Auto">
+                      ColumnDefinitions="*,Auto">
 
-                  <Rectangle Grid.Column="0"
-                             Classes="paletteBar"
-                             Classes.selected="{Binding $parent[ListBoxItem].IsSelected}" />
-
-                  <StackPanel Grid.Column="1" Margin="8,4" VerticalAlignment="Center">
+                  <!-- 左边 3px 强调条由 ListBoxItem 模板自带的 SelectionIndicator 承担，这里只留文字缩进。 -->
+                  <StackPanel Grid.Column="0" Margin="11,4" VerticalAlignment="Center">
                     <!-- 标题按命中区间切段渲染：命中段加粗上色，不改变原文顺序 -->
                     <ItemsControl ItemsSource="{Binding TitleSegments}">
                       <ItemsControl.ItemsPanel>
@@ -140,7 +123,7 @@
                   </StackPanel>
 
                   <!-- 快捷键徽标：只给真的有快捷键的命令显示，避免空徽标撑出占位 -->
-                  <Border Grid.Column="2"
+                  <Border Grid.Column="1"
                           IsVisible="{Binding HasShortcut}"
                           Padding="6,0"
                           Margin="0,0,8,0"

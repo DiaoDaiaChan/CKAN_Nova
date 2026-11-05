@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Windows.Input;
 using CkanUI.Services.Abstractions;
+using CkanUI.Services.Abstractions.Audio;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Pages.Instances;
@@ -156,13 +157,20 @@ public sealed partial class ShellViewModel : ObservableObject
         Operations.OperationQueueViewModel? operationQueue = null,
         IInstanceService? instances = null,
         IPluginService? plugins = null,
-        IUiSettingsStore? settingsStore = null)
+        IUiSettingsStore? settingsStore = null,
+        IAudioService? audioService = null)
     {
         _navigation = navigation ?? throw new ArgumentNullException(nameof(navigation));
         OperationQueue = operationQueue;
         _instances = instances;
         _plugins = plugins;
         _settingsStore = settingsStore;
+        _audioService = audioService;
+        _isMasterMuted = audioService?.MasterMuted ?? settingsStore?.Current.MasterMuted ?? false;
+        if (_audioService is not null)
+        {
+            _audioService.MasterMuteChanged += (s, m) => IsMasterMuted = m;
+        }
         // 页面缩放读回来时直接写字段：走属性 setter 会在构造期就把设置回写一遍文件。
         _pageZoom = SnapPageZoom(settingsStore?.Current.PageZoom ?? DefaultPageZoom);
         if (settingsStore is not null && string.Equals(settingsStore.Current.NavHoverMode, "drawer", StringComparison.OrdinalIgnoreCase))
@@ -218,6 +226,7 @@ public sealed partial class ShellViewModel : ObservableObject
         ToggleNavCollapsedCommand = new RelayCommand(ToggleNavCollapsed);
         ToggleNavHoverModeCommand = new RelayCommand(ToggleNavHoverMode);
         ToggleLogDrawerCommand = new RelayCommand(() => LogDrawer?.ToggleCommand.Execute(null), () => LogDrawer is not null);
+        ToggleMasterMuteCommand = new RelayCommand(ToggleMasterMute);
         BackCommand = new AsyncRelayCommand(ExecuteBackAsync);
         ForwardCommand = new AsyncRelayCommand(ExecuteForwardAsync);
         _navigation.HistoryChanged += OnHistoryChanged;
@@ -278,6 +287,43 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>顶栏日志小标记是否点亮未读徽标。</summary>
     public bool HasLogBadge => LogDrawer?.HasBadge == true;
+
+    private readonly IAudioService? _audioService;
+
+    /// <summary>交互音效播放服务。</summary>
+    public ISoundEffectService? SoundEffects => _audioService?.SoundEffects;
+
+    /// <summary>全局静音状态。</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MasterMuteToolTip))]
+    [NotifyPropertyChangedFor(nameof(MasterMuteStatusText))]
+    private bool _isMasterMuted;
+
+    /// <summary>静音切换提示文案。</summary>
+    public string MasterMuteToolTip => IsMasterMuted
+        ? _translate("Ui_Audio_Unmute")
+        : _translate("Ui_Audio_Mute");
+
+    /// <summary>顶栏静音胶囊显示文字。</summary>
+    public string MasterMuteStatusText => IsMasterMuted
+        ? _translate("Ui_Audio_Muted")
+        : _translate("Ui_Audio_SoundOn");
+
+    /// <summary>切换全局静音命令。</summary>
+    public IRelayCommand ToggleMasterMuteCommand { get; }
+
+    private void ToggleMasterMute()
+    {
+        if (_audioService is not null)
+        {
+            _audioService.ToggleMasterMute();
+            IsMasterMuted = _audioService.MasterMuted;
+        }
+        else
+        {
+            IsMasterMuted = !IsMasterMuted;
+        }
+    }
 
     /// <summary>展开/收起底部日志抽屉（顶栏小标记与抽屉标题条共用同一条命令）。</summary>
     public IRelayCommand ToggleLogDrawerCommand { get; }
@@ -887,8 +933,8 @@ public sealed partial class ShellViewModel : ObservableObject
     [
         // 主菜单：应用启动后的落地页。排在第一位，RailItems[0] 因此恒为主页。
         ("home", null, ["home"]),
-        // 模组：装什么、装进去长什么样、哪些待应用、元数据打哪来、单个 mod 怎么配。
-        ("mods", null, ["mods", "content", "changes", "repos", "modconfig"]),
+        // 模组：装什么、装进去长什么样、哪些待应用、元数据打哪来、下载统计、单个 mod 怎么配。
+        ("mods", null, ["mods", "content", "changes", "repos", "downloadstats", "modconfig"]),
         // 模组翻译已解耦为内置插件（com.ckanui.modtext），作为独立侧栏入口落在「扩展」分组里：
         // 它不再是宿主的页签，分组也就不能写死在这里。
         // 实例：一份安装本身 + 它衍生的存档、磁盘垃圾、历史与时长 + KSP 原生设置。
@@ -897,8 +943,8 @@ public sealed partial class ShellViewModel : ObservableObject
         ("instances", null, ["instances", "saves", "ships", "flags", "loadingimages", "kspconfig", "unmanaged", "installhistory", "playtime"]),
         // 整合包：导入导出与直接编辑 .ckan。
         ("modpacks", null, ["modpacks", "modpack-editor"]),
-        // 数据：本地缓存、下载统计、跨实例去重——都是「盘上的东西」，与模组列表无关。
-        ("cache", "Ui_NavRail_Data", ["cache", "downloadstats", "dedup"]),
+        // 数据：本地缓存、跨实例去重——都是「盘上的东西」，与模组列表无关。
+        ("cache", "Ui_NavRail_Data", ["cache", "dedup"]),
         // 工具：插件管理（只剩一页，页签条不会出现）。
         ("plugins", "Ui_NavRail_Tools", ["plugins"]),
     ];
@@ -1165,6 +1211,101 @@ public sealed partial class ShellViewModel : ObservableObject
             : NavItems.FirstOrDefault(item => string.Equals(item.Key, pageKey, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>在当前入口的页签之间循环切换，供 Ctrl+Tab / 手柄肩键使用。</summary>
+    /// <param name="delta">+1 下一个，-1 上一个。</param>
+    /// <returns>真的切了返回 true；只有一页（没有页签条）或 delta 为 0 时返回 false。</returns>
+    public bool CycleSectionTab(int delta)
+    {
+        if (delta == 0 || SectionTabs.Count < 2)
+        {
+            return false;
+        }
+
+        var current = IndexOfCurrentTab();
+        var next = current < 0
+            ? (delta > 0 ? 0 : SectionTabs.Count - 1)
+            : Wrap(current + delta, SectionTabs.Count);
+        NavigateCommand.Execute(SectionTabs[next].Key);
+        return true;
+    }
+
+    /// <summary>在侧栏一级入口之间循环切换，供 Ctrl+Alt+↑/↓ 与手柄肩键的「换入口」语义使用。</summary>
+    /// <param name="delta">+1 下一个，-1 上一个。</param>
+    /// <returns>真的切了返回 true；侧栏不足两项时返回 false。</returns>
+    public bool CycleRail(int delta)
+    {
+        if (delta == 0 || RailItems.Count < 2)
+        {
+            return false;
+        }
+
+        var current = IndexOfCurrentRail();
+        var next = current < 0
+            ? (delta > 0 ? 0 : RailItems.Count - 1)
+            : Wrap(current + delta, RailItems.Count);
+        NavigateCommand.Execute(RailItems[next].Key);
+        return true;
+    }
+
+    /// <summary>跳到侧栏第 N 项，供 Ctrl+1..Ctrl+9 使用。</summary>
+    /// <param name="index">下标，1 起（与用户看到的按键一致）；越界直接忽略。</param>
+    /// <returns>真的切了返回 true。</returns>
+    public bool NavigateRailIndex(int index)
+    {
+        if (index < 1 || index > RailItems.Count)
+        {
+            return false;
+        }
+
+        NavigateCommand.Execute(RailItems[index - 1].Key);
+        return true;
+    }
+
+    /// <summary>当前页在页签条里的下标；找不到（页签刚重建、还没翻 IsActive）时退回第一个 IsActive 的页签。</summary>
+    private int IndexOfCurrentTab()
+    {
+        var key = _navigation.CurrentKey;
+        for (var i = 0; i < SectionTabs.Count; i++)
+        {
+            if (string.Equals(SectionTabs[i].Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        for (var i = 0; i < SectionTabs.Count; i++)
+        {
+            if (SectionTabs[i].IsActive)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>当前页所属的侧栏入口下标；插件页、日志、设置这类独立页也能对上。</summary>
+    private int IndexOfCurrentRail()
+    {
+        var current = RailItemFor(_navigation.CurrentKey);
+        if (current is null)
+        {
+            return -1;
+        }
+
+        for (var i = 0; i < RailItems.Count; i++)
+        {
+            if (string.Equals(RailItems[i].Key, current.Key, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static int Wrap(int value, int count) => ((value % count) + count) % count;
+
     /// <summary>无本地化层时的中文兜底文案（键名与 LocalizationKeys 保持一致）。</summary>
     private static readonly Dictionary<string, string> FallbackTexts = new(StringComparer.Ordinal)
     {
@@ -1209,6 +1350,10 @@ public sealed partial class ShellViewModel : ObservableObject
         ["Ui_Common_Nav_Back"] = "后退",
         ["Ui_Common_Nav_Forward"] = "前进",
         ["Ui_Common_Status_Ready"] = "就绪",
+        ["Ui_Audio_Mute"] = "静音",
+        ["Ui_Audio_Unmute"] = "恢复声音",
+        ["Ui_Audio_Muted"] = "静音",
+        ["Ui_Audio_SoundOn"] = "声音",
     };
 
     private sealed class EmptyNavigationService : INavigationService

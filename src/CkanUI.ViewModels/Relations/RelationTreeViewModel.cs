@@ -6,7 +6,8 @@ namespace CkanUI.ViewModels.Relations;
 
 /// <summary>
 /// 依赖关系树与可视化关系网投影视图模型（F-28 / UI-18）；不持有导航或 Core 对象。
-/// 支持九色图例展示、天体同心轨道拓扑关系网、正向/反向关系构建切换、循环依赖截断保护及节点双击导航。
+/// 详情面板默认为紧凑树视图（参考 CKAN GUI 的 DependsGraphTree），关系网作为可选的轨道画布；
+/// 支持按分类计数筛选、正向/反向关系切换、循环依赖截断保护及节点双击导航。
 /// </summary>
 public sealed partial class RelationTreeViewModel : ObservableObject
 {
@@ -28,6 +29,7 @@ public sealed partial class RelationTreeViewModel : ObservableObject
     private readonly IReadOnlyDictionary<string, IReadOnlyList<RelationEdge>> graph;
     private readonly IReadOnlyDictionary<string, string> names;
     private readonly HashSet<string> known;
+    private readonly HashSet<string> missing;
     private readonly Action<string>? navigate;
 
     public RelationTreeViewModel(
@@ -35,12 +37,14 @@ public sealed partial class RelationTreeViewModel : ObservableObject
         IReadOnlyDictionary<string, IReadOnlyList<RelationEdge>> graph,
         IReadOnlyDictionary<string, string>? names = null,
         IEnumerable<string>? knownIdentifiers = null,
-        Action<string>? navigate = null)
+        Action<string>? navigate = null,
+        IEnumerable<string>? missingIdentifiers = null)
     {
         RootIdentifier = rootIdentifier;
         this.graph = graph ?? new Dictionary<string, IReadOnlyList<RelationEdge>>();
         this.names = names ?? new Dictionary<string, string>();
         known = new(knownIdentifiers ?? this.graph.Keys, StringComparer.OrdinalIgnoreCase);
+        missing = new(missingIdentifiers ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
         this.navigate = navigate;
         Rebuild();
     }
@@ -56,20 +60,25 @@ public sealed partial class RelationTreeViewModel : ObservableObject
     /// <summary>可视化天体轨道关系网引力连线集合。</summary>
     public ObservableCollection<RelationGraphEdge> GraphEdges { get; } = new();
 
+    /// <summary>当前实际存在的分类计数胶囊（同时充当筛选入口，仅展示有内容的分类）。</summary>
+    public ObservableCollection<RelationKindChip> KindChips { get; } = new();
+
     public IReadOnlyList<RelationLegendItem> Legends => DefaultLegends;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DirectionButtonText))]
     [NotifyPropertyChangedFor(nameof(DirectionStatusText))]
+    [NotifyPropertyChangedFor(nameof(DirectionChipText))]
     private bool isReverse;
 
     [ObservableProperty]
     private string statusText = string.Empty;
 
-    /// <summary>当前视图模式：true 为可视化关系网 (Graph)，false 为传统层级树 (Tree)。默认开启关系网。</summary>
+    /// <summary>当前视图模式：true 为可视化关系网 (Graph)，false 为紧凑层级树 (Tree)。</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ViewModeButtonText))]
-    private bool isGraphView = true;
+    [NotifyPropertyChangedFor(nameof(IsTreeView))]
+    private bool isGraphView;
 
     /// <summary>当前选中的图谱节点。</summary>
     [ObservableProperty]
@@ -85,9 +94,38 @@ public sealed partial class RelationTreeViewModel : ObservableObject
 
     public string ViewModeButtonText => IsGraphView ? "树状图" : "关系网";
 
+    public bool IsTreeView => !IsGraphView;
+
+    /// <summary>方向切换胶囊的短文案。</summary>
+    public string DirectionChipText => IsReverse ? "反向关系" : "正向关系";
+
+    /// <summary>只有图谱包含多个模组的边时反向关系才有数据，详情面板（单键图谱）下隐藏反向切换。</summary>
+    public bool CanToggleDirection => graph.Count > 1;
+
+    public bool ShowDirectionStatus => CanToggleDirection;
+
+    public bool HasKindChips => KindChips.Count > 0;
+
+    public bool IsEmpty => Roots.Count == 0 || Roots[0].Children.Count == 0;
+
+    public int MissingDependencyCount => GetEdges(RootIdentifier)
+        .Count(e => e.Kind == RelationKind.Depends && !IsSatisfiedEdge(e));
+
+    public bool HasMissingDependencies => MissingDependencyCount > 0;
+
+    public string MissingDependencyText => MissingDependencyCount == 0
+        ? "全部必需依赖均已满足"
+        : $"{MissingDependencyCount} 项必需依赖尚未满足";
+
     partial void OnIsReverseChanged(bool value) => Rebuild();
 
-    partial void OnActiveKindFilterChanged(RelationKind? value) => ApplyFilter();
+    partial void OnActiveKindFilterChanged(RelationKind? value)
+    {
+        ApplyFilter();
+        RebuildTree();
+        SyncChipState();
+        NotifyDerived();
+    }
 
     public void ToggleExpanded(RelationNodeViewModel node) => node.IsExpanded = !node.IsExpanded;
 
@@ -115,6 +153,12 @@ public sealed partial class RelationTreeViewModel : ObservableObject
     private void ToggleViewMode() => IsGraphView = !IsGraphView;
 
     [RelayCommand]
+    private void ShowTreeView() => IsGraphView = false;
+
+    [RelayCommand]
+    private void ShowGraphView() => IsGraphView = true;
+
+    [RelayCommand]
     public void FilterKind(RelationKind? kind)
     {
         ActiveKindFilter = ActiveKindFilter == kind ? null : kind;
@@ -124,6 +168,51 @@ public sealed partial class RelationTreeViewModel : ObservableObject
     {
         RebuildTree();
         RebuildGraph();
+        RebuildChips();
+        NotifyDerived();
+    }
+
+    private void RebuildChips()
+    {
+        var counts = new Dictionary<RelationKind, int>();
+        foreach (var edge in GetEdges(RootIdentifier))
+        {
+            counts.TryGetValue(edge.Kind, out var current);
+            counts[edge.Kind] = current + 1;
+        }
+
+        KindChips.Clear();
+        foreach (var legend in DefaultLegends)
+        {
+            if (!counts.TryGetValue(legend.Kind, out var count) || count <= 0)
+            {
+                continue;
+            }
+
+            KindChips.Add(new RelationKindChip(legend.Kind, legend.Label, count, legend.ColorTokenKey, legend.Description)
+            {
+                IsActive = ActiveKindFilter == legend.Kind
+            });
+        }
+    }
+
+    private void SyncChipState()
+    {
+        foreach (var chip in KindChips)
+        {
+            chip.IsActive = ActiveKindFilter == chip.Kind;
+        }
+    }
+
+    private void NotifyDerived()
+    {
+        OnPropertyChanged(nameof(HasKindChips));
+        OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(MissingDependencyCount));
+        OnPropertyChanged(nameof(HasMissingDependencies));
+        OnPropertyChanged(nameof(MissingDependencyText));
+        OnPropertyChanged(nameof(CanToggleDirection));
+        OnPropertyChanged(nameof(ShowDirectionStatus));
     }
 
     private void RebuildTree()
@@ -175,7 +264,7 @@ public sealed partial class RelationTreeViewModel : ObservableObject
         {
             if (string.Equals(edge.Target, RootIdentifier, StringComparison.OrdinalIgnoreCase)) continue;
 
-            if (distinctTargetMap.TryGetValue(edge.Target, out var existing))
+            if (distinctTargetMap.TryGetValue(edge.Target, out _))
             {
                 // 保留优先级更高的分类 (Conflicts > Depends > Recommends > Others)
                 if (edge.Kind == RelationKind.Conflicts || edge.Kind == RelationKind.Incompatible)
@@ -237,7 +326,8 @@ public sealed partial class RelationTreeViewModel : ObservableObject
                 isKnown ? NameOf(id) : $"{id}（未知）",
                 edge.Kind,
                 isRoot: false,
-                isKnown: isKnown)
+                isKnown: isKnown,
+                isSatisfied: edge.IsSatisfied)
             {
                 OrbitRing = ringIndex,
                 OrbitAngle = angle,
@@ -250,6 +340,9 @@ public sealed partial class RelationTreeViewModel : ObservableObject
             GraphEdges.Add(new RelationGraphEdge(rootNode, node, edge.Kind));
         }
     }
+
+    /// <summary>边的满足状态：显式标记优先，其次回落到调用方给出的缺失集合。</summary>
+    private bool IsSatisfiedEdge(RelationEdge edge) => edge.IsSatisfied && !missing.Contains(edge.Target);
 
     private void ApplyFilter()
     {
@@ -272,7 +365,7 @@ public sealed partial class RelationTreeViewModel : ObservableObject
         {
             return graph.SelectMany(pair => pair.Value
                 .Where(e => string.Equals(e.Target, current, StringComparison.OrdinalIgnoreCase))
-                .Select(e => new RelationEdge(e.Kind, pair.Key)));
+                .Select(e => new RelationEdge(e.Kind, pair.Key, e.IsSatisfied)));
         }
 
         if (graph.TryGetValue(current, out var values))
@@ -296,7 +389,15 @@ public sealed partial class RelationTreeViewModel : ObservableObject
         var edges = GetEdges(current);
         foreach (var group in edges.GroupBy(e => e.Kind))
         {
-            var category = new RelationNodeViewModel(string.Empty, Label(group.Key, IsReverse), group.Key);
+            if (ActiveKindFilter.HasValue && group.Key != ActiveKindFilter.Value)
+            {
+                continue;
+            }
+
+            var category = new RelationNodeViewModel(string.Empty, Label(group.Key, IsReverse), group.Key)
+            {
+                Count = group.Count()
+            };
             parent.Children.Add(category);
 
             foreach (var edge in group)
@@ -305,7 +406,10 @@ public sealed partial class RelationTreeViewModel : ObservableObject
                 var isKnown = known.Contains(id);
                 var cycle = visited.Contains(id);
                 var truncated = depth + 1 >= MaximumDepth && !cycle;
-                var child = new RelationNodeViewModel(id, isKnown ? NameOf(id) : $"{id}（未知）", group.Key, isKnown, truncated);
+                var child = new RelationNodeViewModel(id, isKnown ? NameOf(id) : $"{id}（未知）", group.Key, isKnown, truncated)
+                {
+                    IsMissing = group.Key == RelationKind.Depends && !IsSatisfiedEdge(edge)
+                };
                 category.Children.Add(child);
 
                 if (cycle || truncated || !isKnown)

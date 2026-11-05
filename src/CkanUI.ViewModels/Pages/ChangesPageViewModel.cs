@@ -1,6 +1,8 @@
 using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.ViewModels.Dialogs.Mods;
+using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Pages.Changes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -34,6 +36,10 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     private readonly IModDialogService? _modDialogs;
     private readonly IUiSettingsStore? _settingsStore;
     private readonly IRepositoryService? _repository;
+    private readonly INavigationService? _navigation;
+
+    /// <summary>进度写入的串行闸门：线程池回调可能并发/乱序，判定与写入必须原子。</summary>
+    private readonly object _progressGate = new();
 
     private CancellationTokenSource? _applyCts;
     private int _buildVersion;
@@ -41,6 +47,12 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     private bool _gameRunning;
     private bool _ignoreGameRunning;
     private bool _recommendationsHandled;
+
+    /// <summary>
+    /// 失败时状态栏那一行的措辞（按阶段区分：计算失败 / 执行失败 / 执行异常）。
+    /// 为空则回退到 <see cref="ChangesFormatter.StateText"/> 的通用文案。
+    /// </summary>
+    private string? _failureHeadline;
 
     /// <summary>设计器 / 无参构造：不连任何服务，只展示空状态。</summary>
     public ChangesPageViewModel()
@@ -59,7 +71,8 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         IInstanceService? instances = null,
         IModDialogService? modDialogs = null,
         IUiSettingsStore? settingsStore = null,
-        IRepositoryService? repository = null)
+        IRepositoryService? repository = null,
+        INavigationService? navigation = null)
     {
         _changeSets = changeSets;
         _installer = installer;
@@ -71,6 +84,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         _modDialogs = modDialogs;
         _settingsStore = settingsStore;
         _repository = repository;
+        _navigation = navigation;
     }
 
     /// <inheritdoc />
@@ -109,6 +123,10 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     /// <summary>执行进度百分比（0–100）。</summary>
     [ObservableProperty]
     private double _executionPercent;
+
+    /// <summary>执行阶段短标签（「下载 3/12」「安装 2/5」）；没有阶段信息时是空串。</summary>
+    [ObservableProperty]
+    private string _progressStageText = string.Empty;
 
     /// <summary>执行结果明细节（失败清单 / 成功汇总）。</summary>
     [ObservableProperty]
@@ -156,18 +174,41 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     /// <summary>冲突明细（逐条列出，红框展示）。</summary>
     public IReadOnlyList<string> Conflicts => Preview.Conflicts;
 
+    /// <summary>冲突条数（结构化条目优先；纯字符串列表是旧构造点的兼容兜底）。</summary>
+    public int ConflictCount => Preview.ConflictEntries.Count > 0
+        ? Preview.ConflictEntries.Count
+        : Preview.Conflicts.Count;
+
+    /// <summary>结构化冲突条目（带模组标识/名称，冲突详情弹窗用）。</summary>
+    public IReadOnlyList<ConflictEntry> ConflictEntries => Preview.ConflictEntries;
+
     /// <summary>冲突区标题（用文字说明冲突数量，不单靠颜色）。</summary>
     public string ConflictTitle => Preview.HasConflicts
-        ? Text("存在 {0} 个冲突，解决后才能开始", LocalizationKeys.ChangesConflictTitle, Preview.Conflicts.Count)
+        ? Text("存在 {0} 个冲突，解决后才能开始", LocalizationKeys.ChangesConflictTitle, ConflictCount)
         : string.Empty;
 
-    /// <summary>冲突区处理建议。</summary>
+    /// <summary>冲突区处理建议（必须给出下一步动作，不能只说「手动处理」）。</summary>
     public string ConflictHint => Text(
-        "冲突需手动处理，本页不自动裁决。",
+        "冲突需手动处理：到「模组」页取消勾选其中一个模组，或换用兼容版本后点「重新计算」。",
         LocalizationKeys.ChangesConflictHint);
+
+    /// <summary>
+    /// 冲突区行（带模组标识/名称）：界面不能再拿裸字符串渲染——冲突行必须说清"是哪个模组"，
+    /// 否则用户只能看到两行同义文案，既分不清条目也找不到出处。
+    /// </summary>
+    public IReadOnlyList<ConflictRowViewModel> ConflictRows => ConflictEntries.Count > 0
+        ? ConflictEntries.Select(entry => new ConflictRowViewModel(entry)).ToList()
+        : Conflicts.Select(description => new ConflictRowViewModel(new ConflictEntry(Description: description))).ToList();
 
     /// <summary>是否有告警（不阻断执行，但要显式展示）。</summary>
     public bool HasWarnings => Preview.Warnings.Count > 0;
+
+    /// <summary>
+    /// 告警里是否包含"下载缓存目录不可读"这一类（E1）。
+    /// 只有这一条才该给「打开缓存设置」的出口；别的提示（忽略卸载、推荐项冲突）给缓存按钮就是误导。
+    /// </summary>
+    public bool HasDownloadCacheWarning => Preview.Warnings.Any(
+        warning => warning.Contains("下载缓存", StringComparison.Ordinal));
 
     /// <summary>告警明细。</summary>
     public IReadOnlyList<string> Warnings => Preview.Warnings;
@@ -184,6 +225,18 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     /// <summary>"仍要执行"按钮文案。</summary>
     public string ApplyAnywayButtonText => Text("仍要执行", LocalizationKeys.ChangesApplyAnywayButtonText);
 
+    /// <summary>冲突的出路按钮文案（本页不裁决，但必须给可执行动作）。</summary>
+    public string GoToModsButtonText => Text("去模组页处理", LocalizationKeys.ChangesGoToModsButtonText);
+
+    /// <summary>下载缓存警告的出路按钮文案。</summary>
+    public string OpenCacheSettingsButtonText =>
+        Text("打开缓存设置", LocalizationKeys.ChangesOpenCacheSettingsButtonText);
+
+    /// <summary>下载缓存警告的下一步说明（不给路径就没有缓存折算，提示必须带动作）。</summary>
+    public string WarningCacheHint => Text(
+        "在「设置 → 下载缓存目录」里指向有效的缓存目录后，点「重新计算」即可按缓存折算体积。",
+        LocalizationKeys.ChangesWarningCacheHint);
+
     /// <summary>游戏运行横幅说明（03 篇 §4：运行中安装会与游戏争用文件）。</summary>
     public string GameRunningHint => Text(
         "当前实例的游戏进程还在运行，安装/卸载可能与游戏争用文件并导致模组损坏。建议先完全退出游戏；确实要继续请点「仍要执行」。",
@@ -197,14 +250,35 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     /// <summary>状态徽章文案。</summary>
     public string StateBadgeText => ChangesFormatter.StateBadge(State);
 
-    /// <summary>状态说明文本（03 篇 §9：双通道，颜色之外必须有字）。</summary>
-    public string StateText => ChangesFormatter.StateText(State, ExecutionPercent);
+    /// <summary>
+    /// 状态说明文本（03 篇 §9：双通道，颜色之外必须有字）。
+    /// 失败态优先用按阶段定制的措辞：同一个「失败」在计算阶段与执行阶段是两件事，
+    /// 不能都用「应用变更失败」，也不能把原因再抄一遍（原因由错误栏唯一承载）。
+    /// </summary>
+    public string StateText => State == ChangeExecutionState.Failed && _failureHeadline is { } headline
+        ? headline
+        : ChangesFormatter.StateText(State, ExecutionPercent);
 
     /// <summary>是否正在执行（下载/安装）。</summary>
     public bool IsApplying => State == ChangeExecutionState.Applying;
 
     /// <summary>是否有后台计算/执行在进行（禁用会打架的按钮）。</summary>
     public bool IsBusy => State is ChangeExecutionState.Computing or ChangeExecutionState.Applying;
+
+    /// <summary>
+    /// 进度条是否可见：执行中一直显示，执行结束后保留最终进度（不能一完成就把进度条抽走）。
+    /// 重新计算或回到空状态时隐藏。
+    /// </summary>
+    public bool IsProgressVisible => State is ChangeExecutionState.Applying
+        or ChangeExecutionState.Done
+        or ChangeExecutionState.Failed
+        or ChangeExecutionState.Cancelled;
+
+    /// <summary>是否要显示阶段徽标（「下载 3/12」）。</summary>
+    public bool HasProgressStage => !string.IsNullOrWhiteSpace(ProgressStageText);
+
+    /// <summary>是否有后端实时文案（空文案不该占一行）。</summary>
+    public bool HasStatusText => !string.IsNullOrWhiteSpace(StatusText);
 
     /// <summary>进度文本。</summary>
     public string ProgressText => string.Create(
@@ -218,11 +292,16 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
     public bool HasErrorText => !string.IsNullOrWhiteSpace(LastErrorText);
 
     /// <summary>是否具备开始执行的前提：有变更项、无冲突、不在计算/执行中、且没有刚执行完待刷新的结果。</summary>
+    /// <remarks>
+    /// 失败态也排除：那时正确的动作是错误栏里的「重试」（重跑同一次执行），
+    /// 再摆一个「开始」按钮只是把同一个动作换个名字重复一遍。
+    /// </remarks>
     public bool CanApply => HasRows
                             && !HasConflicts
                             && !HasGameRunningWarning
                             && State is not (ChangeExecutionState.Computing
                                 or ChangeExecutionState.Applying
+                                or ChangeExecutionState.Failed
                                 or ChangeExecutionState.Done);
 
     /// <summary>是否可以取消（只有执行中可取消；下载中立即停，安装中等待回滚）。</summary>
@@ -233,6 +312,12 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
                            && HasRows
                            && !HasConflicts
                            && !HasGameRunningWarning;
+
+    /// <summary>
+    /// 状态栏是否显示「开始」按钮。失败态隐藏：那一屏的正确动作是错误栏里的「重试」，
+    /// 留一个灰掉的「开始」只会让人猜「这两个到底差在哪」。
+    /// </summary>
+    public bool ShowApplyButton => !IsApplying && !CanRetry;
 
     /// <summary>空状态标题（03 篇 §10）。</summary>
     public string EmptyStateTitle => Text("还没有待应用的变更", LocalizationKeys.ChangesEmptyStateTitle);
@@ -459,6 +544,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         }
 
         State = ChangeExecutionState.Computing;
+        ProgressStageText = string.Empty;
         StatusText = ChangesFormatter.StateText(ChangeExecutionState.Computing, 0);
         RefreshDerived();
 
@@ -484,9 +570,13 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
             else
             {
                 Preview = ChangesFormatter.EmptyPreview;
+                _failureHeadline = Text("计算变更集失败，原因见错误栏。", LocalizationKeys.ChangesErrorBuildFailed);
                 State = ChangeExecutionState.Failed;
-                StatusText = result.Message ?? Text("计算变更集失败，请查看错误栏。", LocalizationKeys.ChangesErrorBuildFailed);
-                _errors.Report("计算变更集", StatusText, result.Detail);
+                StatusText = string.Empty;
+                _errors.Report(
+                    "计算变更集",
+                    result.Message ?? Text("未返回具体原因。", LocalizationKeys.ChangesErrorUnknownReason),
+                    result.Detail);
             }
         }
         catch (Exception ex)
@@ -497,9 +587,10 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
             }
 
             Preview = ChangesFormatter.EmptyPreview;
+            _failureHeadline = Text("计算变更集失败，原因见错误栏。", LocalizationKeys.ChangesErrorBuildFailed);
             State = ChangeExecutionState.Failed;
-            StatusText = Text("计算变更集失败，请查看错误栏。", LocalizationKeys.ChangesErrorBuildFailed);
-            _errors.Report(ex, "计算变更集", Text("计算变更集时发生错误。", LocalizationKeys.ChangesErrorBuildException));
+            StatusText = string.Empty;
+            _errors.Report(ex, "计算变更集", Text("计算变更集时发生错误：{0}", LocalizationKeys.ChangesErrorBuildException, ex.Message));
         }
         finally
         {
@@ -537,30 +628,66 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
             return;
         }
 
-        ExecutionPercent = Math.Clamp(progress.Percent, 0, 100);
-        StatusText = string.IsNullOrWhiteSpace(progress.Message)
-            ? string.Create(
-                System.Globalization.CultureInfo.CurrentCulture,
-                $"{progress.Title}… {ExecutionPercent:0}%")
-            : progress.Message!;
+        var percent = Math.Clamp(progress.Percent, 0, 100);
+
+        // Progress<T> 在没有同步上下文时把回调丢到线程池，多条进度可能并发、也可能乱序：
+        // 并发会让"先判后写"失效（旧进度读到旧值后照样落盘），乱序会让进度条与阶段徽标倒退。
+        // 这里用一把锁把"判定 + 写入"合成一个原子动作：旧进度直接丢弃，新进度整体生效。
+        lock (_progressGate)
+        {
+            if (State == ChangeExecutionState.Applying && percent < ExecutionPercent)
+            {
+                return;
+            }
+
+            ExecutionPercent = percent;
+            if (!string.IsNullOrWhiteSpace(progress.StageLabel))
+            {
+                ProgressStageText = progress.StageLabel!;
+            }
+
+            StatusText = string.IsNullOrWhiteSpace(progress.Message)
+                ? string.Create(
+                    System.Globalization.CultureInfo.CurrentCulture,
+                    $"{progress.Title}… {ExecutionPercent:0}%")
+                : progress.Message!;
+        }
+
         OnPropertyChanged(nameof(StateText));
         OnPropertyChanged(nameof(ProgressText));
     }
 
-    private async Task ApplyInstallResultAsync(OperationResult<InstallReport> result)
+    /// <summary>收口一次执行结果；返回 true 表示「用户刚选完依赖提供者，应原样重跑」。</summary>
+    private async Task<bool> ApplyInstallResultAsync(OperationResult<InstallReport> result)
     {
+        // 「依赖有多个提供者」不是失败：后端什么都没改，只差一次用户裁决。
+        // 走已有的选择框（F-35），选完自动重跑；绝不能落成失败态，否则一屏四条同义的「未执行任何操作」。
+        if (result.PendingChoice is { } pendingChoice)
+        {
+            return await HandlePendingChoiceAsync(pendingChoice).ConfigureAwait(true);
+        }
+
         if (!result.IsSuccess || result.Value is not { } report)
         {
+            // 失败只在一处说：底部状态栏一行说「失败了」，错误条说「为什么 + 重试」。
+            // result.Detail（往往是上游原始异常文本）只进错误条，不再冒充「执行结果」——
+            // 那句问句就是这么跑到结果区的。
+            _failureHeadline = Text("应用变更失败，原因见错误栏。", LocalizationKeys.ChangesErrorApplyFailed);
             State = ChangeExecutionState.Failed;
-            StatusText = result.Message ?? Text("应用变更失败，请查看错误栏。", LocalizationKeys.ChangesErrorApplyFailed);
-            ResultText = ChangesFormatter.Lines(result.Detail is null ? null : new[] { result.Detail });
-            _errors.Report("应用变更集", StatusText, result.Detail);
-            return;
+            StatusText = string.Empty;
+            ResultText = string.Empty;
+            _errors.Report(
+                "应用变更集",
+                result.Message ?? Text("未返回具体原因。", LocalizationKeys.ChangesErrorUnknownReason),
+                result.Detail);
+            return false;
         }
 
         ExecutionPercent = 100;
         ResultText = ChangesFormatter.Lines(BuildResultLines(report));
-        if (report.IsFullSuccess)
+
+        // 只有提示（Warnings）、没有失败（Failed）算成功：不落失败态、不给「重试」。
+        if (report.Failed.Count == 0)
         {
             State = ChangeExecutionState.Done;
             StatusText = ChangesFormatter.InstallResult(report);
@@ -569,12 +696,46 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
 
             // 卸载收尾（12 篇 F-43）：只有后端报了残留目录、且宿主给了对话框与当前实例才弹。
             await ShowResidualCleanupAsync(report).ConfigureAwait(true);
-            return;
+            return false;
         }
 
+        // 部分失败同样只在一处说：汇总（成功/失败/提示 + 安装移除数）进错误条，状态栏只说「失败了」。
+        _failureHeadline = Text("部分变更失败，原因见错误栏。", LocalizationKeys.ChangesErrorApplyPartialFailed);
         State = ChangeExecutionState.Failed;
-        StatusText = ChangesFormatter.InstallResult(report);
-        _errors.Report("应用变更集", StatusText, ResultText);
+        StatusText = string.Empty;
+        _errors.Report("应用变更集", ChangesFormatter.InstallResult(report), ResultText);
+        return false;
+    }
+
+    /// <summary>
+    /// 「依赖有多个提供者」的用户裁决闭环（对齐上游 GUI/Main/MainInstall.cs:348-385）：
+    /// 弹出选择框 → 选中即把提供者并进待装集合并自动重跑 → 取消则退回可操作状态，不落失败、不报错误。
+    /// </summary>
+    private async Task<bool> HandlePendingChoiceAsync(VirtualModuleRequest pendingChoice)
+    {
+        var choice = await SelectVirtualModuleAsync(pendingChoice).ConfigureAwait(true);
+
+        if (choice is null)
+        {
+            // 用户放弃选择：这不是故障，是他主动停手。退回可操作状态，让他自己改变更集。
+            State = ChangeExecutionState.Ready;
+            StatusText = Text("已取消选择依赖提供者，未执行任何操作。", LocalizationKeys.ChangesStatusVirtualModuleCancelled);
+            ResultText = string.Empty;
+            return false;
+        }
+
+        if (!CanApply)
+        {
+            // 选完提供者后重新规划可能带出新的冲突：交给冲突区展示，这里只说一句「还需要你处理」。
+            StatusText = Text(
+                "已选定「{0}」作为提供者，但变更集还需处理冲突后才能继续。",
+                LocalizationKeys.ChangesStatusVirtualModuleNeedsAttention,
+                choice.Name);
+            return false;
+        }
+
+        // 选择已并入变更集：交回给 ApplyAsync 的循环原样重跑，用户不用再点一次「开始」。
+        return true;
     }
 
     /// <summary>卸载成功后询问是否清理残留目录（12 篇 F-43）；任何缺失都静默跳过，不影响安装结果。</summary>
@@ -655,21 +816,29 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         OnPropertyChanged(nameof(DownloadText));
         OnPropertyChanged(nameof(HasConflicts));
         OnPropertyChanged(nameof(Conflicts));
+        OnPropertyChanged(nameof(ConflictCount));
+        OnPropertyChanged(nameof(ConflictEntries));
+        OnPropertyChanged(nameof(ConflictRows));
         OnPropertyChanged(nameof(ConflictTitle));
         OnPropertyChanged(nameof(ConflictHint));
         OnPropertyChanged(nameof(HasWarnings));
+        OnPropertyChanged(nameof(HasDownloadCacheWarning));
         OnPropertyChanged(nameof(Warnings));
         OnPropertyChanged(nameof(WarningTitle));
         OnPropertyChanged(nameof(StateBadgeText));
         OnPropertyChanged(nameof(StateText));
         OnPropertyChanged(nameof(IsApplying));
         OnPropertyChanged(nameof(IsBusy));
+        OnPropertyChanged(nameof(HasStatusText));
+        OnPropertyChanged(nameof(IsProgressVisible));
+        OnPropertyChanged(nameof(HasProgressStage));
         OnPropertyChanged(nameof(ProgressText));
         OnPropertyChanged(nameof(HasResult));
         OnPropertyChanged(nameof(HasErrorText));
         OnPropertyChanged(nameof(CanApply));
         OnPropertyChanged(nameof(CanCancel));
         OnPropertyChanged(nameof(CanRetry));
+        OnPropertyChanged(nameof(ShowApplyButton));
         OnPropertyChanged(nameof(EmptyStateTitle));
         OnPropertyChanged(nameof(EmptyStateHint));
         OnPropertyChanged(nameof(IsGameRunning));
@@ -688,7 +857,16 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         RefreshDerived();
     }
 
-    partial void OnStateChanged(ChangeExecutionState value) => RefreshDerived();
+    partial void OnStateChanged(ChangeExecutionState value)
+    {
+        // 离开失败态就丢掉阶段措辞：下一次失败必须由当次分支重新给，不能继承上一轮的文案。
+        if (value != ChangeExecutionState.Failed)
+        {
+            _failureHeadline = null;
+        }
+
+        RefreshDerived();
+    }
 
     partial void OnExecutionPercentChanged(double value)
     {
@@ -792,30 +970,43 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         _applyCts = new CancellationTokenSource();
         var token = _applyCts.Token;
 
-        State = ChangeExecutionState.Applying;
-        ExecutionPercent = 0;
-        ResultText = string.Empty;
-        StatusText = ChangesFormatter.StateText(ChangeExecutionState.Applying, 0);
-        RefreshDerived();
-
         try
         {
-            var progress = new Progress<OperationProgress>(OnProgressReported);
-            var result = await _installer.ApplyAsync(Preview, progress, token).ConfigureAwait(true);
-            await ApplyInstallResultAsync(result).ConfigureAwait(true);
+            // 循环而不是递归：用户选完依赖提供者后原样重跑同一份变更集，
+            // 用同一个取消令牌把「弹框等选择」和「真正的安装」串成一次逻辑操作。
+            var retry = true;
+            while (retry)
+            {
+                retry = false;
+
+                State = ChangeExecutionState.Applying;
+                ExecutionPercent = 0;
+                ResultText = string.Empty;
+                // 状态栏第一行已经写着「正在应用变更… 0%」，第二行留空等后端的第一条实时文案，
+                // 否则同一句话上下相邻出现两遍。
+                StatusText = string.Empty;
+                RefreshDerived();
+
+                var progress = new Progress<OperationProgress>(OnProgressReported);
+                var result = await _installer.ApplyAsync(Preview, progress, token).ConfigureAwait(true);
+                retry = await ApplyInstallResultAsync(result).ConfigureAwait(true);
+            }
         }
         catch (OperationCanceledException)
         {
             State = ChangeExecutionState.Cancelled;
-            StatusText = ChangesFormatter.StateText(ChangeExecutionState.Cancelled, ExecutionPercent);
+            // 「已取消：Core 已回滚本次事务，游戏目录保持原样。」由状态栏第一行说，这里不再抄一遍。
+            StatusText = string.Empty;
             ResultText = Text("本次事务已回滚，游戏目录未被改动。", LocalizationKeys.ChangesResultRolledBack);
         }
         catch (Exception ex)
         {
+            _failureHeadline = Text("应用变更时发生错误，原因见错误栏。", LocalizationKeys.ChangesErrorApplyExceptionStatus);
             State = ChangeExecutionState.Failed;
-            StatusText = Text("应用变更时发生错误，请查看错误栏。", LocalizationKeys.ChangesErrorApplyExceptionStatus);
-            ResultText = ex.Message;
-            _errors.Report(ex, "应用变更集", Text("应用变更时发生错误。", LocalizationKeys.ChangesErrorApplyException));
+            StatusText = string.Empty;
+            // 异常消息只进错误栏：它是「为什么失败」，不是「执行结果」。
+            ResultText = string.Empty;
+            _errors.Report(ex, "应用变更集", Text("应用变更时发生错误：{0}", LocalizationKeys.ChangesErrorApplyExceptionDetail, ex.Message));
         }
         finally
         {
@@ -880,7 +1071,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         }
 
         var bytes = Math.Max(0, Preview.EstimatedDownloadBytes - (row.Data.DownloadBytes ?? 0));
-        Preview = new ChangeSetPreview(remaining, Preview.Conflicts, bytes, Preview.Warnings);
+        Preview = Preview with { Items = remaining, EstimatedDownloadBytes = bytes };
         ExecutionPercent = 0;
         State = remaining.Count == 0 ? ChangeExecutionState.Idle : ChangeExecutionState.Ready;
         StatusText = remaining.Count == 0
@@ -904,9 +1095,10 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
             return;
         }
 
-        var entries = Conflicts
-            .Select(c => new ConflictEntry(Description: c))
-            .ToList();
+        // 结构化条目优先：带模组标识/名称，弹窗才答得出「是哪个模组」。
+        var entries = Preview.ConflictEntries.Count > 0
+            ? Preview.ConflictEntries.ToList()
+            : Conflicts.Select(c => new ConflictEntry(Description: c)).ToList();
 
         var request = new ConflictDetailsRequest(
             Message: ConflictHint ?? Text("检测到模组冲突", LocalizationKeys.ChangesConflictDialogTitle),
@@ -920,6 +1112,46 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
         catch (Exception ex)
         {
             _errors.Report(ex, "展示冲突详情", Text("展示冲突详情时发生错误。", LocalizationKeys.ChangesErrorShowConflictDetails));
+        }
+    }
+
+    /// <summary>冲突的出路：跳到「模组」页取消勾选其中一个模组（本页不自动裁决，但必须给出下一步）。</summary>
+    [RelayCommand]
+    private async Task GoToModsAsync()
+    {
+        if (_navigation is null)
+        {
+            StatusText = Text("导航服务尚未注入，请手动切到「模组」页处理冲突。", LocalizationKeys.ChangesErrorNoNavigation);
+            return;
+        }
+
+        try
+        {
+            await _navigation.NavigateAsync("mods").ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "跳转模组页", Text("跳转模组页时发生错误。", LocalizationKeys.ChangesErrorNavigateMods));
+        }
+    }
+
+    /// <summary>下载缓存警告的出路：跳到设置页修正下载缓存目录（没有路径就没有体积估算，光提示不解决问题）。</summary>
+    [RelayCommand]
+    private async Task OpenDownloadCacheAsync()
+    {
+        if (_navigation is null)
+        {
+            StatusText = Text("导航服务尚未注入，请手动到「设置 → 下载缓存目录」修正路径。", LocalizationKeys.ChangesErrorNoNavigation);
+            return;
+        }
+
+        try
+        {
+            await _navigation.NavigateAsync("settings").ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _errors.Report(ex, "打开缓存设置", Text("跳转设置页时发生错误。", LocalizationKeys.ChangesErrorNavigateSettings));
         }
     }
 
@@ -1078,7 +1310,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
                     }
                 }
 
-                Preview = new ChangeSetPreview(items, Preview.Conflicts, Preview.EstimatedDownloadBytes, Preview.Warnings);
+                Preview = Preview with { Items = items };
                 State = Preview.Items.Count == 0 ? ChangeExecutionState.Idle : ChangeExecutionState.Ready;
                 RefreshDerived();
             }
@@ -1176,7 +1408,7 @@ public sealed partial class ChangesPageViewModel : PageViewModel, IChangeRequest
                     {
                         items.Add(new ChangeItemDto(choice.Identifier, choice.Name, ChangeAction.Install, null, null, ChangeOrigin.UserRequested, 0));
                     }
-                    Preview = new ChangeSetPreview(items, Preview.Conflicts, Preview.EstimatedDownloadBytes, Preview.Warnings);
+                    Preview = Preview with { Items = items };
                     State = Preview.Items.Count == 0 ? ChangeExecutionState.Idle : ChangeExecutionState.Ready;
                     RefreshDerived();
                 }

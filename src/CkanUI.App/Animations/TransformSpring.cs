@@ -22,12 +22,17 @@ public sealed class TransformSpring : IMotionTicker
     private readonly TransformGroup _group = new();
     private readonly TranslateTransform _translate = new();
     private readonly ScaleTransform _scale = new() { ScaleX = 1, ScaleY = 1 };
+    private readonly SkewTransform _skew = new();
+    private readonly RotateTransform _rotate = new();
     private readonly SpringChannel _x;
     private readonly SpringChannel _y;
     private readonly SpringChannel _scaleX;
     private readonly SpringChannel _scaleY;
 
     private SpringChannel? _opacity;
+    private SpringChannel? _skewX;
+    private SpringChannel? _skewY;
+    private SpringChannel? _rotateAngle;
     private TopLevel? _topLevel;
     private bool _waitingForTree;
 
@@ -38,6 +43,8 @@ public sealed class TransformSpring : IMotionTicker
         _target = target;
         _group.Children.Add(_scale);
         _group.Children.Add(_translate);
+        _group.Children.Add(_skew);
+        _group.Children.Add(_rotate);
         _target.RenderTransform = _group;
 
         if (_target.RenderTransformOrigin.Equals(RelativePoint.TopLeft))
@@ -65,6 +72,9 @@ public sealed class TransformSpring : IMotionTicker
         double? scaleX = null,
         double? scaleY = null,
         double? opacity = null,
+        double? skewX = null,
+        double? skewY = null,
+        double? rotateAngle = null,
         double hold = 0,
         bool snap = false)
     {
@@ -97,16 +107,40 @@ public sealed class TransformSpring : IMotionTicker
             Retarget(_opacity, Math.Clamp(opacity.Value, 0, 1), instant, hold);
         }
 
+        if (skewX.HasValue)
+        {
+            _skewX ??= new SpringChannel(0, SpringSpec.Snappy, 0.005, 0.02);
+            Retarget(_skewX, skewX.Value, instant, hold);
+        }
+
+        if (skewY.HasValue)
+        {
+            _skewY ??= new SpringChannel(0, SpringSpec.Snappy, 0.005, 0.02);
+            Retarget(_skewY, skewY.Value, instant, hold);
+        }
+
+        if (rotateAngle.HasValue)
+        {
+            _rotateAngle ??= new SpringChannel(0, SpringSpec.Snappy, 0.005, 0.02);
+            Retarget(_rotateAngle, rotateAngle.Value, instant, hold);
+        }
+
         Apply();
 
         if (instant)
         {
             SnapAll();
+            return;
         }
-        else
+
+        if (IsSettled)
         {
-            Start();
+            // 目标正好落在当前姿态上：这一枪不会跑，别把刚收回来的变换又挂成恒等层。
+            ReleaseIdentityTransform();
+            return;
         }
+
+        Start();
     }
 
     /// <summary>在当前状态上叠加一次冲量（校验抖动、导航追赶）。</summary>
@@ -146,9 +180,11 @@ public sealed class TransformSpring : IMotionTicker
     /// <summary>四通道都停住时触发（每次从"在动"变成"静止"发一次）。</summary>
     public event EventHandler? Settled;
 
-    /// <summary>四通道是否都停住了；正在等 hold 排队的也算没停。</summary>
+    /// <summary>各通道是否都停住了；正在等 hold 排队的也算没停。</summary>
     public bool IsSettled =>
-        !_x.IsMoving && !_y.IsMoving && !_scaleX.IsMoving && !_scaleY.IsMoving && _opacity?.IsMoving != true;
+        !_x.IsMoving && !_y.IsMoving && !_scaleX.IsMoving && !_scaleY.IsMoving &&
+        _opacity?.IsMoving != true &&
+        _skewX?.IsMoving != true && _skewY?.IsMoving != true && _rotateAngle?.IsMoving != true;
 
     /// <summary>手动推进一帧（帧泵与测试共用；正常情况下由 <see cref="MotionFramePump"/> 驱动）。</summary>
     /// <param name="seconds">帧间隔（秒）。</param>
@@ -181,10 +217,28 @@ public sealed class TransformSpring : IMotionTicker
             moving |= _opacity.Advance(seconds);
         }
 
+        if (_skewX is not null)
+        {
+            moving |= _skewX.Advance(seconds);
+        }
+
+        if (_skewY is not null)
+        {
+            moving |= _skewY.Advance(seconds);
+        }
+
+        if (_rotateAngle is not null)
+        {
+            moving |= _rotateAngle.Advance(seconds);
+        }
+
         Apply();
 
         if (!moving)
         {
+            // 停在恒等姿态还挂着 RenderTransform，控件会被合成器单独开一层；
+            // 快速拖动滚动条时这些层来不及失效，屏幕上就留下一片空白。
+            ReleaseIdentityTransform();
             _topLevel = null;
             Settled?.Invoke(this, EventArgs.Empty);
         }
@@ -244,8 +298,30 @@ public sealed class TransformSpring : IMotionTicker
         _scaleX.SnapTo(_scaleX.Target);
         _scaleY.SnapTo(_scaleY.Target);
         _opacity?.SnapTo(_opacity.Target);
+        _skewX?.SnapTo(_skewX.Target);
+        _skewY?.SnapTo(_skewY.Target);
+        _rotateAngle?.SnapTo(_rotateAngle.Target);
         Apply();
         _topLevel = null;
+    }
+
+    /// <summary>弹簧停在恒等姿态时把 RenderTransform 摘掉，别让控件白背一层合成层。</summary>
+    private void ReleaseIdentityTransform()
+    {
+        if (!ReferenceEquals(_target.RenderTransform, _group))
+        {
+            return;
+        }
+
+        if (_x.Value != 0d || _y.Value != 0d
+            || _scaleX.Value != 1d || _scaleY.Value != 1d
+            || (_skewX?.Value ?? 0d) != 0d || (_skewY?.Value ?? 0d) != 0d
+            || (_rotateAngle?.Value ?? 0d) != 0d)
+        {
+            return;
+        }
+
+        _target.RenderTransform = null;
     }
 
     private void Apply()
@@ -254,6 +330,17 @@ public sealed class TransformSpring : IMotionTicker
         _translate.Y = _y.Value;
         _scale.ScaleX = _scaleX.Value;
         _scale.ScaleY = _scaleY.Value;
+
+        if (_skewX is not null || _skewY is not null)
+        {
+            _skew.AngleX = _skewX?.Value ?? 0d;
+            _skew.AngleY = _skewY?.Value ?? 0d;
+        }
+
+        if (_rotateAngle is not null)
+        {
+            _rotate.Angle = _rotateAngle.Value;
+        }
 
         if (_opacity is not null)
         {

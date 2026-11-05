@@ -396,6 +396,120 @@ public sealed class AdapterJsonReaderTests
         });
     }
 
+private const string NodeAdapter = """
+        {
+          "schemaVersion": 1,
+          "id": "demo-node",
+          "name": "Demo Node",
+          "match": { "ckanIdentifiers": ["Demo"] },
+          "files": [
+            { "path": "GameData/Demo/settings.cfg", "layout": "node", "rootNode": "ROOT", "mode": "editable", "id": "settings" }
+          ],
+          "fields": [
+            { "file": "settings", "key": "enabled", "type": "bool", "default": true },
+            { "file": "settings", "nodePath": "CHILD", "key": "enabled", "type": "bool", "default": false },
+            { "file": "settings", "nodePath": "ROOT/GRANDCHILD", "key": "value", "type": "string" }
+          ]
+        }
+        """;
+
+    [Test]
+    public void Read_NodePath_ResolvesRelativeToRootNodeUnlessAbsolute()
+    {
+        var adapter = Read(NodeAdapter).Adapter!;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(adapter.Fields[0].NodePath, Is.Null, "不写 nodePath 就是根节点");
+            Assert.That(adapter.Fields[0].ResolveNodePath(adapter.Files[0]), Is.EqualTo("ROOT"));
+            Assert.That(adapter.Fields[1].ResolveNodePath(adapter.Files[0]), Is.EqualTo("ROOT/CHILD"),
+                "相对名链要拼在 rootNode 后面");
+            Assert.That(adapter.Fields[2].ResolveNodePath(adapter.Files[0]), Is.EqualTo("ROOT/GRANDCHILD"),
+                "以 / 开头或不以 / 开头但已含根名，都解析成同一条绝对名链");
+        });
+    }
+
+    [Test]
+    public void Read_NodePath_AllowsSameKeyInDifferentNodes()
+    {
+        // 同一个键名出现在根层和子节点里是合法配置，判重必须按节点分域，
+        // 否则真实文件里 "enabled 在 ROOT 与 ROOT/CHILD 各有一份" 会被误判成重复声明。
+        var result = Read(NodeAdapter);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsSuccess, Is.True, Describe(result));
+            Assert.That(result.Adapter!.Fields, Has.Count.EqualTo(3));
+            Assert.That(result.Diagnostics.Any(d => d.Code == "adapter-unknown-property"), Is.False,
+                "nodePath 是已知属性，不该触发未知属性告警：" + Describe(result));
+        });
+    }
+
+    [Test]
+    public void Read_NodePath_DuplicateWithinSameNode_IsRejected()
+    {
+        var json = NodeAdapter.Replace(
+            "\"nodePath\": \"CHILD\", \"key\": \"enabled\"",
+            "\"nodePath\": \"CHILD\", \"key\": \"enabled\"",
+            StringComparison.Ordinal)
+            .Replace(
+                "{ \"file\": \"settings\", \"key\": \"enabled\", \"type\": \"bool\", \"default\": true }",
+                "{ \"file\": \"settings\", \"key\": \"enabled\", \"type\": \"bool\" }, { \"file\": \"settings\", \"key\": \"enabled\", \"type\": \"bool\" }",
+                StringComparison.Ordinal);
+        var result = Read(json);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsSuccess, Is.False, "同一节点里同名键重复声明只会互相打架");
+            Assert.That(string.Join(" ", result.Diagnostics.Select(d => d.Message)), Does.Contain("重复声明"));
+        });
+    }
+
+    [Test]
+    public void Read_NodePath_WithEmptySegment_IsRejected()
+    {
+        var json = NodeAdapter.Replace("\"nodePath\": \"CHILD\"", "\"nodePath\": \"A//B\"", StringComparison.Ordinal);
+        var result = Read(json);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsSuccess, Is.False, "A//B 定位不到任何真实节点，写盘时会静默落空");
+            Assert.That(string.Join(" ", result.Diagnostics.Select(d => d.Message)), Does.Contain("nodePath"));
+        });
+    }
+
+    [Test]
+    public void Read_NodePath_OnNonNodeLayout_IsRejected()
+    {
+        var json = MinimalAdapter.Replace(
+            "\"file\": \"settings\", \"key\": \"enabled\"",
+            "\"file\": \"settings\", \"nodePath\": \"CHILD\", \"key\": \"enabled\"",
+            StringComparison.Ordinal);
+        var result = Read(json);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsSuccess, Is.False, "flat 文件的键全在根层，nodePath 只会让查找永远落空");
+            Assert.That(string.Join(" ", result.Diagnostics.Select(d => d.Message)), Does.Contain("nodePath"));
+            Assert.That(string.Join(" ", result.Diagnostics.Select(d => d.Message)), Does.Contain("flat"));
+        });
+    }
+
+    [Test]
+    public void Read_NodePath_BlankString_CountsAsRootAndCollides()
+    {
+        // 空白 nodePath 按"没写"处理，于是这个 enabled 与根层那个撞车；
+        // 用报错来证明它确实被归一成了根节点，而不是被当成一个叫 "   " 的节点。
+        var json = NodeAdapter.Replace("\"nodePath\": \"CHILD\"", "\"nodePath\": \"   \"", StringComparison.Ordinal);
+        var result = Read(json);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsSuccess, Is.False);
+            Assert.That(string.Join(" ", result.Diagnostics.Select(d => d.Message)), Does.Contain("重复声明"));
+        });
+    }
+
     [Test]
     public void Read_DuplicateKeyInSameFile_IsRejected()
     {
@@ -536,23 +650,32 @@ public sealed class AdapterJsonReaderTests
             Assert.That(adapter.Files[0].LineEnding, Is.EqualTo(ModConfigLineEndingPolicy.Preserve));
             Assert.That(adapter.Files[0].OnMissing, Is.EqualTo(ModConfigMissingFilePolicy.CreateFromTemplate));
             Assert.That(adapter.Files[0].Template, Is.EqualTo("fixtures/settings.default.cfg"));
-            Assert.That(adapter.Fields, Has.Count.EqualTo(3), "首版只收录已取证的 3 个键（见 README）");
+            Assert.That(adapter.Fields, Has.Count.EqualTo(29), "21 个根层键 + 3 个设置子节点里的 8 个键（见 README）");
             Assert.That(adapter.Match.CaseInsensitive, Is.True);
             Assert.That(adapter.ModVersionRange, Has.Count.EqualTo(2));
             Assert.That(adapter.IsUserProvided, Is.False);
         });
 
-        var language = adapter.Fields.Single(f => f.Key == "Language");
+        var root = adapter.Fields.Single(f => f.Key == "RefundingOnRecovery");
         Assert.Multiple(() =>
         {
-            Assert.That(language.Type, Is.EqualTo(ModConfigFieldType.Enum));
-            Assert.That(language.Values, Has.Count.EqualTo(6));
-            Assert.That(language.DefaultValue, Is.EqualTo("en-us"));
+            Assert.That(root.Type, Is.EqualTo(ModConfigFieldType.Bool));
+            Assert.That(root.DefaultValue, Is.EqualTo("true"));
+            Assert.That(root.NodePath, Is.Null, "根层键不写 nodePath");
+            Assert.That(root.ResolveNodePath(adapter.Files[0]), Is.EqualTo("KSP_COMMUNITY_FIXES"));
+        });
+
+        var nested = adapter.Fields.Single(f => f.Key == "ManeuverToolEnabledByDefault");
+        Assert.Multiple(() =>
+        {
+            Assert.That(nested.NodePath, Is.EqualTo("MANEUVER_TOOL_DEFAULTS"));
+            Assert.That(nested.ResolveNodePath(adapter.Files[0]), Is.EqualTo("KSP_COMMUNITY_FIXES/MANEUVER_TOOL_DEFAULTS"),
+                "nodePath 相对 rootNode 解析");
         });
     }
 
     [Test]
-    public void Read_BuiltinKerbalism_LoadsSkeletonAsReadonlyCustom()
+    public void Read_BuiltinKerbalism_DeclaresEditableSettingsNode()
     {
         var path = Path.Combine(ModConfigFixtures.BuiltinAdapterDirectory, "kerbalism", "adapter.json");
         var result = AdapterJsonReader.ReadFile(path);
@@ -564,11 +687,20 @@ public sealed class AdapterJsonReaderTests
         {
             Assert.That(adapter.Id, Is.EqualTo("kerbalism"));
             Assert.That(adapter.Files, Has.Count.EqualTo(1));
-            Assert.That(adapter.Files[0].Layout, Is.EqualTo(ModConfigFileLayout.Custom));
-            Assert.That(adapter.Files[0].Mode, Is.EqualTo(ModConfigWriteMode.ReadOnly));
-            Assert.That(adapter.Files[0].IsWritable, Is.False);
-            Assert.That(adapter.Files[0].ReadonlyReason, Is.Not.Null.And.Not.Empty);
-            Assert.That(adapter.Fields, Is.Empty, "骨架阶段不声明任何字段");
+            Assert.That(adapter.Files[0].Layout, Is.EqualTo(ModConfigFileLayout.Node));
+            Assert.That(adapter.Files[0].Mode, Is.EqualTo(ModConfigWriteMode.Editable));
+            Assert.That(adapter.Files[0].IsWritable, Is.True);
+            Assert.That(adapter.Files[0].ReadonlyReason, Is.Null);
+            Assert.That(adapter.Files[0].RootNode, Is.EqualTo("Kerbalism"));
+            Assert.That(adapter.Fields, Has.Count.EqualTo(41), "语料核对过 KerbalismConfig/Settings.cfg 的 41 个根键");
+
+            var profile = adapter.Fields.Single(f => f.Key == "Profile");
+            Assert.That(profile.Type, Is.EqualTo(ModConfigFieldType.String));
+            Assert.That(profile.Risk, Is.EqualTo(ModConfigFieldRisk.High), "换档案会整套替换玩法参数");
+
+            var threshold = adapter.Fields.Single(f => f.Key == "PressureThreshold");
+            Assert.That(threshold.Type, Is.EqualTo(ModConfigFieldType.Float));
+            Assert.That(threshold.Min, Is.EqualTo(0));
         });
     }
 

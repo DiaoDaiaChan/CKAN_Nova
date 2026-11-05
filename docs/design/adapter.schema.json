@@ -66,6 +66,7 @@
         "properties": {
           "file": { "type": ["integer", "string"], "minimum": 0 },
           "key": { "type": "string", "minLength": 1 },
+          "nodePath": { "type": "string", "minLength": 1, "pattern": "^(/?[A-Za-z0-9_.\\-]+(/[A-Za-z0-9_.\\-]+)*)$" },
           "type": { "type": "string", "enum": ["bool", "int", "float", "enum", "string", "path", "color", "keybinding", "list", "readonly"] },
           "default": { "type": ["string", "number", "boolean"] },
           "values": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },

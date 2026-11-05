@@ -257,13 +257,20 @@ public sealed class InstallHistoryService : IInstallHistoryService, IInstallHist
                 !failed.Contains(item.Identifier)))
             .ToList();
 
-        var outcome = report.Failed.Count == 0 && report.Warnings.Count == 0
+        // B1/B4：警告不是失败。Outcome 只看失败项；只有"有失败且一个都没动"才是整体失败。
+        // 把 Warnings 的非空当成 PartiallyFailed 会让一次正常重装在历史里被标红。
+        var outcome = report.IsFullSuccess
             ? InstallHistoryOutcome.Succeeded
             : report.Installed.Count == 0 && report.Removed.Count == 0
                 ? InstallHistoryOutcome.Failed
                 : InstallHistoryOutcome.PartiallyFailed;
 
         var message = $"从 {plan.Timestamp.ToLocalTime():yyyy-MM-dd HH:mm:ss} 的历史快照重装。";
+        if (report.HasWarnings)
+        {
+            // 结果不再是"失败"，但警告本身仍是用户要看到的信息，落在备注里而不是 Outcome 里。
+            message += "警告：" + string.Join("；", report.Warnings);
+        }
         // RecordAsync 内部是同步落盘，这里直接等它完成即可（不引入额外 async 状态机）。
         var recorded = RecordAsync(
             new InstallHistoryRecordRequest(InstallHistoryOperation.Restore, changes, outcome, message),

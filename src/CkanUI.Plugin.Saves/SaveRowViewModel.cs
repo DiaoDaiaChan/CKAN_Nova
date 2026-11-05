@@ -45,8 +45,48 @@ public sealed record SaveRowViewModel(
             info.HasLoadMeta);
     }
 
-    /// <summary>槽位名（列表主列）。</summary>
+    /// <summary>槽位名（完整形式：<c>文件夹 / 文件名</c>，用作提示与详情面板）。</summary>
     public string SlotText => SlotName;
+
+    /// <summary>所属存档文件夹（<c>saves/</c> 下的相对目录，<c>/</c> 分隔）；直接落在 <c>saves/</c> 根下时为空串。</summary>
+    /// <remarks>
+    /// 服务层拼出的槽位名是 <c>M6_FlightUI / Backup / persistent (2026_10_31_16_06_27)</c>，
+    /// 目录段本身用 <c>/</c> 连接、只有目录与文件名之间是 <c>" / "</c>；Windows 文件名里不可能出现 <c>/</c>，
+    /// 所以从最后一个 <c>" / "</c> 切开是可靠的，不需要为分组改服务层 DTO。
+    /// </remarks>
+    public string FolderPath => SplitSlot(SlotName).Folder;
+
+    /// <summary>文件夹内的名字（槽位尾段，不含目录）。</summary>
+    public string LeafName => SplitSlot(SlotName).Leaf;
+
+    /// <summary>组头的文件夹标题；<c>saves/</c> 根目录显示为 <c>saves/</c>。</summary>
+    public string FolderText => string.IsNullOrEmpty(FolderPath) ? "saves/" : FolderPath;
+
+    /// <summary>列表是否按文件夹分组显示（只有一个文件夹时不分组，也就不插组头）。</summary>
+    public bool IsGrouped { get; init; }
+
+    /// <summary>是否是本组第一行（行模板据此在行上方画组头）。</summary>
+    public bool IsGroupStart { get; init; }
+
+    /// <summary>组头条数说明（只由页面 VM 在组首行上填，形如「共 2 个存档」）。</summary>
+    public string GroupSubtitle { get; init; } = "";
+
+    /// <summary>列表首列显示名：分组时只显示尾段（文件夹已写在组头上），不分组时显示完整槽位名。</summary>
+    public string SlotDisplay => IsGrouped ? LeafName : SlotName;
+
+    /// <summary>把槽位名切成「文件夹 / 尾段」。</summary>
+    private static (string Folder, string Leaf) SplitSlot(string slotName)
+    {
+        if (string.IsNullOrEmpty(slotName))
+        {
+            return (string.Empty, string.Empty);
+        }
+
+        var separator = slotName.LastIndexOf(" / ", StringComparison.Ordinal);
+        return separator < 0
+            ? (string.Empty, slotName)
+            : (slotName[..separator], slotName[(separator + 3)..]);
+    }
 
     /// <summary>存档标题（<c>GAME.Title</c>）；老存档可能没有，给可读占位。</summary>
     /// <remarks>
@@ -92,8 +132,14 @@ public sealed record SaveRowViewModel(
     /// <summary>快照数（写前快照 + KSP 自带 Backup/ 目录）。</summary>
     public string SnapshotCountText => $"{SnapshotCount} 份";
 
-    /// <summary>存档种类：主文件还是 <c>.sfs.bak</c>。</summary>
-    public string KindText => IsBackup ? "备份" : "存档";
+    /// <summary>是否属于备份文件（.sfs.bak 或位于 Backup/ 目录下的自动备份）。</summary>
+    public bool IsBackupItem => IsBackup
+        || FolderPath.EndsWith("/Backup", StringComparison.OrdinalIgnoreCase)
+        || FolderPath.EndsWith(@"\Backup", StringComparison.OrdinalIgnoreCase)
+        || FolderPath.Equals("Backup", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>存档种类：主文件还是备份。</summary>
+    public string KindText => IsBackupItem ? "备份" : "存档";
 
     /// <summary>场景（<c>GAME.scene</c>）：<c>space</c> 表示在飞行中，<c>KSC</c> 表示在航天中心。</summary>
     public string SceneText => string.IsNullOrWhiteSpace(Scene) ? "—" : Scene!;
@@ -102,7 +148,7 @@ public sealed record SaveRowViewModel(
     public string SourceText => HasLoadMeta ? ".loadmeta 摘要" : "仅文件头";
 
     /// <summary>是否允许格式化（备份文件不参与，避免误伤）；服务层同样会拒绝结构损坏的存档。</summary>
-    public bool CanFormat => !IsBackup;
+    public bool CanFormat => !IsBackupItem;
 
     /// <summary>是否 KSP 自带存档（<c>saves/training</c> 与 <c>saves/scenarios</c> 下的训练与场景存档）。</summary>
     public bool IsStock => IsStockSlot(SlotName);

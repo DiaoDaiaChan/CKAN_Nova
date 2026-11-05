@@ -1,3 +1,5 @@
+using CkanUI.Services.Abstractions.Dtos;
+
 namespace CkanUI.Services.Abstractions;
 
 /// <summary>无返回值的服务结果（01 篇 §8 统一返回类型）。</summary>
@@ -56,8 +58,32 @@ public sealed record OperationResult<T>
 
     public bool Retryable { get; }
 
+    /// <summary>
+    /// 非失败但还缺一步用户裁决时携带的候选（当前只有「依赖有多个提供者」一种）。
+    /// <para>
+    /// 为什么不复用 <see cref="Message"/>：UI 需要把候选渲染成可点选的列表，
+    /// 而从一段人类可读文案里反解标识符是不可靠的。
+    /// </para>
+    /// </summary>
+    public VirtualModuleRequest? PendingChoice { get; init; }
+
     public static OperationResult<T> Ok(T value) => new(true, value, null, null, false);
+
+    public static OperationResult<T> Ok(T value, string? message) => new(true, value, message, null, false);
 
     public static OperationResult<T> Fail(string message, string? detail = null, bool retryable = false) =>
         new(false, default, message, detail, retryable);
+
+    /// <summary>
+    /// 「还没做，但缺一次用户选择」的结果：既不是成功也不是失败。
+    /// <para>
+    /// 用 <c>IsSuccess = false</c> 表示「这次没有交付任何东西」，
+    /// 由 <see cref="PendingChoice"/> 存在与否区分「等用户裁决」和「真失败」。
+    /// </para>
+    /// </summary>
+    public static OperationResult<T> NeedsChoice(string message, VirtualModuleRequest choice, string? detail = null) =>
+        new(false, default, message, detail, false)
+        {
+            PendingChoice = choice,
+        };
 }

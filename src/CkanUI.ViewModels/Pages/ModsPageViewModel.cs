@@ -144,6 +144,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
 
         RebuildLabelFilters();
         RebuildCategoryChips();
+        RebuildCompanionItems();
         RefreshDetail();
     }
 
@@ -258,6 +259,56 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     [ObservableProperty]
     private ModsCompatibilityFilter _compatibilityFilter = ModsCompatibilityFilter.CompatibleOnly;
 
+    /// <summary>只显示联动模组（能与内置 GUI 插件配合的模组，清单见 <see cref="ModsCompanionCatalog"/>）。</summary>
+    [ObservableProperty]
+    private bool _companionOnly;
+
+    private IReadOnlyList<ModsCompanionItemViewModel> _companionItems = Array.Empty<ModsCompanionItemViewModel>();
+
+    /// <summary>
+    /// 联动清单的独立投影。**不依赖过滤器是否命中**：仓库索引为空时主表格是空的，
+    /// 但用户仍要能看见"有哪些模组能点亮插件、现在装没装"。
+    /// </summary>
+    public IReadOnlyList<ModsCompanionItemViewModel> CompanionItems
+    {
+        get => _companionItems;
+        private set
+        {
+            _companionItems = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasCompanionItems));
+            OnPropertyChanged(nameof(CompanionSummaryText));
+        }
+    }
+
+    /// <summary>联动清单是否非空（清单是静态表，恒为真；留属性给视图做防御性显隐）。</summary>
+    public bool HasCompanionItems => CompanionItems.Count > 0;
+
+    /// <summary>联动面板标题。</summary>
+    public string CompanionPanelTitle => Text("联动模组", LocalizationKeys.ModsPageCompanionPanelTitle);
+
+    /// <summary>联动面板说明：为什么值得装。</summary>
+    public string CompanionPanelHint =>
+        Text("这些模组能让内置插件读到游戏数据；装了插件页才有内容。", LocalizationKeys.ModsPageCompanionPanelHint);
+
+    /// <summary>联动面板「加入变更集」按钮文案。</summary>
+    public string CompanionAddText => Text("加入变更集", LocalizationKeys.ModsPageCompanionAddToChanges);
+
+    /// <summary>联动面板关闭按钮提示。</summary>
+    public string CompanionCloseTip => Text("关闭联动面板", LocalizationKeys.ModsPageCompanionCloseTip);
+
+    /// <summary>联动面板摘要：清单里几个、仓库里几个、已装几个。</summary>
+    public string CompanionSummaryText
+    {
+        get
+        {
+            var total = CompanionItems.Count;
+            var available = CompanionItems.Count(item => !item.IsMissing && !item.IsInstalled);
+            var installed = CompanionItems.Count(item => item.IsInstalled);
+            return Text("共 {0} 个 · 可装 {1} 个 · 已装 {2} 个", LocalizationKeys.ModsPageCompanionSummary, total, available, installed);
+        }
+    }
+
     /// <summary>排序列（默认名称）。</summary>
     [ObservableProperty]
     private ModsSortColumn _sortColumn = ModsSortColumn.Name;
@@ -304,6 +355,12 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
 
     /// <summary>是否显示空状态占位。</summary>
     public bool ShowEmptyState => Rows.Count == 0;
+
+    /// <summary>表格区可见（有行、且联动面板没盖在上面）。</summary>
+    public bool ShowModsTable => !ShowEmptyState && !CompanionOnly;
+
+    /// <summary>空态卡可见（联动面板是独立投影，面板打开时空态卡让位，不要透在下面）。</summary>
+    public bool ShowEmptyStateCard => ShowEmptyState && !CompanionOnly;
 
     /// <summary>是否有当前游戏实例。</summary>
     public bool HasInstance
@@ -400,6 +457,11 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
                 chips.Add(Text("兼容性：{0}", LocalizationKeys.ManageModsChipCompatibility, CompatibilityFilter == ModsCompatibilityFilter.CompatibleOnly ? Text("仅兼容", LocalizationKeys.ManageModsFilterCompatibleOnly) : Text("仅不兼容", LocalizationKeys.ManageModsFilterIncompatibleOnly)));
             }
 
+            if (CompanionOnly)
+            {
+                chips.Add(Text("联动模组", LocalizationKeys.ModsPageCompanionFilter));
+            }
+
             if (HasCategoryFilter && ModTaxonomyEngine.GetCategory(_selectedCategory) is { } catDef)
             {
                 chips.Add(Text("分类：{0}", LocalizationKeys.ManageModsChipCategory, catDef.DisplayTitle));
@@ -444,11 +506,12 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
     /// <summary>是否存在激活的核心分类或标签筛选条件（用于工具栏折叠按钮上的状态指示）。</summary>
     public bool HasActiveCategoryOrLabelFilter => HasCategoryFilter || HasLabelFilter;
 
-    /// <summary>是否存在任何生效的筛选条件（搜索文本、状态、兼容性、分类、标签）。</summary>
+    /// <summary>是否存在任何生效的筛选条件（搜索文本、状态、兼容性、分类、标签、联动）。</summary>
     public bool HasActiveFilters =>
         !string.IsNullOrWhiteSpace(SearchText) ||
         InstallFilter != ModsInstallFilter.All ||
         CompatibilityFilter != ModsCompatibilityFilter.All ||
+        CompanionOnly ||
         HasActiveCategoryOrLabelFilter;
 
     /// <summary>切换分类与标签快捷筛选抽屉的展开/收起状态。</summary>
@@ -884,18 +947,29 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             return;
         }
 
-        var target = _selectionBack[^1];
         var previous = _currentSelection;
-        _selectionBack.RemoveAt(_selectionBack.Count - 1);
-        if (MoveSelectionTo(target))
+        while (_selectionBack.Count > 0)
         {
+            var target = _selectionBack[^1];
+            // 目标已经不在当前投影里（换了实例 / 改了筛选 / 仓库刷新）：丢掉这条死历史继续往前找，
+            // 不能"看着按了没反应"——也不能像以前那样先出栈再判断，那会把活历史一起吃掉。
+            if (!MoveSelectionTo(target))
+            {
+                _selectionBack.RemoveAt(_selectionBack.Count - 1);
+                continue;
+            }
+
+            _selectionBack.RemoveAt(_selectionBack.Count - 1);
             if (!string.IsNullOrEmpty(previous))
             {
                 _selectionForward.Add(previous!);
             }
 
             RaiseSelectionHistory();
+            return;
         }
+
+        RaiseSelectionHistory();
     }
 
     /// <summary>前进到下一个选中模组（F-25）。</summary>
@@ -907,18 +981,27 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             return;
         }
 
-        var target = _selectionForward[^1];
         var previous = _currentSelection;
-        _selectionForward.RemoveAt(_selectionForward.Count - 1);
-        if (MoveSelectionTo(target))
+        while (_selectionForward.Count > 0)
         {
+            var target = _selectionForward[^1];
+            if (!MoveSelectionTo(target))
+            {
+                _selectionForward.RemoveAt(_selectionForward.Count - 1);
+                continue;
+            }
+
+            _selectionForward.RemoveAt(_selectionForward.Count - 1);
             if (!string.IsNullOrEmpty(previous))
             {
                 _selectionBack.Add(previous!);
             }
 
             RaiseSelectionHistory();
+            return;
         }
+
+        RaiseSelectionHistory();
     }
 
     /// <summary>把选中行移到指定标识符（找不到就保持原样）。</summary>
@@ -1254,7 +1337,8 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
                 SortColumn,
                 SortAscending,
                 _selectedLabels.Count == 0 ? null : SelectedLabels,
-                _selectedCategory);
+                _selectedCategory,
+                CompanionOnly);
         }
         catch (Exception ex)
         {
@@ -1289,6 +1373,12 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         // 结果与当前集合逐项相同时不换表：DataGrid 换 ItemsSource 会重建全部行容器，
         // 实测 3,000 行约 150–250ms（docs/ops/perf-baseline.md §23）。事件驱动的
         // 刷新（仓库变更、勾选后重算等）经常算出完全一致的列表，此时换表纯属白付。
+        var diagRowCap = int.TryParse(Environment.GetEnvironmentVariable("CKANUI_MODS_ROWS"), out var capValue) ? capValue : 0;
+        if (diagRowCap > 0 && views.Count > diagRowCap)
+        {
+            views = views.Take(diagRowCap).ToList();
+        }
+
         if (Rows.Count != views.Count || !Rows.SequenceEqual(views))
         {
             Rows = new ObservableCollection<ModsRowView>(views);
@@ -1302,8 +1392,84 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             ? null
             : Rows.FirstOrDefault(view => string.Equals(view.Identifier, selectedIdentifier, StringComparison.OrdinalIgnoreCase));
 
+        RebuildCompanionItems();
         UpdateStatusText();
         RefreshDerived();
+    }
+
+    /// <summary>
+    /// 重建联动清单投影：状态按当前快照现算——索引为空 / 不在仓库 / 已安装 / 可安装。
+    /// 纯计算，无 IO，可在 headless 直接调用。
+    /// </summary>
+    private void RebuildCompanionItems()
+    {
+        var rows = new Dictionary<string, ModRowData>(_all.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var row in _all)
+        {
+            rows[row.Identifier] = row;
+        }
+
+        var items = new List<ModsCompanionItemViewModel>(ModsCompanionCatalog.All.Count);
+        foreach (var link in ModsCompanionCatalog.All)
+        {
+            var exists = rows.TryGetValue(link.ModIdentifier, out var row);
+            var installed = exists && row!.IsInstalled;
+            var missing = !exists && _all.Count > 0;
+            var noIndex = !exists && _all.Count == 0;
+
+            var status = installed
+                ? Text("已安装", LocalizationKeys.ModsPageCompanionStatusInstalled)
+                : noIndex
+                    ? Text("仓库索引未加载", LocalizationKeys.ModsPageCompanionStatusNoIndex)
+                    : missing
+                        ? Text("不在 CKAN 仓库", LocalizationKeys.ModsPageCompanionStatusMissing)
+                        : Text("可安装", LocalizationKeys.ModsPageCompanionStatusAvailable);
+
+            items.Add(new ModsCompanionItemViewModel(link, status, installed, missing, exists && !installed));
+        }
+
+        CompanionItems = items;
+    }
+
+    /// <summary>把一条联动模组加入变更集（仓库里没有或已安装时只提示，不发请求）。</summary>
+    [RelayCommand]
+    public void AddCompanionToChanges(string? identifier)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            return;
+        }
+
+        var row = Rows.FirstOrDefault(view => string.Equals(view.Identifier, identifier, StringComparison.OrdinalIgnoreCase))
+                  ?? (ModsRowView?)null;
+        if (row is null)
+        {
+            StatusText = Text("模组 {0} 不在当前仓库索引里，无法加入变更集。", LocalizationKeys.ModsPageCompanionStatusMissingInline, identifier);
+            return;
+        }
+
+        if (row.IsInstalled)
+        {
+            StatusText = Text("模组 {0} 已安装。", LocalizationKeys.ModsPageCompanionStatusInstalledInline, row.Name);
+            return;
+        }
+
+        _selected.Add(row.Identifier);
+        RebuildSelectionPreview();
+        for (var i = 0; i < Rows.Count; i++)
+        {
+            if (string.Equals(Rows[i].Identifier, row.Identifier, StringComparison.OrdinalIgnoreCase))
+            {
+                Rows[i] = Rows[i].WithSelected(true);
+                break;
+            }
+        }
+
+        SelectedRow = Rows.FirstOrDefault(view => string.Equals(view.Identifier, row.Identifier, StringComparison.OrdinalIgnoreCase));
+        RebuildCompanionItems();
+        UpdateStatusText();
+        RefreshDerived();
+        StatusText = Text("已把 {0} 加入变更集（配套「{1}」）。", LocalizationKeys.ModsPageCompanionAdded, row.Name, ModsCompanionCatalog.TryGet(row.Identifier, out var link) ? link.PluginName : row.Identifier);
     }
 
     /// <summary>勾选或取消勾选一个模组（03 篇 §3.6）。</summary>
@@ -1367,6 +1533,7 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         SearchText = string.Empty;
         InstallFilterIndex = (int)ModsInstallFilter.All;
         CompatibilityFilterIndex = (int)ModsCompatibilityFilter.All;
+        CompanionOnly = false;
         _selectedLabels.Clear();
         _selectedCategory = null;
         RebuildLabelFilters();
@@ -1436,6 +1603,8 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
         OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(HasRows));
         OnPropertyChanged(nameof(ShowEmptyState));
+        OnPropertyChanged(nameof(ShowModsTable));
+        OnPropertyChanged(nameof(ShowEmptyStateCard));
         OnPropertyChanged(nameof(HasInstance));
         OnPropertyChanged(nameof(InstanceName));
         OnPropertyChanged(nameof(CountText));
@@ -1510,8 +1679,36 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             }
 
             _details = value;
+            // 面板里的关系树跳转必须回到页面的选中链路：只换面板自己的标识符会让左侧列表
+            // 高亮不动、前进/后退历史不记录，面板左上角的返回键就成了死键。
+            if (_details is not null)
+            {
+                _details.RelationNavigateAction = NavigateToRelatedMod;
+            }
+
             SyncDetails();
         }
+    }
+
+    /// <summary>
+    /// 详情面板内（关系树/关系网）点击关联模组时的落点：能直接命中当前投影就选中该行，
+    /// 否则退回深链同一套「先搜索再选中」的路径，保证历史与列表高亮一致。
+    /// </summary>
+    private void NavigateToRelatedMod(string identifier)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            return;
+        }
+
+        var target = identifier.Trim();
+        if (FindRowByIdentifier(target) is not null)
+        {
+            SelectRowByIdentifier(target);
+            return;
+        }
+
+        _ = ShowIdentifierAsync(target);
     }
 
     /// <summary>
@@ -1932,6 +2129,19 @@ public sealed partial class ModsPageViewModel : PageViewModel, IPageProjectionTr
             InstallFilter = (ModsInstallFilter)value;
         }
     }
+
+    partial void OnCompanionOnlyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowModsTable));
+        OnPropertyChanged(nameof(ShowEmptyStateCard));
+        OnPropertyChanged(nameof(HasActiveFilters));
+        OnPropertyChanged(nameof(ActiveFilterChips));
+        ApplyFilter();
+    }
+
+    /// <summary>关闭联动面板（面板与工具条开关是同一个状态）。</summary>
+    [RelayCommand]
+    private void CloseCompanionPanel() => CompanionOnly = false;
 
     partial void OnCompatibilityFilterChanged(ModsCompatibilityFilter value)
     {

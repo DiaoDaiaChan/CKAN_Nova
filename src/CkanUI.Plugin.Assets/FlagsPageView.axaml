@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:thumb="using:CkanUI.Ui.Converters"
+             xmlns:controls="using:CkanUI.Ui.Controls"
              x:Class="CkanUI.Plugin.Assets.FlagsPageView"
              x:CompileBindings="False">
   <!-- 旗帜工作台（assets-workbench 篇 §4）：画廊 + 预览 + 设为默认。
@@ -12,15 +13,6 @@
     <Style Selector="ListBoxItem">
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Padding" Value="4" />
-    </Style>
-    <Style Selector="ListBoxItem:selected Border.FlagCard">
-      <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
-    </Style>
-    <Style Selector="Border.FlagCard">
-      <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusMedium}" />
     </Style>
   </UserControl.Styles>
 
@@ -91,24 +83,15 @@
           </ListBox.ItemsPanel>
           <ListBox.ItemTemplate>
             <DataTemplate>
-              <Border Classes="FlagCard" Width="150" Padding="8">
-                <StackPanel Spacing="6">
-                  <Border Height="76" CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                          Background="{DynamicResource CkanCanvasBackgroundBrush}" ClipToBounds="True">
-                    <Image Source="{Binding FilePath, Converter={StaticResource Thumb}, ConverterParameter=160}" Stretch="Uniform" />
-                  </Border>
-                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
-                             ToolTip.Tip="{Binding ConfigPath}"
-                             Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                  <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0" Text="{Binding PackText}" Classes="CkanCaption"
-                               TextTrimming="CharacterEllipsis" />
-                    <Border Grid.Column="1" Classes="CkanBadge Accent" IsVisible="{Binding IsDefault}">
-                      <TextBlock Text="{DynamicResource Ui_Assets_Default_Badge}" />
-                    </Border>
-                  </Grid>
-                </StackPanel>
-              </Border>
+              <controls:ImageFeedCard Width="150" Margin="4"
+                                      Title="{Binding Name}"
+                                      Subtitle="{Binding PackText}"
+                                      ImagePath="{Binding FilePath}"
+                                      ImageHeight="76"
+                                      IsBadgeVisible="{Binding IsDefault}"
+                                      BadgeText="{DynamicResource Ui_Assets_Default_Badge}"
+                                      IsSelected="{Binding $parent[ListBoxItem].IsSelected}"
+                                      ToolTip.Tip="{Binding ConfigPath}" />
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>

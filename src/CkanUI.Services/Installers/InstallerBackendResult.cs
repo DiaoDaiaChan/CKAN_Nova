@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CkanUI.Services.Abstractions.Dtos;
 
 namespace CkanUI.Services.Installers;
 
@@ -30,6 +31,14 @@ public sealed record InstallerBackendResult(
     /// </summary>
     public IReadOnlyList<string> ResidualDirectories { get; init; } = Array.Empty<string>();
 
+    /// <summary>
+    /// 状态为 <see cref="InstallerBackendStatus.NeedsChoice"/> 时，需要用户裁决的依赖提供者候选。
+    /// <para>
+    /// 用 init 属性而不是位置参数：20 多个既有构造点（含测试）不必改动就能编译。
+    /// </para>
+    /// </summary>
+    public VirtualModuleRequest? PendingChoice { get; init; }
+
     /// <summary>成功结果。</summary>
     public static InstallerBackendResult Ok(IReadOnlyList<string>? completed = null,
                                            IReadOnlyList<string>? warnings = null,
@@ -53,6 +62,20 @@ public sealed record InstallerBackendResult(
                warnings ?? Array.Empty<string>(),
                message,
                detail);
+
+    /// <summary>
+    /// 需要用户先选依赖提供者的结果（Core 的 <c>TooManyModsProvideKraken</c>）。
+    /// 什么都没改动，选完直接重试即可，不要回滚也不要报错。
+    /// </summary>
+    public static InstallerBackendResult NeedsChoice(VirtualModuleRequest choice,
+                                                    IReadOnlyList<string>? warnings = null)
+        => new(InstallerBackendStatus.NeedsChoice,
+               Array.Empty<string>(),
+               Array.Empty<string>(),
+               warnings ?? Array.Empty<string>())
+        {
+            PendingChoice = choice,
+        };
 
     /// <summary>取消结果。</summary>
     public static InstallerBackendResult Cancelled(string? message = null, string? detail = null)

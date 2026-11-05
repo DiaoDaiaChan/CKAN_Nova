@@ -25,7 +25,7 @@ public enum InstallHistoryOperation
 /// <summary>一次操作的最终结果。部分失败与整体失败必须分开：前者装了一半，后者一个都没动。</summary>
 public enum InstallHistoryOutcome
 {
-    /// <summary>全部成功且没有警告。</summary>
+    /// <summary>全部落盘成功。仅有警告仍是成功——警告单独记在 <c>Warnings</c>，不影响结果。</summary>
     Succeeded,
 
     /// <summary>有失败项（已装列表与历史不一致，需要用户知道）。</summary>
@@ -145,6 +145,9 @@ public sealed record InstallHistoryRestoreResult(
     IReadOnlyList<string> Failed,
     IReadOnlyList<string> Warnings)
 {
-    /// <summary>全部成功且没有警告。</summary>
-    public bool IsFullSuccess => Failed.Count == 0 && Warnings.Count == 0;
+    /// <summary>全部落盘成功（B1）：警告不是失败，只有失败项会让结果不完整。</summary>
+    public bool IsFullSuccess => Failed.Count == 0;
+
+    /// <summary>这次重装是否带出了警告（警告不等于失败）。</summary>
+    public bool HasWarnings => Warnings.Count > 0;
 }

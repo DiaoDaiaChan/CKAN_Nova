@@ -123,6 +123,7 @@ public sealed class CoreChangeSetPlanner : IChangeSetPlanner
         }
 
         var conflicts = new List<string>();
+        var conflictEntries = new List<ConflictEntry>();
         var extras = new List<ResolvedModule>();
 
         if (toInstall.Count > 0 || toRemove.Count > 0)
@@ -154,7 +155,8 @@ public sealed class CoreChangeSetPlanner : IChangeSetPlanner
                 extras.Add(new ResolvedModule(module, installed, origin, EstimateDownload(instance, module)));
             }
 
-            conflicts.AddRange(DescribeConflicts(resolver));
+            conflictEntries.AddRange(DescribeConflicts(resolver, registry));
+            conflicts.AddRange(conflictEntries.Select(entry => entry.Description));
 
             if (includeRecommendations)
             {
@@ -168,7 +170,10 @@ public sealed class CoreChangeSetPlanner : IChangeSetPlanner
         }
 
         return OperationResult<ChangeResolution>.Ok(
-            new ChangeResolution(resolved, extras, conflicts, warnings));
+            new ChangeResolution(resolved, extras, conflicts, warnings)
+            {
+                ConflictEntries = conflictEntries,
+            });
     }
 
     /// <summary>读取全部仓库的可用模组索引，按标识合并成一个字典（同名仓库合并为 AvailableModule）。</summary>
@@ -229,24 +234,146 @@ public sealed class CoreChangeSetPlanner : IChangeSetPlanner
         }
     }
 
-    /// <summary>把 resolver 的冲突转成中文可读字符串，保证每条都带模组标识。</summary>
-    private static IEnumerable<string> DescribeConflicts(RelationshipResolver resolver)
+    /// <summary>
+    /// 把 resolver 的冲突转成结构化条目（B0/B2）。
+    /// <para>
+    /// Core 在 <c>proceed_with_inconsistencies</c> 下会把同一条冲突按 A→B 与 B→A 各 Add 一次
+    /// （external/CKAN/Core/Relationships/RelationshipResolver.cs:385-386）；<c>ConflictDescriptions</c>
+    /// 只在两侧依赖深度不等时砍一边（同文件 :597-604），两个手选模组相等时两条都留，所以字符串
+    /// <c>Distinct</c> 去不掉反向重复。这里用描述串里出现的模组 <c>ToString()</c>（"identifier version"）
+    /// 识别成对标识，按「identifier 排序后的二元组」无序去重；<see cref="ConflictEntry.Description"/>
+    /// 原样复用 Core 已本地化的串，不自造第二套中文。
+    /// </para>
+    /// </summary>
+    private static List<ConflictEntry> DescribeConflicts(RelationshipResolver resolver, CkanRegistry registry)
     {
-        // Core 的 ConflictDescriptions 已按当前线程 UI 文化本地化（"X 1.0 与 Y 2.0 冲突"），
-        // 且 ToString() 自带标识，直接复用，避免维护第二套中文文案。
         var described = resolver.ConflictDescriptions
-                                .Where(d => !string.IsNullOrWhiteSpace(d))
-                                .Distinct(StringComparer.Ordinal)
+                                .Where(description => !string.IsNullOrWhiteSpace(description))
                                 .ToList();
         if (described.Count > 0)
         {
-            return described;
+            return BuildConflictEntries(described, ConflictCandidates(resolver, registry)).ToList();
         }
 
+        // ConflictDescriptions 为空时退回 ConflictList：key 就是用户手选的模组，标识可直接填。
         return resolver.ConflictList
-                       .Select(pair => string.Format("模组「{0}」：{1}", pair.Key.identifier, pair.Value))
+                       .OrderBy(pair => pair.Key.identifier, StringComparer.Ordinal)
+                       .Select(pair => new ConflictEntry(
+                           string.Format("模组「{0}」：{1}", pair.Key.identifier, pair.Value),
+                           pair.Key.identifier,
+                           ModuleName(pair.Key)))
                        .ToList();
     }
+
+    /// <summary>
+    /// 按描述串里出现的模组 <c>ToString()</c> 识别成对标识，用「identifier 排序后的二元组」做无序去重。
+    /// 识别不到两个标识时按原字符串去重兜底，<see cref="ConflictEntry.ModuleIdentifier"/> 留 null。
+    /// </summary>
+    /// <param name="descriptions">Core 已本地化的冲突描述。</param>
+    /// <param name="candidates">可能出现在描述里的模组（冲突双方、依赖闭包、已装集合）。</param>
+    public static IReadOnlyList<ConflictEntry> BuildConflictEntries(
+        IEnumerable<string> descriptions,
+        IEnumerable<CkanModule> candidates)
+    {
+        ArgumentNullException.ThrowIfNull(descriptions);
+        ArgumentNullException.ThrowIfNull(candidates);
+
+        var pool = candidates as IReadOnlyList<CkanModule> ?? candidates.ToList();
+        var seenPairs = new HashSet<string>(StringComparer.Ordinal);
+        var seenTexts = new HashSet<string>(StringComparer.Ordinal);
+        var entries = new List<ConflictEntry>();
+
+        foreach (var description in descriptions)
+        {
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                continue;
+            }
+
+            var matched = MatchModules(description, pool);
+            if (matched.Count >= 2)
+            {
+                if (seenPairs.Add(PairKey(matched[0].identifier, matched[1].identifier)))
+                {
+                    entries.Add(new ConflictEntry(description, matched[0].identifier, ModuleName(matched[0])));
+                }
+
+                continue;
+            }
+
+            if (seenTexts.Add(description))
+            {
+                entries.Add(new ConflictEntry(description));
+            }
+        }
+
+        return entries;
+    }
+
+    /// <summary>候选模组：ConflictList 的 key（用户手选）+ 依赖闭包 + 已装集合，按 ToString() 去重。</summary>
+    private static List<CkanModule> ConflictCandidates(RelationshipResolver resolver, CkanRegistry registry)
+    {
+        var candidates = new List<CkanModule>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        void Add(IEnumerable<CkanModule> modules)
+        {
+            foreach (var module in modules)
+            {
+                if (module is not null && seen.Add(module.ToString()))
+                {
+                    candidates.Add(module);
+                }
+            }
+        }
+
+        Add(resolver.ConflictList.Keys);
+        Add(resolver.ModList());
+        Add(registry.InstalledModules.Select(installed => installed.Module));
+        return candidates;
+    }
+
+    /// <summary>在描述串里按出现位置匹配模组 ToString()，同一 identifier 只取首次出现。</summary>
+    private static List<CkanModule> MatchModules(string description, IReadOnlyList<CkanModule> candidates)
+    {
+        var hits = new List<(int Index, CkanModule Module)>();
+        foreach (var module in candidates)
+        {
+            var text = module.ToString();
+            var index = text.Length == 0 ? -1 : description.IndexOf(text, StringComparison.Ordinal);
+            // 词边界：避免 "alpha 1.0" 误命中 "alpha 1.0.1"
+            if (index < 0 || !EndsAtWordBoundary(description, index + text.Length))
+            {
+                continue;
+            }
+
+            hits.Add((index, module));
+        }
+
+        var seenIdentifiers = new HashSet<string>(StringComparer.Ordinal);
+        var matched = new List<CkanModule>();
+        foreach (var hit in hits.OrderBy(h => h.Index))
+        {
+            if (seenIdentifiers.Add(hit.Module.identifier))
+            {
+                matched.Add(hit.Module);
+            }
+        }
+
+        return matched;
+    }
+
+    private static bool EndsAtWordBoundary(string text, int end)
+        => end >= text.Length || (!char.IsLetterOrDigit(text[end]) && text[end] != '.');
+
+    /// <summary>无序去重键：两个 identifier 排序后拼接。</summary>
+    private static string PairKey(string first, string second)
+        => string.CompareOrdinal(first, second) <= 0
+               ? first + "\n" + second
+               : second + "\n" + first;
+
+    private static string? ModuleName(CkanModule module)
+        => string.IsNullOrWhiteSpace(module.name) ? null : module.name;
 
     /// <summary>用 Core 的推荐项算法补充推荐（可能很重，失败一律降级为提示）。</summary>
     private static void AddRecommendations(

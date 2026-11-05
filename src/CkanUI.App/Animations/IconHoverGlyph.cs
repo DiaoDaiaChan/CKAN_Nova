@@ -4,18 +4,20 @@ using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 
 using CkanUI.App.Converters;
+using CkanUI.ViewModels;
+using FluentAvalonia.UI.Controls;
 
 namespace CkanUI.App.Animations;
 
-/// <summary>按字形本身认动效形态：齿轮转、服务器闪灯、文件夹被推一把。</summary>
+/// <summary>按字形本身认动效形态：齿轮自转、数据机架寻道、文件夹翻开、箭头穿梭。</summary>
 /// <remarks>
 /// <para>宿主只说"这是什么控件"，说不清"画的是什么"：同一个工具条按钮里，齿轮该转起来，
-/// 文件夹该被推开，警告三角该脆一下。这一层补的就是字形语义，让不同图标不再共用一套摇摆。</para>
-/// <para>字形身份不靠 Data 的文本——Avalonia 的 <see cref="StreamGeometry"/> 既不保留路径字符串，
-/// 也不按值比较（同一条路径解析两次 <c>Equals</c> 是 false）。这里改为把填充区域在自身包围盒上
-/// 取 12×12 网格采样成 144 位指纹，和导航字形表里的已知图形比对；采样每颗图标只做一次并按几何对象缓存，
+/// 文件夹该被掀开，警告三角该脆一下。这一层补的就是字形语义，让不同图标不再共用一套公式化倾斜与旋转。</para>
+/// <para>字形身份优先取导航项绑定的语义（如 <see cref="NavItem.Glyph"/>），若未指定则通过
+/// 把填充区域在自身包围盒上取 12×12 网格采样成 144 位指纹，和导航字形表里的已知图形比对；采样每颗图标只做一次并按几何对象缓存，
 /// 认不出就返回 <see cref="IconHoverShape.Auto"/>，交回宿主判定。</para>
 /// </remarks>
 internal static class IconHoverGlyph
@@ -26,37 +28,60 @@ internal static class IconHoverGlyph
     /// <summary>字形语义 → 形态。命名跟导航字形的 Glyph 走，页面里的同一图形也能对上。</summary>
     private static readonly Dictionary<string, IconHoverShape> ShapesByGlyph = new(StringComparer.OrdinalIgnoreCase)
     {
-        // 转起来才像在工作：齿轮、同步、时钟、地球自转。
+        // 机械与循环自转：仅保留真正具备旋转物理语义的齿轮与同步箭头
         ["Settings"] = IconHoverShape.Spin,
         ["Sync"] = IconHoverShape.Spin,
-        ["Clock"] = IconHoverShape.Spin,
-        ["Globe"] = IconHoverShape.Spin,
 
-        // 指示灯语义：机架、图表这类"在跳数字"的东西用双拍心跳。
-        ["Storage"] = IconHoverShape.Pulse,
-        ["Chart"] = IconHoverShape.Pulse,
+        // 数据与机架：三条杠服务器机架抽屉滑出寻道（彻底告别旋转）
+        ["Storage"] = IconHoverShape.Rack,
 
-        // 可被推开／翻转：文件夹、交换、链接、下载。
-        ["Folder"] = IconHoverShape.Nudge,
-        ["FolderOpen"] = IconHoverShape.Nudge,
-        ["Exchange"] = IconHoverShape.Nudge,
-        ["Link"] = IconHoverShape.Nudge,
+        // 实例与文件夹：掀开翻阅展开（彻底告别公式化倾斜）
+        ["Folder"] = IconHoverShape.Unfold,
+        ["FolderOpen"] = IconHoverShape.Unfold,
 
-        // 挂着翻看：文档、推子、历史。
-        ["Document"] = IconHoverShape.Sway,
-        ["Sliders"] = IconHoverShape.Sway,
-        ["History"] = IconHoverShape.Sway,
+        // 整合包与交换：左右双向箭头对流穿梭（彻底告别旋转）
+        ["Exchange"] = IconHoverShape.Shuttle,
 
-        // 轻飘的说明性图标离地呼吸。
-        ["Info"] = IconHoverShape.Float,
-        ["Translate"] = IconHoverShape.Float,
+        // 模组汉化：语种字符雀跃轻跳对流（告别倾斜）
+        ["Translate"] = IconHoverShape.Bounce,
+
+        // 端庄悬浮呼吸：房屋落地页、太空星球、说明信息、文档纸张
         ["Home"] = IconHoverShape.Float,
+        ["Globe"] = IconHoverShape.Float,
+        ["Info"] = IconHoverShape.Float,
+        ["Document"] = IconHoverShape.Float,
+        ["Sliders"] = IconHoverShape.Float,
 
-        // 出了事才挤一下：缺陷、编辑、归档。
+        // 积木与指标：模组矩阵微弹、图表心跳脉冲、去重链环扣合
+        ["Apps"] = IconHoverShape.Pulse,
+        ["Chart"] = IconHoverShape.Pulse,
+        ["Performance"] = IconHoverShape.Pulse,
+        ["Link"] = IconHoverShape.Pulse,
+        ["Clock"] = IconHoverShape.Pulse,
+
+        // 稳健与扣锁：存档沉降压印、拼图卡位咬合、日志排障锁定
+        ["Archive"] = IconHoverShape.Snap,
+        ["Puzzle"] = IconHoverShape.Snap,
         ["Bug"] = IconHoverShape.Snap,
         ["Edit"] = IconHoverShape.Snap,
-        ["Archive"] = IconHoverShape.Snap,
+
+        // 历史钟摆微探
+        ["History"] = IconHoverShape.Sway,
+
+        // AI 助手：星芒脉冲呼吸（走亮度节奏不做位移，免得跟输入焦点抢视觉）
+        ["Sparkle"] = IconHoverShape.Pulse,
     };
+
+    /// <summary>通过字形名称直接读取形态。</summary>
+    public static IconHoverShape GetShapeForGlyph(string? glyph)
+    {
+        if (string.IsNullOrWhiteSpace(glyph))
+        {
+            return IconHoverShape.Auto;
+        }
+
+        return ShapesByGlyph.TryGetValue(glyph, out var shape) ? shape : IconHoverShape.Auto;
+    }
 
     /// <summary>几何对象 → 形态，按引用缓存：同一颗图标重复悬停不重算指纹。</summary>
     private static readonly Dictionary<Geometry, IconHoverShape> Cache = new(ReferenceEqualityComparer.Instance);
@@ -69,7 +94,13 @@ internal static class IconHoverGlyph
     /// <param name="visual">图标可视对象。</param>
     internal static IconHoverShape Resolve(Visual visual)
     {
-        if (visual is not PathIcon { Data: { } data })
+        if (FindNavGlyph(visual) is { } glyphName && ShapesByGlyph.TryGetValue(glyphName, out var shapeByNav))
+        {
+            return shapeByNav;
+        }
+
+        var data = GetData(visual);
+        if (data is null)
         {
             return IconHoverShape.Auto;
         }
@@ -90,6 +121,33 @@ internal static class IconHoverGlyph
         }
 
         return shape;
+    }
+
+    private static Geometry? GetData(Visual visual) => visual switch
+    {
+        PathIcon pathIcon => pathIcon.Data,
+        FluentAvalonia.UI.Controls.FAPathIcon faPathIcon => faPathIcon.Data,
+        _ => null,
+    };
+
+    private static string? FindNavGlyph(Visual visual)
+    {
+        Visual? current = visual;
+        var depth = 0;
+        while (current is not null && depth < 16)
+        {
+            if (current is Control { Tag: NavItem nav } && !string.IsNullOrWhiteSpace(nav.Glyph))
+            {
+                return nav.Glyph;
+            }
+            if (current is Control { DataContext: NavItem navDc } && !string.IsNullOrWhiteSpace(navDc.Glyph))
+            {
+                return navDc.Glyph;
+            }
+            current = current.GetVisualParent();
+            depth++;
+        }
+        return null;
     }
 
     private static IconHoverShape Match(Geometry data)

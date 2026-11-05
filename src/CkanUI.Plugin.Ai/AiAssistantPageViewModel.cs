@@ -49,7 +49,7 @@ public sealed class AiAssistantPageViewModel : ObservableObject, IPluginPage, ID
     private AiSettings _snapshot;
     private AiToolRunner? _tools;
     private AiChatClient? _chat;
-    private McpSearchClient? _search;
+    private IWebSearchTool? _search;
     private CancellationTokenSource? _cts;
     private bool _initialized;
     private bool _disposed;
@@ -95,9 +95,13 @@ public sealed class AiAssistantPageViewModel : ObservableObject, IPluginPage, ID
         CancelCommand = new RelayCommand(Cancel, () => IsBusy);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync);
         TestConnectionCommand = new AsyncRelayCommand(TestConnectionAsync, () => !IsBusy);
+        QuickPromptCommand = new AsyncRelayCommand<string>(ExecuteQuickPromptAsync);
+        ResetSettingsCommand = new RelayCommand(ResetSettingsToDefaults);
 
         // 折叠区的标题要随条数走：不订阅的话「工具轨迹（3 步）」会一直显示旧数字。
         ToolTraces.CollectionChanged += OnToolTracesChanged;
+        Messages.CollectionChanged += OnMessagesChanged;
+        AiSettingsStore.SettingsChanged += OnExternalSettingsChanged;
     }
 
     /// <summary>给测试与设计时用的构造入口（不经过 DI 容器）。</summary>
@@ -117,6 +121,12 @@ public sealed class AiAssistantPageViewModel : ObservableObject, IPluginPage, ID
 
     /// <summary>对话消息（用户与助手混排，按时间顺序）。</summary>
     public ObservableCollection<AiChatMessage> Messages { get; } = new();
+
+    /// <summary>当前是否有历史消息（用于在工作区切换空状态与对话流）。</summary>
+    public bool HasMessages => Messages.Count > 0;
+
+    /// <summary>当前消息是否为空（空状态展示欢迎卡片）。</summary>
+    public bool IsEmpty => Messages.Count == 0;
 
     /// <summary>本轮问答的工具轨迹行。</summary>
     public ObservableCollection<AiToolTrace> ToolTraces { get; } = new();
@@ -198,11 +208,20 @@ public sealed class AiAssistantPageViewModel : ObservableObject, IPluginPage, ID
         set => SetProperty(ref _baseUrl, value);
     }
 
+    /// <summary>当前模型摘要（展示在设置卡片标题与顶栏 Pill）。</summary>
+    public string CurrentModelSummary => $"{Model} · {(string.IsNullOrWhiteSpace(McpCommand) ? "Web兜底" : "MCP搜索")}";
+
     /// <summary>模型名。</summary>
     public string Model
     {
         get => _model;
-        set => SetProperty(ref _model, value);
+        set
+        {
+            if (SetProperty(ref _model, value))
+            {
+                OnPropertyChanged(nameof(CurrentModelSummary));
+            }
+        }
     }
 
     /// <summary>明文 API Key（只在内存里；保存时由 <see cref="ISecretProtector"/> 加密）。</summary>
@@ -216,7 +235,13 @@ public sealed class AiAssistantPageViewModel : ObservableObject, IPluginPage, ID
     public string McpCommand
     {
         get => _mcpCommand;
-        set => SetProperty(ref _mcpCommand, value);
+        set
+        {
+            if (SetProperty(ref _mcpCommand, value))
+            {
+                OnPropertyChanged(nameof(CurrentModelSummary));
+            }
+        }
     }
 
     /// <summary>MCP 参数（空格分隔，带引号的段算一个参数）。</summary>
@@ -245,6 +270,12 @@ public sealed class AiAssistantPageViewModel : ObservableObject, IPluginPage, ID
 
     /// <summary>测试端点连通性。</summary>
     public IAsyncRelayCommand TestConnectionCommand { get; }
+
+    /// <summary>快捷引导提问指令。</summary>
+    public IAsyncRelayCommand<string> QuickPromptCommand { get; }
+
+    /// <summary>恢复默认配置指令。</summary>
+    public IRelayCommand ResetSettingsCommand { get; }
 
     /// <summary>页面首次挂到可视树时调用；幂等（视图可能被复用）。</summary>
     public void Initialize()
@@ -277,6 +308,8 @@ public sealed class AiAssistantPageViewModel : ObservableObject, IPluginPage, ID
 
         _disposed = true;
         ToolTraces.CollectionChanged -= OnToolTracesChanged;
+        Messages.CollectionChanged -= OnMessagesChanged;
+        AiSettingsStore.SettingsChanged -= OnExternalSettingsChanged;
         try
         {
             _cts?.Cancel();
@@ -288,7 +321,7 @@ public sealed class AiAssistantPageViewModel : ObservableObject, IPluginPage, ID
 
         _cts?.Dispose();
         _cts = null;
-        _search?.Dispose();
+        (_search as IDisposable)?.Dispose();
         _search = null;
         _http.Dispose();
     }
@@ -465,21 +498,27 @@ public sealed class AiAssistantPageViewModel : ObservableObject, IPluginPage, ID
         return _chat;
     }
 
-    private McpSearchClient? CreateSearchClient()
+    private IWebSearchTool? CreateSearchClient()
     {
-        if (string.IsNullOrWhiteSpace(McpCommand))
+        if (!string.IsNullOrWhiteSpace(McpCommand))
         {
-            return null;
+            return new McpSearchClient(McpCommand.Trim(), SplitArguments(McpArgsText));
         }
 
-        return new McpSearchClient(McpCommand.Trim(), SplitArguments(McpArgsText));
+        var detected = McpSearchClient.TryAutoDetect();
+        if (detected.HasValue)
+        {
+            return new McpSearchClient(detected.Value.Command, detected.Value.Args);
+        }
+
+        return new WebSearchFallbackClient(_http);
     }
 
     private void ResetEngine()
     {
         _chat = null;
         _tools = null;
-        _search?.Dispose();
+        (_search as IDisposable)?.Dispose();
         _search = null;
     }
 
@@ -509,6 +548,56 @@ public sealed class AiAssistantPageViewModel : ObservableObject, IPluginPage, ID
     {
         OnPropertyChanged(nameof(HasToolTraces));
         OnPropertyChanged(nameof(ToolTraceSummary));
+    }
+
+    private void OnMessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasMessages));
+        OnPropertyChanged(nameof(IsEmpty));
+    }
+
+    private async Task ExecuteQuickPromptAsync(string? prompt)
+    {
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            return;
+        }
+
+        DraftText = prompt.Trim();
+        if (CanSend())
+        {
+            await SendAsync();
+        }
+    }
+
+    private void ResetSettingsToDefaults()
+    {
+        BaseUrl = AiSettings.DefaultBaseUrl;
+        Model = AiSettings.DefaultModel;
+        McpCommand = AiSettings.DefaultMcpCommand;
+        McpArgsText = string.Empty;
+        StatusText = "已重置为默认配置，点击「保存配置」后生效。";
+    }
+
+    private void OnExternalSettingsChanged(AiSettings newSettings)
+    {
+        PostToUi(() =>
+        {
+            _snapshot = newSettings;
+            BaseUrl = newSettings.BaseUrl;
+            Model = newSettings.Model;
+            McpCommand = newSettings.McpCommand;
+            McpArgsText = string.Join(' ', newSettings.McpArgs);
+
+            var key = _settings.LoadApiKey();
+            if (key is not null)
+            {
+                ApiKey = key;
+            }
+
+            OnPropertyChanged(nameof(CurrentModelSummary));
+            ResetEngine();
+        });
     }
 
     /// <summary>把「空格分隔、支持双引号」的参数串切成数组。</summary>

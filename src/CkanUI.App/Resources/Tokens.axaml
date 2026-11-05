@@ -208,6 +208,595 @@
       <SolidColorBrush x:Key="CkanOrbitalLineBrush" Color="#1872A7FF" />
     </ResourceDictionary>
 
+    <ResourceDictionary x:Key="{x:Static app:ThemeHost.CoronaGoldVariant}">
+      <!-- 基础表面与背景：画布 → 卡片 → 内凹输入，三级明度分层（ELV-01） -->
+      <SolidColorBrush x:Key="CkanSurfaceBackgroundBrush" Color="#E615110C" />
+      <SolidColorBrush x:Key="CkanCanvasBackgroundBrush" Color="#0D0B08" />
+      <SolidColorBrush x:Key="CkanSidebarBackgroundBrush" Color="#C01B1610" />
+      <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="CkanSidebarBackgroundBrush" />
+      <SolidColorBrush x:Key="CkanStatusBarBackgroundBrush" Color="#D91A150F" />
+      <SolidColorBrush x:Key="CkanCardBackgroundBrush" Color="#D8211A12" />
+      <SolidColorBrush x:Key="CkanElevatedCardHoverBrush" Color="#2B2218" />
+      <SolidColorBrush x:Key="CkanRecessedInputBrush" Color="#0A0806" />
+      <SolidColorBrush x:Key="CkanDialogBackgroundBrush" Color="#221B12" />
+      <SolidColorBrush x:Key="CkanSubtleBackgroundBrush" Color="#C81F1912" />
+      <SolidColorBrush x:Key="CkanAccentSubtleBrush" Color="#2B2214" />
+      <SolidColorBrush x:Key="CkanNavigationSelectionBrush" Color="#372C19" />
+      <SolidColorBrush x:Key="CkanMutedBackgroundBrush" Color="#2A2118" />
+
+      <!--
+        表面分层阶梯（ELV-01）：深色下每级 +6~8 明度，肉眼能数出三层，不再"一黑到底"。
+        底板 #0B0E14 → 表面 #101319 → 卡片 #20232B → 悬浮 #2A313D，输入框反而下凹到 #0A0D12。
+      -->
+      <StaticResource x:Key="CkanLayerCanvasBrush" ResourceKey="CkanCanvasBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerSurfaceBrush" ResourceKey="CkanSurfaceBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerCardBrush" ResourceKey="CkanCardBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerRecessedBrush" ResourceKey="CkanRecessedInputBrush" />
+      <SolidColorBrush x:Key="CkanLayerElevatedBrush" Color="#2B2218" />
+      <!-- 1px 顶光描边：卡片上缘 8% 白光，是深色下唯一能读出"边缘"的东西 -->
+      <SolidColorBrush x:Key="CkanHairlineBrush" Color="#14FFFFFF" />
+
+      <!-- 磨砂玻璃 / 亚克力基底（MAT）：8% 白填充 + 顶光内描边 + 深柔影；强调色按钮走 ShadowAccent -->
+      <SolidColorBrush x:Key="CkanGlassFillBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="CkanGlassFillHoverBrush" Color="#24FFFFFF" />
+      <LinearGradientBrush x:Key="CkanGlassBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#33FFFFFF" />
+        <GradientStop Offset="0.5" Color="#12FFFFFF" />
+        <GradientStop Offset="1.0" Color="#0AFFFFFF" />
+      </LinearGradientBrush>
+      <LinearGradientBrush x:Key="CkanGlassBorderHoverBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#2AE0B15C" />
+        <GradientStop Offset="1.0" Color="#2AE0B15C" />
+      </LinearGradientBrush>
+      <BoxShadows x:Key="CkanGlassShadow">inset 0 1 0 0 #1FFFFFFF, 0 2 6 0 #0E000000, 0 8 20 0 #0A000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowHover">inset 0 1 0 0 #33FFFFFF, 0 6 18 0 #1F000000, 0 10 28 0 #12000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowAccent">inset 0 1 0 0 #4DFFFFFF, 0 6 16 0 #33E0B15C, 0 2 6 0 #26000000</BoxShadows>
+      <RadialGradientBrush x:Key="CkanEmptyStateGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="70%" RadiusY="70%">
+        <GradientStop Offset="0" Color="#00E0B15C" />
+        <GradientStop Offset="1" Color="#00E0B15C" />
+      </RadialGradientBrush>
+
+      <!-- 边框与分割线：卡片描边改用顶光渐变（上缘 8% 白光 → 下缘 2%）（ELV-02） -->
+      <SolidColorBrush x:Key="CkanBorderBrush" Color="#3A2E20" />
+      <LinearGradientBrush x:Key="CkanCardBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#16FFFFFF" />
+        <GradientStop Offset="0.15" Color="#08FFFFFF" />
+        <GradientStop Offset="1.0" Color="#05FFFFFF" />
+      </LinearGradientBrush>
+
+      <!-- 文字色 -->
+      <SolidColorBrush x:Key="CkanTextPrimaryBrush" Color="#F3E9D6" />
+      <SolidColorBrush x:Key="CkanTextSecondaryBrush" Color="#B5A58B" />
+      <SolidColorBrush x:Key="CkanTextTertiaryBrush" Color="#7E7261" />
+      <SolidColorBrush x:Key="CkanTextInverseBrush" Color="#11161D" />
+      <SolidColorBrush x:Key="CkanTextOnAccentBrush" Color="#100C07" />
+
+      <!-- 强调与语义色 -->
+      <SolidColorBrush x:Key="CkanAccentBrush" Color="#E0B15C" />
+      <SolidColorBrush x:Key="CkanPrimaryBrush" Color="#E0B15C" />
+      <SolidColorBrush x:Key="CkanAccentTextBrush" Color="#100C07" />
+      <SolidColorBrush x:Key="CkanSuccessBrush" Color="#4FD07A" />
+      <SolidColorBrush x:Key="CkanWarningBrush" Color="#E8A33D" />
+      <SolidColorBrush x:Key="CkanWarningBackgroundBrush" Color="#332800" />
+      <SolidColorBrush x:Key="CkanDangerBrush" Color="#FF6B5E" />
+      <SolidColorBrush x:Key="CkanDangerBackgroundBrush" Color="#381414" />
+      <SolidColorBrush x:Key="CkanInfoBrush" Color="#58A6FF" />
+      <SolidColorBrush x:Key="CkanInfoBackgroundBrush" Color="#16283D" />
+
+      <!-- 遮罩 -->
+      <SolidColorBrush x:Key="CkanScrimBrush" Color="#99000000" />
+      <SolidColorBrush x:Key="CkanBlockingScrimBrush" Color="#B3000000" />
+
+      <!-- 海拔（20 篇 P-08）：深色下双层阴影营造层次感 -->
+      <BoxShadows x:Key="CkanElevationLow">0 1 3 0 #38000000, 0 3 8 0 #44000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationMedium">0 4 12 0 #4C000000, 0 10 24 0 #60000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationHigh">0 8 20 0 #5A000000, 0 18 42 0 #7A000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationNone">0 0 0 0 #00000000</BoxShadows>
+
+      <!-- 焦点环、状态叠加层与骨架屏底色 -->
+      <SolidColorBrush x:Key="CkanFocusRingBrush" Color="#E0B15C" />
+      <SolidColorBrush x:Key="CkanHoverOverlayBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="CkanPressedOverlayBrush" Color="#24FFFFFF" />
+      <SolidColorBrush x:Key="CkanAccentHoverBrush" Color="#E6BF79" />
+      <SolidColorBrush x:Key="CkanSuccessBackgroundBrush" Color="#14301F" />
+      <SolidColorBrush x:Key="CkanSkeletonBrush" Color="#30261B" />
+      <RadialGradientBrush x:Key="CkanAmbientGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="65%" RadiusY="65%">
+        <GradientStop Offset="0" Color="#00E0B15C" />
+        <GradientStop Offset="1" Color="#00E0B15C" />
+      </RadialGradientBrush>
+      <SolidColorBrush x:Key="CkanOrbitalLineBrush" Color="#18E0B15C" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="{x:Static app:ThemeHost.LunarGraphiteVariant}">
+      <!-- 基础表面与背景：画布 → 卡片 → 内凹输入，三级明度分层（ELV-01） -->
+      <SolidColorBrush x:Key="CkanSurfaceBackgroundBrush" Color="#E6121418" />
+      <SolidColorBrush x:Key="CkanCanvasBackgroundBrush" Color="#0D0E10" />
+      <SolidColorBrush x:Key="CkanSidebarBackgroundBrush" Color="#C014161A" />
+      <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="CkanSidebarBackgroundBrush" />
+      <SolidColorBrush x:Key="CkanStatusBarBackgroundBrush" Color="#D915171C" />
+      <SolidColorBrush x:Key="CkanCardBackgroundBrush" Color="#D8171A1F" />
+      <SolidColorBrush x:Key="CkanElevatedCardHoverBrush" Color="#262A31" />
+      <SolidColorBrush x:Key="CkanRecessedInputBrush" Color="#0A0B0D" />
+      <SolidColorBrush x:Key="CkanDialogBackgroundBrush" Color="#1E2228" />
+      <SolidColorBrush x:Key="CkanSubtleBackgroundBrush" Color="#C816191D" />
+      <SolidColorBrush x:Key="CkanAccentSubtleBrush" Color="#272521" />
+      <SolidColorBrush x:Key="CkanNavigationSelectionBrush" Color="#332F28" />
+      <SolidColorBrush x:Key="CkanMutedBackgroundBrush" Color="#23272D" />
+
+      <!--
+        表面分层阶梯（ELV-01）：深色下每级 +6~8 明度，肉眼能数出三层，不再"一黑到底"。
+        底板 #0B0E14 → 表面 #101319 → 卡片 #20232B → 悬浮 #2A313D，输入框反而下凹到 #0A0D12。
+      -->
+      <StaticResource x:Key="CkanLayerCanvasBrush" ResourceKey="CkanCanvasBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerSurfaceBrush" ResourceKey="CkanSurfaceBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerCardBrush" ResourceKey="CkanCardBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerRecessedBrush" ResourceKey="CkanRecessedInputBrush" />
+      <SolidColorBrush x:Key="CkanLayerElevatedBrush" Color="#262A31" />
+      <!-- 1px 顶光描边：卡片上缘 8% 白光，是深色下唯一能读出"边缘"的东西 -->
+      <SolidColorBrush x:Key="CkanHairlineBrush" Color="#14FFFFFF" />
+
+      <!-- 磨砂玻璃 / 亚克力基底（MAT）：8% 白填充 + 顶光内描边 + 深柔影；强调色按钮走 ShadowAccent -->
+      <SolidColorBrush x:Key="CkanGlassFillBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="CkanGlassFillHoverBrush" Color="#24FFFFFF" />
+      <LinearGradientBrush x:Key="CkanGlassBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#33FFFFFF" />
+        <GradientStop Offset="0.5" Color="#12FFFFFF" />
+        <GradientStop Offset="1.0" Color="#0AFFFFFF" />
+      </LinearGradientBrush>
+      <LinearGradientBrush x:Key="CkanGlassBorderHoverBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#2AC9B48A" />
+        <GradientStop Offset="1.0" Color="#2AC9B48A" />
+      </LinearGradientBrush>
+      <BoxShadows x:Key="CkanGlassShadow">inset 0 1 0 0 #1FFFFFFF, 0 2 6 0 #0E000000, 0 8 20 0 #0A000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowHover">inset 0 1 0 0 #33FFFFFF, 0 6 18 0 #1F000000, 0 10 28 0 #12000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowAccent">inset 0 1 0 0 #4DFFFFFF, 0 6 16 0 #33C9B48A, 0 2 6 0 #26000000</BoxShadows>
+      <RadialGradientBrush x:Key="CkanEmptyStateGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="70%" RadiusY="70%">
+        <GradientStop Offset="0" Color="#00C9B48A" />
+        <GradientStop Offset="1" Color="#00C9B48A" />
+      </RadialGradientBrush>
+
+      <!-- 边框与分割线：卡片描边改用顶光渐变（上缘 8% 白光 → 下缘 2%）（ELV-02） -->
+      <SolidColorBrush x:Key="CkanBorderBrush" Color="#383C43" />
+      <LinearGradientBrush x:Key="CkanCardBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#16FFFFFF" />
+        <GradientStop Offset="0.15" Color="#08FFFFFF" />
+        <GradientStop Offset="1.0" Color="#05FFFFFF" />
+      </LinearGradientBrush>
+
+      <!-- 文字色 -->
+      <SolidColorBrush x:Key="CkanTextPrimaryBrush" Color="#ECE8DF" />
+      <SolidColorBrush x:Key="CkanTextSecondaryBrush" Color="#B9B4A8" />
+      <SolidColorBrush x:Key="CkanTextTertiaryBrush" Color="#857F74" />
+      <SolidColorBrush x:Key="CkanTextInverseBrush" Color="#11161D" />
+      <SolidColorBrush x:Key="CkanTextOnAccentBrush" Color="#14120E" />
+
+      <!-- 强调与语义色 -->
+      <SolidColorBrush x:Key="CkanAccentBrush" Color="#C9B48A" />
+      <SolidColorBrush x:Key="CkanPrimaryBrush" Color="#C9B48A" />
+      <SolidColorBrush x:Key="CkanAccentTextBrush" Color="#14120E" />
+      <SolidColorBrush x:Key="CkanSuccessBrush" Color="#4FD07A" />
+      <SolidColorBrush x:Key="CkanWarningBrush" Color="#E8A33D" />
+      <SolidColorBrush x:Key="CkanWarningBackgroundBrush" Color="#332800" />
+      <SolidColorBrush x:Key="CkanDangerBrush" Color="#FF6B5E" />
+      <SolidColorBrush x:Key="CkanDangerBackgroundBrush" Color="#381414" />
+      <SolidColorBrush x:Key="CkanInfoBrush" Color="#58A6FF" />
+      <SolidColorBrush x:Key="CkanInfoBackgroundBrush" Color="#16283D" />
+
+      <!-- 遮罩 -->
+      <SolidColorBrush x:Key="CkanScrimBrush" Color="#99000000" />
+      <SolidColorBrush x:Key="CkanBlockingScrimBrush" Color="#B3000000" />
+
+      <!-- 海拔（20 篇 P-08）：深色下双层阴影营造层次感 -->
+      <BoxShadows x:Key="CkanElevationLow">0 1 3 0 #38000000, 0 3 8 0 #44000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationMedium">0 4 12 0 #4C000000, 0 10 24 0 #60000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationHigh">0 8 20 0 #5A000000, 0 18 42 0 #7A000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationNone">0 0 0 0 #00000000</BoxShadows>
+
+      <!-- 焦点环、状态叠加层与骨架屏底色 -->
+      <SolidColorBrush x:Key="CkanFocusRingBrush" Color="#C9B48A" />
+      <SolidColorBrush x:Key="CkanHoverOverlayBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="CkanPressedOverlayBrush" Color="#24FFFFFF" />
+      <SolidColorBrush x:Key="CkanAccentHoverBrush" Color="#D3C29F" />
+      <SolidColorBrush x:Key="CkanSuccessBackgroundBrush" Color="#14301F" />
+      <SolidColorBrush x:Key="CkanSkeletonBrush" Color="#2C3037" />
+      <RadialGradientBrush x:Key="CkanAmbientGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="65%" RadiusY="65%">
+        <GradientStop Offset="0" Color="#00C9B48A" />
+        <GradientStop Offset="1" Color="#00C9B48A" />
+      </RadialGradientBrush>
+      <SolidColorBrush x:Key="CkanOrbitalLineBrush" Color="#18C9B48A" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="{x:Static app:ThemeHost.CeladonVariant}">
+      <!-- 基础表面与背景：画布 → 卡片 → 内凹输入，三级明度分层（ELV-01） -->
+      <SolidColorBrush x:Key="CkanSurfaceBackgroundBrush" Color="#E60F1A16" />
+      <SolidColorBrush x:Key="CkanCanvasBackgroundBrush" Color="#08110F" />
+      <SolidColorBrush x:Key="CkanSidebarBackgroundBrush" Color="#C0111D19" />
+      <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="CkanSidebarBackgroundBrush" />
+      <SolidColorBrush x:Key="CkanStatusBarBackgroundBrush" Color="#D9121F1B" />
+      <SolidColorBrush x:Key="CkanCardBackgroundBrush" Color="#D816231E" />
+      <SolidColorBrush x:Key="CkanElevatedCardHoverBrush" Color="#24312B" />
+      <SolidColorBrush x:Key="CkanRecessedInputBrush" Color="#060D0B" />
+      <SolidColorBrush x:Key="CkanDialogBackgroundBrush" Color="#1B2722" />
+      <SolidColorBrush x:Key="CkanSubtleBackgroundBrush" Color="#C8121E19" />
+      <SolidColorBrush x:Key="CkanAccentSubtleBrush" Color="#162824" />
+      <SolidColorBrush x:Key="CkanNavigationSelectionBrush" Color="#1D322E" />
+      <SolidColorBrush x:Key="CkanMutedBackgroundBrush" Color="#26332D" />
+
+      <!--
+        表面分层阶梯（ELV-01）：深色下每级 +6~8 明度，肉眼能数出三层，不再"一黑到底"。
+        底板 #0B0E14 → 表面 #101319 → 卡片 #20232B → 悬浮 #2A313D，输入框反而下凹到 #0A0D12。
+      -->
+      <StaticResource x:Key="CkanLayerCanvasBrush" ResourceKey="CkanCanvasBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerSurfaceBrush" ResourceKey="CkanSurfaceBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerCardBrush" ResourceKey="CkanCardBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerRecessedBrush" ResourceKey="CkanRecessedInputBrush" />
+      <SolidColorBrush x:Key="CkanLayerElevatedBrush" Color="#24312B" />
+      <!-- 1px 顶光描边：卡片上缘 8% 白光，是深色下唯一能读出"边缘"的东西 -->
+      <SolidColorBrush x:Key="CkanHairlineBrush" Color="#14FFFFFF" />
+
+      <!-- 磨砂玻璃 / 亚克力基底（MAT）：8% 白填充 + 顶光内描边 + 深柔影；强调色按钮走 ShadowAccent -->
+      <SolidColorBrush x:Key="CkanGlassFillBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="CkanGlassFillHoverBrush" Color="#24FFFFFF" />
+      <LinearGradientBrush x:Key="CkanGlassBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#33FFFFFF" />
+        <GradientStop Offset="0.5" Color="#12FFFFFF" />
+        <GradientStop Offset="1.0" Color="#0AFFFFFF" />
+      </LinearGradientBrush>
+      <LinearGradientBrush x:Key="CkanGlassBorderHoverBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#2A6FB7A8" />
+        <GradientStop Offset="1.0" Color="#2A6FB7A8" />
+      </LinearGradientBrush>
+      <BoxShadows x:Key="CkanGlassShadow">inset 0 1 0 0 #1FFFFFFF, 0 2 6 0 #0E000000, 0 8 20 0 #0A000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowHover">inset 0 1 0 0 #33FFFFFF, 0 6 18 0 #1F000000, 0 10 28 0 #12000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowAccent">inset 0 1 0 0 #4DFFFFFF, 0 6 16 0 #336FB7A8, 0 2 6 0 #26000000</BoxShadows>
+      <RadialGradientBrush x:Key="CkanEmptyStateGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="70%" RadiusY="70%">
+        <GradientStop Offset="0" Color="#006FB7A8" />
+        <GradientStop Offset="1" Color="#006FB7A8" />
+      </RadialGradientBrush>
+
+      <!-- 边框与分割线：卡片描边改用顶光渐变（上缘 8% 白光 → 下缘 2%）（ELV-02） -->
+      <SolidColorBrush x:Key="CkanBorderBrush" Color="#33443E" />
+      <LinearGradientBrush x:Key="CkanCardBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#16FFFFFF" />
+        <GradientStop Offset="0.15" Color="#08FFFFFF" />
+        <GradientStop Offset="1.0" Color="#05FFFFFF" />
+      </LinearGradientBrush>
+
+      <!-- 文字色 -->
+      <SolidColorBrush x:Key="CkanTextPrimaryBrush" Color="#DCE8E4" />
+      <SolidColorBrush x:Key="CkanTextSecondaryBrush" Color="#A9BDB6" />
+      <SolidColorBrush x:Key="CkanTextTertiaryBrush" Color="#7E948D" />
+      <SolidColorBrush x:Key="CkanTextInverseBrush" Color="#11161D" />
+      <SolidColorBrush x:Key="CkanTextOnAccentBrush" Color="#07110E" />
+
+      <!-- 强调与语义色 -->
+      <SolidColorBrush x:Key="CkanAccentBrush" Color="#6FB7A8" />
+      <SolidColorBrush x:Key="CkanPrimaryBrush" Color="#6FB7A8" />
+      <SolidColorBrush x:Key="CkanAccentTextBrush" Color="#07110E" />
+      <SolidColorBrush x:Key="CkanSuccessBrush" Color="#4FD07A" />
+      <SolidColorBrush x:Key="CkanWarningBrush" Color="#E8A33D" />
+      <SolidColorBrush x:Key="CkanWarningBackgroundBrush" Color="#332800" />
+      <SolidColorBrush x:Key="CkanDangerBrush" Color="#FF6B5E" />
+      <SolidColorBrush x:Key="CkanDangerBackgroundBrush" Color="#381414" />
+      <SolidColorBrush x:Key="CkanInfoBrush" Color="#58A6FF" />
+      <SolidColorBrush x:Key="CkanInfoBackgroundBrush" Color="#16283D" />
+
+      <!-- 遮罩 -->
+      <SolidColorBrush x:Key="CkanScrimBrush" Color="#99000000" />
+      <SolidColorBrush x:Key="CkanBlockingScrimBrush" Color="#B3000000" />
+
+      <!-- 海拔（20 篇 P-08）：深色下双层阴影营造层次感 -->
+      <BoxShadows x:Key="CkanElevationLow">0 1 3 0 #38000000, 0 3 8 0 #44000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationMedium">0 4 12 0 #4C000000, 0 10 24 0 #60000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationHigh">0 8 20 0 #5A000000, 0 18 42 0 #7A000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationNone">0 0 0 0 #00000000</BoxShadows>
+
+      <!-- 焦点环、状态叠加层与骨架屏底色 -->
+      <SolidColorBrush x:Key="CkanFocusRingBrush" Color="#6FB7A8" />
+      <SolidColorBrush x:Key="CkanHoverOverlayBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="CkanPressedOverlayBrush" Color="#24FFFFFF" />
+      <SolidColorBrush x:Key="CkanAccentHoverBrush" Color="#89C4B8" />
+      <SolidColorBrush x:Key="CkanSuccessBackgroundBrush" Color="#14301F" />
+      <SolidColorBrush x:Key="CkanSkeletonBrush" Color="#2C3A34" />
+      <RadialGradientBrush x:Key="CkanAmbientGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="65%" RadiusY="65%">
+        <GradientStop Offset="0" Color="#006FB7A8" />
+        <GradientStop Offset="1" Color="#006FB7A8" />
+      </RadialGradientBrush>
+      <SolidColorBrush x:Key="CkanOrbitalLineBrush" Color="#186FB7A8" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="{x:Static app:ThemeHost.CopperVariant}">
+      <!-- 基础表面与背景：画布 → 卡片 → 内凹输入，三级明度分层（ELV-01） -->
+      <SolidColorBrush x:Key="CkanSurfaceBackgroundBrush" Color="#E615110C" />
+      <SolidColorBrush x:Key="CkanCanvasBackgroundBrush" Color="#120E0B" />
+      <SolidColorBrush x:Key="CkanSidebarBackgroundBrush" Color="#C01B1610" />
+      <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="CkanSidebarBackgroundBrush" />
+      <SolidColorBrush x:Key="CkanStatusBarBackgroundBrush" Color="#D91A150F" />
+      <SolidColorBrush x:Key="CkanCardBackgroundBrush" Color="#D8211A12" />
+      <SolidColorBrush x:Key="CkanElevatedCardHoverBrush" Color="#2B2218" />
+      <SolidColorBrush x:Key="CkanRecessedInputBrush" Color="#0A0806" />
+      <SolidColorBrush x:Key="CkanDialogBackgroundBrush" Color="#221B12" />
+      <SolidColorBrush x:Key="CkanSubtleBackgroundBrush" Color="#C81F1912" />
+      <SolidColorBrush x:Key="CkanAccentSubtleBrush" Color="#2D1F16" />
+      <SolidColorBrush x:Key="CkanNavigationSelectionBrush" Color="#38271B" />
+      <SolidColorBrush x:Key="CkanMutedBackgroundBrush" Color="#2A2118" />
+
+      <!--
+        表面分层阶梯（ELV-01）：深色下每级 +6~8 明度，肉眼能数出三层，不再"一黑到底"。
+        底板 #0B0E14 → 表面 #101319 → 卡片 #20232B → 悬浮 #2A313D，输入框反而下凹到 #0A0D12。
+      -->
+      <StaticResource x:Key="CkanLayerCanvasBrush" ResourceKey="CkanCanvasBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerSurfaceBrush" ResourceKey="CkanSurfaceBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerCardBrush" ResourceKey="CkanCardBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerRecessedBrush" ResourceKey="CkanRecessedInputBrush" />
+      <SolidColorBrush x:Key="CkanLayerElevatedBrush" Color="#2B2218" />
+      <!-- 1px 顶光描边：卡片上缘 8% 白光，是深色下唯一能读出"边缘"的东西 -->
+      <SolidColorBrush x:Key="CkanHairlineBrush" Color="#14FFFFFF" />
+
+      <!-- 磨砂玻璃 / 亚克力基底（MAT）：8% 白填充 + 顶光内描边 + 深柔影；强调色按钮走 ShadowAccent -->
+      <SolidColorBrush x:Key="CkanGlassFillBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="CkanGlassFillHoverBrush" Color="#24FFFFFF" />
+      <LinearGradientBrush x:Key="CkanGlassBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#33FFFFFF" />
+        <GradientStop Offset="0.5" Color="#12FFFFFF" />
+        <GradientStop Offset="1.0" Color="#0AFFFFFF" />
+      </LinearGradientBrush>
+      <LinearGradientBrush x:Key="CkanGlassBorderHoverBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#2AD08A5A" />
+        <GradientStop Offset="1.0" Color="#2AD08A5A" />
+      </LinearGradientBrush>
+      <BoxShadows x:Key="CkanGlassShadow">inset 0 1 0 0 #1FFFFFFF, 0 2 6 0 #0E000000, 0 8 20 0 #0A000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowHover">inset 0 1 0 0 #33FFFFFF, 0 6 18 0 #1F000000, 0 10 28 0 #12000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowAccent">inset 0 1 0 0 #4DFFFFFF, 0 6 16 0 #33D08A5A, 0 2 6 0 #26000000</BoxShadows>
+      <RadialGradientBrush x:Key="CkanEmptyStateGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="70%" RadiusY="70%">
+        <GradientStop Offset="0" Color="#00D08A5A" />
+        <GradientStop Offset="1" Color="#00D08A5A" />
+      </RadialGradientBrush>
+
+      <!-- 边框与分割线：卡片描边改用顶光渐变（上缘 8% 白光 → 下缘 2%）（ELV-02） -->
+      <SolidColorBrush x:Key="CkanBorderBrush" Color="#3C3024" />
+      <LinearGradientBrush x:Key="CkanCardBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#16FFFFFF" />
+        <GradientStop Offset="0.15" Color="#08FFFFFF" />
+        <GradientStop Offset="1.0" Color="#05FFFFFF" />
+      </LinearGradientBrush>
+
+      <!-- 文字色 -->
+      <SolidColorBrush x:Key="CkanTextPrimaryBrush" Color="#F0E4D8" />
+      <SolidColorBrush x:Key="CkanTextSecondaryBrush" Color="#C6B29C" />
+      <SolidColorBrush x:Key="CkanTextTertiaryBrush" Color="#8B7A66" />
+      <SolidColorBrush x:Key="CkanTextInverseBrush" Color="#11161D" />
+      <SolidColorBrush x:Key="CkanTextOnAccentBrush" Color="#16100B" />
+
+      <!-- 强调与语义色 -->
+      <SolidColorBrush x:Key="CkanAccentBrush" Color="#D08A5A" />
+      <SolidColorBrush x:Key="CkanPrimaryBrush" Color="#D08A5A" />
+      <SolidColorBrush x:Key="CkanAccentTextBrush" Color="#16100B" />
+      <SolidColorBrush x:Key="CkanSuccessBrush" Color="#4FD07A" />
+      <SolidColorBrush x:Key="CkanWarningBrush" Color="#E8A33D" />
+      <SolidColorBrush x:Key="CkanWarningBackgroundBrush" Color="#332800" />
+      <SolidColorBrush x:Key="CkanDangerBrush" Color="#FF6B5E" />
+      <SolidColorBrush x:Key="CkanDangerBackgroundBrush" Color="#381414" />
+      <SolidColorBrush x:Key="CkanInfoBrush" Color="#58A6FF" />
+      <SolidColorBrush x:Key="CkanInfoBackgroundBrush" Color="#16283D" />
+
+      <!-- 遮罩 -->
+      <SolidColorBrush x:Key="CkanScrimBrush" Color="#99000000" />
+      <SolidColorBrush x:Key="CkanBlockingScrimBrush" Color="#B3000000" />
+
+      <!-- 海拔（20 篇 P-08）：深色下双层阴影营造层次感 -->
+      <BoxShadows x:Key="CkanElevationLow">0 1 3 0 #38000000, 0 3 8 0 #44000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationMedium">0 4 12 0 #4C000000, 0 10 24 0 #60000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationHigh">0 8 20 0 #5A000000, 0 18 42 0 #7A000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationNone">0 0 0 0 #00000000</BoxShadows>
+
+      <!-- 焦点环、状态叠加层与骨架屏底色 -->
+      <SolidColorBrush x:Key="CkanFocusRingBrush" Color="#D08A5A" />
+      <SolidColorBrush x:Key="CkanHoverOverlayBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="CkanPressedOverlayBrush" Color="#24FFFFFF" />
+      <SolidColorBrush x:Key="CkanAccentHoverBrush" Color="#D89F78" />
+      <SolidColorBrush x:Key="CkanSuccessBackgroundBrush" Color="#14301F" />
+      <SolidColorBrush x:Key="CkanSkeletonBrush" Color="#32271C" />
+      <RadialGradientBrush x:Key="CkanAmbientGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="65%" RadiusY="65%">
+        <GradientStop Offset="0" Color="#00D08A5A" />
+        <GradientStop Offset="1" Color="#00D08A5A" />
+      </RadialGradientBrush>
+      <SolidColorBrush x:Key="CkanOrbitalLineBrush" Color="#18D08A5A" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="{x:Static app:ThemeHost.NebulaVioletVariant}">
+      <!-- 基础表面与背景：画布 → 卡片 → 内凹输入，三级明度分层（ELV-01） -->
+      <SolidColorBrush x:Key="CkanSurfaceBackgroundBrush" Color="#E6120E1F" />
+      <SolidColorBrush x:Key="CkanCanvasBackgroundBrush" Color="#0B0814" />
+      <SolidColorBrush x:Key="CkanSidebarBackgroundBrush" Color="#C0171229" />
+      <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="CkanSidebarBackgroundBrush" />
+      <SolidColorBrush x:Key="CkanStatusBarBackgroundBrush" Color="#D9151126" />
+      <SolidColorBrush x:Key="CkanCardBackgroundBrush" Color="#D81A142E" />
+      <SolidColorBrush x:Key="CkanElevatedCardHoverBrush" Color="#2A2145" />
+      <SolidColorBrush x:Key="CkanRecessedInputBrush" Color="#08060F" />
+      <SolidColorBrush x:Key="CkanDialogBackgroundBrush" Color="#221A38" />
+      <SolidColorBrush x:Key="CkanSubtleBackgroundBrush" Color="#C8171330" />
+      <SolidColorBrush x:Key="CkanAccentSubtleBrush" Color="#211A34" />
+      <SolidColorBrush x:Key="CkanNavigationSelectionBrush" Color="#2A2242" />
+      <SolidColorBrush x:Key="CkanMutedBackgroundBrush" Color="#2B2247" />
+
+      <!--
+        表面分层阶梯（ELV-01）：深色下每级 +6~8 明度，肉眼能数出三层，不再"一黑到底"。
+        底板 #0B0E14 → 表面 #101319 → 卡片 #20232B → 悬浮 #2A313D，输入框反而下凹到 #0A0D12。
+      -->
+      <StaticResource x:Key="CkanLayerCanvasBrush" ResourceKey="CkanCanvasBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerSurfaceBrush" ResourceKey="CkanSurfaceBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerCardBrush" ResourceKey="CkanCardBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerRecessedBrush" ResourceKey="CkanRecessedInputBrush" />
+      <SolidColorBrush x:Key="CkanLayerElevatedBrush" Color="#2A2145" />
+      <!-- 1px 顶光描边：卡片上缘 8% 白光，是深色下唯一能读出"边缘"的东西 -->
+      <SolidColorBrush x:Key="CkanHairlineBrush" Color="#14FFFFFF" />
+
+      <!-- 磨砂玻璃 / 亚克力基底（MAT）：8% 白填充 + 顶光内描边 + 深柔影；强调色按钮走 ShadowAccent -->
+      <SolidColorBrush x:Key="CkanGlassFillBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="CkanGlassFillHoverBrush" Color="#24FFFFFF" />
+      <LinearGradientBrush x:Key="CkanGlassBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#33FFFFFF" />
+        <GradientStop Offset="0.5" Color="#12FFFFFF" />
+        <GradientStop Offset="1.0" Color="#0AFFFFFF" />
+      </LinearGradientBrush>
+      <LinearGradientBrush x:Key="CkanGlassBorderHoverBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#2AA78BFA" />
+        <GradientStop Offset="1.0" Color="#2AA78BFA" />
+      </LinearGradientBrush>
+      <BoxShadows x:Key="CkanGlassShadow">inset 0 1 0 0 #1FFFFFFF, 0 2 6 0 #0E000000, 0 8 20 0 #0A000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowHover">inset 0 1 0 0 #33FFFFFF, 0 6 18 0 #1F000000, 0 10 28 0 #12000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowAccent">inset 0 1 0 0 #4DFFFFFF, 0 6 16 0 #33A78BFA, 0 2 6 0 #26000000</BoxShadows>
+      <RadialGradientBrush x:Key="CkanEmptyStateGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="70%" RadiusY="70%">
+        <GradientStop Offset="0" Color="#00A78BFA" />
+        <GradientStop Offset="1" Color="#00A78BFA" />
+      </RadialGradientBrush>
+
+      <!-- 边框与分割线：卡片描边改用顶光渐变（上缘 8% 白光 → 下缘 2%）（ELV-02） -->
+      <SolidColorBrush x:Key="CkanBorderBrush" Color="#3B2F5C" />
+      <LinearGradientBrush x:Key="CkanCardBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#16FFFFFF" />
+        <GradientStop Offset="0.15" Color="#08FFFFFF" />
+        <GradientStop Offset="1.0" Color="#05FFFFFF" />
+      </LinearGradientBrush>
+
+      <!-- 文字色 -->
+      <SolidColorBrush x:Key="CkanTextPrimaryBrush" Color="#EDE9FE" />
+      <SolidColorBrush x:Key="CkanTextSecondaryBrush" Color="#B9AEDB" />
+      <SolidColorBrush x:Key="CkanTextTertiaryBrush" Color="#8577A8" />
+      <SolidColorBrush x:Key="CkanTextInverseBrush" Color="#11161D" />
+      <SolidColorBrush x:Key="CkanTextOnAccentBrush" Color="#17102B" />
+
+      <!-- 强调与语义色 -->
+      <SolidColorBrush x:Key="CkanAccentBrush" Color="#A78BFA" />
+      <SolidColorBrush x:Key="CkanPrimaryBrush" Color="#A78BFA" />
+      <SolidColorBrush x:Key="CkanAccentTextBrush" Color="#17102B" />
+      <SolidColorBrush x:Key="CkanSuccessBrush" Color="#4FD07A" />
+      <SolidColorBrush x:Key="CkanWarningBrush" Color="#E8A33D" />
+      <SolidColorBrush x:Key="CkanWarningBackgroundBrush" Color="#332800" />
+      <SolidColorBrush x:Key="CkanDangerBrush" Color="#FF6B5E" />
+      <SolidColorBrush x:Key="CkanDangerBackgroundBrush" Color="#381414" />
+      <SolidColorBrush x:Key="CkanInfoBrush" Color="#58A6FF" />
+      <SolidColorBrush x:Key="CkanInfoBackgroundBrush" Color="#16283D" />
+
+      <!-- 遮罩 -->
+      <SolidColorBrush x:Key="CkanScrimBrush" Color="#99000000" />
+      <SolidColorBrush x:Key="CkanBlockingScrimBrush" Color="#B3000000" />
+
+      <!-- 海拔（20 篇 P-08）：深色下双层阴影营造层次感 -->
+      <BoxShadows x:Key="CkanElevationLow">0 1 3 0 #38000000, 0 3 8 0 #44000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationMedium">0 4 12 0 #4C000000, 0 10 24 0 #60000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationHigh">0 8 20 0 #5A000000, 0 18 42 0 #7A000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationNone">0 0 0 0 #00000000</BoxShadows>
+
+      <!-- 焦点环、状态叠加层与骨架屏底色 -->
+      <SolidColorBrush x:Key="CkanFocusRingBrush" Color="#A78BFA" />
+      <SolidColorBrush x:Key="CkanHoverOverlayBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="CkanPressedOverlayBrush" Color="#24FFFFFF" />
+      <SolidColorBrush x:Key="CkanAccentHoverBrush" Color="#B7A0FB" />
+      <SolidColorBrush x:Key="CkanSuccessBackgroundBrush" Color="#14301F" />
+      <SolidColorBrush x:Key="CkanSkeletonBrush" Color="#322857" />
+      <RadialGradientBrush x:Key="CkanAmbientGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="65%" RadiusY="65%">
+        <GradientStop Offset="0" Color="#00A78BFA" />
+        <GradientStop Offset="1" Color="#00A78BFA" />
+      </RadialGradientBrush>
+      <SolidColorBrush x:Key="CkanOrbitalLineBrush" Color="#18A78BFA" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="{x:Static app:ThemeHost.MonochromeSilverVariant}">
+      <!-- 基础表面与背景：画布 → 卡片 → 内凹输入，三级明度分层（ELV-01） -->
+      <SolidColorBrush x:Key="CkanSurfaceBackgroundBrush" Color="#E60D0F13" />
+      <SolidColorBrush x:Key="CkanCanvasBackgroundBrush" Color="#08090B" />
+      <SolidColorBrush x:Key="CkanSidebarBackgroundBrush" Color="#C00A0C10" />
+      <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="CkanSidebarBackgroundBrush" />
+      <SolidColorBrush x:Key="CkanStatusBarBackgroundBrush" Color="#D90B0D12" />
+      <SolidColorBrush x:Key="CkanCardBackgroundBrush" Color="#D80E1117" />
+      <SolidColorBrush x:Key="CkanElevatedCardHoverBrush" Color="#1B2029" />
+      <SolidColorBrush x:Key="CkanRecessedInputBrush" Color="#050608" />
+      <SolidColorBrush x:Key="CkanDialogBackgroundBrush" Color="#12151B" />
+      <SolidColorBrush x:Key="CkanSubtleBackgroundBrush" Color="#C80C0E13" />
+      <SolidColorBrush x:Key="CkanAccentSubtleBrush" Color="#212326" />
+      <SolidColorBrush x:Key="CkanNavigationSelectionBrush" Color="#2B2E32" />
+      <SolidColorBrush x:Key="CkanMutedBackgroundBrush" Color="#181C23" />
+
+      <!--
+        表面分层阶梯（ELV-01）：深色下每级 +6~8 明度，肉眼能数出三层，不再"一黑到底"。
+        底板 #0B0E14 → 表面 #101319 → 卡片 #20232B → 悬浮 #2A313D，输入框反而下凹到 #0A0D12。
+      -->
+      <StaticResource x:Key="CkanLayerCanvasBrush" ResourceKey="CkanCanvasBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerSurfaceBrush" ResourceKey="CkanSurfaceBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerCardBrush" ResourceKey="CkanCardBackgroundBrush" />
+      <StaticResource x:Key="CkanLayerRecessedBrush" ResourceKey="CkanRecessedInputBrush" />
+      <SolidColorBrush x:Key="CkanLayerElevatedBrush" Color="#1B2029" />
+      <!-- 1px 顶光描边：卡片上缘 8% 白光，是深色下唯一能读出"边缘"的东西 -->
+      <SolidColorBrush x:Key="CkanHairlineBrush" Color="#14FFFFFF" />
+
+      <!-- 磨砂玻璃 / 亚克力基底（MAT）：8% 白填充 + 顶光内描边 + 深柔影；强调色按钮走 ShadowAccent -->
+      <SolidColorBrush x:Key="CkanGlassFillBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="CkanGlassFillHoverBrush" Color="#24FFFFFF" />
+      <LinearGradientBrush x:Key="CkanGlassBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#33FFFFFF" />
+        <GradientStop Offset="0.5" Color="#12FFFFFF" />
+        <GradientStop Offset="1.0" Color="#0AFFFFFF" />
+      </LinearGradientBrush>
+      <LinearGradientBrush x:Key="CkanGlassBorderHoverBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#2AB9C2CF" />
+        <GradientStop Offset="1.0" Color="#2AB9C2CF" />
+      </LinearGradientBrush>
+      <BoxShadows x:Key="CkanGlassShadow">inset 0 1 0 0 #1FFFFFFF, 0 2 6 0 #0E000000, 0 8 20 0 #0A000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowHover">inset 0 1 0 0 #33FFFFFF, 0 6 18 0 #1F000000, 0 10 28 0 #12000000</BoxShadows>
+      <BoxShadows x:Key="CkanGlassShadowAccent">inset 0 1 0 0 #4DFFFFFF, 0 6 16 0 #33B9C2CF, 0 2 6 0 #26000000</BoxShadows>
+      <RadialGradientBrush x:Key="CkanEmptyStateGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="70%" RadiusY="70%">
+        <GradientStop Offset="0" Color="#00B9C2CF" />
+        <GradientStop Offset="1" Color="#00B9C2CF" />
+      </RadialGradientBrush>
+
+      <!-- 边框与分割线：卡片描边改用顶光渐变（上缘 8% 白光 → 下缘 2%）（ELV-02） -->
+      <SolidColorBrush x:Key="CkanBorderBrush" Color="#2B323D" />
+      <LinearGradientBrush x:Key="CkanCardBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0.0" Color="#16FFFFFF" />
+        <GradientStop Offset="0.15" Color="#08FFFFFF" />
+        <GradientStop Offset="1.0" Color="#05FFFFFF" />
+      </LinearGradientBrush>
+
+      <!-- 文字色 -->
+      <SolidColorBrush x:Key="CkanTextPrimaryBrush" Color="#F2F4F7" />
+      <SolidColorBrush x:Key="CkanTextSecondaryBrush" Color="#B3BDCA" />
+      <SolidColorBrush x:Key="CkanTextTertiaryBrush" Color="#727B88" />
+      <SolidColorBrush x:Key="CkanTextInverseBrush" Color="#11161D" />
+      <SolidColorBrush x:Key="CkanTextOnAccentBrush" Color="#0A0C10" />
+
+      <!-- 强调与语义色 -->
+      <SolidColorBrush x:Key="CkanAccentBrush" Color="#B9C2CF" />
+      <SolidColorBrush x:Key="CkanPrimaryBrush" Color="#B9C2CF" />
+      <SolidColorBrush x:Key="CkanAccentTextBrush" Color="#0A0C10" />
+      <SolidColorBrush x:Key="CkanSuccessBrush" Color="#4FD07A" />
+      <SolidColorBrush x:Key="CkanWarningBrush" Color="#E8A33D" />
+      <SolidColorBrush x:Key="CkanWarningBackgroundBrush" Color="#332800" />
+      <SolidColorBrush x:Key="CkanDangerBrush" Color="#FF6B5E" />
+      <SolidColorBrush x:Key="CkanDangerBackgroundBrush" Color="#381414" />
+      <SolidColorBrush x:Key="CkanInfoBrush" Color="#58A6FF" />
+      <SolidColorBrush x:Key="CkanInfoBackgroundBrush" Color="#16283D" />
+
+      <!-- 遮罩 -->
+      <SolidColorBrush x:Key="CkanScrimBrush" Color="#99000000" />
+      <SolidColorBrush x:Key="CkanBlockingScrimBrush" Color="#B3000000" />
+
+      <!-- 海拔（20 篇 P-08）：深色下双层阴影营造层次感 -->
+      <BoxShadows x:Key="CkanElevationLow">0 1 3 0 #38000000, 0 3 8 0 #44000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationMedium">0 4 12 0 #4C000000, 0 10 24 0 #60000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationHigh">0 8 20 0 #5A000000, 0 18 42 0 #7A000000</BoxShadows>
+      <BoxShadows x:Key="CkanElevationNone">0 0 0 0 #00000000</BoxShadows>
+
+      <!-- 焦点环、状态叠加层与骨架屏底色 -->
+      <SolidColorBrush x:Key="CkanFocusRingBrush" Color="#B9C2CF" />
+      <SolidColorBrush x:Key="CkanHoverOverlayBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="CkanPressedOverlayBrush" Color="#24FFFFFF" />
+      <SolidColorBrush x:Key="CkanAccentHoverBrush" Color="#C6CDD8" />
+      <SolidColorBrush x:Key="CkanSuccessBackgroundBrush" Color="#14301F" />
+      <SolidColorBrush x:Key="CkanSkeletonBrush" Color="#222831" />
+      <RadialGradientBrush x:Key="CkanAmbientGlowBrush" Center="50%,50%" GradientOrigin="50%,50%" RadiusX="65%" RadiusY="65%">
+        <GradientStop Offset="0" Color="#00B9C2CF" />
+        <GradientStop Offset="1" Color="#00B9C2CF" />
+      </RadialGradientBrush>
+      <SolidColorBrush x:Key="CkanOrbitalLineBrush" Color="#18B9C2CF" />
+    </ResourceDictionary>
+
     <!-- 高对比度：THM-10 要求高对比度强制压过一切，只保留纯黑/纯白 + 高对比黄。 -->
     <ResourceDictionary x:Key="{x:Static app:ThemeHost.HighContrastVariant}">
       <!-- 基础表面与背景：高对比度不做明度分层，层次只靠纯白描边（ELV-03） -->

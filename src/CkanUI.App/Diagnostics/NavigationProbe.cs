@@ -337,6 +337,11 @@ internal static class NavigationProbe
                 ReportButtons(window, path, key);
             }
 
+            if (round == 1 && Environment.GetEnvironmentVariable("CKANUI_NAV_CENSUS") == "1")
+            {
+                ReportCensus(window, path, key);
+            }
+
             if (round == 1 && Environment.GetEnvironmentVariable("CKANUI_NAV_TABS") == "1")
             {
                 await SwitchTabsAsync(window, path, key).ConfigureAwait(true);
@@ -650,6 +655,34 @@ internal static class NavigationProbe
         }
 
         return count;
+    }
+
+    /// <summary>
+    /// 页面视觉树按控件类型分组清点：判断「节点多」到底是信息本身，还是模板里的装饰层。
+    /// </summary>
+    private static void ReportCensus(TopLevel window, string path, string key)
+    {
+        if (window is not MainWindow { ActivePageView: { } page })
+        {
+            TryWrite(path, $"[census] {key} no-page");
+            return;
+        }
+
+        var all = page.GetVisualDescendants().ToArray();
+        var groups = all
+            .GroupBy(visual => visual.GetType().Name, StringComparer.Ordinal)
+            .OrderByDescending(group => group.Count())
+            .Take(14)
+            .Select(group => group.Key + "=" + group.Count());
+        var rows = all.OfType<DataGrid>().Select(grid => grid.GetVisualDescendants().OfType<DataGridRow>().Count()).ToArray();
+        TryWrite(path, $"[census] {key} total={all.Length} rows=[{string.Join(",", rows)}] {string.Join(" ", groups)}");
+
+        if (all.OfType<DataGridCell>().FirstOrDefault() is { } cell)
+        {
+            var chain = cell.GetVisualDescendants().Take(24)
+                .Select(visual => visual.GetType().Name + "@" + visual.Bounds.Width.ToString("F0", CultureInfo.InvariantCulture) + "x" + visual.Bounds.Height.ToString("F0", CultureInfo.InvariantCulture));
+            TryWrite(path, $"[cell] {key} {string.Join(" ", chain)}");
+        }
     }
 
     private static void ReportButtons(TopLevel window, string path, string key)

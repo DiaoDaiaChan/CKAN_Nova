@@ -1,36 +1,437 @@
-// Kerbalism 的 adapter 骨架（本批只做"能加载、能显示、不写坏"的最小集合）。
-// 取证状态见 README.md：只确认了它有 GameData/KerbalismConfig/Settings.cfg 这个设置文件，
-// 语法形态（是否有根节点、缩进、注释风格）尚未核验，因此先按 custom 语法只读展示。
-// custom 布局在本项目的规则里必须 mode=readonly（见 docs/design/mod-config-adapters.md）。
 {
   "schemaVersion": 1,
   "id": "kerbalism",
   "name": "Kerbalism",
   "homepage": "https://github.com/Kerbalism/Kerbalism",
   "docUrl": "https://github.com/Kerbalism/Kerbalism/wiki",
-
   "match": {
-    "ckanIdentifiers": ["Kerbalism"],
-    "paths": ["GameData/KerbalismConfig/Settings.cfg"],
+    "ckanIdentifiers": [
+      "Kerbalism"
+    ],
+    "paths": [
+      "GameData/KerbalismConfig/Settings.cfg"
+    ],
     "caseInsensitive": true
   },
-
-  "modVersionRange": [">=3.0"],
-
+  "modVersionRange": [
+    ">=3.0"
+  ],
   "files": [
     {
       "id": "settings",
       "path": "GameData/KerbalismConfig/Settings.cfg",
-      "layout": "custom",
-      "mode": "readonly",
+      "layout": "node",
+      "rootNode": "Kerbalism",
+      "mode": "editable",
       "onMissing": "readonly",
-      "readonlyReason": "骨架阶段：该文件的语法形态尚未核验，为避免写坏配置，先只读展示原始内容",
-      "label": "KerbalismConfig/Settings.cfg"
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "Settings.cfg"
     }
   ],
-
   "descriptionFromComment": true,
-  "groups": { "fromCommentHeadings": true },
-  "fields": [],
-  "unlisted": "preserve"
+  "unlisted": "preserve",
+  "fields": [
+    {
+      "file": "settings",
+      "key": "Profile",
+      "type": "string",
+      "default": "RealismOverhaul",
+      "risk": "high",
+      "requiresRestart": true,
+      "label": "当前使用的配置档案名（引用 KerbalismConfig/Profiles 下的档案，改动可能整套玩法不兼容）"
+    },
+    {
+      "file": "settings",
+      "key": "UseSamplingSunFactor",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "太阳辐射是否按采样系数计算（3.18 起生效）"
+    },
+    {
+      "file": "settings",
+      "key": "Reliability",
+      "type": "bool",
+      "default": "false",
+      "risk": "high",
+      "requiresRestart": true,
+      "label": "启用部件故障（可靠性）系统"
+    },
+    {
+      "file": "settings",
+      "key": "Deploy",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "部署类机构是否消耗 EC"
+    },
+    {
+      "file": "settings",
+      "key": "Science",
+      "type": "bool",
+      "default": "true",
+      "risk": "high",
+      "requiresRestart": true,
+      "label": "启用科学实验系统"
+    },
+    {
+      "file": "settings",
+      "key": "SpaceWeather",
+      "type": "bool",
+      "default": "false",
+      "risk": "high",
+      "requiresRestart": true,
+      "label": "启用太阳风暴（CME）事件"
+    },
+    {
+      "file": "settings",
+      "key": "Automation",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "启用自动化（飞行控制）系统"
+    },
+    {
+      "file": "settings",
+      "key": "UseSIUnits",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "界面使用 SI 单位"
+    },
+    {
+      "file": "settings",
+      "key": "PressureFactor",
+      "type": "float",
+      "default": "5.0",
+      "risk": "high",
+      "requiresRestart": true,
+      "label": "加压舱压力上限系数"
+    },
+    {
+      "file": "settings",
+      "key": "PressureThreshold",
+      "type": "float",
+      "default": "0.345",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "判定「已加压」的静压阈值（atm）"
+    },
+    {
+      "file": "settings",
+      "key": "PoisoningFactor",
+      "type": "float",
+      "default": "0.0",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "大气中毒速度系数"
+    },
+    {
+      "file": "settings",
+      "key": "PoisoningThreshold",
+      "type": "float",
+      "default": "0.02",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "判定「中毒」的废气浓度阈值"
+    },
+    {
+      "file": "settings",
+      "key": "ScienceDialog",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "实验完成后弹出结果对话框"
+    },
+    {
+      "file": "settings",
+      "key": "QualityScale",
+      "type": "float",
+      "default": "4.0",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "实验品质缩放系数"
+    },
+    {
+      "file": "settings",
+      "key": "RadiationInSievert",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "辐射剂量用 Sv 显示（否则用 rad）"
+    },
+    {
+      "file": "settings",
+      "key": "ExternRadiation",
+      "type": "float",
+      "default": "0.019",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "外部环境辐射剂量率"
+    },
+    {
+      "file": "settings",
+      "key": "ShieldingEfficiency",
+      "type": "float",
+      "default": "0.933",
+      "min": 0,
+      "max": 1,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "屏蔽层对辐射的衰减效率"
+    },
+    {
+      "file": "settings",
+      "key": "StormEjectionSpeed",
+      "type": "float",
+      "default": "489000",
+      "min": 0,
+      "unit": "m/s",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "CME 抛射速度"
+    },
+    {
+      "file": "settings",
+      "key": "StormFrequency",
+      "type": "float",
+      "default": "0",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "太阳风暴年均发生概率"
+    },
+    {
+      "file": "settings",
+      "key": "StormRadiation",
+      "type": "float",
+      "default": "100.0",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "风暴期间的默认辐射强度"
+    },
+    {
+      "file": "settings",
+      "key": "StormDuration",
+      "type": "float",
+      "default": "3600",
+      "min": 0,
+      "unit": "s",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "太阳风暴平均持续时间"
+    },
+    {
+      "file": "settings",
+      "key": "LaboratoryCrewLevelBonus",
+      "type": "float",
+      "default": "0.2",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "实验室每级乘员带来的效率加成"
+    },
+    {
+      "file": "settings",
+      "key": "MaxLaborartoryBonus",
+      "type": "float",
+      "default": "2.0",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "实验室效率加成上限（键名里的 Laborartory 是上游拼写，勿改）"
+    },
+    {
+      "file": "settings",
+      "key": "HarvesterCrewLevelBonus",
+      "type": "float",
+      "default": "0.1",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "采集器每级乘员带来的效率加成"
+    },
+    {
+      "file": "settings",
+      "key": "MaxHarvesterBonus",
+      "type": "float",
+      "default": "1.5",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "采集器效率加成上限"
+    },
+    {
+      "file": "settings",
+      "key": "DataRateDampingExponent",
+      "type": "float",
+      "default": "2",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "原版 CommNet 的数据速率衰减指数"
+    },
+    {
+      "file": "settings",
+      "key": "DataRateDampingExponentRT",
+      "type": "float",
+      "default": "2",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "RemoteTech 的数据速率衰减指数"
+    },
+    {
+      "file": "settings",
+      "key": "TransmitterActiveEcFactor",
+      "type": "float",
+      "default": "1.5",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "发射机发送时相对额定功耗的系数"
+    },
+    {
+      "file": "settings",
+      "key": "TransmitterPassiveEcFactor",
+      "type": "float",
+      "default": "0.2",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "发射机待机时相对额定功耗的系数"
+    },
+    {
+      "file": "settings",
+      "key": "ComfortPanorama",
+      "type": "float",
+      "default": "0.2",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "「能看见风景」的舒适度加成"
+    },
+    {
+      "file": "settings",
+      "key": "ComfortExercise",
+      "type": "float",
+      "default": "0.4",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "「有锻炼设备」的舒适度加成"
+    },
+    {
+      "file": "settings",
+      "key": "ComfortNotAlone",
+      "type": "float",
+      "default": "0.1",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "「不是独自一人」的舒适度加成"
+    },
+    {
+      "file": "settings",
+      "key": "ComfortCallHome",
+      "type": "float",
+      "default": "0.1",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "「能联系家人」的舒适度加成"
+    },
+    {
+      "file": "settings",
+      "key": "ComfortFirmGround",
+      "type": "float",
+      "default": "0.6",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "「脚踏实地」的舒适度加成"
+    },
+    {
+      "file": "settings",
+      "key": "ComfortLivingSpace",
+      "type": "float",
+      "default": "20",
+      "min": 0,
+      "unit": "m³",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "理想居住空间"
+    },
+    {
+      "file": "settings",
+      "key": "EnforceCoherency",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "检测并规避时间缩放导致的状态不一致"
+    },
+    {
+      "file": "settings",
+      "key": "TrackingPivot",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "模拟跟踪 pivot 的旋转"
+    },
+    {
+      "file": "settings",
+      "key": "HeadLampsCost",
+      "type": "float",
+      "default": "0.01",
+      "min": 0,
+      "unit": "EC/s",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "EVA 头灯耗电"
+    },
+    {
+      "file": "settings",
+      "key": "LowQualityRendering",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "低画质渲染（减少粒子）"
+    },
+    {
+      "file": "settings",
+      "key": "UIScale",
+      "type": "float",
+      "default": "1.0",
+      "min": 0.5,
+      "max": 3,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "Kerbalism 界面缩放"
+    },
+    {
+      "file": "settings",
+      "key": "UIPanelWidthScale",
+      "type": "float",
+      "default": "1.0",
+      "min": 0.5,
+      "max": 3,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "Kerbalism 面板宽度缩放"
+    }
+  ]
 }

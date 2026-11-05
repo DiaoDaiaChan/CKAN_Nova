@@ -54,6 +54,13 @@ public sealed class UiSettingsStore : IUiSettingsStore
     /// <inheritdoc />
     public event Action<UiSettings>? Changed;
 
+    /// <inheritdoc />
+    public event Action<UiSettings>? Saved
+    {
+        add => Changed += value;
+        remove => Changed -= value;
+    }
+
     public UiSettings Current
     {
         get

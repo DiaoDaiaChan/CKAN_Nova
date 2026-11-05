@@ -32,6 +32,10 @@ internal sealed class FakeOperationQueue : IOperationQueue
         => throw new NotSupportedException("测试用队列不执行任务");
 
     /// <inheritdoc />
+    public string Enqueue(string kind, string title, Func<CancellationToken, Task<OperationOutcome>> work)
+        => throw new NotSupportedException("测试用队列不执行任务");
+
+    /// <inheritdoc />
     public void Cancel(string taskId) => Cancelled.Add(taskId);
 
     /// <summary>替换快照并触发 Updated（模拟队列的 100ms 推送）。</summary>

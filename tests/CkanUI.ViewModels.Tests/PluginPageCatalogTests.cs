@@ -392,4 +392,25 @@ public sealed class PluginPageCatalogTests
         Assert.That(removed, Is.EqualTo(1), "去掉一个侧栏入口就该只删这一项");
         Assert.That(added, Is.Zero, "删除不该重建整张侧栏表");
     }
+
+    [Test]
+    public void Shell_IndependentPluginPages_AppearAsRailItems_AndNotInToolsSectionTabs()
+    {
+        var plugins = new FakePluginService();
+        plugins.ActiveItems.Add(Plugin("Ai", new PluginPageDescriptor("ai-assistant", "AI 助手", "VM.Ai", Glyph: "Sparkle")));
+        plugins.ActiveItems.Add(Plugin("Music", new PluginPageDescriptor("music", "音乐", "VM.Music", Glyph: "Music")));
+        plugins.ActiveItems.Add(Plugin("Kos", new PluginPageDescriptor("kos", "kOS 脚本", "VM.Kos", Glyph: "Code")));
+        plugins.ActiveItems.Add(Plugin("Rp1", new PluginPageDescriptor("rp1-career", "RP-1 生涯日志", "VM.Rp1", Glyph: "History")));
+
+        var shell = new ShellViewModel(new NavigationService(_ => null), key => "T:" + key, plugins: plugins);
+
+        var tools = shell.Sections.Single(section => section.Key == "plugins");
+        Assert.That(tools.Tabs.Select(tab => tab.Key), Is.EqualTo(new[] { "plugins" }), "工具分节下不应包含这些独立插件页");
+
+        var railKeys = shell.RailItems.Select(item => item.Key).ToList();
+        Assert.That(railKeys, Does.Contain("ai-assistant"));
+        Assert.That(railKeys, Does.Contain("music"));
+        Assert.That(railKeys, Does.Contain("kos"));
+        Assert.That(railKeys, Does.Contain("rp1-career"));
+    }
 }

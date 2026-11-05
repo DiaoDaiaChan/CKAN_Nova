@@ -1,0 +1,32 @@
+{
+  "key": "monochrome-silver",
+  "displayName": "单色银",
+  "accent": "#B9C2CF",
+  "tokens": {
+    "CkanCanvasBackgroundBrush": "#08090B",
+    "CkanSurfaceBackgroundBrush": "#E60D0F13",
+    "CkanSidebarBackgroundBrush": "#C00A0C10",
+    "CkanStatusBarBackgroundBrush": "#D90B0D12",
+    "CkanCardBackgroundBrush": "#D80E1117",
+    "CkanElevatedCardHoverBrush": "#1B2029",
+    "CkanRecessedInputBrush": "#050608",
+    "CkanDialogBackgroundBrush": "#12151B",
+    "CkanSubtleBackgroundBrush": "#C80C0E13",
+    "CkanMutedBackgroundBrush": "#181C23",
+    "CkanTextPrimaryBrush": "#F2F4F7",
+    "CkanTextSecondaryBrush": "#B3BDCA",
+    "CkanTextTertiaryBrush": "#727B88",
+    "CkanBorderBrush": "#2B323D",
+    "CkanLayerElevatedBrush": "#1B2029",
+    "CkanSkeletonBrush": "#222831",
+    "CkanAccentBrush": "#B9C2CF",
+    "CkanPrimaryBrush": "#B9C2CF",
+    "CkanAccentTextBrush": "#0A0C10"
+  },
+  "contrast": {
+    "textOnCanvas": 18.08,
+    "secondaryOnCanvas": 10.48,
+    "accentOnCanvas": 11.08,
+    "accentTextOnAccent": 10.89
+  }
+}

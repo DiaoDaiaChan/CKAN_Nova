@@ -98,13 +98,54 @@ public sealed record ModConfigFieldDescription(
     ModConfigFieldRisk Risk = ModConfigFieldRisk.Low,
     bool RequiresRestart = false,
     string? Label = null,
-    string? Pattern = null)
+    string? Pattern = null,
+    string? NodePath = null)
 {
     /// <summary>
     /// 字段显示名。adapter 没写 label 时直接用 key —— 宁可显示英文 key，
     /// 也不要凭空造一个中文名（会误导用户以为官方有此叫法）。
     /// </summary>
     public string DisplayLabel => string.IsNullOrWhiteSpace(Label) ? Key : Label!;
+
+    /// <summary>字段所在节点名链。</summary>
+    public string? NodePath { get; init; } = NodePath;
+
+    /// <summary>
+    /// 该字段在文件里的完整节点名链。flat 布局一律空串（键值对在根层）；
+    /// node 布局下 <see cref="NodePath"/> 相对 rootNode 解析，绝对写法以 <c>/</c> 开头。
+    /// </summary>
+    public string ResolveNodePath(ModConfigFileDescription file) => ResolveNodePath(NodePath, file);
+
+    /// <summary>
+    /// 把（可能为空的）nodePath 解析成文件里的完整节点名链。静态版给 adapter 读取器判重用，
+    /// 免得"同一个节点写成相对和绝对两种形式"绕过判重。
+    /// </summary>
+    public static string ResolveNodePath(string? nodePath, ModConfigFileDescription file)
+    {
+        var root = file.Layout == ModConfigFileLayout.Node ? file.RootNode ?? string.Empty : string.Empty;
+        var declared = nodePath?.Trim();
+        if (declared is null || declared.Length == 0)
+        {
+            return root;
+        }
+
+        if (declared[0] == '/')
+        {
+            return declared.Trim('/');
+        }
+
+        // 手写 adapter 时很容易把根名也写进 nodePath（"ROOT/CHILD"）。再拼一次 root 会变成
+        // "ROOT/ROOT/CHILD"，查找永远落空、字段永远空白——这种静默失败比报错更难查，
+        // 所以已经带了根名的名链直接按绝对写法接受。
+        if (root.Length > 0
+            && (string.Equals(declared, root, StringComparison.Ordinal)
+                || declared.StartsWith(root + "/", StringComparison.Ordinal)))
+        {
+            return declared;
+        }
+
+        return root.Length == 0 ? declared : root + "/" + declared;
+    }
 
     /// <summary>是否声明了枚举白名单。</summary>
     public bool HasValues => Values is { Count: > 0 };

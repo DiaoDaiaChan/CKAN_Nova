@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="using:CkanUI.Ui.Theming"
+             xmlns:ui="using:CkanUI.Ui.Tables"
              x:Class="CkanUI.App.Views.PlayTimePageView"
              x:CompileBindings="False">
 
@@ -23,25 +24,6 @@
       <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
     </Style>
 
-    <Style Selector="Rectangle.SelectionBar">
-      <Setter Property="Width" Value="3" />
-      <Setter Property="RadiusX" Value="1.5" />
-      <Setter Property="RadiusY" Value="1.5" />
-      <Setter Property="Fill" Value="{DynamicResource CkanAccentBrush}" />
-      <Setter Property="HorizontalAlignment" Value="Left" />
-      <Setter Property="VerticalAlignment" Value="Stretch" />
-      <Setter Property="Margin" Value="2,4" />
-      <Setter Property="Opacity" Value="0" />
-      <Setter Property="IsHitTestVisible" Value="False" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="ListBoxItem:selected Rectangle.SelectionBar">
-      <Setter Property="Opacity" Value="1" />
-    </Style>
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
@@ -133,13 +115,15 @@
           </Border>
 
           <!-- 数据行 -->
+          <!-- 筛选/排序/拖动列宽由 ListTableTools 补：表头 4 列，后两列是操作按钮与图标位，不参与。 -->
           <ListBox x:Name="PlayTimeList" Grid.Row="1" ItemsSource="{Binding Entries}"
+                   ui:ListTableTools.Enabled="True"
+                   ui:ListTableTools.Columns="InstanceName,Hours,-,-"
                    SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
                    Padding="0" BorderThickness="0" Background="Transparent">
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <Grid ColumnDefinitions="*,180,120,16" Margin="12,0" MinHeight="{DynamicResource CkanRowHeight}">
-                  <Rectangle Grid.ColumnSpan="3" Classes="SelectionBar" />
                   <TextBlock Grid.Column="0" Text="{Binding InstanceName}"
                              VerticalAlignment="Center" FontWeight="Medium"
                              Foreground="{DynamicResource CkanTextPrimaryBrush}" />

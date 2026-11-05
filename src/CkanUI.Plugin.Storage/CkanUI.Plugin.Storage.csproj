@@ -16,6 +16,8 @@
 
   <ItemGroup>
     <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
+    <!-- 共享 UI 基元（图标、表格工具等）；与 Assets / Saves / KspConfig 等首方插件一致，仍不引 App / Services。 -->
+    <ProjectReference Include="../CkanUI.Ui/CkanUI.Ui.csproj" />
   </ItemGroup>
 
 </Project>

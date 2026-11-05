@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:tbl="using:CkanUI.Ui.Tables"
              x:Class="CkanUI.Plugin.Storage.UI.StoragePageView"
              x:CompileBindings="False">
   <UserControl.Styles>
@@ -117,7 +118,10 @@
           </Grid>
           <Border Grid.Row="1" Height="1" Background="{DynamicResource CkanBorderBrush}" Margin="8,0" />
 
+          <!-- 筛选/排序/拖动列宽由 ListTableTools 补：表头 6 列，体积列按原始字节数排序而不是「1.2 GB」文本。 -->
           <ListBox Grid.Row="2" ItemsSource="{Binding Rows}"
+                   tbl:ListTableTools.Enabled="True"
+                   tbl:ListTableTools.Columns="Name,TotalText~Model.TotalBytes,GameDataText~Model.LiveGameDataBytes,CkanText~Model.CkanBytes,ProfileText~Model.ProfileBytes,FreeText~Model.FreeBytes"
                    SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
                    BorderThickness="0" Background="Transparent"
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled">

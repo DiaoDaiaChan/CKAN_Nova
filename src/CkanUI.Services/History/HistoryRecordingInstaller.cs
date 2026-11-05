@@ -72,7 +72,8 @@ public sealed class HistoryRecordingInstaller : IInstallerService
             ? new HashSet<string>(StringComparer.Ordinal)
             : new HashSet<string>(report.Failed, StringComparer.Ordinal);
 
-        var succeededAll = applied.IsSuccess && report is not null && report.Failed.Count == 0;
+        // B1：警告不是失败。只有失败项（或整体失败）才让这次记录落到 PartiallyFailed/Failed。
+        var succeededAll = applied.IsSuccess && report is not null && report.IsFullSuccess;
         var changes = changeSet.Items
             .Select(item => new InstallHistoryChange(
                 item.Identifier,
@@ -80,7 +81,7 @@ public sealed class HistoryRecordingInstaller : IInstallerService
                 item.FromVersion,
                 item.ToVersion,
                 // 整体失败时任何一项都不能算成功（失败清单可能只列了首个错误）。
-                report is not null && !failed.Contains(item.Identifier)))
+                applied.IsSuccess && report is not null && !failed.Contains(item.Identifier)))
             .ToList();
 
         var outcome = applied switch

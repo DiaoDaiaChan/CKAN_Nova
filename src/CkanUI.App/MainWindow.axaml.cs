@@ -22,13 +22,18 @@ using CkanUI.App.Ai;
 using CkanUI.App.Animations;
 using CkanUI.App.Branding;
 using CkanUI.App.Diagnostics;
+using CkanUI.App.Input;
 using CkanUI.App.Controls;
 using CkanUI.App.Converters;
 using CkanUI.App.Views;
 using CkanUI.App.Views.Dialogs;
 using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
+using CkanUI.Services.Abstractions.Audio;
 using CkanUI.Services.Abstractions.Commands;
+using CkanUI.Platform.Input;
+using CkanUI.Services.Abstractions.Input;
+using Microsoft.Extensions.DependencyInjection;
 using CkanUI.Services.Commands;
 using CkanUI.ViewModels;
 using CkanUI.ViewModels.CommandPalette;
@@ -158,6 +163,9 @@ public sealed partial class MainWindow : Window
     private Func<string, string>? _translate;
     private OnboardingTourViewModel? _onboarding;
 
+    /// <summary>手柄轮询宿主（UI-12）：本机没有 XInput 时仍在，但不会启动计时器。</summary>
+    private GamepadInputHost? _gamepad;
+
     /// <summary>外壳视图模型（导航项的来源）。</summary>
     private ShellViewModel? _shell;
 
@@ -166,6 +174,12 @@ public sealed partial class MainWindow : Window
 
     /// <summary>单 Tab 悬浮弹出卡片关闭防抖计时器（移出后 160ms 优雅关闭）。</summary>
     private readonly DispatcherTimer _popoutCloseTimer = new() { Interval = TimeSpan.FromMilliseconds(160) };
+
+    /// <summary>底栏悬停呼出防抖启动计时器（指针移入 90ms 确认真实意图后再展开，防止快速滑过误触）。</summary>
+    private readonly DispatcherTimer _statusBarOpenTimer = new() { Interval = TimeSpan.FromMilliseconds(90) };
+
+    /// <summary>底栏悬停呼出自动收起防抖计时器（移出后 380ms 平滑收起，留足点击操作缓冲时间）。</summary>
+    private readonly DispatcherTimer _statusBarCloseTimer = new() { Interval = TimeSpan.FromMilliseconds(380) };
 
     /// <summary>
     /// 收起动画结束后再把显示模式降回 LeftCompact 的延时器（320ms > 0.25s 宽度过渡）。
@@ -179,6 +193,9 @@ public sealed partial class MainWindow : Window
 
     /// <summary>最近一次导航项被点击的时间戳（Environment.TickCount64），用于抑制切页瞬间误触重新弹开。</summary>
     private long _lastNavInvokedTime;
+
+    /// <summary>最近一次光标掠过的交互目标元素引用。</summary>
+    private Visual? _lastHoverSurface;
 
     /// <summary>代码里改选中项时置真，避免 SelectionChanged 又来改一遍视图模型（会打架）。</summary>
     private bool _syncingNav;
@@ -244,6 +261,10 @@ public sealed partial class MainWindow : Window
         AddHandler(PointerReleasedEvent, OnWindowPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
         PointerExited += OnWindowPointerExited;
         Deactivated += OnWindowDeactivated;
+        PositionChanged += OnWindowPositionChanged;
+
+        // 全窗接管长列表平滑滚动、滚轮启动冲量与弹簧刹车停靠
+        SmoothScrollMotion.Attach(this);
 
         // 页面切换时给一级卡片排队入场：见 ShowPage —— 页面视图常驻 PageStage，换页只切可见性，
         // 所以 PageHost.Content 从此恒定是 PageStage，不再有 Content 变化可监听。
@@ -287,6 +308,9 @@ public sealed partial class MainWindow : Window
             }
 
             NavView.PaneDisplayMode = FANavigationViewPaneDisplayMode.LeftCompact;
+
+            // 切回 LeftCompact 会再算一次分区高度，页脚上限可能又被压回一行。
+            PostEnsureNavFooterVisible();
         };
 
         if (AboutCompactButton is not null)
@@ -298,10 +322,23 @@ public sealed partial class MainWindow : Window
         if (NavView is not null)
         {
             NavView.PropertyChanged += OnNavViewPropertyChanged;
+
+            // 窗口真正显示、模板套上之后才量得到页脚真实高度：首帧补一次（见 EnsureNavFooterVisible）。
+            NavView.Loaded += OnNavViewLoaded;
         }
+
+        if (StatusBarSurface is not null)
+        {
+            StatusBarSurface.PointerEntered += OnStatusBarPointerEntered;
+            StatusBarSurface.PointerExited += OnStatusBarPointerExited;
+        }
+
+        _statusBarOpenTimer.Tick += OnStatusBarOpenTimerTick;
+        _statusBarCloseTimer.Tick += OnStatusBarCloseTimerTick;
 
         ApplyStatusBarFacts();
         InitializePerformanceMonitor();
+        InitializeShellInput();
     }
 
     private void OnNavViewPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -312,12 +349,19 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void OnNavViewLoaded(object? sender, RoutedEventArgs e)
+    {
+        // Loaded 在这一次排版之后触发，此时页脚项的 DesiredSize 才是真值。
+        EnsureNavFooterVisible();
+    }
+
     /// <summary>
     /// 把光标位置转给星空背景。越界（贴着窗口边缘）就当作离开，让牵引线淡出。
     /// </summary>
     private void OnWindowPointerMoved(object? sender, PointerEventArgs e)
     {
         TrackNavDrawerHover(e);
+        TrackStatusBarHover(e);
 
         // 细线：按住左键时每个移动事件补一个采样点；键已松开但没收到 Released（例如指针移出窗口）就收尾。
         if (DragTrail is { IsVisible: true } trail && trail.IsDragging)
@@ -334,6 +378,10 @@ public sealed partial class MainWindow : Window
 
         // 光标指针与光环：划过可交互元素（按钮/卡片/列表项等）时指针平滑微倾斜，光环亮起
         var surface = PointerAuraLayer.FindSurface(e.Source as Visual, this);
+        if (surface != _lastHoverSurface)
+        {
+            _lastHoverSurface = surface;
+        }
         var aura = PointerAura;
         if (aura is not null && aura.IsVisible)
         {
@@ -413,6 +461,13 @@ public sealed partial class MainWindow : Window
 
         // 按下的那一帧控件往中心塌一点，松手由弹簧弹回（与涟漪、光标指针互不影响）。
         InteractionMotion.Press(e, this);
+
+        // 交互按键音效精简：仅在命中可交互表面时触发极轻量物理微触感 Click，空白区域与复杂音效不发声
+        var sourceVisual = e.Source as Visual;
+        if (PointerAuraLayer.FindSurface(sourceVisual, this) is not null)
+        {
+            PlaySoundEffect(SoundEffectType.Click);
+        }
     }
 
     private void OnWindowPointerReleased(object? sender, PointerReleasedEventArgs e)
@@ -459,6 +514,10 @@ public sealed partial class MainWindow : Window
             _navDrawerCloseTimer.Stop();
             NavView.IsPaneOpen = false;
         }
+
+        _statusBarOpenTimer.Stop();
+        _statusBarCloseTimer.Stop();
+        SetStatusBarExpanded(false);
     }
 
     private void OnWindowDeactivated(object? sender, EventArgs e)
@@ -477,6 +536,27 @@ public sealed partial class MainWindow : Window
             _navDrawerCloseTimer.Stop();
             NavView.IsPaneOpen = false;
         }
+
+        _statusBarOpenTimer.Stop();
+        _statusBarCloseTimer.Stop();
+        SetStatusBarExpanded(false);
+    }
+
+    private PixelPoint? _lastWindowPosition;
+
+    private void OnWindowPositionChanged(object? sender, PixelPointEventArgs e)
+    {
+        var current = e.Point;
+        if (_lastWindowPosition is { } prev)
+        {
+            var deltaX = current.X - prev.X;
+            var deltaY = current.Y - prev.Y;
+            if (deltaX != 0 || deltaY != 0)
+            {
+                CursorPointer?.OnWindowMoved(deltaX, deltaY);
+            }
+        }
+        _lastWindowPosition = current;
     }
 
     /// <summary>
@@ -509,19 +589,71 @@ public sealed partial class MainWindow : Window
             WindowState = WindowState.Normal;
         }
 
+        if (CursorPointer is { IsVisible: true } cursor)
+        {
+            cursor.StartWindowDrag(e.GetPosition(cursor));
+        }
+
         BeginMoveDrag(e);
+        CursorPointer?.EndWindowDrag();
         e.Handled = true;
     }
 
+    private bool _isClosingAnimated;
+
     /// <summary>自绘窗口按钮：最小化。</summary>
-    private void OnMinimizeClick(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+    private void OnMinimizeClick(object? sender, RoutedEventArgs e)
+    {
+        if (Animations.WindowAnimation.GetDuration(this) > TimeSpan.Zero)
+        {
+            _ = AnimateAndMinimizeAsync();
+        }
+        else
+        {
+            WindowState = WindowState.Minimized;
+        }
+
+        async Task AnimateAndMinimizeAsync()
+        {
+            await Animations.WindowAnimation.AnimateMinimizeAsync(this).ConfigureAwait(true);
+            WindowState = WindowState.Minimized;
+        }
+    }
 
     /// <summary>自绘窗口按钮：最大化 / 还原。</summary>
-    private void OnMaximizeRestoreClick(object? sender, RoutedEventArgs e) =>
-        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    private void OnMaximizeRestoreClick(object? sender, RoutedEventArgs e)
+    {
+        var targetState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        WindowState = targetState;
+        if (Animations.WindowAnimation.GetDuration(this) > TimeSpan.Zero)
+        {
+            _ = Animations.WindowAnimation.AnimateMaximizeRestoreAsync(this, targetState == WindowState.Maximized);
+        }
+    }
 
     /// <summary>自绘窗口按钮：关闭。</summary>
     private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
+
+    /// <inheritdoc />
+    protected override async void OnClosing(WindowClosingEventArgs e)
+    {
+        if (!_isClosingAnimated && Animations.WindowAnimation.GetDuration(this) > TimeSpan.Zero)
+        {
+            e.Cancel = true;
+            _isClosingAnimated = true;
+            try
+            {
+                await Animations.WindowAnimation.AnimateCloseAsync(this).ConfigureAwait(true);
+            }
+            finally
+            {
+                Close();
+            }
+            return;
+        }
+
+        base.OnClosing(e);
+    }
 
     /// <inheritdoc />
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
@@ -549,7 +681,22 @@ public sealed partial class MainWindow : Window
 
         if (change.Property == WindowStateProperty)
         {
+            var oldState = change.GetOldValue<WindowState>();
+            var newState = change.GetNewValue<WindowState>();
             UpdateMaximizeGlyph();
+
+            // 从最小化恢复到常规/最大化状态时触发平滑还原淡入动效
+            if (oldState == WindowState.Minimized && newState != WindowState.Minimized)
+            {
+                if (Animations.WindowAnimation.GetDuration(this) > TimeSpan.Zero)
+                {
+                    _ = Animations.WindowAnimation.AnimateRestoreAsync(this);
+                }
+                else
+                {
+                    Animations.WindowAnimation.ResetVisualState(this);
+                }
+            }
         }
     }
 
@@ -623,16 +770,133 @@ public sealed partial class MainWindow : Window
         // 此时不会再有 PropertyChanged，必须主动把第一页切到可见。
         ShowPage(_shell.CurrentPage);
         Dispatcher.UIThread.Post(SyncSectionTabIndicator, DispatcherPriority.Loaded);
+
+        // 首次加载后稍作延迟弹出右下角 AI 助手引导提示气泡，提醒用户可在此呼出 AI 助手
+        DispatcherTimer.RunOnce(() =>
+        {
+            if (AiAssistantGuideBubble is not null && !_aiAssistant.IsOpen && _standaloneAiWindow is null)
+            {
+                AiAssistantGuideBubble.IsVisible = true;
+            }
+        }, TimeSpan.FromMilliseconds(1500));
     }
 
-    /// <summary>底栏 AI 助手按钮：第一次点开抽屉，再点收起。</summary>
+    private AiAssistantWindow? _standaloneAiWindow;
+
+    /// <summary>底栏 AI 助手按钮：第一次点开抽屉，再点收起；若已独立弹出则聚焦弹窗。</summary>
     private void OnStatusAiButtonClick(object? sender, RoutedEventArgs e) => ToggleAiAssistant();
 
     /// <summary>抽屉右上角的关闭按钮。</summary>
     private void OnAiAssistantCloseClick(object? sender, RoutedEventArgs e) => CloseAiAssistant();
 
+    private void OnDismissAiGuideClick(object? sender, RoutedEventArgs e) => DismissAiGuide();
+
+    private void OnTryAiGuideClick(object? sender, RoutedEventArgs e)
+    {
+        DismissAiGuide();
+        OpenAiAssistant();
+    }
+
+    private void DismissAiGuide()
+    {
+        if (AiAssistantGuideBubble is not null)
+        {
+            AiAssistantGuideBubble.IsVisible = false;
+        }
+    }
+
+    private void OnAiAssistantDetachClick(object? sender, RoutedEventArgs e) => DetachAiAssistant();
+
+    /// <summary>将 AI 助手弹出为独立独立窗口，解除主窗口抽屉遮挡。</summary>
+    private void DetachAiAssistant()
+    {
+        DismissAiGuide();
+
+        if (_aiAssistant.View is null)
+        {
+            var opened = _aiAssistant.Open(out _);
+            if (!opened || _aiAssistant.View is null)
+            {
+                return;
+            }
+        }
+
+        var view = _aiAssistant.View;
+
+        // 从主窗口抽屉中解绑
+        if (AiAssistantContent is not null)
+        {
+            AiAssistantContent.Content = null;
+        }
+        if (AiAssistantOverlay is not null)
+        {
+            AiAssistantOverlay.IsVisible = false;
+        }
+
+        if (_standaloneAiWindow is not null)
+        {
+            if (_standaloneAiWindow.WindowState == WindowState.Minimized)
+            {
+                _standaloneAiWindow.WindowState = WindowState.Normal;
+            }
+            _standaloneAiWindow.Activate();
+            return;
+        }
+
+        _standaloneAiWindow = new AiAssistantWindow();
+        _standaloneAiWindow.SetView(view);
+        _standaloneAiWindow.DockBackRequested += DockBackAiAssistant;
+        _standaloneAiWindow.Closed += (_, _) =>
+        {
+            var win = _standaloneAiWindow;
+            _standaloneAiWindow = null;
+            if (win is not null && !win.IsDockingBack)
+            {
+                CloseAiAssistant();
+            }
+        };
+
+        _standaloneAiWindow.Show(this);
+    }
+
+    /// <summary>从独立弹窗嵌入回主窗口抽屉。</summary>
+    private void DockBackAiAssistant()
+    {
+        if (_standaloneAiWindow is null)
+        {
+            return;
+        }
+
+        var win = _standaloneAiWindow;
+        _standaloneAiWindow = null;
+        var view = win.ReleaseView();
+        win.Close();
+
+        if (AiAssistantContent is not null)
+        {
+            AiAssistantContent.Content = view ?? _aiAssistant.View;
+        }
+        if (AiAssistantOverlay is not null)
+        {
+            AiAssistantOverlay.IsVisible = true;
+        }
+        AiAssistantCloseButton?.Focus();
+    }
+
     private void ToggleAiAssistant()
     {
+        DismissAiGuide();
+
+        if (_standaloneAiWindow is not null)
+        {
+            if (_standaloneAiWindow.WindowState == WindowState.Minimized)
+            {
+                _standaloneAiWindow.WindowState = WindowState.Normal;
+            }
+            _standaloneAiWindow.Activate();
+            return;
+        }
+
         if (AiAssistantOverlay is null)
         {
             return;
@@ -649,6 +913,18 @@ public sealed partial class MainWindow : Window
 
     private void OpenAiAssistant()
     {
+        DismissAiGuide();
+
+        if (_standaloneAiWindow is not null)
+        {
+            if (_standaloneAiWindow.WindowState == WindowState.Minimized)
+            {
+                _standaloneAiWindow.WindowState = WindowState.Normal;
+            }
+            _standaloneAiWindow.Activate();
+            return;
+        }
+
         if (AiAssistantOverlay is null)
         {
             return;
@@ -668,6 +944,13 @@ public sealed partial class MainWindow : Window
 
     private void CloseAiAssistant()
     {
+        if (_standaloneAiWindow is not null)
+        {
+            var win = _standaloneAiWindow;
+            _standaloneAiWindow = null;
+            win.Close();
+        }
+
         _aiAssistant.Close();
 
         if (AiAssistantContent is not null)
@@ -833,6 +1116,48 @@ public sealed partial class MainWindow : Window
         _pageWarmTimer.Start();
     }
 
+    /// <summary>
+    /// 启动期预建（方案 A）：窗口对用户可见之前，把最重的几页建好并同步跑完首轮排版。
+    /// 之后用户点进这些页面只剩「切可见性」，不再有一次 1 秒级的整页实体化。
+    /// </summary>
+    /// <remarks>
+    /// 为什么必须在窗口可见之前：首次排版是 UI 线程上的原子操作（模组页 2,333 节点实测约 1.2 秒），
+    /// 放在可见之后做就是一次肉眼可见的冻结。放到 Show 之前做，用户看不到任何一帧，
+    /// 代价只是「启动到看见窗口」变长。
+    /// </remarks>
+    internal void PrewarmBeforeShow(IReadOnlyList<string> keys)
+    {
+        if (_shell is null || PageStage is null)
+        {
+            return;
+        }
+
+        foreach (var key in keys)
+        {
+            if (!WarmPage(key))
+            {
+                continue;
+            }
+
+            ForceLayoutPass();
+        }
+    }
+
+    /// <summary>同步跑一轮完整排版：预建替用户先付的账，必须在这里落地，不能留给下一帧。</summary>
+    private void ForceLayoutPass()
+    {
+        var width = Bounds.Width > 0 ? Bounds.Width : ClientSize.Width;
+        var height = Bounds.Height > 0 ? Bounds.Height : ClientSize.Height;
+        if (width <= 0 || height <= 0)
+        {
+            width = 1280;
+            height = 800;
+        }
+
+        Measure(new Size(width, height));
+        Arrange(new Rect(0, 0, width, height));
+    }
+
     /// <summary>把一个页面视图挂进舞台、透明地跑一次完整排版，然后藏起来。</summary>
     private bool WarmPage(string key)
     {
@@ -931,7 +1256,8 @@ public sealed partial class MainWindow : Window
     private static readonly HashSet<string> ActivationWarmups = new(StringComparer.Ordinal)
     {
         "logs", "flags",
-        "mods", "unmanaged", "content", "repos", "modpacks", "ships", "saves"
+        "mods", "unmanaged", "content", "repos", "modpacks", "ships", "saves",
+        "downloadstats", "settings", "modconfig", "kspconfig"
     };
 
 
@@ -1152,7 +1478,8 @@ public sealed partial class MainWindow : Window
         // 列表数据晚于换页到达：行按 10 行一批错峰浮上来，而不是整块"啪"地出现。
         FeedArrivalMotion.Attach(stage);
 
-        // 键盘方向键换行时，滚动条不再瞬跳：目标位置照旧计算，弹簧只负责滑过去，下一次按键可打断。
+        // 键盘方向键换行与滚轮滚动时，滚动条不再瞬跳：目标位置照旧计算，弹簧负责平滑起停与刹车。
+        SmoothScrollMotion.Attach(this);
         SmoothScrollMotion.Attach(stage);
 
         if (!MotionBudget.AllowsPageChoreography)
@@ -1344,8 +1671,11 @@ public sealed partial class MainWindow : Window
 
     private void OnAnyTabControlSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        // 页内 TabControl 的切换动画完全由 TabItem 模板内的 PART_TabUnderline 弹簧展开驱动，
-        // 内容承载区保持恒定不透明度与零位移，避免闪烁与抖动。
+        // 选项卡或列表项选中音效
+        if (e.AddedItems.Count > 0 && e.Source is SelectingItemsControl)
+        {
+            PlaySoundEffect(SoundEffectType.Select);
+        }
     }
 
     private void UpdateShellStatusDot(string? status)
@@ -1620,6 +1950,9 @@ public sealed partial class MainWindow : Window
 
         SyncSelectedNavItem();
         PruneRemovedPageViews();
+
+        // 页脚项刚换过，分区的 MaxHeight 需要重算一次（见 EnsureNavFooterVisible 的说明）。
+        PostEnsureNavFooterVisible();
     }
 
     /// <summary>
@@ -1731,7 +2064,12 @@ public sealed partial class MainWindow : Window
             item.IconSource = new FAPathIconSource { Data = geometry };
         }
 
-        if (SpinningGlyphs.Contains(nav.Glyph))
+        var shape = IconHoverGlyph.GetShapeForGlyph(nav.Glyph);
+        if (shape != IconHoverShape.Auto)
+        {
+            IconHoverMotion.SetShape(item, shape);
+        }
+        else if (SpinningGlyphs.Contains(nav.Glyph))
         {
             IconHoverMotion.SetShape(item, IconHoverShape.Spin);
         }
@@ -1815,6 +2153,8 @@ public sealed partial class MainWindow : Window
         // 指示器滑动由 FluentAvalonia 自己播（600ms 组合动画，不可配）；这里补的是点击瞬间的追赶位移。
         // 冲量交给弹簧：连点时在当前位置叠加，不会像「挂 110ms 类再摘」那样把上一次的运动瞬间掐断。
         MotionFeedback.PulseNav(args.SelectedItemContainer as Control);
+
+        PlaySoundEffect(SoundEffectType.Select);
     }
 
     /// <summary>
@@ -1853,7 +2193,89 @@ public sealed partial class MainWindow : Window
         // 达到与原生 Left 模式一致的主界面操作体验，且彻底保留丝滑的收起折叠动画！
         NavView.Classes.Set("PanePinned", expanded);
         UpdateNavPaneClasses();
+
+        // 显示模式一变 FluentAvalonia 会重算分区高度，趁这次排版把页脚上限校正到真实内容高度。
+        PostEnsureNavFooterVisible();
     }
+
+    /// <summary>
+    /// 页脚分区的兜底：FluentAvalonia 用「排期期」量到的页脚高度去切
+    /// <c>FooterItemsScrollViewer.MaxHeight</c>，而那次测量常常赶在 repeater 只实例化了第一条的时候 ——
+    /// 高度被算成一行，第二条（设置）就被挤出可视区，要等侧栏展开一次触发重算才回来。
+    /// 这里等排版稳定、页脚项全部实例化后，把上限放宽到内容真实高度。
+    /// </summary>
+    private void PostEnsureNavFooterVisible()
+    {
+        if (NavView is null)
+        {
+            return;
+        }
+
+        // 排到 Loaded：模板套上、repeater 开始实例化条目都在这之后。
+        Dispatcher.UIThread.Post(() => EnsureNavFooterVisible(), DispatcherPriority.Loaded);
+    }
+
+    /// <summary>见 <see cref="PostEnsureNavFooterVisible"/>：只放宽上限，不收窄，也不会把菜单区抢空。</summary>
+    private void EnsureNavFooterVisible(int attempt = 0)
+    {
+        // 首次是在构造函数里排的队，模板还没套上时 Bounds 还是 0：这一拍什么都测不到，补拍到下一拍。
+        if (NavView is null || NavView.Bounds.Height <= 0)
+        {
+            RetryEnsureNavFooterVisible(attempt);
+            return;
+        }
+
+        var footer = FindNamedDescendant<ScrollViewer>(NavView, "FooterItemsScrollViewer");
+        var footerHost = FindNamedDescendant<Control>(NavView, "FooterMenuItemsHost");
+        var menu = FindNamedDescendant<ScrollViewer>(NavView, "MenuItemsScrollViewer");
+        var menuHost = FindNamedDescendant<Control>(NavView, "MenuItemsHost");
+        if (footer is null || footerHost is null || menu is null || menuHost is null)
+        {
+            RetryEnsureNavFooterVisible(attempt);
+            return;
+        }
+
+        // 条目还没实例化全时量到的高度不可信，下一拍再来。
+        var realized = footerHost.GetVisualDescendants().OfType<FANavigationViewItem>().Count();
+        if (realized < NavView.FooterMenuItems.Count)
+        {
+            RetryEnsureNavFooterVisible(attempt);
+            return;
+        }
+
+        var wanted = footerHost.DesiredSize.Height;
+        if (wanted <= footer.Bounds.Height + 0.5 || wanted <= footer.MaxHeight + 0.5)
+        {
+            return;
+        }
+
+        // 只有菜单区还有富余时才往外借：窗口矮到连菜单都要滚时，页脚本来就该滚，不该再抢高度。
+        var menuSpare = menu.Bounds.Height - menuHost.DesiredSize.Height;
+        if (menuSpare + 0.5 < wanted - footer.Bounds.Height)
+        {
+            return;
+        }
+
+        footer.MaxHeight = wanted;
+        footer.InvalidateMeasure();
+    }
+
+    /// <summary>排版就绪前补拍（最多三次），避免首次启动那次纠正落空。</summary>
+    private void RetryEnsureNavFooterVisible(int attempt)
+    {
+        if (attempt >= 3)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() => EnsureNavFooterVisible(attempt + 1), DispatcherPriority.Background);
+    }
+
+    private static T? FindNamedDescendant<T>(Visual root, string name)
+        where T : Control =>
+        root.GetVisualDescendants()
+            .OfType<T>()
+            .FirstOrDefault(control => string.Equals(control.Name, name, StringComparison.Ordinal));
 
     private void UpdateNavPaneClasses()
     {
@@ -2243,6 +2665,80 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
+    /// 底栏是否处于展开状态（鼠标悬停呼出时为 true，默认简洁化时为 false）。
+    /// </summary>
+    public bool IsStatusBarExpanded => StatusBarSurface?.Classes.Contains("is-expanded") == true;
+
+    /// <summary>
+    /// 设置底栏展开/收起状态。
+    /// </summary>
+    public void SetStatusBarExpanded(bool expanded)
+    {
+        StatusBarSurface?.Classes.Set("is-expanded", expanded);
+    }
+
+    private void TrackStatusBarHover(PointerEventArgs e)
+    {
+        if (StatusBarSurface is null || StatusBarSurface.Bounds.Height <= 0)
+        {
+            return;
+        }
+
+        var pos = e.GetPosition(StatusBarSurface);
+        // 扩展向上 12px 判定缓冲区，光标伸向底栏或在底栏微上浮边缘操作时不会出现抖动或突然收起
+        bool isInside = pos.X >= -4 && pos.X <= StatusBarSurface.Bounds.Width + 4 &&
+                        pos.Y >= -12 && pos.Y <= StatusBarSurface.Bounds.Height + 4;
+
+        if (isInside)
+        {
+            _statusBarCloseTimer.Stop();
+            if (!IsStatusBarExpanded && !_statusBarOpenTimer.IsEnabled)
+            {
+                _statusBarOpenTimer.Start();
+            }
+        }
+        else
+        {
+            _statusBarOpenTimer.Stop();
+            if (IsStatusBarExpanded)
+            {
+                if (!_statusBarCloseTimer.IsEnabled)
+                {
+                    _statusBarCloseTimer.Start();
+                }
+            }
+        }
+    }
+
+    private void OnStatusBarPointerEntered(object? sender, PointerEventArgs e)
+    {
+        _statusBarCloseTimer.Stop();
+        if (!IsStatusBarExpanded && !_statusBarOpenTimer.IsEnabled)
+        {
+            _statusBarOpenTimer.Start();
+        }
+    }
+
+    private void OnStatusBarPointerExited(object? sender, PointerEventArgs e)
+    {
+        _statusBarOpenTimer.Stop();
+        _statusBarCloseTimer.Stop();
+        _statusBarCloseTimer.Start();
+    }
+
+    private void OnStatusBarOpenTimerTick(object? sender, EventArgs e)
+    {
+        _statusBarOpenTimer.Stop();
+        SetStatusBarExpanded(true);
+    }
+
+    private void OnStatusBarCloseTimerTick(object? sender, EventArgs e)
+    {
+        _statusBarCloseTimer.Stop();
+        SetStatusBarExpanded(false);
+    }
+
+    /// <summary>
     /// 状态栏右下角常驻版本信息（报问题时截图就带上版本号，不必再问）。
     /// 只在窗口构造时采一次：发布后程序集版本不会变，重复采集反而给每帧加负担。
     /// </summary>
@@ -2313,15 +2809,46 @@ public sealed partial class MainWindow : Window
         AddHandler(KeyDownEvent, OnGlobalKeyDown, RoutingStrategies.Tunnel);
     }
 
-    /// <summary>全局键位：Esc 收起 AI 抽屉，Ctrl+K 开关命令面板，Ctrl+/ 打开快捷键目录，F1 打开新手高亮导览。</summary>
+    /// <summary>
+    /// 全局键位：Ctrl+Shift+A 呼出/切换 AI 助手，Esc 收起 AI 抽屉/引导气泡，Ctrl+K 开关命令面板，
+    /// Ctrl+/ 打开快捷键目录，F1 打开新手高亮导览；外壳快捷键见 <see cref="ShellShortcutMap"/>。
+    /// </summary>
     private void OnGlobalKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && AiAssistantOverlay is { IsVisible: true })
+        // 外壳快捷键先认：页签条与侧栏都在外壳手里，让页面先吃掉只会变成「按了没反应」。
+        // Ctrl+F 例外——模组页要自己聚焦搜索框，隧道阶段不拦，留给冒泡兜底（OnShellShortcutBubbleKeyDown）。
+        var shortcut = ShellShortcutMap.Match(e.Key, e.KeyModifiers);
+        if (shortcut.IsHit &&
+            shortcut.Kind != ShellShortcutKind.FocusSearch &&
+            ApplyShellShortcut(shortcut))
         {
-            // 抽屉盖在最上层，页面里的 Esc 不该越过它。
-            CloseAiAssistant();
             e.Handled = true;
             return;
+        }
+
+        if (e.Key == Key.A && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            ToggleAiAssistant();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Escape)
+        {
+            if (AiAssistantGuideBubble is { IsVisible: true })
+            {
+                DismissAiGuide();
+                e.Handled = true;
+                return;
+            }
+
+            if (AiAssistantOverlay is { IsVisible: true })
+            {
+                // 抽屉盖在最上层，页面里的 Esc 不该越过它。
+                CloseAiAssistant();
+                e.Handled = true;
+                return;
+            }
         }
 
         if (e.Key == Key.F1 && !e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt))
@@ -2396,6 +2923,34 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        // 全键盘动作（页签 / 侧栏 / 搜索 / 设置）：命令面板里点了要和按下快捷键走同一条路，
+        // 否则同一个动作会有两套行为，日后改键位只改得动其中一套。
+        if (id.StartsWith(DefaultCommands.ActionPrefix, StringComparison.Ordinal))
+        {
+            var shortcut = id[DefaultCommands.ActionPrefix.Length..] switch
+            {
+                "next-tab" => new ShellShortcut(ShellShortcutKind.NextTab),
+                "previous-tab" => new ShellShortcut(ShellShortcutKind.PreviousTab),
+                "next-rail" => new ShellShortcut(ShellShortcutKind.NextRail),
+                "previous-rail" => new ShellShortcut(ShellShortcutKind.PreviousRail),
+                "open-settings" => new ShellShortcut(ShellShortcutKind.OpenSettings),
+                "focus-search" => new ShellShortcut(ShellShortcutKind.FocusSearch),
+                _ => ShellShortcut.None,
+            };
+
+            if (shortcut.Kind == ShellShortcutKind.FocusSearch)
+            {
+                TryFocusPageSearch();
+                return;
+            }
+
+            if (shortcut.IsHit)
+            {
+                ApplyShellShortcut(shortcut);
+                return;
+            }
+        }
+
         _paletteActionHost?.Invoke(id);
     }
 
@@ -2440,6 +2995,299 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    // ─────────────────────── 全键盘与手柄（UI-12：一次安装不摸鼠标） ───────────────────────
+
+    /// <summary>
+    /// 挂外壳级输入：手柄轮询 + Ctrl+F 的冒泡兜底。
+    /// </summary>
+    /// <remarks>
+    /// 手柄来源在这里就地 new：XInput 是 OS 能力而不是业务服务，DI 里再包一层只会多一处装配点。
+    /// 探测失败（非 Windows / 精简系统）时 <see cref="GamepadInputHost.Start"/> 直接返回，键盘路径不受影响。
+    /// </remarks>
+    private void InitializeShellInput()
+    {
+        // 页面自己先处理 Ctrl+F（模组页会聚焦它自己的搜索框），冒泡阶段还没人吃才由外壳找一遍。
+        AddHandler(KeyDownEvent, OnShellShortcutBubbleKeyDown, RoutingStrategies.Bubble);
+
+        var gamepad = new GamepadInputHost(new XInputGamepadSource(), OnGamepadAction);
+        _gamepad = gamepad;
+        Closed += (_, _) =>
+        {
+            _gamepad?.Dispose();
+            _gamepad = null;
+        };
+        gamepad.Start();
+    }
+
+    /// <summary>Ctrl+F 的尾巴：当前页没人接管时，在页面区里找搜索框并把焦点送进去。</summary>
+    private void OnShellShortcutBubbleKeyDown(object? sender, KeyEventArgs e)
+    {
+        var shortcut = ShellShortcutMap.Match(e.Key, e.KeyModifiers);
+        if (shortcut.Kind != ShellShortcutKind.FocusSearch)
+        {
+            return;
+        }
+
+        if (TryFocusPageSearch())
+        {
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>在外壳层执行一条快捷键；不认识的动作为 false（调用方据此决定要不要吃掉按键）。</summary>
+    private bool ApplyShellShortcut(ShellShortcut shortcut)
+    {
+        if (DataContext is not ShellViewModel shell)
+        {
+            return false;
+        }
+
+        switch (shortcut.Kind)
+        {
+            case ShellShortcutKind.NextTab:
+                shell.CycleSectionTab(1);
+                return true;
+
+            case ShellShortcutKind.PreviousTab:
+                shell.CycleSectionTab(-1);
+                return true;
+
+            case ShellShortcutKind.NextRail:
+                shell.CycleRail(1);
+                return true;
+
+            case ShellShortcutKind.PreviousRail:
+                shell.CycleRail(-1);
+                return true;
+
+            case ShellShortcutKind.JumpRail:
+                shell.NavigateRailIndex(shortcut.Index);
+                return true;
+
+            case ShellShortcutKind.OpenSettings:
+                shell.NavigateCommand.Execute("settings");
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// 在页面区里找搜索框并聚焦。只认「名字里带 search / 搜索」的文本框：
+    /// 随便抓一个 TextBox 聚焦在别的页面就是把人扔进某个无关输入框，比没反应更糟。
+    /// </summary>
+    private bool TryFocusPageSearch()
+    {
+        if (PageHost is null)
+        {
+            return false;
+        }
+
+        foreach (var textBox in PageHost.GetVisualDescendants().OfType<TextBox>())
+        {
+            if (!textBox.IsEffectivelyVisible || !textBox.IsEffectivelyEnabled || textBox.IsReadOnly)
+            {
+                continue;
+            }
+
+            if (!LooksLikeSearchBox(textBox))
+            {
+                continue;
+            }
+
+            textBox.Focus();
+            textBox.SelectAll();
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool LooksLikeSearchBox(TextBox textBox)
+    {
+        if (textBox.Name is { Length: > 0 } name &&
+            name.Contains("search", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var automationName = AutomationProperties.GetName(textBox);
+        return automationName is not null &&
+               (automationName.Contains("search", StringComparison.OrdinalIgnoreCase) ||
+                automationName.Contains("搜索", StringComparison.Ordinal));
+    }
+
+    /// <summary>手柄动作落点：方向走焦点、A 走「回车」、B 走「Esc」、肩键切页签、扳机翻页、Back 收侧栏。</summary>
+    private void OnGamepadAction(GamepadAction action)
+    {
+        if (DataContext is not ShellViewModel shell)
+        {
+            return;
+        }
+
+        // 模态对话框盖在上面时主窗不 Active：只把「取消」转给对话框，其余不越权代按。
+        if (!IsActive)
+        {
+            if (action == GamepadAction.Cancel)
+            {
+                TryForwardEscapeToActiveDialog();
+            }
+
+            return;
+        }
+
+        switch (action)
+        {
+            case GamepadAction.FocusUp:
+                MoveFocusByGamepad(NavigationDirection.Up);
+                break;
+
+            case GamepadAction.FocusDown:
+                MoveFocusByGamepad(NavigationDirection.Down);
+                break;
+
+            case GamepadAction.FocusLeft:
+                MoveFocusByGamepad(NavigationDirection.Left);
+                break;
+
+            case GamepadAction.FocusRight:
+                MoveFocusByGamepad(NavigationDirection.Right);
+                break;
+
+            case GamepadAction.Accept:
+                ActivateFocusedElement();
+                break;
+
+            case GamepadAction.Cancel:
+                CancelFromGamepad();
+                break;
+
+            case GamepadAction.PreviousTab:
+                shell.CycleSectionTab(-1);
+                break;
+
+            case GamepadAction.NextTab:
+                shell.CycleSectionTab(1);
+                break;
+
+            case GamepadAction.TogglePalette:
+                _palette?.ToggleCommand.Execute(null);
+                break;
+
+            case GamepadAction.ShowShortcuts:
+                _ = ShowShortcutsAsync();
+                break;
+
+            case GamepadAction.ScrollUp:
+                RaiseKeyToFocus(Key.PageUp);
+                break;
+
+            case GamepadAction.ScrollDown:
+                RaiseKeyToFocus(Key.PageDown);
+                break;
+
+            case GamepadAction.ToggleSidebar:
+                shell.ToggleNavCollapsedCommand.Execute(null);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// 手柄 B：按「最上层先关」的顺序退。与 Esc 的全局处理保持一致，
+    /// 区别只在于手柄没有「文本框里删字」的需求，所以不必先让页面吃一遍。
+    /// </summary>
+    private void CancelFromGamepad()
+    {
+        if (AiAssistantGuideBubble is { IsVisible: true })
+        {
+            DismissAiGuide();
+            return;
+        }
+
+        if (AiAssistantOverlay is { IsVisible: true })
+        {
+            CloseAiAssistant();
+            return;
+        }
+
+        if (_palette is { IsOpen: true })
+        {
+            _palette.CloseCommand.Execute(null);
+        }
+    }
+
+    /// <summary>方向键移动焦点。焦点还没落（刚启动、刚关浮层）时先落到第一个可聚焦元素。</summary>
+    private void MoveFocusByGamepad(NavigationDirection direction)
+    {
+        var manager = TopLevel.GetTopLevel(this)?.FocusManager;
+        if (manager is null)
+        {
+            return;
+        }
+
+        var current = manager.GetFocusedElement() as InputElement;
+        if (current is null || ReferenceEquals(current, this))
+        {
+            manager.TryMoveFocus(NavigationDirection.First, new FindNextElementOptions { SearchRoot = this });
+            return;
+        }
+
+        manager.TryMoveFocus(
+            direction,
+            new FindNextElementOptions { FocusedElement = current, SearchRoot = this });
+    }
+
+    /// <summary>手柄 A = 键盘 Enter：给焦点元素补一个 KeyDown，让控件按自己的键位语义处理。</summary>
+    /// <remarks>
+    /// 比外壳猜「这个控件该怎么点」可靠：按钮、列表项、树节点、ComboBox、文本框各有各的 Enter 语义，
+    /// 而 Avalonia 的 <c>Button</c> 没有公开的 PerformClick，合成事件是唯一不复制语义的做法。
+    /// </remarks>
+    private void ActivateFocusedElement()
+    {
+        if (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is not InputElement focused)
+        {
+            return;
+        }
+
+        RaiseKey(focused, Key.Enter);
+    }
+
+    /// <summary>把手柄扳机翻译成 PageUp/PageDown：滚动条与 ScrollViewer 都认这两个键。</summary>
+    private void RaiseKeyToFocus(Key key)
+    {
+        if (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is InputElement focused)
+        {
+            RaiseKey(focused, key);
+        }
+    }
+
+    /// <summary>对话框盖在上面时，把 Esc 送到那个窗口（手柄 B 关闭对话框的唯一路径）。</summary>
+    private bool TryForwardEscapeToActiveDialog()
+    {
+        foreach (var owned in OwnedWindows)
+        {
+            if (owned.IsActive)
+            {
+                RaiseKey(owned, Key.Escape);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void RaiseKey(InputElement target, Key key, KeyModifiers modifiers = KeyModifiers.None)
+    {
+        target.RaiseEvent(new KeyEventArgs
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Key = key,
+            KeyModifiers = modifiers,
+            Source = target,
+        });
+    }
+
     private void InitializePerformanceMonitor()
     {
         var monitor = PerformanceMonitor.Instance;
@@ -2469,11 +3317,28 @@ public sealed partial class MainWindow : Window
 
     private void OnWindowKeyDownTunnel(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && AiAssistantOverlay is { IsVisible: true })
+        if (e.Key == Key.A && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
-            CloseAiAssistant();
+            ToggleAiAssistant();
             e.Handled = true;
             return;
+        }
+
+        if (e.Key == Key.Escape)
+        {
+            if (AiAssistantGuideBubble is { IsVisible: true })
+            {
+                DismissAiGuide();
+                e.Handled = true;
+                return;
+            }
+
+            if (AiAssistantOverlay is { IsVisible: true })
+            {
+                CloseAiAssistant();
+                e.Handled = true;
+                return;
+            }
         }
 
         if (e.Key == Key.F12)
@@ -2562,6 +3427,34 @@ public sealed partial class MainWindow : Window
         if (fpsDot is not null && this.TryFindResource(brushKey, out var res) && res is IBrush brush)
         {
             fpsDot.Fill = brush;
+        }
+    }
+
+    private long _lastSelectSoundTimestamp;
+
+    /// <summary>
+    /// 全局播放轻量交互音效（选择、按下、开关、划过等）。
+    /// </summary>
+    private void PlaySoundEffect(SoundEffectType type)
+    {
+        try
+        {
+            if (type == SoundEffectType.Select)
+            {
+                var now = System.Diagnostics.Stopwatch.GetTimestamp();
+                if (System.Diagnostics.Stopwatch.GetElapsedTime(_lastSelectSoundTimestamp).TotalMilliseconds < 120)
+                {
+                    return;
+                }
+                _lastSelectSoundTimestamp = now;
+            }
+
+            var soundEffects = _shell?.SoundEffects ?? App.Services?.GetService<ISoundEffectService>();
+            soundEffects?.Play(type);
+        }
+        catch
+        {
+            // 音效属于非关键反馈，失败时不影响主交互链路
         }
     }
 }

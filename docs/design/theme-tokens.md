@@ -587,3 +587,171 @@ Avalonia 12.1.4 会把新目标当成一次全新过渡，**从 t=0 重新计时
 样式里的横向 2 px 保留（本类只改 `translateY`），两者叠加即"抬起 + 右移"。
 
 - **门禁**：`HoverLiftMotionTests.GridRowsLiftByTheRowDistance`（`DataGridRow` 被接管且落到 -1 px）。
+
+#### 5.9.23 表格工具：筛选 / 排序 / 列拖动（`src/CkanUI.App/Controls/TableTools.cs`）
+
+两张表格（模组表 `ModsPageView.axaml`、下载统计表 `DownloadStatsPageView.axaml`）原来各自写死
+`CanUserSortColumns="False"` / `CanUserReorderColumns="False"`，同一个产品里两张表的交互不一样。现在统一走一个附加属性：
+
+```xml
+<DataGrid controls:TableTools.Enabled="True">
+```
+
+- **三开关一次打开**：`CanUserSortColumns` / `CanUserReorderColumns` / `CanUserResizeColumns` 全部置 `true`，视图侧不再逐个写；
+  表里不再允许出现 `CanUserSortColumns="False"`（`TableToolsTests.BothTables_DeclareTheSameTools` 的源文件 lint 守着）。
+- **表头筛选**：把 `column.HeaderTemplate` 换成 `FuncDataTemplate<object>`，在表头内容后面挂一枚 18 px 漏斗按钮
+  （`Classes = "table-filter"`），点击开 `Flyout` + `TextBox`。原 `HeaderTemplate` 透传给内部 `ContentPresenter`，
+  `{DynamicResource}` 解析出的本地化文本不受影响；不改 `column.Header` 本身，语言热切换照旧。
+  行首复选框那种 38 px 窄列显式写 `controls:TableTools.Filterable="False"`；无可用文本路径的列自动不挂按钮。
+- **筛选语义**：空格分词按「与」叠加、`-词` 表示排除、`CurrentCultureIgnoreCase` 子串匹配，多列之间也按「与」；
+  写进 `DataGridCollectionView.Filter` 后 `Refresh()`。
+- **换表不丢筛选**：模组页每次刷新都换一个新的 `ObservableCollection`，DataGrid 会重建 `CollectionView` 并丢掉 `Filter`，
+  所以 `TableState` 同时监听 `ItemsControl.ItemsSourceProperty` 与 `DataGrid.ItemsSourceProperty`，换了就重挂。
+- **按原始值排序**：界面文本是格式化的（`DownloadText` "1,000"、`SizeText` "2,300,000"、版本 "1.10"），按文本排会把 "9"
+  排到 "1,000" 之后、把 "1.10" 排到 "1.9" 之后。列上用 `controls:TableTools.SortPath` 指回原始字段
+  （`Name` / `Data.DownloadCount` / `Data.SizeBytes` / `Data.InstalledVersion` / `DownloadCount` / `CacheBytes`），
+  同时设 `SortMemberPath` 与 `CustomSortComparer = ValueComparer(path)`。
+- **比较器的坑**：`DataGridColumn.CustomSortComparer` 是 `System.Collections.IComparer`，DataGrid 传进来的是**行对象**而不是
+  `SortMemberPath` 取到的值（探针实测 `Row/Row`），所以 `ValueComparer` 自己按路径取值：数字按数值、两边都能
+  `Version.TryParse` 的按 `Version`、其余按字符串，null 排最前。
+- **模板列也能排**：`DataGridTemplateColumn` 没有 `Binding`，必须显式给 `SortPath`，否则该列不排序（也不挂漏斗按钮）。
+- **排序要空转一拍**：DataGrid 的排序效果由布局/调度器落到 `CollectionView`，`column.Sort()` 之后立刻枚举还是旧序；
+  测试里必须 `HeadlessAppHost.PumpJobs()` 再断言（`TableToolsTests.SortBy`）。
+- **不做**：不改 `DataGrid` 模板、不动行数据集合类型、不做全局搜索框（筛选入口跟着列走）。
+- **门禁**：`TableToolsTests`（6 条：三开关、漏斗入口与 `Filterable=False` 退订、筛选与多列与、换 `ItemsSource` 后筛选仍在、
+  数值/版本按值排序、两张表声明一致）。
+
+#### 5.9.24 列表选中指示条：只留模板那一条（`ListBoxItem`）
+
+症状是选中行左边并排两条 3 px 竖条：左边 `#60CDFF`、右边 `#72A7FF`，同高 16 px，间距 12 px。
+
+- **两条的来源**：Avalonia 12 的 `ListBoxItem` 默认模板里带一个 `Rectangle#SelectionIndicator`，选中时按
+  `SystemAccentColorLight2` 上色（`App.axaml` 开了 `FluentAvaloniaTheme PreferUserAccentColor="True"`，暗色下正好是 `#60CDFF`）。
+  另外 7 个页面又各自在行模板里画了一条 `Rectangle Classes="SelectionBar"`（`CkanAccentBrush` `#72A7FF`）。
+  自绘条落在 `ListBoxItem` 的 `Padding` 之内，于是比模板条右移 12–15 px，看起来就是两条杠。
+- **口径**：模板那条是**唯一**的选中指示条，视图不再自绘。共享样式里统一它的外观
+  （`Resources/FluentStyles.axaml` 的 `ListBoxItem:selected /template/ Rectangle#SelectionIndicator`：
+  `Fill={DynamicResource CkanAccentBrush}`、`Width=3`、`RadiusX/Y=1.5`；高度/垂直居中沿用模板的 16 px）。
+- **同一份判定覆盖所有列表**：29 个 `ListBox` 一个样，不需要的列表也不用逐个补样式；列表外边距、行高、圆角仍由各自视图的
+  `ListBoxItem` 样式负责。
+- **删掉的自绘**：`ReposPageView` / `CachePageView` / `DedupPageView` / `InstallHistoryPageView` / `PlayTimePageView` /
+  `CkanUI.Plugin.Assets/ShipsPageView` / `CkanUI.Plugin.Saves/SavesPageView` 的 `Rectangle.SelectionBar` 及其样式块；
+  命令面板 `CommandPaletteView` 的 `Rectangle.paletteBar` 同样删掉，行 Grid 由 `3,*,Auto` 收成 `*,Auto`，
+  文字缩进改由 `Margin="11,4"` 承担。
+- **不要动的三处**：`ModsPageView`（已装=成功色）、`ChangesPageView`（卸载=危险色）、`InstancesPageView`（当前实例=成功色）
+  行首的 3 px 竖条是**语义状态条**，不是选中条，颜色按状态变、与选中无关。
+- **门禁**：`ListSelectionIndicatorTests`（4 条）：纯 `ListBox` 选中行只有一条且颜色等于 `CkanAccentBrush`；
+  真实外壳里导航到 cache 页选中行同上 + 打开命令面板后选中行同样只有一条；
+  `src/**/*.axaml` 源文件 lint（先剥 XML 注释）不得再出现 `SelectionBar` / `paletteBar`；共享样式必须定义该选择器。
+
+#### 5.9.25 手画表格：筛选 / 排序 / 列宽拖动（`src/CkanUI.Ui/Tables/ListTableTools.cs`）
+
+产品里只有两张真 `DataGrid`（§5.9.23）。其余表格页是「`Border` 表头 + `Grid` 列定义 + `ListBox` 行模板」手画出来的，
+没有任何内置排序/筛选/列宽能力。现在这些页共用同一套工具：
+
+```xml
+<ListBox ui:ListTableTools.Enabled="True"
+         ui:ListTableTools.Columns="-,Name,VersionText~ModuleCount,LockText~IsLocked" />
+```
+
+- **放在 `CkanUI.Ui` 而不是 `CkanUI.App`**：首方插件（Ships / Saves / Storage / KspConfig / ModText）不引用 `CkanUI.App`，
+  工具放共用基元层才能同时被宿主页和插件页用。用到它的插件 csproj 必须加 `../CkanUI.Ui/CkanUI.Ui.csproj` 引用，
+  否则 XAML 编译报 `AVLN2000: Unable to resolve type ListTableTools`。
+- **列描述**：`Columns` 是按表头列顺序的逗号分隔清单，每段三种写法——`-` 表示该列不参与（行首状态条、复选框列）；
+  `展示路径` 表示排序和筛选都按该路径取值；`展示路径~排序路径` 表示**筛选用用户看到的文本、排序用原始值**
+  （`SizeText~Entry.SizeBytes`、`ModifiedText~Entry.ModifiedTimeUtc`、`PriorityText~Priority`）。
+- **表头定位**：从 `ListBox.Parent` 起向上最多三层找「`ColumnDefinitions.Count` 等于声明列数、且直接子节点里带
+  `Classes="CkanCaption"` 的标题」的 `Grid`。所以手画表头的标题**必须带 `CkanCaption` 类**（KspConfig 那种把 ListBox
+  再包一层 `Grid` 的页面靠向上查找命中）。原先手写 `FontSize="12" FontWeight="SemiBold"` 的标题换成
+  `Classes="CkanCaption" FontWeight="SemiBold"` 是视觉等价（`CkanFontSizeCaption` 就是 12）。
+- **表头装饰**：每个参与列的标题搬进 `Grid ColumnDefinitions="Auto,Auto,Auto,*"`——标题 / 排序箭头（`▲▼`）/
+  18 px 漏斗按钮（`Classes="table-filter"`）依次靠左，权重列留在最后把右侧空白吃掉。点标题单元格切排序
+  （升 → 降 → 取消），漏斗按钮开 `Flyout` + `TextBox` 实时写筛选。
+  两个必须做对的细节：①搬进容器后 **`Grid.SetColumn(caption, 0)`**——标题原本带着表头 Grid 的列号，
+  不改就会跑出容器，表头只剩一排漏斗、标题整列消失；②权重列必须放最后——写成 `"*,Auto,Auto"` 时
+  宽列（cache 页「文件名」777 px）里的漏斗会被推到列右缘，视觉上和隔壁列的标题粘在一起。
+- **筛选语义**与 DataGrid 版一致：空格分词按「与」叠加、`-词` 排除、`CurrentCultureIgnoreCase` 子串匹配，多列之间也按「与」。
+- **列宽拖动**：列右缘挂 6 px 宽的透明 `Border`（`Cursor=SizeWestEast`、`ZIndex=5`），按下捕获指针，拖动时改表头
+  `ColumnDefinitions[i]` 并同步已 realize 的行容器；新行在 `ContainerPrepared` 补宽度，所以滚动进来的行不会跳列。
+- **包装 ItemsSource**：`ListBox` 没有 `CollectionView`，工具造一个 `TableView`（`IList + INotifyCollectionChanged`，
+  内部 `Filter` / `Comparison` / `Refresh` 发 `Reset`）替换 `ItemsSource`。先 `SetCurrentValue` 保绑定语义，
+  若被局部值顶掉再 `SetValue`——这一步不能省，否则筛选/排序整个不生效。
+- **换源要重包**：页面刷新时会换一个新的 `ObservableCollection`，绑定把新集合直接写回 `ItemsSource`，包装视图被顶掉；
+  `TableState` 监听 `ItemsSourceProperty` 变化后重新包装，并把原来的 `SelectedItem` 装回去（否则右侧详情面板会空）。
+- **比较规则**（`TableValues.Compare`）：`DateTimeOffset` → 数字 → 两边都能 `Version.TryParse` 的按 `Version`
+  → 纯数字文本 → `CurrentCultureIgnoreCase` 字符串；`null` 排最前。界面文本是格式化的，所以数值/版本列一定要写 `~` 排序路径。
+- **已接线**：`CachePageView`(6) / `ReposPageView`(5) / `PlayTimePageView`(4) / `DedupPageView`(5) / `ChangesPageView`(7) /
+  `InstancesPageView`(5) / `ModPacksPageView`（预览表 6 + 差异表 3）/ `Plugin.Assets/ShipsPageView`(8) /
+  `Plugin.Saves/SavesPageView`(5) / `Plugin.Storage/UI/StoragePageView`(6) / `Plugin.KspConfig/KspConfigPageView`(4) /
+  `Plugin.ModText/ModTextPageView`(4)。
+- **刻意不接的两类**：①可编辑的关系表（`ModPackEditorPageView` 的 ComboBox/TextBox 行）——筛选排序对可编辑表单没有意义；
+  ②表头列数与行模板列数不一致的（`InstallHistoryPageView` 表头 2 列「时间 / 变更」、行模板 `Auto,Auto,*` 三列且第二列是
+  时间轴竖线），列索引会错位，要接得先把两边列结构统一。
+- **门禁**：`ListTableToolsTests`（6 条：表头长漏斗按钮且点击排序、多列筛选与换源后仍生效、跳过列不给按钮也不能排、
+  表头隔一层包装仍能找到、换源后选中项保留、**标题文字保留且漏斗紧跟标题**）+ `ListTableToolsCoverageTests`
+  （每个已接线页面的 `Columns` 段数必须和表头实测列数对得上，否则筛选按钮会挂错列）。
+#### 5.9.26 列宽拖拽的视觉指引：边界要看得见、摸得到（`TableTools` / `ListTableTools`）
+
+两个表格工具都支持拖列宽，但早先只有「鼠标移上去光标变形状」这一层反馈：DataGrid 的可拖区域是表头模板里
+1 px 的**透明**矩形 `Rectangle#VerticalSeparator`，手画表头的把手是 6 px 的**透明** `Border` —— 用户看不见边界，
+也不知道从哪儿开始拖。现在两套都补上视觉指引，且都不改共享样式表（`FluentStyles.axaml` 在并行改动）：
+
+- **DataGrid（`src/CkanUI.App/Controls/TableTools.cs` `AttachResizeGuide`）**：`TableState` 往 `grid.Styles` 里加两条 `Style`，
+  选择器是 `DataGridColumnHeader` 的模板部件：
+  - 基础：`Cursor = SizeWestEast`、`MinWidth = 6`、`Margin = -3,0,0,0`、`Fill = Transparent`。
+    `MinWidth + 负外边距` 把命中区从 1 px 扩到 6 px，**列的实际布局一点没变**（探针实测 bounds 从 `111,0,1,32` 变成 `108,0,6,32`）。
+  - 悬停：`DataGridColumnHeader:pointerover /template/ Rectangle#VerticalSeparator` → `Fill` 换成一条**硬边渐变**
+    （`NarrowBand`：两侧 `alpha = 0`、中间 0.4→0.6 是 `CkanAccentBrush` 本色）。命中区是 6 px，直接整块上色会变成
+    一条 6 px 粗色带（探针截图里确实粗得刺眼），渐变只在正中留 1 px 视觉线。整条表头悬停时点亮，指针离开恢复透明。
+  - 主题切换时重建（订阅 `ActualThemeVariantChanged`），因为 brush 是取出来塞进 setter 的实例，不是 `DynamicResource`。
+- **手画表头（`src/CkanUI.Ui/Tables/ListTableTools.cs` `AddResizeHandle`）**：6 px 命中 `Border` 里套一条 1 px 的`guide` 子 `Border`，
+  `Background = CkanAccentBrush`、`Opacity = 0`、`IsHitTestVisible = false`（不挡指针，命中仍由外层把手承担）。
+  `PointerEntered` → 0.5，`PointerPressed` → 1（拖动中全亮），`PointerReleased` 回到 `IsPointerOver ? 0.5 : 0`，`PointerExited` → 0。
+- **为什么不用 `DynamicResource`**：`Style` 的 setter 值里塞 `DynamicResourceExtension` 不解析（表头部件会拿到扩展对象本身），
+  只能取具体 `IBrush` 实例；代价是主题切换要自己重挂，所以订阅 `ActualThemeVariantChanged`。
+- **门禁**：`ResizeGripAffordanceTests`（3 条：命中宽度 ≥6 且光标为 `SizeWestEast`、悬停表头时 `Fill` 变成 `CkanAccentBrush` 且离开恢复透明、
+  手画表头把手悬停亮起 1 px 引导线且离开复原）。
+
+#### 5.9.27 表格重排：排序 / 筛选之后行是滑过去的（`src/CkanUI.Ui/Tables/TableReorderMotion.cs`）
+
+排序或筛选一改，行就整块换位置——数据是对的，但眼睛来不及判断「哪一行跑到了哪里」。共享层新增
+`TableReorderMotion`（`public sealed class`，附加属性 `TableReorderMotion.IsEnabled`），用 FLIP 把这次重排演成位移：
+
+- **捕获**：数据源变更**之前**调 `Play`，按「数据项 → 容器顶边」记快照（`container.TranslatePoint(default, host).Y`）。
+  用数据项而不是容器做键：Reset 会把容器回收再复用，容器身份变了也不会配错。
+- **落位**：等布局跑完再算 `shift = 旧顶边 - 新顶边`，给每个容器挂 `TranslateTransform` 并把 `Y` 先设成 `shift`
+  （**立刻**站回旧位置，否则第一帧会先闪一下新位置）。筛选后新露出的行没有旧位置，从下方 `12 px`（精简档 `4 px`）浮上来。
+- **回放**：每 `TopLevel` 一台帧泵（`RequestAnimationFrame`），`progress = (elapsed - delay) / duration`，`Y = shift * (1 - CubicEaseOut(progress))`。
+  首帧 delta 按 `1/60`，并封顶 `1/30`——掉帧时不会把它变成瞬移。按顶边升序错峰 `18 ms`，最多 `24` 行。
+- **让位**：容器原本的 `RenderTransform` 是 `null` 就独占，是 `TransformGroup` 就 `Children.Add`，是别的 `Transform` 就套进新的组；
+  结束时原样还回去（`RenderTransform` 恢复成调用前那个实例）。不是 `Transform` 的 `ITransform` 让位独占，结束后还原。
+- **时长**：读 `CkanMotionTokens.Base`，取常规时长的一半并夹在 `60–320 ms`；token 缺失或为 0（动效强度关到「瞬时」）时整段不演，
+  连捕获都不做——不做关不掉的动画。
+- **接线**：
+  - 手画表头（`ListTableTools`）：`SetFilter` / `ClearFilters` / `SortBy` 三处都是**先 `Play` 再 `Refresh`**；`Initialize` 里顺手 `SetIsEnabled(list, true)`。
+  - `DataGrid`（`TableTools`）：订阅 `Sorting` 与 `ApplyFilters` 开头调 `PlayReorder()`，容器由 `GetVisualDescendants().OfType<DataGridRow>()` 提供，
+    数据项取 `row.DataContext`（`DataGrid` 不是 `ItemsControl`，共享层不引 DataGrid 包，所以走 `Control` 版重载）。
+- **两个必须踩到的坑**：
+  1. `Reflow` 里要**重新枚举容器**：Reset 之后早先抓到的 `GetRealizedContainers()` 枚举器可能已经是空的（诊断里 `seen=0`，一行都没演）。
+  2. `Track.Running` 必须在 `Start` 里置 `true`：只置 `Elapsed/Delay` 而不置这个标志，帧泵第一帧就把轨道当作已完成清掉，位移会永远停在起始值（实测卡在 `Y = 102`）。
+- **门禁**：`TableReorderMotionTests`（3 条：排序后行从旧位置起滑并在 40 帧内归零且交还 `RenderTransform`、
+  没有时长 token 时一动不动、容器原有 `ScaleTransform` 结束后原样还原）。
+
+
+### 5.9.28 表头与行的对齐：拖动时必须一起动，静止时也得对齐
+
+用户截图里拖动列宽后「表头一列、行一列」错开，是两个独立缺陷叠在一起：
+
+1. **行根本没跟着变宽**（`src/CkanUI.Ui/Tables/ListTableTools.cs` `SetWidth` → `ApplyWidthsTo`）。
+   `SetWidth` 为了防重入先置 `_applyingWidths = true`，再进循环调 `ApplyWidthsTo`；
+   而 `ApplyWidthsTo` 开头恰好写着 `if (_applyingWidths || _widths.Count == 0) return;` —— 每一行都被这行守卫弹回，
+   于是表头拉宽、行保持原宽。修法：守卫只留给 `ContainerPrepared` 那条路径，`ApplyWidthsTo` 本身不再判这个标志。
+2. **表头按自己的容器铺满，跟行的内容区不是同一个矩形**。行被 `ListBoxItem` 的内边距推进来（实测左缘差 20 px），
+   右侧还会被竖直滚动条吃掉十几像素；列宽算得一分不差也照样错位。修法：`SyncHeaderGeometry()` 在每次 `LayoutUpdated` 时
+   比较表头与首个已实例化行的左缘/右缘，把差值增量加到表头 `Margin` 上（差值 < 0.5 px 就收手，不会震荡）。
+   - 用「增量修正」而不是「一次性算绝对位置」：表头自己移动之后，下一轮算出来的残差自然归零，滚动条出现/消失也能自动跟。
+   - 只对已接线表格生效，普通列表零成本（没有 `_header` 直接返回）。
+3. **门禁**：`tests/CkanUI.Ui.Tests/Tables/ListTableToolsAlignmentTests.cs` —— 30 行（必然出现滚动条）+ 行模板自带 12 px 内边距，
+   在「静止 / 拖动中 / 松开后」三个时刻断言逐列 `ActualWidth` 相等、左右缘各差 < 0.6 px。
+   反向验证过：把 `SyncHeaderGeometry()` 注释掉，该用例立刻红在「静止时左缘 12 vs 24、右缘 988 vs 976」。
+4. **顺带**：KspConfig 页已被改成卡片式条目（列定义 `*,240,96`，没有表头行），已从 `ListTableToolsCoverageTests` 的已接线清单里移除。

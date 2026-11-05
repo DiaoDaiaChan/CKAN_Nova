@@ -5,7 +5,7 @@ using NUnit.Framework;
 namespace CkanUI.ViewModels.Tests.CommandPalette;
 
 /// <summary>
-/// 内置命令表：16 个宿主内置导航页（顺序与左侧导航栏一致）+ 10 个界面动作 + Id 约定。
+/// 内置命令表：16 个宿主内置导航页（顺序与左侧导航栏一致）+ 17 个界面动作 + Id 约定。
 /// 搬进插件的页面（存档 / 飞船 / 旗帜 / 加载图 / KSP 游戏设置 / 模组翻译）不在这里——
 /// 插件可停用，留条目就是留一个点了没反应的面板项。
 /// </summary>
@@ -70,21 +70,33 @@ public sealed class DefaultCommandsTests
     }
 
     [Test]
-    public void CreateActions_Returns11CommandsWithThreeShortcuts()
+    public void CreateActions_Returns17CommandsWithNineShortcuts()
     {
         var actions = DefaultCommands.CreateActions();
 
-        Assert.That(actions.Count, Is.EqualTo(11));
+        Assert.That(actions.Count, Is.EqualTo(17));
         Assert.That(actions[0].Id, Is.EqualTo("action:show-palette"));
         Assert.That(actions[0].ShortcutText, Is.EqualTo("Ctrl+K"));
         Assert.That(actions[1].Id, Is.EqualTo("action:show-shortcuts"));
         Assert.That(actions[1].ShortcutText, Is.EqualTo("Ctrl+/"));
         Assert.That(actions[2].Id, Is.EqualTo("action:open-onboarding-guide"));
         Assert.That(actions[2].ShortcutText, Is.EqualTo("F1"));
-        Assert.That(
-            actions.Skip(3).All(action => !action.HasShortcut),
-            Is.True,
-            "没接线的动作不写手势，免得快捷键目录里出现按了没反应的行");
+
+        var wired = actions
+            .Where(action => action.HasShortcut)
+            .ToDictionary(action => action.Id, action => action.ShortcutText, StringComparer.Ordinal);
+        Assert.That(wired, Is.EquivalentTo(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["action:show-palette"] = "Ctrl+K",
+            ["action:show-shortcuts"] = "Ctrl+/",
+            ["action:open-onboarding-guide"] = "F1",
+            ["action:next-tab"] = "Ctrl+Tab",
+            ["action:previous-tab"] = "Ctrl+Shift+Tab",
+            ["action:next-rail"] = "Ctrl+Alt+↓",
+            ["action:previous-rail"] = "Ctrl+Alt+↑",
+            ["action:focus-search"] = "Ctrl+F",
+            ["action:open-settings"] = "Ctrl+,",
+        }), "没接线的动作不写手势，免得快捷键目录里出现按了没反应的行");
         Assert.That(actions[0].Category, Is.EqualTo("界面"));
     }
 
@@ -121,14 +133,14 @@ public sealed class DefaultCommandsTests
     }
 
     [Test]
-    public void CreateAll_Returns27UniqueCommands()
+    public void CreateAll_Returns33UniqueCommands()
     {
         var commands = DefaultCommands.CreateAll();
 
-        Assert.That(commands.Count, Is.EqualTo(27));
+        Assert.That(commands.Count, Is.EqualTo(33));
         Assert.That(
             commands.Select(command => command.Id).Distinct(StringComparer.Ordinal).Count(),
-            Is.EqualTo(27),
+            Is.EqualTo(33),
             "Id 必须全目录唯一，否则批量注册会被 all-or-nothing 拒绝");
     }
 

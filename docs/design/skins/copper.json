@@ -1,0 +1,32 @@
+{
+  "key": "copper",
+  "displayName": "铜金",
+  "accent": "#D08A5A",
+  "contrast": {
+    "textOnCanvas": 15.36,
+    "secondaryOnCanvas": 9.37,
+    "accentOnCanvas": 6.83,
+    "accentTextOnAccent": 6.71
+  },
+  "tokens": {
+    "CkanCanvasBackgroundBrush": "#120E0B",
+    "CkanSurfaceBackgroundBrush": "#E615110C",
+    "CkanSidebarBackgroundBrush": "#C01B1610",
+    "CkanStatusBarBackgroundBrush": "#D91A150F",
+    "CkanCardBackgroundBrush": "#D8211A12",
+    "CkanElevatedCardHoverBrush": "#2B2218",
+    "CkanRecessedInputBrush": "#0A0806",
+    "CkanDialogBackgroundBrush": "#221B12",
+    "CkanSubtleBackgroundBrush": "#C81F1912",
+    "CkanMutedBackgroundBrush": "#2A2118",
+    "CkanTextPrimaryBrush": "#F0E4D8",
+    "CkanTextSecondaryBrush": "#C6B29C",
+    "CkanTextTertiaryBrush": "#8B7A66",
+    "CkanBorderBrush": "#3C3024",
+    "CkanLayerElevatedBrush": "#2B2218",
+    "CkanSkeletonBrush": "#32271C",
+    "CkanAccentBrush": "#D08A5A",
+    "CkanPrimaryBrush": "#D08A5A",
+    "CkanAccentTextBrush": "#16100B"
+  }
+}

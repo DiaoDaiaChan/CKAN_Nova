@@ -99,12 +99,114 @@ public sealed class InstallerServiceTests
                                  Array.Empty<string>())).WaitAsync(Timeout);
 
         Assert.That(result.IsSuccess, Is.False);
-        Assert.That(result.Message, Does.Contain("依赖解析失败"));
+        // 失败文案只保留后端那句具体原因：以前是「依赖解析失败… 依赖不满足…」两句同义拼接，
+        // 页面里同一件事出现四次，读起来就是信息过载。
+        Assert.That(result.Message, Does.Contain("依赖不满足"));
         Assert.That(result.Detail, Does.Contain("缺少依赖 X"));
         Assert.That(harness.Backend.Calls, Does.Not.Contain("install"));
         Assert.That(harness.Backend.Calls, Does.Not.Contain("rollback"));
         Assert.That(harness.Backend.Installed, Is.EqualTo(new[] { "old" }));
     }
+
+    [Test]
+    public async Task ApplyAsync_Failure_MarksQueueItemFailedInsteadOfCompleted()
+    {
+        // 以前队列在 work 正常返回后无条件写「已完成 100%」，而安装失败按契约就是正常返回——
+        // 于是页面红着失败态、后台浮层写着「全部完成」，同一件事两副面孔。
+        using var harness = new Harness();
+        harness.Backend.ResolveHandler = (_, _) =>
+            (InstallerBackendResult.Fail("依赖不满足，未执行任何操作。", "缺少依赖 X"), null);
+
+        await harness.Service.ApplyAsync(
+            new ChangeSetPreview(new[] { Item("new", ChangeAction.Install) }, Array.Empty<string>(), 0,
+                                 Array.Empty<string>())).WaitAsync(Timeout);
+
+        var queued = await WaitForFinishedQueueItemAsync(harness.Queue);
+        Assert.That(queued.State, Is.EqualTo(OperationState.Failed));
+        Assert.That(queued.Message, Does.Contain("依赖不满足"));
+        Assert.That(queued.Percent, Is.Not.EqualTo(100), "失败不该被补成 100%，那会让人以为全装上了");
+    }
+
+    [Test]
+    public async Task ApplyAsync_Success_MarksQueueItemSucceededAtFullProgress()
+    {
+        using var harness = new Harness();
+
+        await harness.Service.ApplyAsync(
+            new ChangeSetPreview(new[] { Item("new", ChangeAction.Install) }, Array.Empty<string>(), 0,
+                                 Array.Empty<string>())).WaitAsync(Timeout);
+
+        var queued = await WaitForFinishedQueueItemAsync(harness.Queue);
+        Assert.That(queued.State, Is.EqualTo(OperationState.Succeeded));
+        Assert.That(queued.Percent, Is.EqualTo(100));
+    }
+
+    [Test]
+    public async Task ApplyAsync_ResolveNeedsChoice_IsNotFailureAndTouchesNothing()
+    {
+        using var harness = new Harness();
+        harness.Backend.Installed.Add("old");
+        harness.Backend.ResolveHandler = (_, _) =>
+            (InstallerBackendResult.NeedsChoice(SampleChoice()), null);
+
+        var result = await harness.Service.ApplyAsync(
+            new ChangeSetPreview(new[] { Item("new", ChangeAction.Install) }, Array.Empty<string>(), 0,
+                                 Array.Empty<string>())).WaitAsync(Timeout);
+
+        // 「依赖有多个提供者」不是失败，是「还差一次用户裁决」：不落失败态、不碰磁盘。
+        Assert.That(result.PendingChoice, Is.Not.Null);
+        Assert.That(result.PendingChoice!.Providers, Has.Count.EqualTo(2));
+        Assert.That(result.Message, Does.Contain("多个提供者"));
+        Assert.That(harness.Backend.Calls, Does.Not.Contain("install"));
+        Assert.That(harness.Backend.Calls, Does.Not.Contain("rollback"));
+        Assert.That(harness.Backend.Installed, Is.EqualTo(new[] { "old" }));
+    }
+
+    [Test]
+    public async Task ApplyAsync_InstallNeedsChoice_RollsBackBeforeHandingBack()
+    {
+        using var harness = new Harness();
+        harness.Backend.Installed.Add("old");
+        harness.Backend.InstallHandler = (_, _, _) => InstallerBackendResult.NeedsChoice(SampleChoice());
+
+        var result = await harness.Service.ApplyAsync(
+            new ChangeSetPreview(
+                new[] { Item("old", ChangeAction.Remove), Item("new", ChangeAction.Install) },
+                Array.Empty<string>(), 0, Array.Empty<string>())).WaitAsync(Timeout);
+
+        Assert.That(result.PendingChoice, Is.Not.Null);
+        // 卸载已经发生过，必须先还原到操作前再让用户选，否则用户会看到「少了东西但什么都没做」。
+        Assert.That(harness.Backend.RollbackCalls, Is.EqualTo(1));
+        Assert.That(harness.Backend.Installed, Is.EqualTo(new[] { "old" }));
+    }
+
+    /// <summary>等队列把工作项的终态写进去（工作项先回 TCS，队列状态随后落）。</summary>
+    private static async Task<OperationProgress> WaitForFinishedQueueItemAsync(OperationQueue queue)
+    {
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            var item = queue.Operations.FirstOrDefault();
+            if (item is not null && item.State is OperationState.Succeeded
+                                    or OperationState.Failed
+                                    or OperationState.Cancelled)
+            {
+                return item;
+            }
+
+            await Task.Delay(10);
+        }
+
+        return queue.Operations.First();
+    }
+
+    private static VirtualModuleRequest SampleChoice()
+        => new("「AIES-Antenna-Patches」有 2 个模组可以提供，请选择一个继续。",
+               new[]
+               {
+                   new VirtualModuleCandidate("AIES-Antenna-Patches", "AIES Antenna Patches", IsCached: true),
+                   new VirtualModuleCandidate("RP-1-Antenna-Patches", "RP-1 Antenna Patches"),
+               },
+               "AIES-Antenna-Patches");
 
     [Test]
     public async Task ApplyAsync_InstallFailure_CleansUpHalfInstalled()
@@ -263,6 +365,75 @@ public sealed class InstallerServiceTests
         Assert.That(reports.Last().Percent, Is.EqualTo(100));
         Assert.That(reports.Last().CanCancel, Is.False);
         Assert.That(reports.Any(report => report.State == OperationState.Running), Is.True);
+    }
+
+    [Test]
+    public async Task ApplyAsync_BackendProgressCarriesPhaseAndItemCounts()
+    {
+        using var harness = new Harness();
+        var changeSet = new ChangeSetPreview(
+            new[] { Item("alpha", ChangeAction.Install), Item("beta", ChangeAction.Install) },
+            Array.Empty<string>(), 0, Array.Empty<string>());
+
+        var result = await harness.Service.ApplyAsync(changeSet, harness.ProgressSink).WaitAsync(Timeout);
+
+        Assert.That(result.IsSuccess, Is.True);
+        var sent = harness.Backend.SentProgress;
+        // 下载段 → 安装段：两条消息都带 n/N，且 Phase 明确指出是哪一段
+        var download = sent.Single(item => item.Phase == InstallerPhase.Download);
+        Assert.That(download.Message, Does.Contain("正在下载 1/2"), "下载段每条消息都要带 n/N");
+        Assert.That(download.ItemIndex, Is.EqualTo(1));
+        Assert.That(download.ItemTotal, Is.EqualTo(2));
+
+        var install = sent.Single(item => item.Phase == InstallerPhase.Install);
+        Assert.That(install.Message, Does.Contain("正在安装 1/2"), "安装段每条消息都要带 m/M");
+        Assert.That(install.ItemIndex, Is.EqualTo(1));
+        Assert.That(install.ItemTotal, Is.EqualTo(2));
+
+        // 桥接到 VM：阶段徽标必须真的进 OperationProgress，否则改造只是"后端自嗨"
+        var stages = harness.Reports
+            .Select(report => report.StageLabel)
+            .Where(label => !string.IsNullOrWhiteSpace(label))
+            .ToArray();
+        Assert.That(stages, Does.Contain("下载 1/2"), "下载阶段要带 n/N 徽标");
+        Assert.That(stages, Does.Contain("安装 1/2"), "安装阶段要带 m/M 徽标");
+        Assert.That(harness.Reports.Any(report => report.StageLabel is null), Is.True,
+                    "没有条目计数的进度（解析依赖/准备就绪）不应伪造阶段徽标");
+
+        // 位置参数构造的老代码不能炸：Phase 默认 Install，条目计数默认 null
+        var legacy = new InstallerBackendProgress("旧构造点", 42);
+        Assert.That(legacy.Phase, Is.EqualTo(InstallerPhase.Install));
+        Assert.That(legacy.ItemIndex, Is.Null);
+        Assert.That(legacy.ItemTotal, Is.Null);
+        Assert.That(legacy.Percent, Is.EqualTo(42));
+    }
+
+    [Test]
+    public async Task ApplyAsync_ReportsProgressMonotonicallyNonDecreasing()
+    {
+        using var harness = new Harness();
+        harness.Backend.Installed.Add("old");
+        var changeSet = new ChangeSetPreview(
+            new[] { Item("old", ChangeAction.Remove), Item("new", ChangeAction.Install) },
+            Array.Empty<string>(), 0, Array.Empty<string>());
+
+        var result = await harness.Service.ApplyAsync(changeSet, harness.ProgressSink).WaitAsync(Timeout);
+        var reports = harness.Reports;
+
+        Assert.That(result.IsSuccess, Is.True);
+        Assert.That(reports, Is.Not.Empty);
+        // 先卸后装，但百分比只增不减：8% → 卸载段 → 下载/安装段 → 100%
+        for (var i = 1; i < reports.Count; i++)
+        {
+            Assert.That(reports[i].Percent, Is.GreaterThanOrEqualTo(reports[i - 1].Percent),
+                        $"进度回退了：{reports[i - 1].Percent} → {reports[i].Percent}（{reports[i].Message}）");
+        }
+
+        // 队列自己会先报一条排队进度，所以只断言 8% 起点确实出现过
+        Assert.That(reports.Any(report => report.Percent == 8), Is.True);
+        Assert.That(reports.Any(report => report.Message?.Contains("正在安装", StringComparison.Ordinal) == true),
+                    Is.True);
+        Assert.That(reports.Last().Percent, Is.EqualTo(100));
     }
 
     [Test]

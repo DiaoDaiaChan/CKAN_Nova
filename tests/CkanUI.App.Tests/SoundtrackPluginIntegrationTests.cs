@@ -3,6 +3,7 @@ using CkanUI.App.Plugins;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.Services.Plugins;
+using CkanUI.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 
@@ -23,9 +24,10 @@ public sealed class SoundtrackPluginIntegrationTests
     [Test]
     public async Task 音乐插件经宿主DI能构造出页面视图模型()
     {
-        var bundledDirectory = StageBundledDirectory(ResolvePluginOutputDirectory());
-        var userDirectory = Path.Combine(Path.GetTempPath(), "ckanui-user-" + Guid.NewGuid().ToString("N"));
-        var storePath = Path.Combine(Path.GetTempPath(), "ckanui-activation-" + Guid.NewGuid().ToString("N") + ".json");
+        using var temp = new TempWorkspace("soundtrack-test");
+        var bundledDirectory = StageBundledDirectory(ResolvePluginOutputDirectory(), temp);
+        var userDirectory = temp.Combine("user");
+        var storePath = temp.Combine("activation.json");
 
         try
         {
@@ -53,7 +55,7 @@ public sealed class SoundtrackPluginIntegrationTests
             {
                 Assert.That(pageDescriptor.Title, Is.EqualTo("音乐"));
                 Assert.That(pageDescriptor.Glyph, Is.EqualTo("Music"));
-                Assert.That(pageDescriptor.Section, Is.EqualTo("plugins"), "音乐页签挂在工具分节下，不进侧栏一级入口");
+                Assert.That(pageDescriptor.Section, Is.Null, "独立侧栏入口：音乐页签独立成Tab");
                 Assert.That(pageDescriptor.ViewModelTypeName, Is.EqualTo("CkanUI.Plugin.Soundtrack.UI.SoundtrackPageViewModel"));
             });
 
@@ -91,9 +93,9 @@ public sealed class SoundtrackPluginIntegrationTests
         }
     }
 
-    private static string StageBundledDirectory(string pluginDirectory)
+    private static string StageBundledDirectory(string pluginDirectory, TempWorkspace temp)
     {
-        var staged = Path.Combine(Path.GetTempPath(), "ckanui-bundled-" + Guid.NewGuid().ToString("N"));
+        var staged = temp.Combine("bundled");
         Directory.CreateDirectory(staged);
 
         foreach (var extension in new[] { ".dll", ".pdb" })

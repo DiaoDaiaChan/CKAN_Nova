@@ -6,6 +6,10 @@ using CkanUI.Services.Abstractions.Assets;
 namespace CkanUI.Services.Assets;
 
 /// <summary>载具库实现：扫 <c>Ships</c> 下的三类 <c>.craft</c>，并维护伴生 <c>.loadmeta</c> 与缩略图。</summary>
+/// <remarks>
+/// 根库是 <c>&lt;gameDir&gt;/Ships</c>，存档库是 <c>&lt;gameDir&gt;/saves/&lt;存档&gt;/Ships</c>；
+/// 两者目录形状完全一致，所以内部统一以「shipsRoot」这一层为锚点，只有对外旧的 gameDir 重载负责拼出它。
+/// </remarks>
 public sealed class CraftLibraryService : ICraftLibraryService
 {
     /// <summary>载具扩展名。</summary>
@@ -17,6 +21,9 @@ public sealed class CraftLibraryService : ICraftLibraryService
     /// <summary>缩略图根目录名。</summary>
     public const string ThumbFolderRoot = "@thumbs";
 
+    /// <summary>载具库根目录名。</summary>
+    public const string ShipsFolderName = "Ships";
+
     private readonly IErrorReporter _errors;
 
     /// <summary>构造服务。</summary>
@@ -25,24 +32,33 @@ public sealed class CraftLibraryService : ICraftLibraryService
         _errors = errors ?? throw new ArgumentNullException(nameof(errors));
 
     /// <inheritdoc />
-    public string GetKindRelativePath(CraftKind kind) => kind switch
-    {
-        CraftKind.Sph => "Ships/SPH",
-        CraftKind.Subassembly => "Ships/Subassemblies",
-        _ => "Ships/VAB",
-    };
+    public string GetKindRelativePath(CraftKind kind) => ShipsFolderName + "/" + KindFolder(kind);
 
     /// <inheritdoc />
     public Task<OperationResult<IReadOnlyList<CraftAsset>>> ScanAsync(string gameDir, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDir);
-        return Task.Run(() => ScanCore(gameDir, cancellationToken), cancellationToken);
+        return ScanLibraryAsync(Path.Combine(gameDir, ShipsFolderName), cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<OperationResult<IReadOnlyList<CraftAsset>>> ScanLibraryAsync(string shipsRoot, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(shipsRoot);
+        return Task.Run(() => ScanCore(shipsRoot, cancellationToken), cancellationToken);
     }
 
     /// <inheritdoc />
     public Task<OperationResult<CraftAsset>> ImportAsync(string gameDir, string sourceFile, CraftKind kind, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDir);
+        return ImportToLibraryAsync(Path.Combine(gameDir, ShipsFolderName), sourceFile, kind, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<OperationResult<CraftAsset>> ImportToLibraryAsync(string shipsRoot, string sourceFile, CraftKind kind, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(shipsRoot);
         if (!string.Equals(Path.GetExtension(sourceFile), CraftExtension, StringComparison.OrdinalIgnoreCase))
         {
             return Task.FromResult(OperationResult<CraftAsset>.Fail("只支持 .craft 载具文件。"));
@@ -56,13 +72,13 @@ public sealed class CraftLibraryService : ICraftLibraryService
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var dir = Path.Combine(gameDir, GetKindRelativePath(kind));
+            var dir = Path.Combine(shipsRoot, KindFolder(kind));
             Directory.CreateDirectory(dir);
             var name = UniqueName(dir, Sanitize(Path.GetFileNameWithoutExtension(sourceFile)), allowExisting: null);
             var target = Path.Combine(dir, name + CraftExtension);
             File.Copy(sourceFile, target, overwrite: false);
             CopySibling(sourceFile, target, LoadMetaExtension, deleteSource: false);
-            return Task.FromResult(OperationResult<CraftAsset>.Ok(Read(gameDir, target, kind)));
+            return Task.FromResult(OperationResult<CraftAsset>.Ok(Read(shipsRoot, target, kind)));
         }
         catch (OperationCanceledException)
         {
@@ -82,13 +98,14 @@ public sealed class CraftLibraryService : ICraftLibraryService
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var shipsRoot = ShipsRootOf(craft.FilePath) ?? Path.Combine(gameDir, ShipsFolderName);
             var dir = Path.GetDirectoryName(craft.FilePath)!;
             var name = UniqueName(dir, Sanitize(newName), allowExisting: null);
             var target = Path.Combine(dir, name + CraftExtension);
             File.Copy(craft.FilePath, target, overwrite: false);
             CopySibling(craft.FilePath, target, LoadMetaExtension, deleteSource: false);
-            CopyThumbnail(gameDir, craft.Kind, craft.Name, name, deleteSource: false);
-            return Task.FromResult(OperationResult<CraftAsset>.Ok(Read(gameDir, target, craft.Kind)));
+            CopyThumbnail(shipsRoot, craft.Kind, craft.Name, name, deleteSource: false);
+            return Task.FromResult(OperationResult<CraftAsset>.Ok(Read(shipsRoot, target, craft.Kind)));
         }
         catch (OperationCanceledException)
         {
@@ -114,13 +131,14 @@ public sealed class CraftLibraryService : ICraftLibraryService
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var shipsRoot = ShipsRootOf(craft.FilePath) ?? Path.Combine(gameDir, ShipsFolderName);
             var dir = Path.GetDirectoryName(craft.FilePath)!;
             name = UniqueName(dir, name, allowExisting: craft.Name);
             var target = Path.Combine(dir, name + CraftExtension);
             File.Move(craft.FilePath, target);
             CopySibling(craft.FilePath, target, LoadMetaExtension, deleteSource: true);
-            CopyThumbnail(gameDir, craft.Kind, craft.Name, name, deleteSource: true);
-            return Task.FromResult(OperationResult<CraftAsset>.Ok(Read(gameDir, target, craft.Kind)));
+            CopyThumbnail(shipsRoot, craft.Kind, craft.Name, name, deleteSource: true);
+            return Task.FromResult(OperationResult<CraftAsset>.Ok(Read(shipsRoot, target, craft.Kind)));
         }
         catch (OperationCanceledException)
         {
@@ -160,7 +178,53 @@ public sealed class CraftLibraryService : ICraftLibraryService
         }
     }
 
-    private OperationResult<IReadOnlyList<CraftAsset>> ScanCore(string gameDir, CancellationToken cancellationToken)
+    /// <inheritdoc />
+    public Task<OperationResult<CraftAsset>> TransferAsync(CraftAsset craft, string targetShipsRoot, CraftKind targetKind, bool move, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(craft);
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetShipsRoot);
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var sourceShipsRoot = ShipsRootOf(craft.FilePath);
+            var sourceDir = Path.GetDirectoryName(craft.FilePath)!;
+            var targetDir = Path.Combine(targetShipsRoot, KindFolder(targetKind));
+            if (string.Equals(Path.GetFullPath(sourceDir), Path.GetFullPath(targetDir), StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.FromResult(OperationResult<CraftAsset>.Fail("源与目标是同一个目录，不需要搬运。"));
+            }
+
+            Directory.CreateDirectory(targetDir);
+            var name = UniqueName(targetDir, Sanitize(craft.Name), allowExisting: null);
+            var target = Path.Combine(targetDir, name + CraftExtension);
+            MoveOrCopy(craft.FilePath, target, move);
+            CopySibling(craft.FilePath, target, LoadMetaExtension, deleteSource: move);
+            CopyThumbnailBetween(sourceShipsRoot, craft.Kind, craft.Name, targetShipsRoot, targetKind, name, deleteSource: move);
+            return Task.FromResult(OperationResult<CraftAsset>.Ok(Read(targetShipsRoot, target, targetKind)));
+        }
+        catch (OperationCanceledException)
+        {
+            return Task.FromResult(OperationResult<CraftAsset>.Fail("搬运载具已取消。"));
+        }
+        catch (Exception ex) when (IsIoFailure(ex))
+        {
+            _errors.Report(ex, "载具库", "搬运载具失败");
+            return Task.FromResult(OperationResult<CraftAsset>.Fail("搬运载具失败。", ex.Message, retryable: true));
+        }
+    }
+
+    private static string KindFolder(CraftKind kind) => kind switch
+    {
+        CraftKind.Sph => "SPH",
+        CraftKind.Subassembly => "Subassemblies",
+        _ => "VAB",
+    };
+
+    /// <summary>从 <c>&lt;shipsRoot&gt;/&lt;分类&gt;/&lt;名字&gt;.craft</c> 反推 shipsRoot。</summary>
+    private static string? ShipsRootOf(string craftFilePath) =>
+        Path.GetDirectoryName(Path.GetDirectoryName(craftFilePath));
+
+    private OperationResult<IReadOnlyList<CraftAsset>> ScanCore(string shipsRoot, CancellationToken cancellationToken)
     {
         try
         {
@@ -168,7 +232,7 @@ public sealed class CraftLibraryService : ICraftLibraryService
             foreach (var kind in new[] { CraftKind.Vab, CraftKind.Sph, CraftKind.Subassembly })
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var dir = Path.Combine(gameDir, GetKindRelativePath(kind));
+                var dir = Path.Combine(shipsRoot, KindFolder(kind));
                 if (!Directory.Exists(dir))
                 {
                     continue;
@@ -177,7 +241,7 @@ public sealed class CraftLibraryService : ICraftLibraryService
                 foreach (var file in Directory.EnumerateFiles(dir, "*" + CraftExtension, SearchOption.TopDirectoryOnly))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    crafts.Add(Read(gameDir, file, kind));
+                    crafts.Add(Read(shipsRoot, file, kind));
                 }
             }
 
@@ -195,10 +259,10 @@ public sealed class CraftLibraryService : ICraftLibraryService
         }
     }
 
-    private static CraftAsset Read(string gameDir, string filePath, CraftKind kind)
+    private static CraftAsset Read(string shipsRoot, string filePath, CraftKind kind)
     {
         var meta = ReadLoadMeta(Path.ChangeExtension(filePath, LoadMetaExtension));
-        var thumbnail = ThumbnailPath(gameDir, kind, Path.GetFileNameWithoutExtension(filePath));
+        var thumbnail = ThumbnailPath(shipsRoot, kind, Path.GetFileNameWithoutExtension(filePath));
         var info = new FileInfo(filePath);
         return new CraftAsset(
             Path.GetFileNameWithoutExtension(filePath),
@@ -247,27 +311,58 @@ public sealed class CraftLibraryService : ICraftLibraryService
         return values;
     }
 
-    private static string ThumbnailPath(string gameDir, CraftKind kind, string name) =>
-        Path.Combine(gameDir, "Ships", ThumbFolderRoot, kind switch
-        {
-            CraftKind.Sph => "SPH",
-            CraftKind.Subassembly => "Subassemblies",
-            _ => "VAB",
-        }, name + ".png");
+    private static string ThumbnailPath(string shipsRoot, CraftKind kind, string name) =>
+        Path.Combine(shipsRoot, ThumbFolderRoot, KindFolder(kind), name + ".png");
 
-    private static void CopyThumbnail(string gameDir, CraftKind kind, string oldName, string newName, bool deleteSource)
+    private static void CopyThumbnail(string shipsRoot, CraftKind kind, string oldName, string newName, bool deleteSource) =>
+        CopyThumbnailBetween(shipsRoot, kind, oldName, shipsRoot, kind, newName, deleteSource);
+
+    private static void CopyThumbnailBetween(
+        string? sourceShipsRoot,
+        CraftKind sourceKind,
+        string oldName,
+        string targetShipsRoot,
+        CraftKind targetKind,
+        string newName,
+        bool deleteSource)
     {
-        var from = ThumbnailPath(gameDir, kind, oldName);
+        if (string.IsNullOrWhiteSpace(sourceShipsRoot))
+        {
+            return;
+        }
+
+        var from = ThumbnailPath(sourceShipsRoot, sourceKind, oldName);
         if (!File.Exists(from))
         {
             return;
         }
 
-        var to = ThumbnailPath(gameDir, kind, newName);
+        var to = ThumbnailPath(targetShipsRoot, targetKind, newName);
+        Directory.CreateDirectory(Path.GetDirectoryName(to)!);
         File.Copy(from, to, overwrite: true);
         if (deleteSource)
         {
             SafeDelete(from);
+        }
+    }
+
+    private static void MoveOrCopy(string source, string target, bool move)
+    {
+        if (!move)
+        {
+            File.Copy(source, target, overwrite: false);
+            return;
+        }
+
+        try
+        {
+            File.Move(source, target);
+        }
+        catch (IOException)
+        {
+            // 跨卷 move 会抛 IOException：退化成复制 + 删源。
+            File.Copy(source, target, overwrite: false);
+            File.Delete(source);
         }
     }
 

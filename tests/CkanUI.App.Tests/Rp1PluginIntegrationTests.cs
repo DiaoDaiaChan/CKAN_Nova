@@ -3,6 +3,7 @@ using CkanUI.App.Plugins;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
 using CkanUI.Services.Plugins;
+using CkanUI.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 
@@ -19,10 +20,11 @@ public sealed class Rp1PluginIntegrationTests
     [Test]
     public async Task RP1生涯日志插件经宿主DI能构造出页面视图模型()
     {
-        var bundledDirectory = StageBundledDirectory(ResolvePluginOutputDirectory());
-        var userDirectory = Path.Combine(Path.GetTempPath(), "ckanui-user-" + Guid.NewGuid().ToString("N"));
-        var storePath = Path.Combine(Path.GetTempPath(), "ckanui-activation-" + Guid.NewGuid().ToString("N") + ".json");
-        var gameDir = Path.Combine(Path.GetTempPath(), "ckanui-rp1-" + Guid.NewGuid().ToString("N"));
+        using var temp = new TempWorkspace("rp1-integration-test");
+        var bundledDirectory = StageBundledDirectory(ResolvePluginOutputDirectory(), temp);
+        var userDirectory = temp.Combine("user");
+        var storePath = temp.Combine("activation.json");
+        var gameDir = temp.Combine("game");
         Directory.CreateDirectory(Path.Combine(gameDir, "GameData", "RP-1"));
         Directory.CreateDirectory(Path.Combine(gameDir, "saves", "Test"));
 
@@ -52,7 +54,7 @@ public sealed class Rp1PluginIntegrationTests
             {
                 Assert.That(pageDescriptor.Title, Is.EqualTo("RP-1 生涯日志"));
                 Assert.That(pageDescriptor.Glyph, Is.EqualTo("History"));
-                Assert.That(pageDescriptor.Section, Is.EqualTo("plugins"), "生涯日志页签挂在工具分节下，不进侧栏一级入口");
+                Assert.That(pageDescriptor.Section, Is.Null, "独立侧栏入口：生涯日志页签独立成Tab");
                 Assert.That(pageDescriptor.Order, Is.EqualTo(40));
                 Assert.That(pageDescriptor.ViewModelTypeName, Is.EqualTo("CkanUI.Plugin.Rp1.UI.Rp1CareerPageViewModel"));
             });
@@ -85,16 +87,13 @@ public sealed class Rp1PluginIntegrationTests
         }
         finally
         {
-            DeleteQuietly(bundledDirectory);
-            DeleteQuietly(userDirectory);
-            DeleteQuietly(storePath);
-            DeleteQuietly(gameDir);
+            // temp.Dispose() 会递归清理整个临时沙箱工作目录。
         }
     }
 
-    private static string StageBundledDirectory(string pluginDirectory)
+    private static string StageBundledDirectory(string pluginDirectory, TempWorkspace temp)
     {
-        var staged = Path.Combine(Path.GetTempPath(), "ckanui-bundled-" + Guid.NewGuid().ToString("N"));
+        var staged = temp.Combine("bundled");
         Directory.CreateDirectory(staged);
 
         foreach (var extension in new[] { ".dll", ".pdb" })

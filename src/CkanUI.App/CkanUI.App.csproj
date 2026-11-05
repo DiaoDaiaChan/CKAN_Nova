@@ -58,6 +58,11 @@
                       ReferenceOutputAssembly="false"
                       Private="false"
                       SkipGetTargetFrameworkProperties="true" />
+    <!-- SpaceDock 浏览与直装（独立插件）：下载走 HTTP，安装按适配器写入 GameData / 游戏根目录，不碰 CKAN 注册表。 -->
+    <ProjectReference Include="../CkanUI.Plugin.SpaceDock/CkanUI.Plugin.SpaceDock.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="../CkanUI.Plugin.Assets/CkanUI.Plugin.Assets.csproj"
                       ReferenceOutputAssembly="false"
                       Private="false"
@@ -113,6 +118,11 @@
          CopyToPublishDirectory 与 CopyToOutputDirectory 一起显式写：只写后者时 publish 是否带上
          取决于 SDK 的默认继承规则，显式声明才不受 SDK 行为变化影响。 -->
     <Content Include="Assets/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- CFG-02：内置 adapter 目录随包分发（<程序目录>/adapters/<id>/adapter.json）。
+         这一条以前漏了，后果很隐蔽：Adapters 是空的，页面只剩"没有配置适配器目录"，
+         Mod 配置页看起来像没做完——实际是适配器根本没随包复制。Link 保留 adapters/<id>/ 这一层，
+         不能压平：AdapterCatalog 只扫一级子目录，压平后每份 adapter.json 会互相覆盖。 -->
+    <Content Include="../../adapters/**" Link="adapters/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- 内置插件（随包首方插件）落盘：走 GetTargetPath 问被引用工程要真实产物路径，
@@ -159,6 +169,11 @@
       <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
     </MSBuild>
     <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.Saves/CkanUI.Plugin.Saves.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(MSBuildThisFileDirectory)../CkanUI.Plugin.SpaceDock/CkanUI.Plugin.SpaceDock.csproj"
              Targets="GetTargetPath"
              Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginAssembly" />

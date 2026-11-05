@@ -133,11 +133,12 @@ public sealed class AdapterWriter : IAdapterWriter
                 return OperationResult<AdapterWriteResult>.Fail($"文件 {file.Path} 不可写：{reason}");
             }
 
-            var field = FindField(adapter, file, change.Key);
+            var field = FindField(adapter, file, change.Key, change.NodePath);
             if (field is null)
             {
+                var suffix = change.NodePath is null ? string.Empty : $"（节点 {change.NodePath}）";
                 return OperationResult<AdapterWriteResult>.Fail(
-                    $"适配器「{adapter.Id}」没有声明键「{change.Key}」，拒绝写入未知键。");
+                    $"适配器「{adapter.Id}」没有声明键「{change.Key}」{suffix}，拒绝写入未知键。");
             }
 
             if (!ModConfigDetector.ValidateFieldValue(field, change.NewValue, out var valueError))
@@ -237,12 +238,14 @@ public sealed class AdapterWriter : IAdapterWriter
             }
         }
 
-        var nodePath = ResolveNodePath(file);
         var applied = new List<ModConfigAppliedChange>();
         var requiresRestart = 0;
 
         foreach (var (field, newValue) in plan.Changes)
         {
+            // 节点按字段解析：同一份配置里不同子节点可能各有同名键，用文件级 nodePath
+            // 会把它们指到同一个节点上。
+            var nodePath = field.ResolveNodePath(file);
             var before = document.FindPair(field.Key, nodePath);
             if (before is null)
             {
@@ -310,7 +313,7 @@ public sealed class AdapterWriter : IAdapterWriter
         }
 
         // 写后自校验：重新从磁盘解析，逐个确认值确实变成了新值。
-        if (!VerifyWritten(targetPath, plan.Changes, nodePath, out var verifyError))
+        if (!VerifyWritten(targetPath, plan.Changes, file, out var verifyError))
         {
             var rolledBack = Rollback(targetPath, existed, originalBytes);
             return OperationResult<FileApplication>.Fail(
@@ -383,7 +386,7 @@ public sealed class AdapterWriter : IAdapterWriter
     private static bool VerifyWritten(
         string path,
         IReadOnlyList<(ModConfigFieldDescription Field, string NewValue)> changes,
-        string nodePath,
+        ModConfigFileDescription file,
         out string? error)
     {
         error = null;
@@ -405,10 +408,10 @@ public sealed class AdapterWriter : IAdapterWriter
 
         foreach (var (field, newValue) in changes)
         {
-            var pair = check.FindPair(field.Key, nodePath);
+            var pair = check.FindPair(field.Key, field.ResolveNodePath(file));
             if (pair is null)
             {
-                error = $"写后重新解析找不到键「{field.Key}」";
+                error = $"写后重新解析找不到键「{field.Key}」（节点 {DescribeNodePath(field.ResolveNodePath(file))}）";
                 return false;
             }
 
@@ -548,30 +551,40 @@ public sealed class AdapterWriter : IAdapterWriter
     private static ModConfigFieldDescription? FindField(
         ModConfigAdapterDescription adapter,
         ModConfigFileDescription file,
-        string key)
+        string key,
+        string? nodePath)
     {
-        foreach (var field in adapter.Fields)
+        // 同一文件里不同子节点可以各有同名键，所以节点是匹配条件的一部分；
+        // 调用方没带节点时按"文件内唯一"匹配，命中多个就当作歧义（返回 null，拒绝猜）。
+        // 调用方给的节点要先按同一套规则解析：页面从 ModConfigFieldState.NodePath 回传的是完整名链，
+        // 而手写的请求可能只给相对名（"CHILD_A"）或绝对名（"/OTHER"），三者必须都认得。
+        var requested = nodePath is null ? null : ModConfigFieldDescription.ResolveNodePath(nodePath, file);
+        bool NodeMatches(ModConfigFieldDescription field)
+            => requested is null
+                || string.Equals(field.ResolveNodePath(file), requested, StringComparison.Ordinal);
+
+        var exact = adapter.Fields
+            .Where(field => field.FileIndex == file.Index
+                && string.Equals(field.Key, key, StringComparison.Ordinal)
+                && NodeMatches(field))
+            .ToArray();
+        if (exact.Length == 1)
         {
-            if (field.FileIndex == file.Index && string.Equals(field.Key, key, StringComparison.Ordinal))
-            {
-                return field;
-            }
+            return exact[0];
         }
 
-        foreach (var field in adapter.Fields)
+        if (exact.Length > 1)
         {
-            if (field.FileIndex == file.Index && string.Equals(field.Key, key, StringComparison.OrdinalIgnoreCase))
-            {
-                return field;
-            }
+            return null;
         }
 
-        return null;
+        var loose = adapter.Fields
+            .Where(field => field.FileIndex == file.Index
+                && string.Equals(field.Key, key, StringComparison.OrdinalIgnoreCase)
+                && NodeMatches(field))
+            .ToArray();
+        return loose.Length == 1 ? loose[0] : null;
     }
-
-    /// <summary>node 布局要限定在声明的根节点里；flat 布局的键值对在根层（nodePath 为空串）。</summary>
-    private static string ResolveNodePath(ModConfigFileDescription file)
-        => file.Layout == ModConfigFileLayout.Node ? file.RootNode ?? string.Empty : string.Empty;
 
     private static string DescribeNodePath(string nodePath)
         => nodePath.Length == 0 ? "根层" : $"{nodePath}";

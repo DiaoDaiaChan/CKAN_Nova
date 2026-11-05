@@ -133,14 +133,34 @@ public sealed class ChangeSetService : IChangeSetService
                       .Select(g => g.First())
                       .ToList();
 
-        var conflicts = resolution.Conflicts
-                                  .Where(c => !string.IsNullOrWhiteSpace(c))
-                                  .Distinct(StringComparer.Ordinal)
-                                  .ToList();
+        // 结构化条目与字符串列表必须一一对应（B0/B2）：规划器给了明细就以它为准，
+        // 只有旧式字符串（fake / 旧规划器）时按字符串补条目，保证 Conflicts.Count == ConflictEntries.Count。
+        var entries = BuildConflictEntries(resolution);
+        var conflicts = entries.Select(entry => entry.Description).ToList();
 
         var totalBytes = ordered.Sum(i => i.DownloadBytes ?? 0L);
 
-        return new ChangeSetPreview(ordered, conflicts, totalBytes, warnings);
+        return new ChangeSetPreview(ordered, conflicts, totalBytes, warnings)
+        {
+            ConflictEntries = entries,
+        };
+    }
+
+    /// <summary>对齐结构化冲突与文本冲突，保证两条列表一一对应。</summary>
+    private static List<ConflictEntry> BuildConflictEntries(ChangeResolution resolution)
+    {
+        if (resolution.ConflictEntries.Count > 0)
+        {
+            return resolution.ConflictEntries
+                             .Where(entry => !string.IsNullOrWhiteSpace(entry.Description))
+                             .ToList();
+        }
+
+        return resolution.Conflicts
+                         .Where(conflict => !string.IsNullOrWhiteSpace(conflict))
+                         .Distinct(StringComparer.Ordinal)
+                         .Select(conflict => new ConflictEntry(conflict))
+                         .ToList();
     }
 
     /// <summary>构造单条变更项；卸载项没有目标版本也没有下载体积。</summary>

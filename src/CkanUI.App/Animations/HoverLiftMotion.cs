@@ -47,8 +47,14 @@ public static class HoverLiftMotion
     /// <summary>普通按钮的悬停抬升距离：样式里是 1 px，这里略加重到 1.5 px 才看得出来。</summary>
     public const double ButtonLiftPixels = 2d;
 
+    /// <summary>子页签按钮悬停抬升：保持原高度 0 px，专司光标程度与角度的微倾斜反馈。</summary>
+    public const double TabLiftPixels = 0d;
+
     /// <summary>图标按钮的类名：不接管位移，悬停反馈由图标自身的旋转动画负责。</summary>
     public const string IconButtonClass = "CkanIcon";
+
+    /// <summary>子页签按钮的类名。</summary>
+    public const string TabButtonClass = "CkanTab";
 
     /// <summary>引导卡片右箭头的类名：悬停时向右滑 3 px。</summary>
     public const string ArrowClass = "GuideArrow";
@@ -96,6 +102,7 @@ public static class HoverLiftMotion
             }
 
             control.PointerEntered += (_, _) => Apply(control, hovered: true);
+            control.PointerMoved += (_, e) => ApplyTilt(control, e);
             control.PointerExited += (_, _) => Apply(control, hovered: false);
             Tracked.Add(control, control);
             count++;
@@ -118,13 +125,66 @@ public static class HoverLiftMotion
 
         var lift = MotionBudget.Amplitude(distance);
         var spec = control is Button ? SpringSpec.Snappy : SpringSpec.Glide;
-        TransformSpring.For(control, spec).MoveTo(y: hovered ? -lift : 0d);
+
+        if (hovered)
+        {
+            if (lift > 0d)
+            {
+                TransformSpring.For(control, spec).MoveTo(y: -lift);
+            }
+        }
+        else
+        {
+            TransformSpring.For(control, spec).MoveTo(
+                x: 0d,
+                y: 0d,
+                scaleX: 1.0d,
+                scaleY: 1.0d,
+                skewX: 0d,
+                skewY: 0d,
+                rotateAngle: 0d);
+        }
 
         if (ArrowOf(control) is { } arrow)
         {
             var travel = MotionBudget.Amplitude(ArrowTravelPixels);
             TransformSpring.For(arrow, SpringSpec.Snappy).MoveTo(x: hovered ? travel : 0d);
         }
+    }
+
+    /// <summary>根据光标在控件内的相对位置计算固定平面受力变化，驱动平滑亚像素受力弹性微动。</summary>
+    public static void ApplyTilt(Control control, Avalonia.Input.PointerEventArgs e)
+    {
+        if (MotionBudget.IsCollapsed || LiftOf(control) is not { } baseLift)
+        {
+            return;
+        }
+
+        var bounds = control.Bounds;
+        if (bounds.Width <= 0d || bounds.Height <= 0d)
+        {
+            return;
+        }
+
+        var pos = e.GetPosition(control);
+        var forceResult = ControlTiltModel.Calculate(bounds.Width, bounds.Height, pos.X, pos.Y);
+        var spec = control is Button ? SpringSpec.Snappy : SpringSpec.Glide;
+
+        // 平面固定假设：
+        // 1. Skew 与 Rotate 严格为 0，文字 100% 保持正交与像素锐利，绝不歪斜或模糊；
+        // 2. 悬停抬升与鼠标施加的接触力合成：基础抬升 (-lift) + 受力微下压 (deflectionY)；
+        // 3. 受力点横向微顺应 (deflectionX) + 接触力弹性微凹陷 (depressionScale)。
+        var lift = MotionBudget.Amplitude(baseLift);
+        var targetY = -lift + forceResult.DeflectionY;
+
+        TransformSpring.For(control, spec).MoveTo(
+            x: forceResult.DeflectionX,
+            y: targetY,
+            scaleX: forceResult.DepressionScale,
+            scaleY: forceResult.DepressionScale,
+            skewX: 0d,
+            skewY: 0d,
+            rotateAngle: 0d);
     }
 
     /// <summary>该类表面要不要抬、抬多少；不认识的类返回 <see langword="null"/>。</summary>
@@ -135,6 +195,11 @@ public static class HoverLiftMotion
         if (control.Classes.Contains(GuideButtonClass))
         {
             return LiftPixels;
+        }
+
+        if (control.Classes.Contains(TabButtonClass))
+        {
+            return TabLiftPixels;
         }
 
         switch (InteractionSurface.KindOf(control))

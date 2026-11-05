@@ -14,7 +14,8 @@ public sealed record ModConfigFieldState(
     double? Max = null,
     IReadOnlyList<string>? Values = null,
     ModConfigFieldRisk Risk = ModConfigFieldRisk.Low,
-    bool RequiresRestart = false)
+    bool RequiresRestart = false,
+    string? NodePath = null)
 {
     /// <summary>渲染时是否需要强调"可能影响存档/性能"。</summary>
     public bool IsRisky => Risk != ModConfigFieldRisk.Low;
@@ -110,7 +111,16 @@ public sealed record ModConfigInstanceModel(
 /// <param name="FilePath">目标文件的绝对路径（必须是实例游戏目录内的路径）。</param>
 /// <param name="Key">键名。</param>
 /// <param name="NewValue">新值原文。</param>
-public sealed record ModConfigFieldChange(string FilePath, string Key, string NewValue);
+/// <param name="NodePath">
+/// 字段所在节点（与 <see cref="ModConfigFieldState.NodePath"/> 同一写法）。同一个文件里
+/// 不同子节点可以各有同名键，写盘时靠它区分目标行；为 null 时按"键名在文件内唯一"处理，
+/// 一旦发现歧义就拒绝写入而不是猜一个。
+/// </param>
+public sealed record ModConfigFieldChange(
+    string FilePath,
+    string Key,
+    string NewValue,
+    string? NodePath = null);
 
 /// <summary>写入请求。</summary>
 /// <param name="InstanceName">实例名（诊断用）。</param>

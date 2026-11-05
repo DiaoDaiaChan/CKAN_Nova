@@ -1,0 +1,33 @@
+{
+  "key": "corona-gold",
+  "displayName": "日冕金",
+  "accent": "#E0B15C",
+  "tokens": {
+    "CkanCanvasBackgroundBrush": "#0D0B08",
+    "CkanSurfaceBackgroundBrush": "#E615110C",
+    "CkanSidebarBackgroundBrush": "#C01B1610",
+    "CkanStatusBarBackgroundBrush": "#D91A150F",
+    "CkanCardBackgroundBrush": "#D8211A12",
+    "CkanElevatedCardHoverBrush": "#2B2218",
+    "CkanRecessedInputBrush": "#0A0806",
+    "CkanDialogBackgroundBrush": "#221B12",
+    "CkanSubtleBackgroundBrush": "#C81F1912",
+    "CkanMutedBackgroundBrush": "#2A2118",
+    "CkanTextPrimaryBrush": "#F3E9D6",
+    "CkanTextSecondaryBrush": "#B5A58B",
+    "CkanTextTertiaryBrush": "#7E7261",
+    "CkanBorderBrush": "#3A2E20",
+    "CkanLayerElevatedBrush": "#2B2218",
+    "CkanSkeletonBrush": "#30261B",
+    "CkanAccentBrush": "#E0B15C",
+    "CkanPrimaryBrush": "#E0B15C",
+    "CkanAccentTextBrush": "#100C07"
+  },
+  "contrast": {
+    "textOnCanvas": 16.32,
+    "secondaryOnCanvas": 8.16,
+    "accentOnCanvas": 9.93,
+    "accentTextOnAccent": 9.85,
+    "tertiaryOnCanvas": 4.18
+  }
+}

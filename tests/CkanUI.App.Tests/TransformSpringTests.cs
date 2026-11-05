@@ -122,4 +122,23 @@ public sealed class TransformSpringTests
         Assert.That(left.X, Is.EqualTo(56).Within(1e-6), "左边界必须精确落在 X=56，不能被 0.72 缩成 40.32");
         Assert.That(right.X, Is.EqualTo(56 + 72).Within(1e-6), "右边界必须精确落在 X=56+72=128");
     }
+
+    [Test]
+    public void TiltChannels_UpdateSkewAndRotateTransforms()
+    {
+        var border = new Border { Width = 100, Height = 40 };
+        var spring = new TransformSpring(border, SpringSpec.Glide, SpringSpec.Snappy);
+        var group = (TransformGroup)border.RenderTransform!;
+
+        spring.MoveTo(skewX: 1.2, skewY: -0.8, rotateAngle: 0.5, snap: true);
+
+        var skew = group.Children.OfType<SkewTransform>().FirstOrDefault();
+        var rotate = group.Children.OfType<RotateTransform>().FirstOrDefault();
+
+        Assert.That(skew, Is.Not.Null);
+        Assert.That(rotate, Is.Not.Null);
+        Assert.That(skew!.AngleX, Is.EqualTo(1.2).Within(1e-9));
+        Assert.That(skew.AngleY, Is.EqualTo(-0.8).Within(1e-9));
+        Assert.That(rotate!.Angle, Is.EqualTo(0.5).Within(1e-9));
+    }
 }

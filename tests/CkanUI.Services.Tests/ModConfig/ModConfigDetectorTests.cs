@@ -298,6 +298,22 @@ public sealed class ModConfigDetectorTests
     }
 
     [Test]
+    public void ValidateFieldValue_FloatAcceptsUnityStyleSuffix()
+    {
+        // 实测语料：SystemHeat 的 Settings.cfg 写的是 "SpaceTemperature = 2.7f"。
+        // ConfigNode 允许这种后缀，解析器不能把它当成非法输入挡在门外。
+        var field = Field("SpaceTemperature", ModConfigFieldType.Float, min: 1, max: 10);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ModConfigDetector.ValidateFieldValue(field, "2.7f", out _), Is.True);
+            Assert.That(ModConfigDetector.ValidateFieldValue(field, "2.7F", out _), Is.True);
+            Assert.That(ModConfigDetector.ValidateFieldValue(field, "f", out var error), Is.False);
+            Assert.That(error, Does.Contain("需要数字"));
+        });
+    }
+
+    [Test]
     public void ValidateFieldValue_EnumUsesWhitelistCaseInsensitively()
     {
         var field = Field("Language", ModConfigFieldType.Enum, values: ["en-us", "zh-cn"]);

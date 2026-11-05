@@ -133,7 +133,23 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
     private string _instanceGameDir = "—";
 
     [ObservableProperty]
+    private int _selectedTabIndex;
+
+    [ObservableProperty]
     private string _selectedFilter = "全部";
+
+    public bool IsFilterAll => SelectedFilter == "全部";
+    public bool IsFilterMilestone => SelectedFilter == "里程碑";
+    public bool IsFilterContract => SelectedFilter == "合同";
+    public bool IsFilterProgram => SelectedFilter == "项目";
+    public bool IsFilterCrew => SelectedFilter == "人员";
+
+    public string TotalEventCountText => _allEvents.Count.ToString(CultureInfo.InvariantCulture);
+    public string AllEventsCountText => _allEvents.Count.ToString(CultureInfo.InvariantCulture);
+    public string CrewEventsCountText => _allEvents.Count(e => e.Kind is Rp1EventKind.CrewRetired or Rp1EventKind.CrewLost).ToString(CultureInfo.InvariantCulture);
+
+    public bool HasPreviousEvent => SelectedEvent is not null && VisibleEvents.IndexOf(SelectedEvent) > 0;
+    public bool HasNextEvent => SelectedEvent is not null && VisibleEvents.IndexOf(SelectedEvent) >= 0 && VisibleEvents.IndexOf(SelectedEvent) < VisibleEvents.Count - 1;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -218,6 +234,44 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
     [ObservableProperty]
     private bool _hasDiagnostics;
 
+    [ObservableProperty]
+    private int _linkedPeriodIndex = -1;
+
+    [ObservableProperty]
+    private Rp1CareerPeriod? _linkedPeriod;
+
+    [ObservableProperty]
+    private string? _linkedEventLabel;
+
+    [ObservableProperty]
+    private string _periodScope = "recent";
+
+    public bool HasLinkedPeriod => LinkedPeriod is not null;
+
+    public bool IsRecentPeriodScope => PeriodScope == "recent";
+    public bool IsLinkedPeriodScope => PeriodScope == "linked";
+    public bool IsAllPeriodScope => PeriodScope == "all";
+
+    public string LinkedPeriodText => LinkedPeriod is null
+        ? string.Empty
+        : $"第 {LinkedPeriod.Index + 1} 期 ({LinkedPeriod.DateText})";
+
+    public string LinkedPeriodFundsText => LinkedPeriod?.Funds is null
+        ? "—"
+        : FormatMoney(LinkedPeriod.Funds);
+
+    public string LinkedPeriodScienceText => LinkedPeriod?.ScienceEarned is null
+        ? "—"
+        : LinkedPeriod.ScienceEarned.Value.ToString("0.0", CultureInfo.InvariantCulture);
+
+    public string LinkedPeriodConfidenceText => LinkedPeriod?.Confidence is null
+        ? "—"
+        : LinkedPeriod.Confidence.Value.ToString("0", CultureInfo.InvariantCulture);
+
+    public string LinkedPeriodReputationText => LinkedPeriod?.Reputation is null
+        ? "—"
+        : LinkedPeriod.Reputation.Value.ToString("0.0", CultureInfo.InvariantCulture);
+
     public bool HasError => ErrorMessage.Length > 0;
 
     public bool HasStatusMessage => StatusMessage.Length > 0;
@@ -282,6 +336,9 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
                 OnPropertyChanged(nameof(ShowEventPlaceholder));
                 OnPropertyChanged(nameof(SelectedDetail));
                 OnPropertyChanged(nameof(SelectedMeta));
+                OnPropertyChanged(nameof(HasPreviousEvent));
+                OnPropertyChanged(nameof(HasNextEvent));
+                UpdateLinkedPeriod(value);
             }
         }
     }
@@ -469,14 +526,10 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
         CurrentConfidenceText = FormatNumber(timeline.CurrentConfidence, "0");
         CurrentReputationText = FormatNumber(timeline.CurrentReputation, "0.0");
         PeriodCountText = timeline.Periods.Count + " 期";
+        UpdateMetricOptionValues();
 
         _periods = timeline.Periods.OrderBy(static period => period.StartUt).ToArray();
-        Periods.Clear();
-        foreach (var period in _periods.TakeLast(12).Reverse())
-        {
-            Periods.Add(new Rp1CareerPeriodRow(period));
-        }
-
+        PopulatePeriods();
         BuildCareerSeries();
 
         HasDiagnostics = timeline.Diagnostics.Count > 0;
@@ -488,6 +541,7 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
             ? "存档读到了，但还没有生涯事件。"
             : $"已读取 {timeline.Events.Count} 条事件。";
         ApplyFilter();
+        UpdateLinkedPeriod(SelectedEvent);
     }
 
     private void BuildCareerSeries()
@@ -497,6 +551,21 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
         CareerSeries = result.Series;
         CareerSeriesSummary = result.Summary;
         OnPropertyChanged(nameof(HasCareerSeries));
+    }
+
+    private void UpdateMetricOptionValues()
+    {
+        foreach (var option in CareerMetricOptions)
+        {
+            option.ValueText = option.Key switch
+            {
+                "funds" => CurrentFundsText,
+                "science" => CurrentScienceText,
+                "confidence" => CurrentConfidenceText,
+                "reputation" => CurrentReputationText,
+                _ => string.Empty,
+            };
+        }
     }
 
     private string CurrentMetricLabel()
@@ -565,10 +634,18 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
 
         EventCountText = $"{VisibleEvents.Count} / {_allEvents.Count} 条事件";
         OnPropertyChanged(nameof(HasNoVisibleEvents));
+        OnPropertyChanged(nameof(TotalEventCountText));
+        OnPropertyChanged(nameof(AllEventsCountText));
+        OnPropertyChanged(nameof(CrewEventsCountText));
 
         if (SelectedEvent is null || !VisibleEvents.Contains(SelectedEvent))
         {
             SelectedEvent = VisibleEvents.FirstOrDefault();
+        }
+        else
+        {
+            OnPropertyChanged(nameof(HasPreviousEvent));
+            OnPropertyChanged(nameof(HasNextEvent));
         }
     }
 
@@ -592,10 +669,21 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
         _hasCareerSeries = false;
         CareerSeries = Array.Empty<ChartSeries>();
         CareerSeriesSummary = "还没有读到存档，不画曲线";
+        LinkedPeriodIndex = -1;
+        LinkedPeriod = null;
+        LinkedEventLabel = null;
+        NotifyLinkedPeriodProperties();
         SelectedEvent = null;
         EventCountText = "0 条事件";
+        foreach (var option in CareerMetricOptions)
+        {
+            option.ValueText = string.Empty;
+        }
         OnPropertyChanged(nameof(HasNoVisibleEvents));
         OnPropertyChanged(nameof(HasCareerSeries));
+        OnPropertyChanged(nameof(TotalEventCountText));
+        OnPropertyChanged(nameof(HasPreviousEvent));
+        OnPropertyChanged(nameof(HasNextEvent));
     }
 
     private void ApplyInstance(InstanceInfo? instance)
@@ -623,7 +711,344 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
 
-    partial void OnSelectedFilterChanged(string value) => ApplyFilter();
+    partial void OnSelectedFilterChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsFilterAll));
+        OnPropertyChanged(nameof(IsFilterMilestone));
+        OnPropertyChanged(nameof(IsFilterContract));
+        OnPropertyChanged(nameof(IsFilterProgram));
+        OnPropertyChanged(nameof(IsFilterCrew));
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    public void SelectFilter(string? filter)
+    {
+        if (string.IsNullOrWhiteSpace(filter)) return;
+        var normalized = filter switch
+        {
+            "Milestone" => "里程碑",
+            "Contract" => "合同",
+            "Program" => "项目",
+            "Crew" => "人员",
+            "All" => "全部",
+            _ => filter,
+        };
+        SelectedFilter = normalized;
+    }
+
+    [RelayCommand]
+    public void FilterByStat(string? filter)
+    {
+        SelectedTabIndex = 0;
+        if (string.IsNullOrWhiteSpace(filter)) return;
+        var normalized = filter switch
+        {
+            "Milestone" => "里程碑",
+            "Contract" => "合同",
+            "Program" => "项目",
+            "Crew" => "人员",
+            "All" => "全部",
+            _ => filter,
+        };
+        SelectedFilter = normalized;
+    }
+
+    [RelayCommand]
+    public void OpenMetricCurve(string? metricKey)
+    {
+        SelectedTabIndex = 1;
+        if (!string.IsNullOrWhiteSpace(metricKey))
+        {
+            SelectCareerMetric(metricKey);
+        }
+    }
+
+    [RelayCommand]
+    public void SelectPreviousEvent()
+    {
+        if (SelectedEvent is null || VisibleEvents.Count == 0) return;
+        var index = VisibleEvents.IndexOf(SelectedEvent);
+        if (index > 0)
+        {
+            SelectedEvent = VisibleEvents[index - 1];
+        }
+    }
+
+    [RelayCommand]
+    public void SelectNextEvent()
+    {
+        if (SelectedEvent is null || VisibleEvents.Count == 0) return;
+        var index = VisibleEvents.IndexOf(SelectedEvent);
+        if (index >= 0 && index + 1 < VisibleEvents.Count)
+        {
+            SelectedEvent = VisibleEvents[index + 1];
+        }
+    }
+
+    [RelayCommand]
+    public void JumpToEarliest()
+    {
+        if (VisibleEvents.Count > 0)
+        {
+            SelectedEvent = VisibleEvents[0];
+        }
+    }
+
+    [RelayCommand]
+    public void JumpToLatest()
+    {
+        if (VisibleEvents.Count > 0)
+        {
+            SelectedEvent = VisibleEvents[^1];
+        }
+    }
+
+    [RelayCommand]
+    public void JumpToMilestone()
+    {
+        var milestones = VisibleEvents.Where(e => e.Kind == Rp1EventKind.Milestone).ToList();
+        if (milestones.Count == 0) return;
+        if (SelectedEvent is null)
+        {
+            SelectedEvent = milestones[0];
+            return;
+        }
+        var index = milestones.IndexOf(SelectedEvent);
+        if (index >= 0 && index + 1 < milestones.Count)
+        {
+            SelectedEvent = milestones[index + 1];
+        }
+        else
+        {
+            SelectedEvent = milestones[0];
+        }
+    }
+
+    [RelayCommand]
+    public void JumpToPeriodIndex(int periodIndex)
+    {
+        if (_periods.Count == 0 || periodIndex < 0 || periodIndex >= _periods.Count)
+        {
+            return;
+        }
+
+        var period = _periods[periodIndex];
+        LinkedPeriodIndex = periodIndex;
+        LinkedPeriod = period;
+
+        var matched = FindEventInOrNearPeriod(period);
+        if (matched is not null)
+        {
+            _selectedEvent = matched;
+            OnPropertyChanged(nameof(SelectedEvent));
+            OnPropertyChanged(nameof(ShowEventDetail));
+            OnPropertyChanged(nameof(ShowEventPlaceholder));
+            OnPropertyChanged(nameof(SelectedDetail));
+            OnPropertyChanged(nameof(SelectedMeta));
+            OnPropertyChanged(nameof(HasPreviousEvent));
+            OnPropertyChanged(nameof(HasNextEvent));
+            LinkedEventLabel = $"{matched.DateText} · {matched.Title}";
+        }
+
+        UpdatePeriodRowsSelection();
+        NotifyLinkedPeriodProperties();
+        if (PeriodScope == "linked")
+        {
+            PopulatePeriods();
+        }
+    }
+
+    [RelayCommand]
+    public void SelectPeriod(Rp1CareerPeriodRow? row)
+    {
+        if (row is null) return;
+        var idx = row.Period.Index;
+        if (idx < 0 || idx >= _periods.Count || !ReferenceEquals(_periods[idx], row.Period))
+        {
+            idx = -1;
+            for (var i = 0; i < _periods.Count; i++)
+            {
+                if (ReferenceEquals(_periods[i], row.Period) || _periods[i].Index == row.Period.Index)
+                {
+                    idx = i;
+                    break;
+                }
+            }
+        }
+
+        if (idx >= 0)
+        {
+            JumpToPeriodIndex(idx);
+        }
+    }
+
+    public Rp1CareerEvent? FindEventInOrNearPeriod(Rp1CareerPeriod period)
+    {
+        var pool = VisibleEvents.Count > 0 ? (IReadOnlyList<Rp1CareerEvent>)VisibleEvents : _allEvents;
+        if (pool.Count == 0) return null;
+
+        Rp1CareerEvent? bestInside = null;
+        foreach (var evt in pool)
+        {
+            if (evt.Ut is { } evtUt && evtUt >= period.StartUt && evtUt <= period.EndUt)
+            {
+                if (evt.IsMilestone) return evt;
+                bestInside ??= evt;
+            }
+        }
+        if (bestInside is not null) return bestInside;
+
+        if (VisibleEvents.Count > 0 && _allEvents.Count > 0)
+        {
+            foreach (var evt in _allEvents)
+            {
+                if (evt.Ut is { } evtUt && evtUt >= period.StartUt && evtUt <= period.EndUt)
+                {
+                    if (evt.IsMilestone) return evt;
+                    bestInside ??= evt;
+                }
+            }
+            if (bestInside is not null) return bestInside;
+        }
+
+        Rp1CareerEvent? closest = null;
+        var minDiff = double.MaxValue;
+        foreach (var evt in pool)
+        {
+            if (evt.Ut is not { } evtUt) continue;
+            var diff = Math.Abs(evtUt - period.StartUt);
+            if (diff < minDiff)
+            {
+                minDiff = diff;
+                closest = evt;
+            }
+        }
+        return closest;
+    }
+
+    [RelayCommand]
+    public void OpenCareerCurveForCurrentEvent()
+    {
+        SelectedTabIndex = 1;
+        if (LinkedPeriodIndex >= 0)
+        {
+            SetPeriodScope("linked");
+        }
+    }
+
+    [RelayCommand]
+    public void JumpToSelectedEvent()
+    {
+        SelectedTabIndex = 0;
+    }
+
+    [RelayCommand]
+    public void SetPeriodScope(string? scope)
+    {
+        PeriodScope = scope switch
+        {
+            "linked" => "linked",
+            "all" => "all",
+            _ => "recent",
+        };
+        OnPropertyChanged(nameof(IsRecentPeriodScope));
+        OnPropertyChanged(nameof(IsLinkedPeriodScope));
+        OnPropertyChanged(nameof(IsAllPeriodScope));
+        PopulatePeriods();
+    }
+
+    public void UpdateLinkedPeriod(Rp1CareerEvent? evt)
+    {
+        if (evt?.Ut is not { } ut || _periods.Count == 0)
+        {
+            LinkedPeriodIndex = -1;
+            LinkedPeriod = null;
+            LinkedEventLabel = null;
+            UpdatePeriodRowsSelection();
+            NotifyLinkedPeriodProperties();
+            return;
+        }
+
+        var idx = FindPeriodIndexForUt(ut);
+        LinkedPeriodIndex = idx;
+        LinkedPeriod = idx >= 0 && idx < _periods.Count ? _periods[idx] : null;
+        LinkedEventLabel = $"{evt.DateText} · {evt.Title}";
+        UpdatePeriodRowsSelection();
+        NotifyLinkedPeriodProperties();
+        if (PeriodScope == "linked")
+        {
+            PopulatePeriods();
+        }
+    }
+
+    public int FindPeriodIndexForUt(double ut)
+    {
+        if (_periods.Count == 0) return -1;
+        if (ut <= _periods[0].StartUt) return 0;
+        if (ut >= _periods[^1].StartUt) return _periods.Count - 1;
+
+        var low = 0;
+        var high = _periods.Count - 1;
+        var best = 0;
+        while (low <= high)
+        {
+            var mid = (low + high) / 2;
+            if (_periods[mid].StartUt <= ut)
+            {
+                best = mid;
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+        return best;
+    }
+
+    private void PopulatePeriods()
+    {
+        Periods.Clear();
+        if (_periods.Count == 0) return;
+
+        IEnumerable<Rp1CareerPeriod> source = PeriodScope switch
+        {
+            "linked" when LinkedPeriodIndex >= 0 =>
+                _periods.Skip(Math.Max(0, LinkedPeriodIndex - 5))
+                        .Take(11)
+                        .Reverse(),
+            "all" => _periods.Reverse(),
+            _ => _periods.TakeLast(12).Reverse(),
+        };
+
+        foreach (var period in source)
+        {
+            var row = new Rp1CareerPeriodRow(period)
+            {
+                IsSelected = LinkedPeriodIndex >= 0 && period.Index == LinkedPeriodIndex
+            };
+            Periods.Add(row);
+        }
+    }
+
+    private void UpdatePeriodRowsSelection()
+    {
+        foreach (var row in Periods)
+        {
+            row.IsSelected = LinkedPeriodIndex >= 0 && row.Period.Index == LinkedPeriodIndex;
+        }
+    }
+
+    private void NotifyLinkedPeriodProperties()
+    {
+        OnPropertyChanged(nameof(HasLinkedPeriod));
+        OnPropertyChanged(nameof(LinkedPeriodText));
+        OnPropertyChanged(nameof(LinkedPeriodFundsText));
+        OnPropertyChanged(nameof(LinkedPeriodScienceText));
+        OnPropertyChanged(nameof(LinkedPeriodConfidenceText));
+        OnPropertyChanged(nameof(LinkedPeriodReputationText));
+    }
 
     private static string FormatMoney(double? value)
         => value is null ? "—" : value.Value.ToString("N0", CultureInfo.InvariantCulture);
@@ -632,15 +1057,23 @@ public sealed partial class Rp1CareerPageViewModel : ObservableObject, IPluginPa
         => value is null ? "—" : value.Value.ToString(format, CultureInfo.InvariantCulture);
 }
 
-/// <summary>预算周期行：时间线右侧只展示最近 12 期，数字先格式化好再交给视图。</summary>
-public sealed class Rp1CareerPeriodRow
+/// <summary>预算周期行：数字先格式化好再交给视图，支持选中状态与时间线联动。</summary>
+public sealed partial class Rp1CareerPeriodRow : ObservableObject
 {
+    private bool _isSelected;
+
     public Rp1CareerPeriodRow(Rp1CareerPeriod period)
     {
         Period = period;
     }
 
     public Rp1CareerPeriod Period { get; }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
+    }
 
     public string DateText => Period.DateText;
 
@@ -660,12 +1093,13 @@ public sealed class Rp1CareerPeriodRow
 /// <summary>曲线指标切换项（视图里是一排分段按钮）。</summary>
 public sealed partial class Rp1CareerMetricOption : ObservableObject
 {
-    public Rp1CareerMetricOption(string key, string label, string glyph, bool isSelected)
+    public Rp1CareerMetricOption(string key, string label, string glyph, bool isSelected, string valueText = "")
     {
         Key = key;
         Label = label;
         Glyph = glyph;
         _isSelected = isSelected;
+        _valueText = valueText;
     }
 
     /// <summary>指标键（funds / science / confidence / reputation）。</summary>
@@ -679,4 +1113,7 @@ public sealed partial class Rp1CareerMetricOption : ObservableObject
 
     [ObservableProperty]
     private bool _isSelected;
+
+    [ObservableProperty]
+    private string _valueText = string.Empty;
 }

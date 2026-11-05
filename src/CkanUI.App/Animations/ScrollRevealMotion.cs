@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -43,6 +44,12 @@ public static class ScrollRevealMotion
 
     private const int MaxVisited = 1600;
 
+    /// <summary>一次评估内滚动位移超过视口的这个倍数，按"整片跳转"处理，不做逐行淡入。</summary>
+    private const double JumpViewportRatio = 1.5d;
+
+    /// <summary>一次评估内"没见过"的行达到这个数量、且过半时，同样按整片跳转处理（虚拟化整屏换行）。</summary>
+    private const int JumpFreshRows = 3;
+
     private static readonly ConditionalWeakTable<Visual, RootState> Roots = new();
 
     private static readonly ConditionalWeakTable<ScrollViewer, ScrollState> Attached = new();
@@ -71,6 +78,9 @@ public static class ScrollRevealMotion
                 layoutable.LayoutUpdated += (_, _) => Scan(root, state, throttle: true);
             }
         }
+
+        // 滚动条的"正在滚"高亮跟着同一批根走：滚动入场的接管点，就是需要活动态提示的接管点。
+        ScrollBarActivityMotion.Attach(root);
 
         return Scan(root, state, throttle: false);
     }
@@ -171,9 +181,20 @@ public static class ScrollRevealMotion
             return false;
         }
 
+        // 拖动滚动条 / 翻页 / 程序化跳转：视口整片换了一批行，不是"从底边露头"。
+        // 逐行从 Opacity=0 淡入会让整屏在拖动期间一直停在半透明，用户看到的就是"内容消失"。
+        var axisOffset = horizontal ? scrollViewer.Offset.X : scrollViewer.Offset.Y;
+        var previousOffset = state.HasOffset ? state.LastOffset : axisOffset;
+        state.LastOffset = axisOffset;
+        state.HasOffset = true;
+        var offsetJumped = Math.Abs(axisOffset - previousOffset) > viewport * JumpViewportRatio;
+
         var offset = MotionBudget.Amplitude(OffsetPixels);
         var baseY = horizontal ? panelOrigin.Value.X : panelOrigin.Value.Y;
         var pending = new List<Control>(candidates.Count);
+        var entering = new List<(Control Item, bool Horizontal)>();
+        var visible = 0;
+        var fresh = 0;
 
         foreach (var item in candidates)
         {
@@ -205,7 +226,15 @@ public static class ScrollRevealMotion
                 continue;
             }
 
-            if (IsSeen(item))
+            visible++;
+            var alreadySeen = IsSeen(item);
+            if (!known && !alreadySeen)
+            {
+                // 从没量过、也没演过 = 这一帧刚被虚拟化实例化出来。
+                fresh++;
+            }
+
+            if (alreadySeen)
             {
                 continue;
             }
@@ -225,12 +254,23 @@ public static class ScrollRevealMotion
             }
 
             // 其余都是刚露头：上一帧还在底边外，或这一帧才被虚拟化实例化出来。
+            entering.Add((item, horizontal));
+        }
 
-
+        // 整片跳转（拖滚动条、翻页、虚拟化整屏换行）：这些行是"换了一批"，不是"从底边长出来"。
+        // 还给它们逐个从 Opacity=0 淡入，拖动期间每一帧都会把可见行全部刷成半透明 —— 看起来就是内容丢失。
+        var jumped = offsetJumped || (fresh >= JumpFreshRows && fresh * 2 > visible);
+        foreach (var (item, isHorizontal) in entering)
+        {
             MarkSeen(state, item);
+            if (jumped)
+            {
+                continue;
+            }
+
             var rest = item.Opacity > 0d ? item.Opacity : 1d;
             var spring = TransformSpring.For(item, SpringSpec.Glide);
-            if (horizontal)
+            if (isHorizontal)
             {
                 spring.MoveTo(x: offset, opacity: 0d, snap: true);
                 spring.MoveTo(x: 0d, opacity: rest);
@@ -388,6 +428,10 @@ public static class ScrollRevealMotion
         public bool Dirty;
 
         public bool FrameRequested;
+
+        public bool HasOffset;
+
+        public double LastOffset;
 
         public Dictionary<Control, (object? Data, double Top)> LastTop { get; } = new();
 

@@ -31,7 +31,13 @@ public sealed class BackgroundSceneCanvas : Control
             [BackgroundSceneKinds.Orbital] = new OrbitalBlueprintScene(),
             [BackgroundSceneKinds.Lunar] = new LunarTerminatorScene(),
             [BackgroundSceneKinds.Probe] = new DeepSpaceProbeScene(),
-            [BackgroundSceneKinds.Lens] = new GravitationalLensScene()
+            [BackgroundSceneKinds.Lens] = new GravitationalLensScene(),
+            [BackgroundSceneKinds.Corona] = new CoronaScene(),
+            [BackgroundSceneKinds.RingPlane] = new RingPlaneScene(),
+            [BackgroundSceneKinds.Aurora] = new AuroraOvalScene(),
+            [BackgroundSceneKinds.Pulsar] = new PulsarScene(),
+            [BackgroundSceneKinds.SolarSail] = new SolarSailScene(),
+            [BackgroundSceneKinds.SpaceElevator] = new SpaceElevatorScene()
         };
 
     private readonly DispatcherTimer? _timer;

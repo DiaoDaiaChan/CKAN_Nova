@@ -26,6 +26,24 @@ public partial class AiAssistantPageView : UserControl
         AttachedToVisualTree += OnAttachedToVisualTree;
         DetachedFromVisualTree += OnDetachedFromVisualTree;
         DataContextChanged += OnDataContextChanged;
+
+        var input = this.FindControl<TextBox>("InputTextBox");
+        if (input is not null)
+        {
+            input.KeyDown += OnInputKeyDown;
+        }
+    }
+
+    private void OnInputKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key == Avalonia.Input.Key.Enter && !e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift))
+        {
+            e.Handled = true;
+            if (_observed?.SendCommand.CanExecute(null) == true)
+            {
+                _observed.SendCommand.Execute(null);
+            }
+        }
     }
 
     private void OnAttachedToVisualTree(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)

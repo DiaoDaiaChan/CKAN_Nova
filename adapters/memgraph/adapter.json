@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "id": "memgraph",
+  "name": "MemGraph",
+  "homepage": "https://github.com/KSPModdingLibs/MemGraph",
+  "match": {
+    "ckanIdentifiers": [
+      "MemGraph"
+    ],
+    "paths": [
+      "GameData/MemGraph/Plugins/PluginData/MemGraph/settings.cfg"
+    ],
+    "caseInsensitive": true
+  },
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/MemGraph/Plugins/PluginData/MemGraph/settings.cfg",
+      "layout": "flat",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "settings.cfg"
+    }
+  ],
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+  "fields": [
+    {
+      "file": "settings",
+      "key": "visible",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "启动时显示窗口"
+    },
+    {
+      "file": "settings",
+      "key": "applyPadding",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "给堆内存加 padding（让泄漏更容易暴露）"
+    },
+    {
+      "file": "settings",
+      "key": "enableLogging",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "把采样写进日志"
+    },
+    {
+      "file": "settings",
+      "key": "keyToggleWindow",
+      "type": "keybinding",
+      "default": "KeypadMultiply",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "开/关窗口"
+    },
+    {
+      "file": "settings",
+      "key": "keyScaleUp",
+      "type": "keybinding",
+      "default": "KeypadPlus",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "放大曲线"
+    },
+    {
+      "file": "settings",
+      "key": "keyScaleDown",
+      "type": "keybinding",
+      "default": "KeypadMinus",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "缩小曲线"
+    },
+    {
+      "file": "settings",
+      "key": "keyRunTests",
+      "type": "keybinding",
+      "default": "KeypadDivide",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "运行内存自检"
+    },
+    {
+      "file": "settings",
+      "key": "keyPadHeap",
+      "type": "keybinding",
+      "default": "End",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "填充堆"
+    },
+    {
+      "file": "settings",
+      "key": "keyMark",
+      "type": "keybinding",
+      "default": "Home",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "在曲线上打标记"
+    },
+    {
+      "file": "settings",
+      "key": "keyToggleLogging",
+      "type": "keybinding",
+      "default": "PageUp",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "切换日志"
+    }
+  ]
+}

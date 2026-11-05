@@ -13,25 +13,38 @@
       <Setter Property="Padding" Value="8,0" />
       <Setter Property="MinHeight" Value="{DynamicResource CkanRowHeight}" />
     </Style>
-    <!-- 选中行左侧 3px 强调条（沿用导航栏 navIndicator 的做法） -->
-    <Style Selector="Rectangle.SelectionBar">
-      <Setter Property="Width" Value="3" />
-      <Setter Property="RadiusX" Value="1.5" />
-      <Setter Property="RadiusY" Value="1.5" />
-      <Setter Property="Fill" Value="{DynamicResource CkanAccentBrush}" />
-      <Setter Property="HorizontalAlignment" Value="Left" />
-      <Setter Property="VerticalAlignment" Value="Stretch" />
-      <Setter Property="Margin" Value="2,4" />
-      <Setter Property="Opacity" Value="0" />
-      <Setter Property="IsHitTestVisible" Value="False" />
+    <Style Selector="Button.CkanModuleRow">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="6,2" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Transitions">
         <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
+          <BrushTransition Property="Background" Duration="{DynamicResource CkanMotionDurationBase}" />
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="ListBoxItem:selected Rectangle.SelectionBar">
-      <Setter Property="Opacity" Value="1" />
+    <Style Selector="Button.CkanModuleRow /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.CkanModuleRow:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource CkanHoverOverlayBrush}" />
+    </Style>
+    <Style Selector="Button.CkanModuleRow:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource CkanPressedOverlayBrush}" />
+    </Style>
+    <Style Selector="Button.CkanModuleRow:disabled">
+      <Setter Property="Opacity" Value="1.0" />
+      <Setter Property="Cursor" Value="Arrow" />
+    </Style>
+    <Style Selector="Button.CkanModuleRow:disabled /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.CkanModuleRow:pointerover TextBlock.identifier-link">
+      <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
     </Style>
   </UserControl.Styles>
 
@@ -165,7 +178,6 @@
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <Grid ColumnDefinitions="Auto,Auto,*">
-                  <Rectangle Grid.Column="0" Classes="SelectionBar" />
                   <!-- 时间轴：竖线贯穿每行，圆点标记结果（失败用危险色） -->
                   <Panel Grid.Column="1" Width="18">
                     <Rectangle Width="1" HorizontalAlignment="Center" VerticalAlignment="Stretch"
@@ -275,18 +287,33 @@
                 <ItemsControl ItemsSource="{Binding InstalledModules}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                      <Grid ColumnDefinitions="2*,Auto,2*" MinHeight="{DynamicResource CkanRowHeight}">
-                        <TextBlock Grid.Column="0" Text="{Binding Identifier}"
-                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                        <TextBlock Grid.Column="1" Text="{Binding StateText}" Margin="0,0,12,0"
-                                   VerticalAlignment="Center"
-                                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                                   Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                        <TextBlock Grid.Column="2" Text="{Binding VersionText}"
-                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                                   Classes="CkanNumeric" FontSize="{DynamicResource CkanFontSizeCaption}" />
-                      </Grid>
+                      <Button Classes="CkanModuleRow"
+                              Command="{Binding NavigateCommand}"
+                              IsEnabled="{Binding ExistsInCkan}"
+                              ToolTip.Tip="{Binding NavigationTooltip}">
+                        <Grid ColumnDefinitions="2*,Auto,2*" MinHeight="{DynamicResource CkanRowHeight}">
+                          <Grid Grid.Column="0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                            <TextBlock Grid.Column="0" Text="{Binding Identifier}"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                                       Classes.identifier-link="{Binding ExistsInCkan}" />
+                            <PathIcon Grid.Column="1"
+                                      Data="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"
+                                      Width="11" Height="11" Margin="6,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Foreground="{DynamicResource CkanAccentBrush}"
+                                      Opacity="0.8"
+                                      IsVisible="{Binding ExistsInCkan}" />
+                          </Grid>
+                          <TextBlock Grid.Column="1" Text="{Binding StateText}" Margin="0,0,12,0"
+                                     VerticalAlignment="Center"
+                                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                          <TextBlock Grid.Column="2" Text="{Binding VersionText}"
+                                     TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                     Classes="CkanNumeric" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                        </Grid>
+                      </Button>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -304,18 +331,33 @@
                 <ItemsControl ItemsSource="{Binding MissingModules}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                      <Grid ColumnDefinitions="2*,Auto,2*" MinHeight="{DynamicResource CkanRowHeight}">
-                        <TextBlock Grid.Column="0" Text="{Binding Identifier}"
-                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-                        <TextBlock Grid.Column="1" Text="{Binding StateText}" Margin="0,0,12,0"
-                                   VerticalAlignment="Center"
-                                   FontSize="{DynamicResource CkanFontSizeCaption}"
-                                   Foreground="{DynamicResource CkanWarningBrush}" />
-                        <TextBlock Grid.Column="2" Text="{Binding VersionText}"
-                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                                   Classes="CkanNumeric" FontSize="{DynamicResource CkanFontSizeCaption}" />
-                      </Grid>
+                      <Button Classes="CkanModuleRow"
+                              Command="{Binding NavigateCommand}"
+                              IsEnabled="{Binding ExistsInCkan}"
+                              ToolTip.Tip="{Binding NavigationTooltip}">
+                        <Grid ColumnDefinitions="2*,Auto,2*" MinHeight="{DynamicResource CkanRowHeight}">
+                          <Grid Grid.Column="0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                            <TextBlock Grid.Column="0" Text="{Binding Identifier}"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                                       Classes.identifier-link="{Binding ExistsInCkan}" />
+                            <PathIcon Grid.Column="1"
+                                      Data="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"
+                                      Width="11" Height="11" Margin="6,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Foreground="{DynamicResource CkanAccentBrush}"
+                                      Opacity="0.8"
+                                      IsVisible="{Binding ExistsInCkan}" />
+                          </Grid>
+                          <TextBlock Grid.Column="1" Text="{Binding StateText}" Margin="0,0,12,0"
+                                     VerticalAlignment="Center"
+                                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                                     Foreground="{DynamicResource CkanWarningBrush}" />
+                          <TextBlock Grid.Column="2" Text="{Binding VersionText}"
+                                     TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                     Classes="CkanNumeric" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                        </Grid>
+                      </Button>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>

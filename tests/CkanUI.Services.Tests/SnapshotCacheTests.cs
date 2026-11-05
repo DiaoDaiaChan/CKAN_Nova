@@ -117,6 +117,23 @@ public sealed class SnapshotCacheTests
         Assert.That(SnapshotCache.StampFile(path), Is.Not.EqualTo(before), "索引被重写后指纹必须变化");
     }
 
+    [Test]
+    public void Save_KeepsOnlyNewestSnapshots()
+    {
+        using var fixture = new Fixture();
+
+        // 每次仓库刷新都会换一个指纹，一个指纹一份文件；不封顶就是「用得越久占盘越多」。
+        for (var index = 0; index < 5; index++)
+        {
+            fixture.Cache.Save(
+                "key-" + index,
+                [Row("Module" + index, "模组" + index, installed: false, compatible: true, download: index, facts: Facts("描述", null, null, null), tags: [])]);
+        }
+
+        var files = Directory.GetFiles(fixture.Directory, "mods-*.json");
+        Assert.That(files.Length, Is.EqualTo(3), "落盘份数必须封顶，否则缓存会无限增长");
+    }
+
     private static ModRowData Row(string identifier,
                                   string name,
                                   bool installed,

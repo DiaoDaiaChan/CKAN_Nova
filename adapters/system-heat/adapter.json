@@ -1,0 +1,270 @@
+{
+  "schemaVersion": 1,
+  "id": "system-heat",
+  "name": "System Heat",
+  "homepage": "https://github.com/post-kerbin-mining-corporation/SystemHeat",
+  "match": {
+    "ckanIdentifiers": [
+      "SystemHeat"
+    ],
+    "paths": [
+      "GameData/SystemHeat/Settings.cfg"
+    ],
+    "caseInsensitive": true
+  },
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/SystemHeat/Settings.cfg",
+      "layout": "node",
+      "rootNode": "SYSTEMHEAT",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "Settings.cfg"
+    }
+  ],
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+  "fields": [
+    {
+      "file": "settings",
+      "key": "UISrollSensitivity",
+      "type": "int",
+      "default": "25",
+      "min": 1,
+      "max": 200,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "界面滚轮灵敏度（上游键名拼写如此）"
+    },
+    {
+      "file": "settings",
+      "key": "OverlayBaseLineWidth",
+      "type": "float",
+      "default": "4",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "热回路覆盖层基础线宽"
+    },
+    {
+      "file": "settings",
+      "key": "OverlayBaseLineQueue",
+      "type": "int",
+      "default": "3000",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "覆盖层线段队列容量"
+    },
+    {
+      "file": "settings",
+      "key": "OverlayActiveLineWidth",
+      "type": "float",
+      "default": "8",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "活动回路线宽"
+    },
+    {
+      "file": "settings",
+      "key": "OverlayActiveLineTextureScaleFactor",
+      "type": "float",
+      "default": "10",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "活动线纹理缩放"
+    },
+    {
+      "file": "settings",
+      "key": "OverlayActiveLineTextureScrollRate",
+      "type": "float",
+      "default": "2.5",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "活动线纹理滚动速度"
+    },
+    {
+      "file": "settings",
+      "key": "OverlayLineBevel",
+      "type": "float",
+      "default": "0.1",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "线端倒角"
+    },
+    {
+      "file": "settings",
+      "key": "OverlayLineBevelScale",
+      "type": "float",
+      "default": "0.3",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "倒角缩放"
+    },
+    {
+      "file": "settings",
+      "key": "OverlayLineShader",
+      "type": "string",
+      "default": "GUI/Text Shader",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "覆盖层线材质用的 shader 名"
+    },
+    {
+      "file": "settings",
+      "key": "OverlayBoundsPadding",
+      "type": "float",
+      "default": "1",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "覆盖层边界留白"
+    },
+    {
+      "file": "settings",
+      "key": "OverlayPadding",
+      "type": "float",
+      "default": "0.2",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "覆盖层内边距"
+    },
+    {
+      "file": "settings",
+      "key": "DebugUI",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "输出界面调试日志"
+    },
+    {
+      "file": "settings",
+      "key": "DebugOverlay",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "输出覆盖层调试日志"
+    },
+    {
+      "file": "settings",
+      "key": "DebugSimulation",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "输出热模拟调试日志"
+    },
+    {
+      "file": "settings",
+      "key": "DebugModules",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "输出模块调试日志"
+    },
+    {
+      "file": "settings",
+      "key": "DebugPartUI",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "输出部件 UI 调试日志"
+    },
+    {
+      "file": "settings",
+      "key": "MaxLoopCount",
+      "type": "int",
+      "default": "20",
+      "min": 1,
+      "max": 200,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "单艘飞船允许的最大回路数"
+    },
+    {
+      "file": "settings",
+      "key": "SpaceTemperature",
+      "type": "float",
+      "default": "2.7f",
+      "min": 0,
+      "unit": "K",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "回路最低工作温度"
+    },
+    {
+      "file": "settings",
+      "key": "MinSteps",
+      "type": "int",
+      "default": "1",
+      "min": 1,
+      "max": 100,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "每物理帧最少积分步数"
+    },
+    {
+      "file": "settings",
+      "key": "MaxSteps",
+      "type": "int",
+      "default": "25",
+      "min": 1,
+      "max": 200,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "每物理帧最多积分步数"
+    },
+    {
+      "file": "settings",
+      "key": "MaxDeltaTPerStep",
+      "type": "float",
+      "default": "25",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "单步最大温差（抑制热尖峰）"
+    },
+    {
+      "file": "settings",
+      "key": "SimulationRateEditor",
+      "type": "float",
+      "default": "1",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "编辑器里的基础模拟速率"
+    },
+    {
+      "file": "settings",
+      "key": "AbsFluxThreshold",
+      "type": "float",
+      "default": "0.5",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "净热流低于此值时不调温"
+    },
+    {
+      "file": "settings",
+      "key": "ForceStockRadiatorLogic",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "强制按原版散热器逻辑处理"
+    }
+  ]
+}

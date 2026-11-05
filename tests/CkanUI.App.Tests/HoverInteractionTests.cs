@@ -1,8 +1,10 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using CkanUI.App.Tests.Automation;
 using NUnit.Framework;
 
@@ -41,7 +43,7 @@ public sealed class HoverInteractionTests
     }
 
     [Test]
-    public void ListBoxItem_HoverShiftsRightAndShowsHandCursor()
+    public void ListBoxItem_HoverMovesItsPresenterNotItself_SoTheHitBoxStaysPut()
     {
         var list = new ListBox { ItemsSource = new[] { "第一项", "第二项" }, Height = 200, Width = 200 };
         var window = ShowInCanvas(list, 10, 10);
@@ -59,7 +61,12 @@ public sealed class HoverInteractionTests
             HeadlessAppHost.PumpJobs();
 
             Assert.That(item.IsPointerOver, Is.True);
-            Assert.That(OffsetOf(item).X, Is.EqualTo(2), "悬浮时整行右移 2px");
+            // 位移必须落在一行之外的展示层（模板里的 ContentPresenter）：行容器自己一动，指针压住左缘就会
+            // 掉出命中盒 → 悬停失效 → 弹回 → 再压上，视觉上在选中/未选中之间闪烁。
+            Assert.That(OffsetOf(item).X, Is.EqualTo(0), "行容器本身不许位移，否则悬停会自激闪烁");
+            var presenter = item.GetVisualDescendants().OfType<ContentPresenter>().FirstOrDefault();
+            Assert.That(presenter, Is.Not.Null, "列表行的模板必须有 ContentPresenter");
+            Assert.That(Math.Abs(OffsetOf(presenter!).X), Is.EqualTo(2).Within(0.2), "悬浮位移落在 ContentPresenter 上");
         }
         finally
         {
@@ -92,7 +99,7 @@ public sealed class HoverInteractionTests
     }
 
     [Test]
-    public void TreeViewItem_HoverShiftsRightAndShowsHandCursor()
+    public void TreeViewItem_HoverHighlightsWithBackground_WithoutMovingItself()
     {
         var tree = new TreeView { Width = 240, Height = 200, ItemsSource = new[] { "节点甲" } };
         var window = ShowInCanvas(tree, 10, 10);
@@ -110,7 +117,9 @@ public sealed class HoverInteractionTests
             HeadlessAppHost.PumpJobs();
 
             Assert.That(node.IsPointerOver, Is.True);
-            Assert.That(OffsetOf(node).X, Is.EqualTo(2));
+            Assert.That(OffsetOf(node).X, Is.EqualTo(0), "树节点用背景高亮，不许位移");
+            Assert.That(node.Background, Is.Not.Null, "悬浮必须给出背景高亮");
+            Assert.That(((ISolidColorBrush)node.Background!).Color, Is.Not.EqualTo(Colors.Transparent));
         }
         finally
         {

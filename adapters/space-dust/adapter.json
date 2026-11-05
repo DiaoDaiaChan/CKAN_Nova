@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "id": "space-dust",
+  "name": "Space Dust",
+  "homepage": "https://github.com/post-kerbin-mining-corporation/SpaceDust",
+  "match": {
+    "ckanIdentifiers": [
+      "SpaceDust"
+    ],
+    "paths": [
+      "GameData/SpaceDust/SpaceDustSettings.cfg"
+    ],
+    "caseInsensitive": true
+  },
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/SpaceDust/SpaceDustSettings.cfg",
+      "layout": "node",
+      "rootNode": "SPACEDUSTSETTINGS",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "SpaceDustSettings.cfg"
+    }
+  ],
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+  "fields": [
+    {
+      "file": "settings",
+      "key": "DebugUI",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "输出界面调试日志"
+    },
+    {
+      "file": "settings",
+      "key": "DebugOverlay",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "输出覆盖层调试日志"
+    },
+    {
+      "file": "settings",
+      "key": "DebugModules",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "输出模块调试日志"
+    },
+    {
+      "file": "settings",
+      "key": "DebugBackground",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "输出背景调试日志"
+    },
+    {
+      "file": "settings",
+      "key": "DebugPersistence",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "输出持久化调试日志"
+    },
+    {
+      "file": "settings",
+      "key": "DebugLoading",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "输出加载调试日志"
+    },
+    {
+      "file": "settings",
+      "key": "particleFieldBaseCount",
+      "type": "int",
+      "default": "2000",
+      "min": 0,
+      "max": 20000,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "粒子场基础粒子数"
+    },
+    {
+      "file": "settings",
+      "key": "particleFieldMaxViewportParticleScale",
+      "type": "float",
+      "default": "0.01",
+      "min": 0,
+      "max": 1,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "视口内粒子缩放上限"
+    },
+    {
+      "file": "settings",
+      "key": "particleFieldMaxParticleCount",
+      "type": "int",
+      "default": "25000",
+      "min": 0,
+      "max": 200000,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "粒子场最大粒子数（性能主开关）"
+    },
+    {
+      "file": "settings",
+      "key": "SetAllDiscovered",
+      "type": "bool",
+      "default": "false",
+      "risk": "high",
+      "requiresRestart": true,
+      "label": "所有资源带默认已发现"
+    },
+    {
+      "file": "settings",
+      "key": "SetAllIdentified",
+      "type": "bool",
+      "default": "false",
+      "risk": "high",
+      "requiresRestart": true,
+      "label": "所有资源带默认已鉴定"
+    },
+    {
+      "file": "settings",
+      "key": "BaseTelescopeDiscoverRate",
+      "type": "float",
+      "default": "0.0001",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "望远镜基础发现速率"
+    },
+    {
+      "file": "settings",
+      "key": "BaseDiscoverScienceReward",
+      "type": "float",
+      "default": "5",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "发现资源带的科学奖励"
+    },
+    {
+      "file": "settings",
+      "key": "BaseIdentifyScienceReward",
+      "type": "float",
+      "default": "10",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "鉴定资源带的科学奖励"
+    },
+    {
+      "file": "settings",
+      "key": "GameScale",
+      "type": "float",
+      "default": "1.0",
+      "min": 0.1,
+      "max": 100,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "星系缩放倍率（配 rescaled 系统时改）"
+    }
+  ]
+}

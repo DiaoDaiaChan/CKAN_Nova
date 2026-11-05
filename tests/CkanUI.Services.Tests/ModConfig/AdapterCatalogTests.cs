@@ -160,7 +160,7 @@ public sealed class AdapterCatalogTests
     }
 
     [Test]
-    public void Adapters_RepoBuiltinDirectory_ContainsBothFirstBatchAdapters()
+    public void Adapters_RepoBuiltinDirectory_LoadsEveryBundledAdapter()
     {
         using var temp = ModConfigFixtures.CreateTempDirectory("catalog-repo");
         var catalog = new AdapterCatalog([ModConfigFixtures.BuiltinAdapterDirectory], [Path.Combine(temp.Path, "user")]);
@@ -169,9 +169,86 @@ public sealed class AdapterCatalogTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(ids, Is.EqualTo(new[] { "kerbalism", "ksp-community-fixes" }));
+            // 内置目录是"随包发出去的默认能力"，少一份就等于发行版缺功能；新增 adapter 必须同步这条清单。
+            Assert.That(ids, Is.EqualTo(new[]
+            {
+                "dynamic-battery-storage",
+                "ferram-aerospace-research",
+                "kerbalism",
+                "krpc",
+                "ksp-community-fixes",
+                "ksp-wheel",
+                "lunar-transfer-planner",
+                "memgraph",
+                "parallax-continued",
+                "rcs-build-aid",
+                "real-chute",
+                "real-fuels-mfs",
+                "space-dust",
+                "system-heat",
+                "textures-unlimited",
+                "time-control",
+                "too-many-orbits",
+                "vab-organizer",
+                "waypoint-manager",
+            }));
             Assert.That(catalog.Diagnostics.Any(d => d.IsError), Is.False,
                 "仓库内置 adapter 必须全部能加载：" + string.Join(" | ", catalog.Diagnostics.Select(d => d.Message)));
+        });
+    }
+
+    [Test]
+    public void Adapters_CreateFromTemplateFixtures_ContainEveryDeclaredKey()
+    {
+        // onMissing=create-from-template 的模板就是"文件不存在时"造出来的配置；
+        // 模板里漏一个键，用户拿到的新文件就会缺项，页面再写这一项就报「文件里没有键」。
+        using var temp = ModConfigFixtures.CreateTempDirectory("catalog-template");
+        var catalog = new AdapterCatalog([ModConfigFixtures.BuiltinAdapterDirectory], [Path.Combine(temp.Path, "user")]);
+
+        var problems = new List<string>();
+        foreach (var adapter in catalog.Adapters)
+        {
+            foreach (var file in adapter.Files.Where(f => f.Template is not null))
+            {
+                var templatePath = Path.Combine(
+                    Path.GetDirectoryName(adapter.SourcePath!) ?? string.Empty, file.Template!);
+                if (!File.Exists(templatePath))
+                {
+                    problems.Add(adapter.Id + " 的模板不存在：" + templatePath);
+                    continue;
+                }
+
+                var template = File.ReadAllText(templatePath);
+                foreach (var field in adapter.Fields.Where(f => adapter.FindFile(f.FileIndex, f.FileId) == file))
+                {
+                    if (!System.Text.RegularExpressions.Regex.IsMatch(
+                            template, "\\b" + System.Text.RegularExpressions.Regex.Escape(field.Key) + "\\s*="))
+                    {
+                        problems.Add(adapter.Id + " 的模板缺键：" + field.Key);
+                    }
+                }
+            }
+        }
+
+        Assert.That(problems, Is.Empty, string.Join(" | ", problems));
+    }
+
+    [Test]
+    public void Adapters_BundledFields_PointAtKeysThatExistInRealConfigFiles()
+    {
+        // 幽灵键（adapter 声明了、真实文件里没有）是这个功能最阴的缺陷：页面显示空白，
+        // 用户以为"这项没设置"，真去写却报「文件里没有键」。这里只断言"每份 adapter 至少
+        // 声明了字段"这种能离线证明的部分；键是否真实存在靠 fixtures 与真机取证。
+        using var temp = ModConfigFixtures.CreateTempDirectory("catalog-repo-fields");
+        var catalog = new AdapterCatalog([ModConfigFixtures.BuiltinAdapterDirectory], [Path.Combine(temp.Path, "user")]);
+
+        Assert.Multiple(() =>
+        {
+            foreach (var adapter in catalog.Adapters.Where(a => a.Id != "kerbalism"))
+            {
+                Assert.That(adapter.Fields, Is.Not.Empty,
+                    adapter.Id + " 声明了文件却没有任何字段，等于只读卡片，没有存在意义");
+            }
         });
     }
 }

@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CkanUI.ViewModels.Dialogs;assembly=CkanUI.ViewModels"
              xmlns:relations="clr-namespace:CkanUI.App.Views.Relations"
+             xmlns:vmtree="clr-namespace:CkanUI.ViewModels.Relations;assembly=CkanUI.ViewModels"
              xmlns:conv="using:CkanUI.App.Converters"
              x:Class="CkanUI.App.Views.Dialogs.ModDetailsView"
              x:DataType="vm:ModDetailsViewModel">
@@ -32,18 +33,20 @@
       <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
     </Style>
 
-    <!-- 状态横幅：中性/成功走信息色，失败走危险色（文案另带成功/失败措辞，不靠颜色单一通道） -->
+    <!-- 状态横幅：中性态走无边框的浅底，只有失败态才上危险色。
+         早期中性态用信息色描边，400px 栏里读起来像聚焦中的输入框；现在中性态只留一层浅底，
+         红框仍然是「有事发生」的唯一强信号（文案另带成功/失败措辞，不靠颜色单一通道）。 -->
     <Style Selector="Border.StatusBanner">
-      <Setter Property="Background" Value="{DynamicResource CkanInfoBackgroundBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource CkanInfoBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
-      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="Padding" Value="10,8" />
       <Setter Property="Margin" Value="0,0,0,8" />
     </Style>
     <Style Selector="Border.StatusBanner.Error">
       <Setter Property="Background" Value="{DynamicResource CkanDangerBackgroundBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource CkanDangerBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.StatusBanner TextBlock">
       <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
@@ -52,6 +55,18 @@
     </Style>
     <Style Selector="Border.StatusBanner.Error TextBlock">
       <Setter Property="Foreground" Value="{DynamicResource CkanDangerBrush}" />
+    </Style>
+
+    <!-- 页签条：详情面板默认 400px 宽，四个页签要压在一行内，不能折行吃掉可视高度 -->
+    <Style Selector="TabItem">
+      <!-- 12px（Caption 字号，不再压缩）+ 2/4 内边距：
+           实测 400px 默认栏与 320px 极窄栏下四个页签都排得进一行（文字墨迹止于 ~234px），
+           所以字号是主要阅读通道，不为了省宽度把 12px 缩回 11px 的注释感 -->
+
+      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+      <Setter Property="Padding" Value="2,4" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Margin" Value="0,0,1,0" />
     </Style>
   </UserControl.Styles>
 
@@ -90,27 +105,33 @@
       <!-- 页签一：元数据与简介 -->
       <TabItem Header="{Binding MetadataTabHeaderText}">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <StackPanel Margin="16,8,16,16" Spacing="12">
+          <StackPanel Margin="12,8,12,12" Spacing="10">
             <TextBlock Text="{Binding Name}"
                        FontSize="{DynamicResource CkanFontSizeTitle}"
                        FontWeight="SemiBold"
                        TextWrapping="Wrap" />
 
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <WrapPanel Orientation="Horizontal">
               <TextBlock Text="{Binding AuthorText}"
+                         Margin="0,0,8,0"
                          Opacity="0.7"
                          FontSize="{DynamicResource CkanFontSizeCaption}" />
               <Border Classes="CkanBadge"
                       Classes.Success="{Binding IsInstalled}"
-                      Classes.Danger="{Binding !IsCompatible}">
+                      Classes.Danger="{Binding !IsCompatible}"
+                      Margin="0,0,6,2">
                 <TextBlock Text="{Binding CompatibilityText}" />
               </Border>
-              <Border Classes="CkanBadge Info"
-                      IsVisible="{Binding CategoryBadgeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                      ToolTip.Tip="{Binding CategoryDescription}">
-                <TextBlock Text="{Binding CategoryBadgeText}" />
-              </Border>
-            </StackPanel>
+            </WrapPanel>
+
+            <!-- 分类徽章单独一行：和作者、兼容状态挤一行时它必然被裁剪成「生存、科研与生…」，
+                 分类信息就废了；独占一行后能完整显示（极端长的分类允许折行）。 -->
+            <Border Classes="CkanBadge Info"
+                    HorizontalAlignment="Left"
+                    IsVisible="{Binding CategoryBadgeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                    ToolTip.Tip="{Binding CategoryDescription}">
+              <TextBlock Text="{Binding CategoryBadgeText}" TextWrapping="Wrap" />
+            </Border>
 
             <!-- 摘要：译文命中时右侧挂「已译」徽标（沿用全局 CkanBadge，颜色走主题 token，不写死） -->
             <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasAbstract}">
@@ -139,12 +160,34 @@
               <TextBlock Text="{Binding StaleTranslationNotice}" TextWrapping="Wrap" />
             </Border>
 
+            <!-- 联动：该模组与某个内置 GUI 插件配套时给「推荐安装 / 去哪用」的说明（清单见 ModsCompanionCatalog） -->
+            <Border Classes="CkanSubtleCard" Padding="10,8" IsVisible="{Binding HasCompanionLink}">
+              <StackPanel Spacing="3">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="{Binding CompanionTitle}"
+                             FontWeight="SemiBold"
+                             FontSize="{DynamicResource CkanFontSizeCaption}" />
+                  <Border Classes="CkanBadge Info" Padding="6,0">
+                    <TextBlock Text="{Binding CompanionPluginName}" />
+                  </Border>
+                </StackPanel>
+                <TextBlock Text="{Binding CompanionBenefit}"
+                           Classes="CkanCaption"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Text="{Binding CompanionHint}"
+                           Classes="CkanCaption"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              </StackPanel>
+            </Border>
+
             <!-- 元数据键值（标签与格式都在 VM 内集中，03 篇 §11） -->
-            <Border Classes="CkanSubtleCard" Padding="12,10">
+            <Border Classes="CkanSubtleCard" Padding="10,8">
               <ItemsControl ItemsSource="{Binding MetadataItems}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:DiagnosticItem">
-                    <Grid ColumnDefinitions="96,*" Margin="0,2">
+                    <Grid ColumnDefinitions="64,*" Margin="0,1">
                       <TextBlock Grid.Column="0"
                                  Text="{Binding Name}"
                                  Foreground="{DynamicResource CkanTextSecondaryBrush}"
@@ -218,64 +261,34 @@
       <!-- 页签二：依赖关系 -->
       <TabItem Header="{Binding RelationsTabHeaderText}">
         <Panel>
-          <ScrollViewer IsVisible="{Binding HasRelations}" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="16,8,16,16" Spacing="12">
-              <!-- 交互式依赖关系树视图（F-28 / UI-18） -->
-              <Border IsVisible="{Binding RelationTree, Converter={x:Static ObjectConverters.IsNotNull}}" Margin="0,0,0,8">
-                <relations:RelationTreeView DataContext="{Binding RelationTree}" />
-              </Border>
+          <!-- 关系视图占满页签可用高度：关系树自带滚动，关系网按可用尺寸自适应缩放。
+               不要再套 ScrollViewer > StackPanel —— 自绘控件会拿到 0 高度而塌陷成一条色带。 -->
+          <Grid IsVisible="{Binding HasRelations}"
+                RowDefinitions="Auto,*"
+                Margin="12,10,12,12">
+            <!-- 依赖状态横幅：只在「有依赖缺失」时出现。
+                 全部满足时不再复读一遍计数——分类胶囊已经写了「依赖 4」，树里每行还带着状态，
+                 再叠一条横幅只会把可视高度从树里挤出去（用户反馈：这段太紧凑）。 -->
+            <Border Grid.Row="0"
+                    Classes="StatusBanner"
+                    Classes.Error="{Binding HasMissingDependencies}"
+                    IsVisible="{Binding HasMissingDependencies}"
+                    Margin="0,0,0,10">
+              <TextBlock Text="{Binding DependencySummaryText}" />
+            </Border>
 
-              <!-- 依赖树：文字 + 状态双通道（03 篇 §9 不靠颜色单一通道） -->
-              <TextBlock Text="{Binding DependenciesHeaderText}" FontWeight="SemiBold" />
-              <TextBlock Text="{Binding DependencySummaryText}"
-                         Opacity="0.7"
-                         FontSize="{DynamicResource CkanFontSizeCaption}" />
-              <ItemsControl ItemsSource="{Binding Dependencies}" IsVisible="{Binding HasDependencies}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:ModRelationItem">
-                    <Grid ColumnDefinitions="*,Auto" Margin="0,1">
-                      <TextBlock Grid.Column="0"
-                                 Text="{Binding DisplayText}"
-                                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                                 TextWrapping="Wrap" />
-                      <TextBlock Grid.Column="1"
-                                 Text="{Binding StatusText}"
-                                 FontSize="{DynamicResource CkanFontSizeCaption}"
-                                 Opacity="0.7" />
-                    </Grid>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-
-              <TextBlock Text="{Binding RecommendationsHeaderText}"
-                         FontWeight="SemiBold"
-                         IsVisible="{Binding HasRecommendations}"
-                         Margin="0,6,0,0" />
-              <ItemsControl ItemsSource="{Binding Recommendations}" IsVisible="{Binding HasRecommendations}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:ModRelationItem">
-                    <TextBlock Text="{Binding DisplayText}"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               TextWrapping="Wrap" />
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-
-              <TextBlock Text="{Binding ConflictsHeaderText}"
-                         FontWeight="SemiBold"
-                         IsVisible="{Binding HasConflicts}"
-                         Margin="0,6,0,0" />
-              <ItemsControl ItemsSource="{Binding Conflicts}" IsVisible="{Binding HasConflicts}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:ModRelationItem">
-                    <TextBlock Text="{Binding DisplayText}"
-                               FontSize="{DynamicResource CkanFontSizeCaption}"
-                               TextWrapping="Wrap" />
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </StackPanel>
-          </ScrollViewer>
+            <!-- 关系树（默认）与关系网（可选）的切换由 RelationTreeView 自身承担 -->
+            <ContentControl Grid.Row="1"
+                            Content="{Binding RelationTree}"
+                            HorizontalContentAlignment="Stretch"
+                            VerticalContentAlignment="Stretch">
+              <ContentControl.ContentTemplate>
+                <DataTemplate x:DataType="vmtree:RelationTreeViewModel">
+                  <relations:RelationTreeView />
+                </DataTemplate>
+              </ContentControl.ContentTemplate>
+            </ContentControl>
+          </Grid>
 
           <Border Classes="CkanEmptyStateCard"
                   IsVisible="{Binding !HasRelations}"

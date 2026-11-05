@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:tbl="using:CkanUI.Ui.Tables"
              x:Class="CkanUI.App.Views.ModPacksPageView"
              x:CompileBindings="False">
   <!-- 导入导出页（03 篇 §6 V-11 / 06 篇 UI-20 / UI-24，F-39..F-42 / F-45）：
@@ -162,18 +163,12 @@
                     BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
               <Grid ColumnDefinitions="*,Auto">
               <Grid Grid.Column="0" ColumnDefinitions="40,*,2*,88,2*,2*">
-                <TextBlock Grid.Column="0" Text="{DynamicResource Ui_Common_CheckCol}" FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="1" Text="{DynamicResource Ui_ModPacksPage_ModIdCol}" FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="2" Text="{DynamicResource Ui_ModPacksPage_SourceFileCol}" FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="3" Text="{DynamicResource Ui_Common_Status}" FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="4" Text="{DynamicResource Ui_Common_Version}" FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="5" Text="{DynamicResource Ui_Common_ReasonCol}" FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="0" Text="{DynamicResource Ui_Common_CheckCol}" Classes="CkanCaption" />
+                <TextBlock Grid.Column="1" Text="{DynamicResource Ui_ModPacksPage_ModIdCol}" Classes="CkanCaption" />
+                <TextBlock Grid.Column="2" Text="{DynamicResource Ui_ModPacksPage_SourceFileCol}" Classes="CkanCaption" />
+                <TextBlock Grid.Column="3" Text="{DynamicResource Ui_Common_Status}" Classes="CkanCaption" />
+                <TextBlock Grid.Column="4" Text="{DynamicResource Ui_Common_Version}" Classes="CkanCaption" />
+                <TextBlock Grid.Column="5" Text="{DynamicResource Ui_Common_ReasonCol}" Classes="CkanCaption" />
               </Grid>
               <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
                           VerticalAlignment="Center" Margin="8,0,0,0">
@@ -194,6 +189,8 @@
             </Border>
 
             <ListBox Grid.Row="1" ItemsSource="{Binding PreviewRows}"
+                     tbl:ListTableTools.Enabled="True"
+                     tbl:ListTableTools.Columns="-,Identifier,SourceName,StateText,StatusText,ReasonText"
                      SelectedItem="{Binding SelectedPreviewRow, Mode=TwoWay}"
                      BorderThickness="0" Background="Transparent"
                      IsVisible="{Binding HasPreviewRows}">
@@ -324,16 +321,15 @@
             <Border Grid.Row="0" Padding="8,4"
                     BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,0,0,1">
               <Grid ColumnDefinitions="*,96,2*">
-                <TextBlock Grid.Column="0" Text="{DynamicResource Ui_ModPacksPage_ModIdCol}" FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="1" Text="{DynamicResource Ui_Common_Difference}" FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="2" Text="{DynamicResource Ui_ModPacksPage_VersionLeftToRight}" FontSize="{DynamicResource CkanFontSizeCaption}"
-                           Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                <TextBlock Grid.Column="0" Text="{DynamicResource Ui_ModPacksPage_ModIdCol}" Classes="CkanCaption" />
+                <TextBlock Grid.Column="1" Text="{DynamicResource Ui_Common_Difference}" Classes="CkanCaption" />
+                <TextBlock Grid.Column="2" Text="{DynamicResource Ui_ModPacksPage_VersionLeftToRight}" Classes="CkanCaption" />
               </Grid>
             </Border>
 
             <ListBox Grid.Row="1" ItemsSource="{Binding DiffRows}"
+                     tbl:ListTableTools.Enabled="True"
+                     tbl:ListTableTools.Columns="Identifier,KindText,VersionsText"
                      BorderThickness="0" Background="Transparent"
                      IsVisible="{Binding HasDiffRows}">
               <ListBox.ItemsPanel>

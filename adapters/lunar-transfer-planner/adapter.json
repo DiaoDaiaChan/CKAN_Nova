@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "id": "lunar-transfer-planner",
+  "name": "Lunar Transfer Planner",
+  "homepage": "https://github.com/KSP-RO/LunarTransferPlanner",
+  "match": {
+    "ckanIdentifiers": [
+      "LunarTransferPlanner"
+    ],
+    "paths": [
+      "GameData/LunarTransferPlanner/Plugins/PluginData/LunarTransferPlanner/settings.cfg"
+    ],
+    "caseInsensitive": true
+  },
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/LunarTransferPlanner/Plugins/PluginData/LunarTransferPlanner/settings.cfg",
+      "layout": "flat",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "settings.cfg"
+    }
+  ],
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+  "fields": [
+    {
+      "file": "settings",
+      "key": "active",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "启用插件"
+    },
+    {
+      "file": "settings",
+      "key": "useToolbar",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "显示工具栏按钮"
+    },
+    {
+      "file": "settings",
+      "key": "useAppLauncher",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "显示应用启动器按钮"
+    },
+    {
+      "file": "settings",
+      "key": "flightTime",
+      "type": "float",
+      "default": "4",
+      "min": 0.1,
+      "max": 60,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "默认飞行时间（天）"
+    },
+    {
+      "file": "settings",
+      "key": "warpMargin",
+      "type": "float",
+      "default": "60",
+      "min": 0,
+      "max": 600,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "时间加速余量（秒）"
+    }
+  ]
+}

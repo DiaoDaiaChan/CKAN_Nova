@@ -41,6 +41,16 @@ public partial class SavesPageView : UserControl
     /// <summary>打开 SFS 工作台窗口：把选中存档交给语义编辑服务，窗口只负责展示。</summary>
     private void OnOpenWorkbench(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
+        OpenWorkbenchCore();
+    }
+
+    private void OnSaveListDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e)
+    {
+        OpenWorkbenchCore();
+    }
+
+    private void OpenWorkbenchCore()
+    {
         if (_viewModel?.SelectedRow is not { } row)
         {
             return;

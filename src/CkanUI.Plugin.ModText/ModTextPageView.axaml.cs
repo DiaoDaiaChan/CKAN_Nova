@@ -27,9 +27,22 @@ public partial class ModTextPageView : UserControl
         }
 
         var list = ModTextEntryList;
-        if (list.Bounds.Height <= 1 || list.ItemCount == 0 || list.ContainerFromIndex(0) is not null)
+        if (list.Bounds.Height <= 1 || list.ItemCount == 0)
         {
             return;
+        }
+
+        // 判「一片空白」要看有没有任何已实化容器，不能只看第 0 行：
+        // 虚拟化面板滚到中段时第 0 行本来就不实现，拿它当判据会把正常滚动误判成空白，
+        // 于是拖动滚动条期间在 Background 优先级反复强排面板 —— 越拖越掉行。
+        foreach (var container in list.GetRealizedContainers())
+        {
+            if (container.Bounds.Height > 0)
+            {
+                // 正常渲染：把配额还回去，下次真的空白时还能自愈。
+                _realizationHealAttempts = 0;
+                return;
+            }
         }
 
         _realizationHealAttempts++;

@@ -77,4 +77,57 @@ public sealed class ContractShapeTests
         // 宁可多一个聚合字段，也不把 10 个子字段摊平进行宽，struct 语义保持不变。
         Assert.That(typeof(ModRowData).GetProperties().Length, Is.LessThanOrEqualTo(15));
     }
+
+    [Test]
+    public void ChangeSetPreview_exposes_structured_conflict_entries_without_changing_shape()
+    {
+        // B0/B2：结构化冲突必须是 init 属性，位置参数保持 4 个（全仓构造点不改）。
+        var ctor = typeof(ChangeSetPreview).GetConstructors().Single();
+        Assert.That(ctor.GetParameters().Length, Is.EqualTo(4), "位置参数不能增加");
+
+        var property = typeof(ChangeSetPreview).GetProperty(nameof(ChangeSetPreview.ConflictEntries));
+        Assert.That(property, Is.Not.Null);
+        Assert.That(property!.PropertyType, Is.EqualTo(typeof(IReadOnlyList<ConflictEntry>)));
+        Assert.That(property.SetMethod, Is.Not.Null, "必须是 init 属性，而不是只读计算属性");
+        Assert.That(property.SetMethod!.ReturnParameter.GetRequiredCustomModifiers(),
+                    Does.Contain(typeof(System.Runtime.CompilerServices.IsExternalInit)),
+                    "init 访问器需要 IsExternalInit 修饰，确认外部无法在构造后改写");
+
+        var preview = new ChangeSetPreview(
+            Array.Empty<ChangeItemDto>(), Array.Empty<string>(), 0, Array.Empty<string>());
+        Assert.That(preview.ConflictEntries, Is.Empty, "默认空集合，旧调用点语义不变");
+        Assert.That(preview.HasConflicts, Is.False);
+
+        var withEntry = preview with
+        {
+            ConflictEntries = new[] { new ConflictEntry("alpha 1.0 与 beta 2.0 冲突", "alpha", "alpha 模组") },
+        };
+        Assert.That(withEntry.HasConflicts, Is.True, "只有结构化条目时 HasConflicts 也必须为真");
+    }
+
+    [Test]
+    public void InstallReport_warnings_are_not_failures()
+    {
+        // B1：只有失败项才让结果不完整；警告单独走 HasWarnings。
+        var warned = new InstallReport(
+            new[] { "alpha" }, Array.Empty<string>(), Array.Empty<string>(), new[] { "checksum mismatch" });
+        var failed = new InstallReport(
+            Array.Empty<string>(), Array.Empty<string>(), new[] { "beta" }, new[] { "checksum mismatch" });
+
+        Assert.That(warned.IsFullSuccess, Is.True);
+        Assert.That(warned.HasWarnings, Is.True);
+        Assert.That(failed.IsFullSuccess, Is.False);
+    }
+
+    [Test]
+    public void InstallHistoryRestoreResult_warnings_are_not_failures()
+    {
+        var plan = new InstallHistoryRestorePlan(
+            DateTimeOffset.UnixEpoch, Array.Empty<ChangeItemDto>(), Array.Empty<string>(), 0);
+        var warned = new InstallHistoryRestoreResult(
+            plan, new[] { "alpha" }, Array.Empty<string>(), Array.Empty<string>(), new[] { "slow mirror" });
+
+        Assert.That(warned.IsFullSuccess, Is.True);
+        Assert.That(warned.HasWarnings, Is.True);
+    }
 }

@@ -23,7 +23,7 @@ public sealed class AssetPageViewModelTests
     {
         var instances = new InstancesFakeService();
         var crafts = new FakeCraftLibrary();
-        var page = new ShipsPageViewModel(instances, crafts, new InstancesFakeErrorReporter(), new InstancesFakeDialogs());
+        var page = new ShipsPageViewModel(instances, crafts, new InstancesFakeSaveFiles(), new InstancesFakeErrorReporter(), new InstancesFakeDialogs());
 
         await page.RefreshCommand.ExecuteAsync(null);
 
@@ -66,7 +66,7 @@ public sealed class AssetPageViewModelTests
     {
         var crafts = new FakeCraftLibrary();
         var dialogs = new InstancesFakeDialogs();
-        var page = new ShipsPageViewModel(GameInstances(), crafts, new InstancesFakeErrorReporter(), dialogs);
+        var page = new ShipsPageViewModel(GameInstances(), crafts, new InstancesFakeSaveFiles(), new InstancesFakeErrorReporter(), dialogs);
         crafts.Assets.Add(Craft("Apollo", CraftKind.Vab));
         await page.RefreshCommand.ExecuteAsync(null);
 
@@ -125,6 +125,97 @@ public sealed class AssetPageViewModelTests
         Assert.That(page.RenameCommand.CanExecute(null), Is.False);
         Assert.That(page.DuplicateCommand.CanExecute(null), Is.False);
         Assert.That(page.OpenFolderCommand.CanExecute(null), Is.False);
+        Assert.That(page.CopyToLibraryCommand.CanExecute(null), Is.False);
+        Assert.That(page.MoveToLibraryCommand.CanExecute(null), Is.False);
+    }
+
+    [Test]
+    public async Task Ships_Libraries_ListRootAndEachSaveFolderOnce()
+    {
+        var saves = new InstancesFakeSaveFiles();
+        saves.Saves.Add(Save("M6_FlightUI / persistent"));
+        saves.Saves.Add(Save("M6_FlightUI / persistent (2026_10_31_16_06_27)", backup: true));
+        saves.Saves.Add(Save("默认 / persistent"));
+        var page = NewShipsPage(out _, saves);
+
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        Assert.That(
+            page.Libraries.Select(option => option.DisplayName),
+            Is.EqualTo(new[] { "根目录（所有存档共用）", "M6_FlightUI", "默认" }),
+            "一个存档文件夹只出现一次，根库永远排第一。");
+        Assert.That(page.Libraries[0].ShipsRoot, Is.EqualTo(System.IO.Path.Combine("D:/KSP", "Ships")));
+        Assert.That(
+            page.Libraries[1].ShipsRoot,
+            Is.EqualTo(System.IO.Path.Combine("D:/KSP/saves", "M6_FlightUI", "Ships")));
+        Assert.That(page.SelectedLibrary, Is.SameAs(page.Libraries[0]), "默认浏览根库。");
+    }
+
+    [Test]
+    public async Task Ships_SwitchingLibrary_ScansThatSaveFolder()
+    {
+        var saves = new InstancesFakeSaveFiles();
+        saves.Saves.Add(Save("M6_FlightUI / persistent"));
+        var page = NewShipsPage(out var crafts, saves);
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        page.SelectedLibrary = page.Libraries[1];
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        var saveRoot = System.IO.Path.Combine("D:/KSP/saves", "M6_FlightUI", "Ships");
+        Assert.That(page.SelectedLibrary!.ShipsRoot, Is.EqualTo(saveRoot));
+        Assert.That(crafts.LibraryScans, Has.Some.EqualTo(saveRoot), "切库后要扫那个存档的 Ships 目录。");
+    }
+
+    [Test]
+    public async Task Ships_CopyToLibrary_CopiesCraftToChosenSaveFolder()
+    {
+        var saves = new InstancesFakeSaveFiles();
+        saves.Saves.Add(Save("M6_FlightUI / persistent"));
+        var dialogs = new InstancesFakeDialogs();
+        var page = NewShipsPage(out var crafts, saves, dialogs);
+        crafts.Assets.Add(Craft("Apollo", CraftKind.Vab));
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        await page.CopyToLibraryCommand.ExecuteAsync(null);
+
+        var saveRoot = System.IO.Path.Combine("D:/KSP/saves", "M6_FlightUI", "Ships");
+        Assert.That(dialogs.SelectOptions[^1], Is.EqualTo(new[] { "M6_FlightUI" }), "目标列表里不该出现当前库。");
+        Assert.That(crafts.Transfers, Has.Count.EqualTo(1));
+        Assert.That(crafts.Transfers[0].TargetShipsRoot, Is.EqualTo(saveRoot));
+        Assert.That(crafts.Transfers[0].Move, Is.False);
+        Assert.That(page.StatusText, Is.EqualTo("已复制「Apollo」到「M6_FlightUI」"));
+    }
+
+    [Test]
+    public async Task Ships_MoveToLibrary_MovesCraftToChosenSaveFolder()
+    {
+        var saves = new InstancesFakeSaveFiles();
+        saves.Saves.Add(Save("M6_FlightUI / persistent"));
+        var page = NewShipsPage(out var crafts, saves);
+        crafts.Assets.Add(Craft("Apollo", CraftKind.Vab));
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        await page.MoveToLibraryCommand.ExecuteAsync(null);
+
+        Assert.That(crafts.Transfers, Has.Count.EqualTo(1));
+        Assert.That(crafts.Transfers[0].Move, Is.True);
+        Assert.That(page.StatusText, Is.EqualTo("已移动「Apollo」到「M6_FlightUI」"));
+    }
+
+    [Test]
+    public async Task Ships_CopyToLibrary_WithoutAnotherLibrary_ExplainsInsteadOfPrompting()
+    {
+        var dialogs = new InstancesFakeDialogs();
+        var page = NewShipsPage(out var crafts, dialogs: dialogs);
+        crafts.Assets.Add(Craft("Apollo", CraftKind.Vab));
+        await page.RefreshCommand.ExecuteAsync(null);
+
+        await page.CopyToLibraryCommand.ExecuteAsync(null);
+
+        Assert.That(page.ErrorText, Is.EqualTo("没有别的载具库可以放。"));
+        Assert.That(dialogs.SelectCalls, Is.Zero, "没有可选项时不该弹一个空选择框。");
+        Assert.That(crafts.Transfers, Is.Empty);
     }
 
     [Test]
@@ -321,11 +412,35 @@ public sealed class AssetPageViewModelTests
         Assert.That(page.Crafts.Count, Is.EqualTo(2), "磁盘变了必须重建，新载具要出现在列表里。");
     }
 
-    private static ShipsPageViewModel NewShipsPage(out FakeCraftLibrary crafts)
+    private static ShipsPageViewModel NewShipsPage(
+        out FakeCraftLibrary crafts,
+        InstancesFakeSaveFiles? saves = null,
+        InstancesFakeDialogs? dialogs = null)
     {
         crafts = new FakeCraftLibrary();
-        return new ShipsPageViewModel(GameInstances(), crafts, new InstancesFakeErrorReporter(), new InstancesFakeDialogs());
+        return new ShipsPageViewModel(
+            GameInstances(),
+            crafts,
+            saves ?? new InstancesFakeSaveFiles(),
+            new InstancesFakeErrorReporter(),
+            dialogs ?? new InstancesFakeDialogs());
     }
+
+    private static SaveGameInfo Save(string slotName, bool backup = false) =>
+        new(slotName,
+            "D:/KSP/saves/" + slotName.Split(" / ")[0] + (backup ? "/persistent.sfs.bak" : "/persistent.sfs"),
+            1024,
+            new DateTimeOffset(2024, 5, 1, 12, 0, 0, TimeSpan.Zero),
+            "测试存档",
+            "CAREER",
+            "1.12.5",
+            "FLIGHT",
+            "1234.5",
+            12,
+            "1000000",
+            0,
+            backup,
+            true);
 
     [Test]
     public async Task Flags_RefreshTwice_KeepsCardsWhenNothingChanged()
@@ -471,20 +586,66 @@ internal sealed class FakeCraftLibrary : ICraftLibraryService
         _ => "Ships/Subassemblies",
     };
 
-    public Task<OperationResult<IReadOnlyList<CraftAsset>>> ScanAsync(string gameDir, CancellationToken cancellationToken = default)
+    /// <summary>每次整库扫描收到的载具库根目录（&lt;游戏&gt;/Ships 或 &lt;游戏&gt;/saves/&lt;存档&gt;/Ships）。</summary>
+    public List<string> LibraryScans { get; } = new();
+
+    /// <summary>每次按库导入收到的参数。</summary>
+    public List<(string SourceFile, string ShipsRoot, CraftKind Kind)> LibraryImports { get; } = new();
+
+    /// <summary>每次跨库搬运收到的参数。</summary>
+    public List<(string TargetShipsRoot, CraftKind TargetKind, bool Move)> Transfers { get; } = new();
+
+    public Task<OperationResult<IReadOnlyList<CraftAsset>>> ScanAsync(string gameDir, CancellationToken cancellationToken = default) =>
+        ScanLibraryAsync(System.IO.Path.Combine(gameDir, "Ships"), cancellationToken);
+
+    public Task<OperationResult<IReadOnlyList<CraftAsset>>> ScanLibraryAsync(string shipsRoot, CancellationToken cancellationToken = default)
     {
         ScanCalls++;
+        LibraryScans.Add(shipsRoot);
         return Task.FromResult(ScanFailure ?? OperationResult<IReadOnlyList<CraftAsset>>.Ok(Assets.ToList()));
     }
 
-    public Task<OperationResult<CraftAsset>> ImportAsync(string gameDir, string sourceFile, CraftKind kind, CancellationToken cancellationToken = default)
+    public Task<OperationResult<CraftAsset>> ImportAsync(string gameDir, string sourceFile, CraftKind kind, CancellationToken cancellationToken = default) =>
+        ImportToLibraryAsync(System.IO.Path.Combine(gameDir, "Ships"), sourceFile, kind, cancellationToken);
+
+    public Task<OperationResult<CraftAsset>> ImportToLibraryAsync(string shipsRoot, string sourceFile, CraftKind kind, CancellationToken cancellationToken = default)
     {
         ImportedSources.Add(sourceFile);
+        LibraryImports.Add((sourceFile, shipsRoot, kind));
         var name = System.IO.Path.GetFileNameWithoutExtension(sourceFile);
-        var asset = new CraftAsset(name, gameDir + "/" + GetKindRelativePath(kind) + "/" + name + ".craft", kind, null, null, null, null, 0, DateTimeOffset.UnixEpoch);
+        var asset = new CraftAsset(name, shipsRoot + "/" + KindFolder(kind) + "/" + name + ".craft", kind, null, null, null, null, 0, DateTimeOffset.UnixEpoch);
         Assets.Add(asset);
         return Task.FromResult(OperationResult<CraftAsset>.Ok(asset));
     }
+
+    public Task<OperationResult<CraftAsset>> TransferAsync(
+        CraftAsset craft,
+        string targetShipsRoot,
+        CraftKind targetKind,
+        bool move,
+        CancellationToken cancellationToken = default)
+    {
+        Transfers.Add((targetShipsRoot, targetKind, move));
+        var moved = craft with
+        {
+            Kind = targetKind,
+            FilePath = targetShipsRoot + "/" + KindFolder(targetKind) + "/" + craft.Name + ".craft",
+        };
+        if (move)
+        {
+            Assets.RemoveAll(item => item.FilePath == craft.FilePath);
+        }
+
+        Assets.Add(moved);
+        return Task.FromResult(OperationResult<CraftAsset>.Ok(moved));
+    }
+
+    private static string KindFolder(CraftKind kind) => kind switch
+    {
+        CraftKind.Vab => "VAB",
+        CraftKind.Sph => "SPH",
+        _ => "Subassemblies",
+    };
 
     public Task<OperationResult<CraftAsset>> DuplicateAsync(string gameDir, CraftAsset craft, string newName, CancellationToken cancellationToken = default)
     {

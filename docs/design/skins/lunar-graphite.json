@@ -1,0 +1,32 @@
+{
+  "key": "lunar-graphite",
+  "displayName": "月白石墨",
+  "accent": "#C9B48A",
+  "tokens": {
+    "CkanCanvasBackgroundBrush": "#0D0E10",
+    "CkanSurfaceBackgroundBrush": "#E6121418",
+    "CkanSidebarBackgroundBrush": "#C014161A",
+    "CkanStatusBarBackgroundBrush": "#D915171C",
+    "CkanCardBackgroundBrush": "#D8171A1F",
+    "CkanElevatedCardHoverBrush": "#262A31",
+    "CkanRecessedInputBrush": "#0A0B0D",
+    "CkanDialogBackgroundBrush": "#1E2228",
+    "CkanSubtleBackgroundBrush": "#C816191D",
+    "CkanMutedBackgroundBrush": "#23272D",
+    "CkanTextPrimaryBrush": "#ECE8DF",
+    "CkanTextSecondaryBrush": "#B9B4A8",
+    "CkanTextTertiaryBrush": "#857F74",
+    "CkanBorderBrush": "#383C43",
+    "CkanLayerElevatedBrush": "#262A31",
+    "CkanSkeletonBrush": "#2C3037",
+    "CkanAccentBrush": "#C9B48A",
+    "CkanPrimaryBrush": "#C9B48A",
+    "CkanAccentTextBrush": "#14120E"
+  },
+  "contrast": {
+    "textOnCanvas": 15.79,
+    "secondaryOnCanvas": 9.34,
+    "accentOnCanvas": 9.54,
+    "accentTextOnAccent": 9.25
+  }
+}

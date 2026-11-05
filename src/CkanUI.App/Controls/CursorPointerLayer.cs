@@ -8,8 +8,8 @@ using CkanUI.App.Theming;
 namespace CkanUI.App.Controls;
 
 /// <summary>
-/// 光标指针效果的交互渲染层：在全窗顶层（ZIndex 16）渲染一个跟随光标的高精度指针效果。
-/// 划过可交互元素时具有平滑倾斜效果，点击时缩小，松开时放大回弹。
+/// 光标指针效果的交互渲染层：在全窗顶层（ZIndex 16）渲染一个跟随光标的高精度指针效果与拖拽星光轨迹。
+/// 划过可交互元素时具有平滑倾斜效果，点击时缩小，松开时放大回弹。拖拽窗口时留下星光粒子轨迹。
 /// 自身 IsHitTestVisible 恒为 false，绝不拦截任何鼠标或键盘输入。
 /// </summary>
 public sealed class CursorPointerLayer : Control
@@ -20,6 +20,7 @@ public sealed class CursorPointerLayer : Control
     private static readonly Color DefaultAccent = Color.Parse("#72A7FF");
     private static readonly Color DarkContourColor = Color.Parse("#0D1117");
     private static readonly Color WhiteAccentColor = Color.Parse("#FFFFFF");
+    private static readonly Color WarmStarTint = Color.Parse("#FFD7A8");
 
     /// <summary>
     /// 高精度流线型光标矢量几何（尖端精准锚定在 0, 0）。
@@ -28,13 +29,23 @@ public sealed class CursorPointerLayer : Control
         StreamGeometry.Parse("M 0 0 L 0 16.5 L 4.2 12.8 L 7.8 19.8 L 10.6 18.4 L 7.0 11.6 L 12.4 11.6 Z");
 
     private readonly CursorPointerModel _model = new();
+    private readonly WindowDragStarlightModel _dragStarlight = new();
     private readonly DispatcherTimer _timer;
+
+    // 窗口拖动期间光标相对窗口客户区的锚点。原生拖动时局部坐标基本不变，
+    // 不能拿 LastPosition 累加屏幕像素，否则星光会一路跑到光标前面。
+    private double _windowDragAnchorX;
+    private double _windowDragAnchorY;
 
     private readonly SolidColorBrush?[] _bodyFillBrushes = new SolidColorBrush?[AlphaSteps + 1];
     private readonly SolidColorBrush?[] _haloBrushes = new SolidColorBrush?[AlphaSteps + 1];
     private readonly SolidColorBrush?[] _pipBrushes = new SolidColorBrush?[AlphaSteps + 1];
     private readonly Pen?[] _outerPens = new Pen?[AlphaSteps + 1];
     private readonly Pen?[] _innerPens = new Pen?[AlphaSteps + 1];
+
+    private readonly SolidColorBrush?[] _coolStarBrushes = new SolidColorBrush?[AlphaSteps + 1];
+    private readonly SolidColorBrush?[] _warmStarBrushes = new SolidColorBrush?[AlphaSteps + 1];
+    private readonly Pen?[] _sparkleCrossPens = new Pen?[AlphaSteps + 1];
 
     private Color _accent;
     private bool _paletteReady;
@@ -71,16 +82,81 @@ public sealed class CursorPointerLayer : Control
     public double CurrentOpacity => _model.Opacity;
 
     /// <summary>是否处于活跃绘制状态。</summary>
-    public bool IsActive => _model.IsVisible && _model.Opacity > 0.005d;
+    public bool IsActive => (_model.IsVisible && _model.Opacity > 0.005d) || !_dragStarlight.IsIdle;
+
+    /// <summary>拖拽星光模型实例（方便单元测试与诊断）。</summary>
+    public WindowDragStarlightModel DragStarlight => _dragStarlight;
 
     /// <summary>是否完全静止（用于诊断与测试）。</summary>
-    public bool IsIdle => _model.IsIdle;
+    public bool IsIdle => _model.IsIdle && _dragStarlight.IsIdle;
+
+    /// <summary>
+    /// 开始窗口拖拽轨迹撒星。
+    /// </summary>
+    public void StartWindowDrag(Point position)
+    {
+        if (!IsMotionEnabled) return;
+        _windowDragAnchorX = position.X;
+        _windowDragAnchorY = position.Y;
+        _dragStarlight.StartDrag(position.X, position.Y);
+        UpdateTimerState();
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// 推进窗口拖拽轨迹撒星。
+    /// </summary>
+    public void UpdateWindowDrag(Point position)
+    {
+        if (!IsMotionEnabled) return;
+        _windowDragAnchorX = position.X;
+        _windowDragAnchorY = position.Y;
+        _dragStarlight.UpdateDrag(position.X, position.Y);
+        UpdateTimerState();
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// 结束窗口拖拽轨迹撒星。
+    /// </summary>
+    public void EndWindowDrag()
+    {
+        _dragStarlight.EndDrag();
+        UpdateTimerState();
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// 窗口在屏幕上位移时推进拖拽星光撒点（基于原生窗口拖动像素位移）。
+    /// </summary>
+    public void OnWindowMoved(double deltaScreenX, double deltaScreenY)
+    {
+        if (!IsMotionEnabled || !_dragStarlight.IsDragging)
+        {
+            return;
+        }
+
+        // PositionChanged 给的是物理屏幕像素，粒子模型用的是 DIP。
+        double scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
+        if (!double.IsFinite(scaling) || scaling <= 0.0)
+        {
+            scaling = 1.0;
+        }
+
+        double dx = deltaScreenX / scaling;
+        double dy = deltaScreenY / scaling;
+
+        // 窗口整体平移时，已经生成的粒子要朝相反方向补偿，才能在屏幕上钉住不动；
+        // 随后从真实光标锚点补发新粒子，轨迹才会落在光标后面而不是前面。
+        _dragStarlight.Shift(-dx, -dy);
+        _dragStarlight.UpdateDrag(_windowDragAnchorX, _windowDragAnchorY);
+        UpdateTimerState();
+        InvalidateVisual();
+    }
 
     /// <summary>
     /// 跟随光标移动与悬停状态。
     /// </summary>
-    /// <param name="position">光标在当前层坐标系下的位置。</param>
-    /// <param name="isOverInteractive">是否悬停在可响应元素（Button, Card, ListBoxItem 等）上。</param>
     public void Track(Point position, bool isOverInteractive)
     {
         if (!IsMotionEnabled)
@@ -90,6 +166,13 @@ public sealed class CursorPointerLayer : Control
         }
 
         _model.Track(position.X, position.Y, isOverInteractive);
+        if (_dragStarlight.IsDragging)
+        {
+            _windowDragAnchorX = position.X;
+            _windowDragAnchorY = position.Y;
+            _dragStarlight.UpdateDrag(position.X, position.Y);
+        }
+
         UpdateTimerState();
         InvalidateVisual();
     }
@@ -97,7 +180,6 @@ public sealed class CursorPointerLayer : Control
     /// <summary>
     /// 按下指针：触发缩小手感。
     /// </summary>
-    /// <param name="position">按下坐标。</param>
     public void Press(Point position)
     {
         if (!IsMotionEnabled)
@@ -113,7 +195,6 @@ public sealed class CursorPointerLayer : Control
     /// <summary>
     /// 松开指针：触发放大冲顶与回弹手感。
     /// </summary>
-    /// <param name="position">松开坐标。</param>
     public void Release(Point position)
     {
         if (!IsMotionEnabled)
@@ -122,6 +203,11 @@ public sealed class CursorPointerLayer : Control
         }
 
         _model.Release(position.X, position.Y);
+        if (_dragStarlight.IsDragging)
+        {
+            _dragStarlight.EndDrag();
+        }
+
         UpdateTimerState();
         InvalidateVisual();
     }
@@ -142,6 +228,7 @@ public sealed class CursorPointerLayer : Control
     public void Clear()
     {
         _model.Clear();
+        _dragStarlight.Clear();
         _timer.Stop();
         InvalidateVisual();
     }
@@ -158,11 +245,55 @@ public sealed class CursorPointerLayer : Control
 
         EnsurePalette(ResolveAccent());
 
-        int alphaIndex = AlphaIndex(_model.Opacity);
-        if (alphaIndex <= 0)
+        // 1. 先绘制拖拽星光粒子（处于底层）
+        RenderDragStarlight(context);
+
+        // 2. 绘制光标本体
+        RenderCursorPointer(context);
+    }
+
+    private void RenderDragStarlight(DrawingContext context)
+    {
+        if (_dragStarlight.ActiveCount == 0) return;
+
+        foreach (var p in _dragStarlight.Particles)
         {
-            return;
+            if (!p.IsAlive) continue;
+
+            double lifeFraction = p.Age / p.MaxLife;
+            // 粒子渐隐曲线：前期微亮，中后期平滑淡出
+            double alpha = Math.Clamp(1.0 - lifeFraction * lifeFraction, 0.0, 1.0);
+            double twinkle = 0.8 + 0.2 * Math.Sin(p.TwinklePhase + p.Age * p.TwinkleSpeed);
+            alpha *= twinkle;
+
+            int alphaIdx = AlphaIndex(alpha);
+            if (alphaIdx <= 0) continue;
+
+            var brush = p.Warmth > 0.5 ? _warmStarBrushes[alphaIdx] : _coolStarBrushes[alphaIdx];
+            if (brush is null) continue;
+
+            double radius = p.Radius * (0.8 + 0.2 * (1.0 - lifeFraction));
+            context.DrawEllipse(brush, null, new Point(p.X, p.Y), radius, radius);
+
+            if (p.IsSparkleCross && alpha > 0.35)
+            {
+                var pen = _sparkleCrossPens[alphaIdx];
+                if (pen is not null)
+                {
+                    double arm = radius * 2.2;
+                    context.DrawLine(pen, new Point(p.X - arm, p.Y), new Point(p.X + arm, p.Y));
+                    context.DrawLine(pen, new Point(p.X, p.Y - arm), new Point(p.X, p.Y + arm));
+                }
+            }
         }
+    }
+
+    private void RenderCursorPointer(DrawingContext context)
+    {
+        if (!_model.IsVisible || _model.Opacity <= 0.005d) return;
+
+        int alphaIndex = AlphaIndex(_model.Opacity);
+        if (alphaIndex <= 0) return;
 
         // 以尖端 (0, 0) 为中心进行旋转与缩放，再平移到鼠标位置 (X, Y)
         var matrix = Matrix.CreateScale(_model.Scale, _model.Scale)
@@ -218,7 +349,7 @@ public sealed class CursorPointerLayer : Control
 
     private void UpdateTimerState()
     {
-        if (VisualRoot is not null && !_model.IsIdle)
+        if (VisualRoot is not null && (! _model.IsIdle || !_dragStarlight.IsIdle))
         {
             _timer.Start();
         }
@@ -230,10 +361,12 @@ public sealed class CursorPointerLayer : Control
 
     private void OnTick(object? sender, EventArgs e)
     {
-        _model.Advance(TickIntervalMs / 1000d);
+        double dt = TickIntervalMs / 1000d;
+        _model.Advance(dt);
+        _dragStarlight.Advance(dt);
         InvalidateVisual();
 
-        if (_model.IsIdle)
+        if (IsIdle)
         {
             _timer.Stop();
         }
@@ -301,12 +434,28 @@ public sealed class CursorPointerLayer : Control
             var pipColor = Color.FromArgb(pipA, WhiteAccentColor.R, WhiteAccentColor.G, WhiteAccentColor.B);
             if (_pipBrushes[i] is { } pip)
             {
+                pipColor = Color.FromArgb(pipA, WhiteAccentColor.R, WhiteAccentColor.G, WhiteAccentColor.B);
                 pip.Color = pipColor;
             }
             else
             {
                 _pipBrushes[i] = new SolidColorBrush(pipColor);
             }
+
+            // 6. 星光冷白/偏蓝粒子画刷
+            byte coolA = (byte)Math.Clamp(Math.Round(stepAlpha * 210d), 0, 255);
+            var coolColor = Color.FromArgb(coolA, (byte)((accent.R + 255) / 2), (byte)((accent.G + 255) / 2), 255);
+            _coolStarBrushes[i] = new SolidColorBrush(coolColor);
+
+            // 7. 星光暖星粒子画刷
+            byte warmA = (byte)Math.Clamp(Math.Round(stepAlpha * 210d), 0, 255);
+            var warmColor = Color.FromArgb(warmA, WarmStarTint.R, WarmStarTint.G, WarmStarTint.B);
+            _warmStarBrushes[i] = new SolidColorBrush(warmColor);
+
+            // 8. 芒星十字线画笔
+            byte crossA = (byte)Math.Clamp(Math.Round(stepAlpha * 180d), 0, 255);
+            var crossColor = Color.FromArgb(crossA, 255, 255, 255);
+            _sparkleCrossPens[i] = new Pen(new SolidColorBrush(crossColor), 0.8d, lineCap: PenLineCap.Round);
         }
 
         _paletteReady = true;

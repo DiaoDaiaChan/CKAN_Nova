@@ -1,0 +1,57 @@
+// Dynamic Battery Storage 的配置适配器。
+// 取证：<游戏目录>/GameData/DynamicBatteryStorage/DynamicBatteryStorageSettings.cfg
+// 根节点 DYNAMICBATTERYSTORAGE 下有 9 个直属键（全部收录），其后是 HANDLERCATEGORY /
+// HANDLER 子节点——那些是数据声明不是用户选项；且 HANDLERCATEGORY 在文件里出现 14 次，
+// nodePath 的名链无法唯一定位（FindPair 只返回第一个匹配），故不收录。
+{
+  "schemaVersion": 1,
+  "id": "dynamic-battery-storage",
+  "name": "Dynamic Battery Storage",
+  "homepage": "https://github.com/post-kerbin-mining-corporation/DynamicBatteryStorage",
+
+  "match": {
+    "ckanIdentifiers": ["DynamicBatteryStorage"],
+    "paths": ["GameData/DynamicBatteryStorage/DynamicBatteryStorageSettings.cfg"],
+    "caseInsensitive": true
+  },
+
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/DynamicBatteryStorage/DynamicBatteryStorageSettings.cfg",
+      "layout": "node",
+      "rootNode": "DYNAMICBATTERYSTORAGE",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "DynamicBatteryStorageSettings.cfg"
+    }
+  ],
+
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+
+  "fields": [
+    { "file": "settings", "key": "DebugVesselData", "type": "bool", "default": false,
+      "risk": "low", "requiresRestart": true, "label": "调试：输出飞行器级电力数据" },
+    { "file": "settings", "key": "DebugModules", "type": "bool", "default": false,
+      "risk": "low", "requiresRestart": true, "label": "调试：输出模块级信息" },
+    { "file": "settings", "key": "DebugHandlers", "type": "bool", "default": false,
+      "risk": "low", "requiresRestart": true, "label": "调试：输出处理器信息" },
+    { "file": "settings", "key": "DebugDynamicStorage", "type": "bool", "default": false,
+      "risk": "low", "requiresRestart": true, "label": "调试：输出动态储能信息" },
+    { "file": "settings", "key": "DebugSettings", "type": "bool", "default": false,
+      "risk": "low", "requiresRestart": true, "label": "调试：输出设置加载过程" },
+    { "file": "settings", "key": "DebugLoading", "type": "bool", "default": false,
+      "risk": "low", "requiresRestart": true, "label": "调试：输出配置加载过程" },
+    { "file": "settings", "key": "DebugUI", "type": "bool", "default": false,
+      "risk": "low", "requiresRestart": true, "label": "调试：输出界面相关日志" },
+    { "file": "settings", "key": "MinimumWarpFactor", "type": "float", "min": 1, "max": 100000,
+      "default": 100, "risk": "medium", "requiresRestart": true,
+      "label": "最低时间加速倍率（低于此值不模拟电力）" },
+    { "file": "settings", "key": "BufferScaling", "type": "float", "min": 1.25, "max": 100,
+      "default": 1.75, "risk": "medium", "requiresRestart": true,
+      "label": "缓冲缩放系数（作者注明 1.0 是绝对下限，别低于 1.25）" }
+  ]
+}

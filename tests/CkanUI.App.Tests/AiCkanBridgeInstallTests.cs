@@ -360,6 +360,14 @@ public class AiCkanBridgeInstallTests
             return "task-" + Enqueued.Count;
         }
 
+        /// <inheritdoc />
+        public string Enqueue(string kind, string title, Func<CancellationToken, Task<OperationOutcome>> work)
+        {
+            Enqueued.Add((kind, title));
+            work(CancellationToken.None).GetAwaiter().GetResult();
+            return "task-" + Enqueued.Count;
+        }
+
         public void Cancel(string taskId)
         {
         }

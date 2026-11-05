@@ -58,7 +58,7 @@ public sealed class KosPluginIntegrationTests
             {
                 Assert.That(pageDescriptor.Title, Is.EqualTo("kOS 脚本"));
                 Assert.That(pageDescriptor.Glyph, Is.EqualTo("Code"));
-                Assert.That(pageDescriptor.Section, Is.EqualTo("plugins"), "脚本页签挂在工具分节下，不进侧栏一级入口");
+                Assert.That(pageDescriptor.Section, Is.Null, "独立侧栏入口：脚本页签独立成Tab");
                 Assert.That(pageDescriptor.Order, Is.EqualTo(30));
                 Assert.That(pageDescriptor.ViewModelTypeName, Is.EqualTo("CkanUI.Plugin.Kos.UI.KosScriptPageViewModel"));
             });

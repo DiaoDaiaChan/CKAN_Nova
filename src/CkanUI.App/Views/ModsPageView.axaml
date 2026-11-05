@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="using:CkanUI.Ui.Theming"
+             xmlns:controls="using:CkanUI.App.Controls"
              xmlns:modsViews="using:CkanUI.App.Views.Mods"
              xmlns:dialogs="using:CkanUI.App.Views.Dialogs"
              xmlns:ui="using:FluentAvalonia.UI.Controls"
@@ -179,6 +180,22 @@
               </StackPanel>
             </ToggleButton>
 
+            <!-- 联动模组：只留能与内置 GUI 插件配合的模组（清单见 ModsCompanionCatalog），带生效指示点 -->
+            <ToggleButton Classes="CkanSecondary"
+                          IsChecked="{Binding CompanionOnly, Mode=TwoWay}"
+                          VerticalAlignment="Center" Padding="8,4"
+                          ToolTip.Tip="{DynamicResource Ui_ModsPage_CompanionFilter_Tip}"
+                          AutomationProperties.Name="{DynamicResource Ui_ModsPage_CompanionFilter}">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <PathIcon Width="11" Height="11"
+                          Data="M17 7h-4V3H5v18h14V7zM9 5h2v4h6v12H7V5zM11 17h2v-4h2v-2h-2v-2h-2z" />
+                <TextBlock Text="{DynamicResource Ui_ModsPage_CompanionFilter}" VerticalAlignment="Center" />
+                <Ellipse Width="6" Height="6" Fill="{DynamicResource CkanAccentBrush}"
+                         IsVisible="{Binding CompanionOnly}"
+                         VerticalAlignment="Center" Margin="2,0,0,0" />
+              </StackPanel>
+            </ToggleButton>
+
             <!-- 组合搜索面板开关（F-20/F-21） -->
             <ToggleButton Classes="CkanPill"
                           Content="{Binding SearchPanel.SummaryText}"
@@ -307,7 +324,7 @@
 
     <!-- 主体区域：左侧表格 Card + 右侧详情 Card；详情卡折叠时表格自动吃满 100% 宽度 -->
     <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" Margin="0,8,0,0"
-          IsVisible="{Binding !ShowEmptyState}">
+          IsVisible="{Binding ShowModsTable}">
 
       <!-- 左侧模组列表 Card -->
       <Border Grid.Column="0" Classes="CkanCard stagger-card" Padding="0" ClipToBounds="True">
@@ -318,9 +335,7 @@
                     SelectionChanged="OnRowSelectionChanged"
                     AutoGenerateColumns="False"
                     IsReadOnly="True"
-                    CanUserReorderColumns="False"
-                    CanUserSortColumns="False"
-                    CanUserResizeColumns="True"
+                    controls:TableTools.Enabled="True"
                     HeadersVisibility="Column"
                     GridLinesVisibility="None"
                     RowHeight="{DynamicResource CkanRowHeight}"
@@ -339,7 +354,8 @@
             </DataGrid.ContextMenu>
             <DataGrid.Columns>
               <!-- 行首：已装状态指示条 + 变更集复选框 -->
-              <DataGridTemplateColumn Header="{DynamicResource Ui_Common_CheckCol}" Width="38" CanUserResize="False">
+              <DataGridTemplateColumn Header="{DynamicResource Ui_Common_CheckCol}" Width="38" CanUserResize="False"
+                                      controls:TableTools.Filterable="False">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
                     <Grid>
@@ -355,11 +371,12 @@
               </DataGridTemplateColumn>
 
               <!-- 名称 + 语义徽章 -->
-              <DataGridTemplateColumn Header="{DynamicResource Ui_Common_Name}" Width="280">
+              <DataGridTemplateColumn Header="{DynamicResource Ui_Common_Name}" Width="280"
+                                      controls:TableTools.SortPath="Name">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
                     <!-- 名称要能省略号截断：横向 StackPanel 以无限宽测量子元素，TextTrimming 会失效。 -->
-                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" VerticalAlignment="Center" Margin="6,0">
+                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" VerticalAlignment="Center" Margin="6,0">
                       <TextBlock Grid.Column="0" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
                                  ToolTip.Tip="{Binding Name}"
                                  VerticalAlignment="Center" FontWeight="Medium" Margin="0,0,6,0" />
@@ -372,8 +389,12 @@
                       <Border Grid.Column="3" Classes="CkanBadge Info" IsVisible="{Binding ShowDependencyBadge}" Margin="0,0,4,0">
                         <TextBlock Text="{DynamicResource Ui_ModsPage_TagDependency}" />
                       </Border>
-                      <Border Grid.Column="4" Classes="CkanBadge Warning" IsVisible="{Binding ShowIncompatibleBadge}">
+                      <Border Grid.Column="4" Classes="CkanBadge Warning" IsVisible="{Binding ShowIncompatibleBadge}" Margin="0,0,4,0">
                         <TextBlock Text="{DynamicResource Ui_ModsPage_TagIncompatible}" />
+                      </Border>
+                      <Border Grid.Column="5" Classes="CkanBadge Info" IsVisible="{Binding ShowCompanionBadge}"
+                              ToolTip.Tip="{Binding CompanionTip}">
+                        <TextBlock Text="{DynamicResource Ui_ModsPage_TagCompanion}" />
                       </Border>
                     </Grid>
                   </DataTemplate>
@@ -381,19 +402,23 @@
               </DataGridTemplateColumn>
 
               <DataGridTextColumn Header="{DynamicResource Ui_ManageMods_FilterInstalled}" Width="90"
-                                  Binding="{Binding InstalledVersionText}" />
+                                  Binding="{Binding InstalledVersionText}"
+                                  controls:TableTools.SortPath="Data.InstalledVersion" />
               <DataGridTextColumn Header="{DynamicResource Ui_ModsPage_TagLatest}" Width="90"
-                                  Binding="{Binding LatestVersionText}" />
+                                  Binding="{Binding LatestVersionText}"
+                                  controls:TableTools.SortPath="Data.LatestVersion" />
               <DataGridTextColumn Header="{DynamicResource Ui_ModPackEditor_LabelAuthor}" Width="140"
                                   Binding="{Binding AuthorText}" />
               <DataGridTextColumn Header="{DynamicResource Ui_DownloadStatsPage_Downloads}" Width="80"
-                                  Binding="{Binding DownloadText}" />
+                                  Binding="{Binding DownloadText}"
+                                  controls:TableTools.SortPath="Data.DownloadCount" />
               <DataGridTextColumn Header="分类" Width="140"
                                   Binding="{Binding CategoryBadgeText}" />
               <DataGridTextColumn Header="{DynamicResource Ui_DownloadStats_DimensionTags}" Width="180"
                                   Binding="{Binding TagsText}" />
               <DataGridTextColumn Header="{DynamicResource Ui_Common_Size}" Width="70"
-                                  Binding="{Binding SizeText}" />
+                                  Binding="{Binding SizeText}"
+                                  controls:TableTools.SortPath="Data.SizeBytes" />
             </DataGrid.Columns>
           </DataGrid>
 
@@ -466,7 +491,7 @@
     <!-- 空状态：页面层独立卡，跨满整行，避免右列 400px 在空态下留出死区。
          无实例时走"欢迎面板"三段式（图标+标题+入口卡片），把整片黑洞填成可选动作。 -->
     <Border Grid.Row="2" Classes="CkanEmptyStateCard Elevated stagger-card" Margin="0,12,0,0"
-            IsVisible="{Binding ShowEmptyState}">
+            IsVisible="{Binding ShowEmptyStateCard}">
       <Panel>
         <Border Classes="CkanEmptyStateGlow" />
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="14" MaxWidth="760" Margin="24,20">
@@ -563,6 +588,86 @@
         </Grid>
         </StackPanel>
       </Panel>
+    </Border>
+
+
+    <!-- 联动模组面板：与主表格解耦的独立投影。
+         主表格吃的是仓库快照，索引为空时一闪就没了；联动清单是静态表，
+         索引没加载也能说清"这些模组点亮哪个插件、现在装没装、能不能一键加入变更集"。 -->
+    <Border Grid.Row="2" ZIndex="20" Margin="0,8,0,0" Classes="CkanCard"
+            Padding="0" ClipToBounds="True" IsVisible="{Binding CompanionOnly}">
+      <Grid RowDefinitions="Auto,Auto,*">
+        <!-- 面板头 -->
+        <Border Grid.Row="0" Padding="14,10" BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource CkanHairlineBrush}">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="{Binding CompanionPanelTitle}"
+                         FontSize="{DynamicResource CkanFontSizeSubtitle}" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding CompanionSummaryText}" Classes="CkanCaption"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="CkanGhost CkanSmall" VerticalAlignment="Center"
+                    Command="{Binding CloseCompanionPanelCommand}"
+                    ToolTip.Tip="{Binding CompanionCloseTip}"
+                    AutomationProperties.Name="{Binding CompanionCloseTip}">
+              <PathIcon Width="11" Height="11"
+                        Data="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </Button>
+          </Grid>
+        </Border>
+
+        <!-- 说明 -->
+        <TextBlock Grid.Row="1" Text="{Binding CompanionPanelHint}" Classes="CkanCaption"
+                   Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                   TextWrapping="Wrap" Margin="14,8,14,0" />
+
+        <ScrollViewer Grid.Row="2" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding CompanionItems}" Margin="8,0,8,10">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Padding="8,7" Margin="0,0,0,4" CornerRadius="6"
+                        Background="{DynamicResource CkanSubtleBackgroundBrush}">
+                  <Grid ColumnDefinitions="*,Auto,8,Auto,8,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding ModIdentifier}" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                        <Border Classes="CkanBadge Info" Padding="6,0" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding PluginName}" />
+                        </Border>
+                        <Border Classes="CkanBadge Success" Padding="6,0" VerticalAlignment="Center"
+                                IsVisible="{Binding IsInstalled}">
+                          <TextBlock Text="{Binding StatusText}" />
+                        </Border>
+                        <Border Classes="CkanBadge Warning" Padding="6,0" VerticalAlignment="Center"
+                                IsVisible="{Binding IsMissing}">
+                          <TextBlock Text="{Binding StatusText}" />
+                        </Border>
+                      </StackPanel>
+                      <TextBlock Text="{Binding Benefit}" Classes="CkanCaption"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                 TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <Border Grid.Column="1" Classes="CkanBadge" Padding="6,0" VerticalAlignment="Center"
+                            IsVisible="{Binding !IsInstalled}" ToolTip.Tip="{Binding StatusText}">
+                      <TextBlock Text="{Binding StatusText}" />
+                    </Border>
+
+                    <Button Grid.Column="5" Classes="CkanSecondary CkanSmall" VerticalAlignment="Center"
+                            IsVisible="{Binding CanAddToChanges}"
+                            Command="{Binding $parent[UserControl].DataContext.AddCompanionToChangesCommand}"
+                            CommandParameter="{Binding ModIdentifier}"
+                            Content="{Binding $parent[UserControl].DataContext.CompanionAddText}" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
     </Border>
 
     <!-- 底部状态与操作栏：紧凑边距，释放更多垂直表格高度 -->

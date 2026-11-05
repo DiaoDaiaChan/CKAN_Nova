@@ -1,6 +1,7 @@
 using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Pages.InstallHistory;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -28,6 +29,9 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
     private readonly IErrorReporter _errors;
     private readonly IDialogService? _dialogs;
     private readonly IInstallHistoryMaintenance? _maintenance;
+    private readonly IRepositoryService? _repositories;
+    private readonly INavigationService? _navigation;
+    private readonly Func<string, object?>? _pageResolver;
     private readonly IProgress<OperationProgress> _restoreProgress;
     private InstallHistoryRestorePlan? _plan;
 
@@ -41,11 +45,23 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
     /// <param name="history">安装历史服务。</param>
     /// <param name="errors">错误上报。</param>
     /// <param name="dialogs">确认对话框；为 null 时不提供删除/清空（破坏性操作必须先确认）。</param>
-    public InstallHistoryPageViewModel(IInstallHistoryService history, IErrorReporter errors, IDialogService? dialogs = null)
+    /// <param name="repositories">仓库元数据服务（用于判断模组是否收录）。</param>
+    /// <param name="navigation">导航服务（用于跳转到模组页）。</param>
+    /// <param name="pageResolver">页面解析器。</param>
+    public InstallHistoryPageViewModel(
+        IInstallHistoryService history,
+        IErrorReporter errors,
+        IDialogService? dialogs = null,
+        IRepositoryService? repositories = null,
+        INavigationService? navigation = null,
+        Func<string, object?>? pageResolver = null)
     {
         _history = history ?? throw new ArgumentNullException(nameof(history));
         _errors = errors ?? throw new ArgumentNullException(nameof(errors));
         _dialogs = dialogs;
+        _repositories = repositories;
+        _navigation = navigation;
+        _pageResolver = pageResolver;
 
         // 能力探测而不是硬依赖：老实现/测试替身没实现维护接口时，页面自动隐藏删除入口。
         _maintenance = history as IInstallHistoryMaintenance;
@@ -468,11 +484,41 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
         RestoreContext,
         Text("正在从历史重装…", LocalizationKeys.InstallHistoryBusyRestoring));
 
+    /// <summary>
+    /// 点击历史模组行跳转到对应的模组界面。
+    /// </summary>
+    [RelayCommand]
+    public async Task NavigateToModAsync(string? identifier)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            return;
+        }
+
+        var target = identifier.Trim();
+
+        if (_navigation is not null)
+        {
+            await _navigation.NavigateAsync("mods").ConfigureAwait(true);
+        }
+
+        var modsPage = (_pageResolver?.Invoke("mods") ?? _navigation?.CurrentPage) as ModsPageViewModel;
+        if (modsPage is not null)
+        {
+            await modsPage.ShowIdentifierAsync(target).ConfigureAwait(true);
+        }
+    }
+
     /// <summary>按服务返回的条目重建列表，并尽量保留原来的选中项。</summary>
     public void ApplyEntries(IReadOnlyList<InstallHistoryEntry> entries, DateTimeOffset? preferredTimestamp = null)
     {
         ArgumentNullException.ThrowIfNull(entries);
-        var rows = entries.Select(entry => new InstallHistoryEntryRowViewModel(entry)).ToArray();
+        var checker = GetAvailableChecker();
+        var rows = entries.Select(entry => new InstallHistoryEntryRowViewModel(
+            entry,
+            checker,
+            NavigateToModAsync,
+            ResolveTooltip)).ToArray();
         Entries = rows;
 
         var target = preferredTimestamp is { } stamp
@@ -485,6 +531,63 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
         OnPropertyChanged(nameof(HasEntries));
         OnPropertyChanged(nameof(ShowEmptyState));
         NotifySelectionState();
+    }
+
+    private Predicate<string> GetAvailableChecker()
+    {
+        var set = GetAvailableIdentifiers();
+        if (set.Count > 0)
+        {
+            return set.Contains;
+        }
+
+        if (_repositories is null && _pageResolver is null)
+        {
+            return _ => true;
+        }
+
+        return _ => false;
+    }
+
+    private HashSet<string> GetAvailableIdentifiers()
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var available = _repositories?.Current.Available;
+        if (available is { Count: > 0 })
+        {
+            foreach (var mod in available)
+            {
+                if (!string.IsNullOrEmpty(mod.Identifier))
+                {
+                    set.Add(mod.Identifier);
+                }
+            }
+        }
+        else if ((_pageResolver?.Invoke("mods") ?? _navigation?.CurrentPage) is ModsPageViewModel modsPage)
+        {
+            foreach (var row in modsPage.Rows)
+            {
+                if (!string.IsNullOrEmpty(row.Identifier))
+                {
+                    set.Add(row.Identifier);
+                }
+            }
+        }
+
+        return set;
+    }
+
+    private string ResolveTooltip(bool exists) => exists
+        ? Text("在模组列表中查看该模组", LocalizationKeys.InstallHistoryPageViewModTip)
+        : Text("当前模组源未收录该模组", LocalizationKeys.InstallHistoryPageModNotInRepoTip);
+
+    private void OnRepositoriesUpdated(RepositorySnapshot snapshot)
+    {
+        var checker = GetAvailableChecker();
+        foreach (var entryRow in Entries)
+        {
+            entryRow.UpdateCkanAvailability(checker);
+        }
     }
 
     private void NotifySelectionState()
@@ -648,9 +751,24 @@ public sealed partial class InstallHistoryPageViewModel : PageViewModel
     protected override void OnActivated()
     {
         base.OnActivated();
+        if (_repositories is not null)
+        {
+            _repositories.Updated += OnRepositoriesUpdated;
+        }
         OnPropertyChanged(nameof(InstanceTitleText));
         OnPropertyChanged(nameof(HasActiveInstance));
+        OnRepositoriesUpdated(_repositories?.Current ?? RepositorySnapshot.Empty);
         LoadCommand.Execute(null);
+    }
+
+    /// <inheritdoc />
+    protected override void OnDeactivated()
+    {
+        if (_repositories is not null)
+        {
+            _repositories.Updated -= OnRepositoriesUpdated;
+        }
+        base.OnDeactivated();
     }
 
     partial void OnEntriesChanged(IReadOnlyList<InstallHistoryEntryRowViewModel> value)

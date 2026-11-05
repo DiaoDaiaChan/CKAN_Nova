@@ -37,4 +37,35 @@ public sealed class ThemeHostTests
     {
         Assert.That(ThemeHost.ToVariant("  DARK  "), Is.EqualTo(ThemeVariant.Dark));
     }
+
+    [TestCase(ThemeSkinKinds.CoronaGold)]
+    [TestCase(ThemeSkinKinds.LunarGraphite)]
+    [TestCase(ThemeSkinKinds.Celadon)]
+    [TestCase(ThemeSkinKinds.Copper)]
+    [TestCase(ThemeSkinKinds.NebulaViolet)]
+    [TestCase(ThemeSkinKinds.MonochromeSilver)]
+    public void ResolveVariant_MapsEachSkinUnderTheDarkTheme(string skin)
+    {
+        var variant = ThemeHost.ResolveVariant("dark", skin);
+
+        Assert.That(variant.ToString(), Is.EqualTo("skin-" + skin));
+        Assert.That(ThemeHost.IsDarkVariant(variant), Is.True);
+    }
+
+    [Test]
+    public void ResolveVariant_DefaultSkinKeepsTheBaseDarkVariant()
+    {
+        Assert.That(ThemeHost.ResolveVariant("dark", ThemeSkinKinds.Default), Is.EqualTo(ThemeVariant.Dark));
+        Assert.That(ThemeHost.ResolveVariant("dark", "unknown-skin"), Is.EqualTo(ThemeVariant.Dark));
+    }
+
+    [Test]
+    public void ResolveVariant_SkinIsIgnoredOutsideTheDarkTheme()
+    {
+        Assert.That(ThemeHost.ResolveVariant("light", ThemeSkinKinds.Copper), Is.EqualTo(ThemeVariant.Light));
+        Assert.That(ThemeHost.ResolveVariant("system", ThemeSkinKinds.Copper), Is.EqualTo(ThemeVariant.Default));
+        Assert.That(ThemeHost.ResolveVariant("dark", ThemeSkinKinds.Copper, forced: true),
+            Is.EqualTo(ThemeHost.HighContrastVariant));
+        Assert.That(ThemeHost.IsDarkVariant(ThemeHost.HighContrastVariant), Is.False);
+    }
 }

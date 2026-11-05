@@ -25,7 +25,6 @@ public sealed class KosPlugin : ICkanUiPlugin
             "kOS 脚本",
             ViewModelTypeName,
             Glyph: "Code",
-            Section: "plugins",
             Order: 30),
     };
 

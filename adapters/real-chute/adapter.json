@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "id": "real-chute",
+  "name": "RealChute",
+  "homepage": "https://github.com/StupidChris/RealChute",
+  "match": {
+    "ckanIdentifiers": [
+      "RealChute"
+    ],
+    "paths": [
+      "GameData/RealChute/Plugins/PluginData/RealChute_Settings.cfg"
+    ],
+    "caseInsensitive": true
+  },
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/RealChute/Plugins/PluginData/RealChute_Settings.cfg",
+      "layout": "node",
+      "rootNode": "REALCHUTE_SETTINGS",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "RealChute_Settings.cfg"
+    }
+  ],
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+  "fields": [
+    {
+      "file": "settings",
+      "key": "autoArm",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "降落伞自动预位"
+    },
+    {
+      "file": "settings",
+      "key": "mustBeEngineer",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "只有工程师能改装降落伞"
+    },
+    {
+      "file": "settings",
+      "key": "engineerLevel",
+      "type": "int",
+      "default": "1",
+      "min": 0,
+      "max": 5,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "改装所需工程师等级"
+    },
+    {
+      "file": "settings",
+      "key": "jokeActivated",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "启用彩蛋（Nyan 猫）"
+    },
+    {
+      "file": "settings",
+      "key": "activateNyan",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "立即触发 Nyan 彩蛋"
+    }
+  ]
+}

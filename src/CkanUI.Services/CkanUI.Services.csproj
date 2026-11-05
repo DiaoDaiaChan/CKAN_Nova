@@ -7,6 +7,7 @@
          源生成器产出的代码本身带 unsafe 块，需要本项目开启 AllowUnsafeBlocks（SYSLIB1062）。
          只影响编译开关，不引入新的非托管代码，也没有新增依赖。 -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

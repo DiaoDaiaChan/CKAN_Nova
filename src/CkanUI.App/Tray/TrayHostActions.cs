@@ -103,7 +103,17 @@ public sealed class TrayHostActions : ITrayHostActions
     {
         // 用 Hide 而不是 Close：ShutdownMode 是 OnMainWindowClose，
         // Close 会直接退进程（见 docs/design/tray.md「关闭到托盘」）。
-        await _dispatcher.InvokeAsync(() => _window()?.Hide()).ConfigureAwait(true);
+        await _dispatcher.InvokeAsync(async () =>
+        {
+            if (_window() is { } window)
+            {
+                if (Animations.WindowAnimation.GetDuration(window) > TimeSpan.Zero)
+                {
+                    await Animations.WindowAnimation.AnimateHideToTaskbarAsync(window).ConfigureAwait(true);
+                }
+                window.Hide();
+            }
+        }).ConfigureAwait(true);
     }
 
     /// <inheritdoc />

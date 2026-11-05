@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 
 using CkanUI.Services.Abstractions.Commands;
+using CkanUI.Services.Abstractions.Input;
 using CkanUI.ViewModels.Dialogs;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -159,6 +160,13 @@ public sealed partial class ShortcutsCatalogViewModel : DialogViewModelBase
         var dialog = text("Ui_Cmd_Category_ShortcutsDialog");
         entries.Add(new ShortcutEntryDto("Esc", text("Ui_Cmd_Shortcut_CloseDialog"), dialog));
 
+        // 手柄的分组直接由 <see cref="GamepadBindings"/> 驱动：绑定表改了，目录自动跟着改，不维护第二份真相。
+        var gamepad = text("Ui_Cmd_Category_Gamepad");
+        foreach (var binding in GamepadBindings.All)
+        {
+            entries.Add(new ShortcutEntryDto(text(binding.InputKey), text(binding.ActionKey), gamepad));
+        }
+
         return entries;
     }
 
@@ -178,6 +186,7 @@ public sealed partial class ShortcutsCatalogViewModel : DialogViewModelBase
         ["Ui_Cmd_Shortcuts_Copy"] = "复制为文本",
         ["Ui_Cmd_Shortcuts_Close"] = "关闭",
         ["Ui_Cmd_Shortcuts_TotalCountFormat"] = "共 {0} 项",
+        ["Ui_Cmd_Category_Gamepad"] = "手柄",
         ["Ui_Cmd_Category_Global"] = "全局",
         ["Ui_Cmd_Category_Palette"] = "命令面板",
         ["Ui_Cmd_Category_ShortcutsDialog"] = "快捷键目录",
@@ -186,5 +195,21 @@ public sealed partial class ShortcutsCatalogViewModel : DialogViewModelBase
         ["Ui_Cmd_Shortcut_Execute"] = "执行选中命令",
         ["Ui_Cmd_Shortcut_Dismiss"] = "关闭命令面板",
         ["Ui_Cmd_Shortcut_CloseDialog"] = "关闭对话框",
+        ["Ui_Pad_Input_Direction"] = "方向键 / 左摇杆",
+        ["Ui_Pad_Action_MoveFocus"] = "移动界面焦点",
+        ["Ui_Pad_Input_A"] = "A 键",
+        ["Ui_Pad_Action_Accept"] = "确认 / 按下当前控件",
+        ["Ui_Pad_Input_B"] = "B 键",
+        ["Ui_Pad_Action_Cancel"] = "返回 / 关闭浮层",
+        ["Ui_Pad_Input_X"] = "X 键",
+        ["Ui_Pad_Action_CommandPalette"] = "打开命令面板",
+        ["Ui_Pad_Input_Y"] = "Y 键",
+        ["Ui_Pad_Action_Shortcuts"] = "打开快捷键目录",
+        ["Ui_Pad_Input_Bumpers"] = "LB / RB",
+        ["Ui_Pad_Action_SwitchTab"] = "切换页签",
+        ["Ui_Pad_Input_Triggers"] = "LT / RT",
+        ["Ui_Pad_Action_Scroll"] = "整页滚动",
+        ["Ui_Pad_Input_Back"] = "Back 键",
+        ["Ui_Pad_Action_ToggleSidebar"] = "折叠 / 展开侧栏",
     };
 }

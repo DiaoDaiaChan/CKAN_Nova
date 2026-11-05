@@ -43,6 +43,9 @@ public static class SettingsKeyNames
     /// <summary>ckan-ui.json：主题变体。</summary>
     public const string Theme = "Theme";
 
+    /// <summary>设置页的「主题皮肤」行；落盘写 <c>ThemeSkin</c>，只在深色主题下生效。</summary>
+    public const string ThemeSkin = "ThemeSkin";
+
     /// <summary>ckan-ui.json：界面语言。</summary>
     public const string Locale = "Locale";
 
@@ -121,6 +124,21 @@ public static class SettingsKeyNames
 
     /// <summary>ckan-ui.json：关闭到托盘（F-51）。</summary>
     public const string CloseToTray = "CloseToTray";
+
+    /// <summary>ckan-ui.json：全局静音（MasterMuted）。</summary>
+    public const string MasterMuted = "MasterMuted";
+
+    /// <summary>ckan-ui.json：界面音效开关（SoundEffectsEnabled）。</summary>
+    public const string SoundEffectsEnabled = "SoundEffectsEnabled";
+
+    /// <summary>ckan-ui.json：界面音效音量（SoundEffectsVolume）。</summary>
+    public const string SoundEffectsVolume = "SoundEffectsVolume";
+
+    /// <summary>ckan-ui.json：背景音乐开关（MusicEnabled）。</summary>
+    public const string MusicEnabled = "MusicEnabled";
+
+    /// <summary>ckan-ui.json：背景音乐音量（MusicVolume）。</summary>
+    public const string MusicVolume = "MusicVolume";
 
     /// <summary>拼出某个主机的认证令牌键。</summary>
     public static string AuthToken(string host) => AuthTokenPrefix + host;

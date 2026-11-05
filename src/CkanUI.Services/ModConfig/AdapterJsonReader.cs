@@ -236,6 +236,12 @@ public static class AdapterJsonReader
         var paths = ReadStringArray(matchElement, "paths", error, "adapter-match");
         var caseInsensitive = ReadOptionalBool(matchElement, "caseInsensitive", true, warn);
         var resolveByInstalledFiles = ReadOptionalBool(matchElement, "resolveByInstalledFiles", false, warn);
+        if (resolveByInstalledFiles)
+        {
+            warn(
+                "adapter-option-deprecated",
+                "match.resolveByInstalledFiles 已弃用：按已安装文件判定是默认行为，删除该字段即可");
+        }
 
         WarnUnknownProperties(matchElement, ["ckanIdentifiers", "paths", "caseInsensitive", "resolveByInstalledFiles"], warn);
 
@@ -520,10 +526,35 @@ public static class AdapterJsonReader
                 continue;
             }
 
-            var scopedKey = fileIndex.ToString(CultureInfo.InvariantCulture) + "/" + key;
+            // nodePath 可选：把键定位到根节点下面的子节点。KSP 配置几乎都是
+            // "根节点 → 若干设置子节点 → 键"，不写这个就只能覆盖根层那几个键。
+            var nodePath = NormalizeNodePath(
+                ReadOptionalString(item, "nodePath", warn, "adapter-field"),
+                out var nodePathError);
+            if (nodePathError is not null)
+            {
+                error("adapter-field", $"fields[{position}].nodePath {nodePathError}");
+                continue;
+            }
+
+            // flat/custom 布局的键全在文档根层，写 nodePath 只会让查找永远落空；
+            // 与其让用户对着空白的字段发呆，不如在加载时直接拒绝。
+            if (nodePath is not null && files[fileIndex].Layout != ModConfigFileLayout.Node)
+            {
+                error(
+                    "adapter-field",
+                    $"fields[{position}].nodePath 只能用在 layout 为 node 的文件上（{files[fileIndex].Path} 是 {ModConfigWireNames.ToWireName(files[fileIndex].Layout)}，键都在根层）");
+                continue;
+            }
+
+            // 同名键可以出现在不同子节点里（各子节点是独立作用域），判重必须带上节点。
+            // 用解析后的名链而不是原文：/ROOT/CHILD 与 CHILD 指向同一个节点，按原文判重会放过重复声明。
+            var scopedKey = fileIndex.ToString(CultureInfo.InvariantCulture)
+                + "/" + ModConfigFieldDescription.ResolveNodePath(nodePath, files[fileIndex]) + "/" + key;
             if (!seenKeys.Add(scopedKey))
             {
-                error("adapter-field", $"fields[{position}] 的 key「{key}」在同一个文件里重复声明");
+                var where = nodePath is null ? "同一个文件里" : $"同一个文件的 {nodePath} 节点里";
+                error("adapter-field", $"fields[{position}] 的 key「{key}」在{where}重复声明");
                 continue;
             }
 
@@ -564,7 +595,7 @@ public static class AdapterJsonReader
                 error("adapter-field", $"fields[{position}] 是 enum 类型但没有给 values 白名单");
             }
 
-            WarnUnknownProperties(item, ["file", "key", "type", "default", "values", "min", "max", "unit", "risk", "requiresRestart", "label", "pattern"], warn);
+            WarnUnknownProperties(item, ["file", "key", "type", "nodePath", "default", "values", "min", "max", "unit", "risk", "requiresRestart", "label", "pattern"], warn);
 
             fields.Add(new ModConfigFieldDescription(
                 Key: key,
@@ -579,7 +610,8 @@ public static class AdapterJsonReader
                 Risk: risk,
                 RequiresRestart: ReadOptionalBool(item, "requiresRestart", false, warn),
                 Label: ReadOptionalString(item, "label", warn, "adapter-field"),
-                Pattern: pattern));
+                Pattern: pattern,
+                NodePath: nodePath));
         }
 
         return fields;
@@ -660,6 +692,56 @@ public static class AdapterJsonReader
         }
 
         return value.GetString();
+    }
+
+    /// <summary>
+    /// 规范化 fields[].nodePath：去空白、去首尾斜杠、逐段校验。
+    /// 空串/全空白一律当作"没声明"（落回文件根节点），这样 adapter 作者写 <c>""</c>
+    /// 也不会意外变成一个永远匹配不上的节点名。
+    /// </summary>
+    private static string? NormalizeNodePath(string? raw, out string? error)
+    {
+        error = null;
+        if (raw is null)
+        {
+            return null;
+        }
+
+        var trimmed = raw.Trim();
+        if (trimmed.Length == 0)
+        {
+            return null;
+        }
+
+        // 开头的 / 是"绝对名链"的标记（跳过 rootNode 拼接），不能在这里吃掉：
+        // 吃掉以后 "/OTHER" 会被解析成 ROOT/OTHER，页面回传的绝对节点就再也匹配不上。
+        var absolute = trimmed[0] == '/';
+        var segments = trimmed.Split('/');
+        var kept = new List<string>(segments.Length);
+        for (var i = 0; i < segments.Length; i++)
+        {
+            var piece = segments[i].Trim();
+            if (piece.Length == 0)
+            {
+                // 首尾斜杠是"绝对路径"的写法，中间出现空段才是错误。
+                if (i == 0 || i == segments.Length - 1)
+                {
+                    continue;
+                }
+
+                error = "里不能有空节点名（连续的 / 或多余的 /，例如 A//B）";
+                return null;
+            }
+
+            kept.Add(piece);
+        }
+
+        if (kept.Count == 0)
+        {
+            return null;
+        }
+
+        return (absolute ? "/" : string.Empty) + string.Join('/', kept);
     }
 
     private static bool ReadOptionalBool(JsonElement element, string property, bool fallback, Action<string, string> warn)

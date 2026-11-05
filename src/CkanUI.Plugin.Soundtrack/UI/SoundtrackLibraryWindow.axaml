@@ -1,0 +1,147 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CkanUI.Plugin.Soundtrack.UI.SoundtrackLibraryWindow"
+        x:CompileBindings="False"
+        Title="乐曲库"
+        Width="1080" Height="720" MinWidth="760" MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        WindowDecorations="BorderOnly"
+        Background="{DynamicResource CkanCanvasBackgroundBrush}">
+  <Window.Styles>
+    <Style Selector="Button.window-caption">
+      <Setter Property="Width" Value="46" />
+      <Setter Property="Height" Value="32" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button.window-caption:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource CkanSubtleBackgroundBrush}" />
+    </Style>
+    <Style Selector="Button.window-caption.close:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource CkanDangerBrush}" />
+    </Style>
+    <Style Selector="TextBlock.library-column">
+      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextTertiaryBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Border.library-row">
+      <Setter Property="Padding" Value="10,7" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+      <Setter Property="Margin" Value="0,1" />
+    </Style>
+    <Style Selector="Button.library-icon">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="7,3" />
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto">
+    <!-- 无标题栏：自己画一条可拖动的头部，右侧是最小化/最大化/关闭。 -->
+    <Grid Grid.Row="0" Height="52" ColumnDefinitions="*,Auto,Auto,Auto"
+          Background="{DynamicResource CkanLayerCardBrush}"
+          PointerPressed="OnHeaderPointerPressed">
+      <StackPanel Grid.Column="0" Margin="16,0" VerticalAlignment="Center" Spacing="2">
+        <TextBlock Text="乐曲库" Classes="CkanCardTitle" />
+        <TextBlock Text="{Binding HeaderText}" Classes="CkanCaption"
+                   TextTrimming="CharacterEllipsis" />
+      </StackPanel>
+      <Button Grid.Column="1" Classes="window-caption" Click="OnMinimizeClick" ToolTip.Tip="最小化">
+        <PathIcon Data="M4 11h12v1.6H4z" Width="10" Height="10" />
+      </Button>
+      <Button Grid.Column="2" Classes="window-caption" Click="OnMaximizeRestoreClick" ToolTip.Tip="最大化 / 还原">
+        <PathIcon Data="M4.5 4.5h11v11h-11z M6 6v8h8V6z" Width="10" Height="10" />
+      </Button>
+      <Button Grid.Column="3" Classes="window-caption close" Click="OnCloseClick" ToolTip.Tip="关闭">
+        <PathIcon Data="M6.4 5.6L12 11.2l5.6-5.6 1.2 1.2-5.6 5.6 5.6 5.6-1.2 1.2L12 13.6l-5.6 5.6-1.2-1.2 5.6-5.6L5.2 6.8z" Width="10" Height="10" />
+      </Button>
+    </Grid>
+
+    <Border Grid.Row="1" Classes="CkanToolbar" Margin="16,10,16,0" Padding="10,8">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+        <TextBox Grid.Column="0" Text="{Binding SearchText, Mode=TwoWay}"
+                 PlaceholderText="搜索文件名或完整路径" MinWidth="240" />
+        <ComboBox Grid.Column="1" ItemsSource="{Binding ExtensionFilters}"
+                  SelectedItem="{Binding ExtensionFilter, Mode=TwoWay}"
+                  Width="140" Margin="8,0,0,0" ToolTip.Tip="按扩展名筛选" />
+        <CheckBox Grid.Column="2" Content="只看未加入" IsChecked="{Binding OnlyUnadded, Mode=TwoWay}"
+                  VerticalAlignment="Center" Margin="12,0" />
+        <ComboBox Grid.Column="3" ItemsSource="{Binding SortModes}"
+                  SelectedItem="{Binding SortMode, Mode=TwoWay}"
+                  Width="130" ToolTip.Tip="排序方式" />
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="2" Classes="CkanCard" Margin="16,10,16,0" Padding="0">
+      <Grid RowDefinitions="Auto,*">
+        <Grid Grid.Row="0" ColumnDefinitions="*,90,170" Margin="12,8"
+              Background="{DynamicResource CkanSubtleBackgroundBrush}">
+          <TextBlock Grid.Column="0" Text="音频文件" Classes="library-column" />
+          <TextBlock Grid.Column="1" Text="大小" Classes="library-column" />
+          <TextBlock Grid.Column="2" Text="操作" Classes="library-column" />
+        </Grid>
+        <ListBox Grid.Row="1" ItemsSource="{Binding Rows}"
+                 SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                 Background="Transparent" BorderThickness="0"
+                 DoubleTapped="OnListDoubleTapped">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Border Classes="library-row" ToolTip.Tip="{Binding FullPath}">
+                <Grid ColumnDefinitions="*,90,170">
+                  <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding FullPath}" Classes="CkanCaption"
+                               TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Text="{Binding SizeText}" Classes="CkanCaption"
+                             VerticalAlignment="Center" />
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6"
+                              HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Border Classes="CkanBadge" IsVisible="{Binding IsAdded}">
+                      <TextBlock Text="已加入" />
+                    </Border>
+                    <Button Content="▶" Classes="library-icon"
+                            Command="{Binding $parent[Window].DataContext.PlayCommand}"
+                            CommandParameter="{Binding}" ToolTip.Tip="试听" />
+                    <Button Content="添加" Classes="CkanSecondary"
+                            Command="{Binding $parent[Window].DataContext.AddCommand}"
+                            CommandParameter="{Binding}" IsEnabled="{Binding !IsAdded}"
+                            ToolTip.Tip="加入当前选中的播放列表" />
+                  </StackPanel>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+        <TextBlock Grid.Row="1" Text="没有匹配的音频文件。"
+                   Classes="CkanCaption" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   IsVisible="{Binding !HasRows}" />
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="3" Classes="CkanPageFooter" Margin="16,8,16,12">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <TextBlock Text="{Binding SummaryText}" Classes="CkanCaption" />
+          <TextBlock Text="{Binding StatusText}" Classes="CkanCaption"
+                     Foreground="{DynamicResource CkanAccentBrush}"
+                     TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="关闭" Classes="CkanSecondary"
+                Click="OnCloseClick" Margin="12,0,0,0" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

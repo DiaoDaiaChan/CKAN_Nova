@@ -20,6 +20,8 @@
     <ProjectReference Include="../CkanUI.ViewModels/CkanUI.ViewModels.csproj" />
     <ProjectReference Include="../CkanUI.ModText/CkanUI.ModText.csproj" />
     <ProjectReference Include="../CkanUI.Services.Abstractions/CkanUI.Services.Abstractions.csproj" />
+    <!-- 手画表头的筛选/排序/列宽拖动是宿主与插件共用的基元，放 CkanUI.Ui 才能两边共用。 -->
+    <ProjectReference Include="../CkanUI.Ui/CkanUI.Ui.csproj" />
   </ItemGroup>
 
 </Project>

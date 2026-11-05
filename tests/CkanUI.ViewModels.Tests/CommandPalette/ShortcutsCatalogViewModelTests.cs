@@ -19,16 +19,22 @@ public sealed class ShortcutsCatalogViewModelTests
     }
 
     [Test]
-    public void Constructor_WithoutCatalog_ListsPaletteAndDialogGestures()
+    public void Constructor_WithoutCatalog_ListsPaletteDialogAndGamepadGestures()
     {
         var viewModel = new ShortcutsCatalogViewModel();
 
-        Assert.That(viewModel.Entries.Count, Is.EqualTo(5), "面板 4 个手势 + 对话框 1 个手势");
-        Assert.That(viewModel.Groups.Count, Is.EqualTo(2), "没有命令目录时不出现「全局」分组");
+        Assert.That(viewModel.Entries.Count, Is.EqualTo(13), "面板 4 个手势 + 对话框 1 个手势 + 手柄 8 行");
+        Assert.That(viewModel.Groups.Count, Is.EqualTo(3), "没有命令目录时不出现「全局」分组");
         Assert.That(viewModel.Groups[0].Category, Is.EqualTo("命令面板"));
         Assert.That(viewModel.Groups[1].Category, Is.EqualTo("快捷键目录"));
+        Assert.That(viewModel.Groups[2].Category, Is.EqualTo("手柄"));
         Assert.That(viewModel.Groups[0].Count, Is.EqualTo(4));
-        Assert.That(viewModel.TotalCountText, Is.EqualTo("共 5 项"));
+        Assert.That(viewModel.Groups[2].Count, Is.EqualTo(8), "手柄分组直接由 GamepadBindings 驱动");
+        Assert.That(
+            viewModel.Entries.Any(entry => entry.Gesture == "方向键 / 左摇杆" && entry.Category == "手柄"),
+            Is.True,
+            "手柄行用的是本地化后的输入名，不是 Ui_Pad_* 键名");
+        Assert.That(viewModel.TotalCountText, Is.EqualTo("共 13 项"));
     }
 
     [Test]
@@ -36,13 +42,13 @@ public sealed class ShortcutsCatalogViewModelTests
     {
         var viewModel = new ShortcutsCatalogViewModel(CreateCatalogWithDefaultActions());
 
-        Assert.That(viewModel.Entries.Count, Is.EqualTo(8), "内置动作里 Ctrl+K / Ctrl+/ / F1 也要进目录");
+        Assert.That(viewModel.Entries.Count, Is.EqualTo(22), "9 条带手势的内置动作 + 面板/对话框 5 条 + 手柄 8 行");
         Assert.That(viewModel.Entries[0].Gesture, Is.EqualTo("Ctrl+K"));
         Assert.That(viewModel.Entries[0].Description, Is.EqualTo("命令面板"));
         Assert.That(viewModel.Entries[0].Category, Is.EqualTo("全局"));
         Assert.That(
             viewModel.Groups.Select(group => group.Category),
-            Is.EqualTo(new[] { "全局", "命令面板", "快捷键目录" }),
+            Is.EqualTo(new[] { "全局", "命令面板", "快捷键目录", "手柄" }),
             "分组顺序按条目首次出现，不做字母排序");
     }
 
@@ -53,10 +59,10 @@ public sealed class ShortcutsCatalogViewModelTests
 
         viewModel.Filter = "ctrl";
 
-        Assert.That(viewModel.Entries.Count, Is.EqualTo(8), "未过滤全集不受过滤词影响");
-        Assert.That(viewModel.FilteredEntries.Count, Is.EqualTo(2), "过滤不区分大小写");
+        Assert.That(viewModel.Entries.Count, Is.EqualTo(22), "未过滤全集不受过滤词影响");
+        Assert.That(viewModel.FilteredEntries.Count, Is.EqualTo(8), "过滤不区分大小写");
         Assert.That(viewModel.HasEntries, Is.True);
-        Assert.That(viewModel.TotalCountText, Is.EqualTo("共 2 项"));
+        Assert.That(viewModel.TotalCountText, Is.EqualTo("共 8 项"));
     }
 
     [Test]
@@ -91,7 +97,7 @@ public sealed class ShortcutsCatalogViewModelTests
 
         viewModel.Filter = "   ";
 
-        Assert.That(viewModel.FilteredEntries.Count, Is.EqualTo(8), "只有空白时按未过滤处理");
+        Assert.That(viewModel.FilteredEntries.Count, Is.EqualTo(22), "只有空白时按未过滤处理");
     }
 
     [Test]
@@ -102,10 +108,12 @@ public sealed class ShortcutsCatalogViewModelTests
         var report = viewModel.BuildPlainTextReport();
 
         Assert.That(report, Does.Contain("快捷键目录"), "首行是标题");
-        Assert.That(report, Does.Contain("共 8 项"));
+        Assert.That(report, Does.Contain("共 22 项"));
         Assert.That(report, Does.Contain("[全局]"), "每个分类一段");
         Assert.That(report, Does.Contain("Ctrl+K    命令面板"), "手势与说明之间用 4 个空格对齐");
         Assert.That(report, Does.Contain("↑    上一条"));
+        Assert.That(report, Does.Contain("[手柄]"), "手柄键位也要能复制出去贴进问题反馈");
+        Assert.That(report, Does.Contain("A 键    确认 / 按下当前控件"));
     }
 
     [Test]
@@ -116,7 +124,7 @@ public sealed class ShortcutsCatalogViewModelTests
 
         var report = viewModel.BuildPlainTextReport();
 
-        Assert.That(report, Does.Contain("共 2 项"), "导出的是当前过滤结果");
+        Assert.That(report, Does.Contain("共 8 项"), "导出的是当前过滤结果");
         Assert.That(report, Does.Not.Contain("上一条"));
     }
 
@@ -151,12 +159,12 @@ public sealed class ShortcutsCatalogViewModelTests
     {
         var catalog = new CommandCatalog();
         var viewModel = new ShortcutsCatalogViewModel(catalog);
-        Assert.That(viewModel.Entries.Count, Is.EqualTo(5));
+        Assert.That(viewModel.Entries.Count, Is.EqualTo(13));
 
         catalog.Register(new CommandDescriptor("action:refresh", "刷新列表") { ShortcutText = "F5" });
         viewModel.Refresh();
 
-        Assert.That(viewModel.Entries.Count, Is.EqualTo(6), "宿主注册新命令后刷新即可出现在目录里");
+        Assert.That(viewModel.Entries.Count, Is.EqualTo(14), "宿主注册新命令后刷新即可出现在目录里");
         Assert.That(
             viewModel.FilteredEntries.Any(entry => entry.Gesture == "F5" && entry.Category == "全局"),
             Is.True);

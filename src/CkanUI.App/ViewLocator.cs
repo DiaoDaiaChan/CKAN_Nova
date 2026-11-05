@@ -29,6 +29,13 @@ public sealed class ViewLocator : IDataTemplate
     /// </summary>
     public static bool HasCachedView(object viewModel) => ViewCache.TryGetValue(viewModel, out _);
 
+    /// <summary>
+    /// 丢掉某个视图模型的视图缓存。页面驻留回收把视图摘出舞台后必须调它：缓存是弱键表，
+    /// 键（页面 VM 是单例）活着值就活着，不丢这一条，摘下来的控件还在缓存里，内存一点也回不来。
+    /// </summary>
+    /// <param name="viewModel">页面（或插件页）视图模型。</param>
+    public static void Discard(object viewModel) => ViewCache.Remove(viewModel);
+
     public Control? Build(object? param)
     {
         if (param is null) return null;

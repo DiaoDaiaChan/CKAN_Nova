@@ -40,21 +40,27 @@
                 Command="{Binding ReloadCommand}" IsEnabled="{Binding !IsLoading}"
                 ToolTip.Tip="{DynamicResource Ui_SettingsPage_Reload_Tip}" />
         <Button Content="{DynamicResource Ui_Common_Unsaved_Discard}" Classes="CkanGhost" Margin="0,0,8,0"
-                Command="{Binding DiscardCommand}" IsEnabled="{Binding IsDirty}"
+                Command="{Binding DiscardCommand}" IsVisible="{Binding IsDirty}"
                 ToolTip.Tip="{DynamicResource Ui_SettingsPage_Discard_Tip}" />
-        <Button Content="{DynamicResource Ui_SettingsPage_RetryFailed}" Classes="CkanGhost" Margin="0,0,8,0"
-                Command="{Binding RetryFailedCommand}" IsEnabled="{Binding HasRetryableFailures}"
-                ToolTip.Tip="{DynamicResource Ui_SettingsPage_RetryFailed_Tip}" />
-        <Button Content="{DynamicResource Ui_SettingsPage_OpenDir}" Classes="CkanGhost" Margin="0,0,8,0"
-                Command="{Binding OpenConfigFolderCommand}"
-                ToolTip.Tip="{DynamicResource Ui_SettingsPage_OpenDir_Tip}" />
-        <Button Content="{DynamicResource Ui_NavRail_KspConfig}" Classes="CkanGhost" Margin="0,0,8,0"
-                Command="{Binding $parent[Window].((shell:ShellViewModel)DataContext).NavigateCommand}"
-                CommandParameter="kspconfig"
-                ToolTip.Tip="{DynamicResource Ui_NavRail_KspConfig}" />
-        <Button Content="{DynamicResource Ui_SettingsPage_FirstRunWizard}" Classes="CkanGhost"
-                Command="{Binding OpenFirstRunWizardCommand}"
-                ToolTip.Tip="{DynamicResource Ui_SettingsPage_FirstRunWizard_Tip}" />
+        <!-- 低频动作收进「更多」：工具条不再六个同权重按钮并排 -->
+        <DropDownButton Classes="CkanGhost" Content="{DynamicResource Ui_Common_More}"
+                        ToolTip.Tip="{DynamicResource Ui_Common_More}">
+          <DropDownButton.Flyout>
+            <ui:FAMenuFlyout Placement="BottomEdgeAlignedLeft">
+              <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_SettingsPage_RetryFailed}"
+                                  Command="{Binding RetryFailedCommand}"
+                                  IsEnabled="{Binding HasRetryableFailures}" />
+              <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_SettingsPage_OpenDir}"
+                                  Command="{Binding OpenConfigFolderCommand}" />
+              <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_NavRail_KspConfig}"
+                                  Command="{Binding $parent[Window].((shell:ShellViewModel)DataContext).NavigateCommand}"
+                                  CommandParameter="kspconfig" />
+              <ui:FAMenuFlyoutSeparator />
+              <ui:FAMenuFlyoutItem Text="{DynamicResource Ui_SettingsPage_FirstRunWizard}"
+                                  Command="{Binding OpenFirstRunWizardCommand}" />
+            </ui:FAMenuFlyout>
+          </DropDownButton.Flyout>
+        </DropDownButton>
       </WrapPanel>
     </Border>
 
@@ -71,41 +77,64 @@
     </StackPanel>
 
     <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Spacing="4" Margin="0,8,0,0">
+      <!-- 右侧留白：竖直滚动条会盖住 Auto 列尾部的 HintText / 辅助按钮，内容整体内缩 14px 兜住 -->
+      <StackPanel Spacing="4" Margin="0,8,14,0">
 
         <TextBlock Text="{DynamicResource Ui_SettingsPage_Loading}" IsVisible="{Binding IsLoading}" Classes="CkanCaption" Margin="0,0,0,8" />
 
         <ItemsControl ItemsSource="{Binding Groups}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="st:SettingGroupViewModel">
-              <StackPanel Spacing="6" Margin="0,0,0,18">
+              <!-- 一组一张卡：行间只留发丝线，组与组之间靠卡片边界分开。
+                   原来是整页连续发丝线，38 行连成一片，看不清哪几项属于同一组。 -->
+              <Border Classes="CkanCard" Padding="0" Margin="0,0,0,16" ClipToBounds="True"
+                      BorderBrush="{DynamicResource CkanBorderBrush}">
+                <!-- stagger-card：入场的弹簧位移锚点（MotionSkeletonTests 要求本页保留该锚点） -->
+                <StackPanel Classes="stagger-card" Spacing="0">
 
-                <!-- 分组标题（官方设置页用 BodyStrong 抬一级标题层级） -->
-                <TextBlock Text="{Binding Title}" Classes="CkanSectionTitle" Margin="0,0,0,2" />
-                <TextBlock Text="{Binding Description}" IsVisible="{Binding HasDescription}"
-                           Classes="CkanCaption" TextWrapping="Wrap" Margin="0,0,0,4" />
+                  <!-- 组头：独立色带 + 左侧强调条 + 副标题字号，与下面 13px 常规字重的行标题拉开层级。
+                       原来组头与行标题都是 SemiBold 主色文字、同底色，38 行扫下来分不清哪行是分组。 -->
+                  <Border Padding="12,7,12,6" Background="{DynamicResource CkanAccentSubtleBrush}"
+                          BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CkanBorderBrush}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <Border Width="3" Height="15" CornerRadius="1.5" VerticalAlignment="Center"
+                              Background="{DynamicResource CkanAccentBrush}" />
+                      <TextBlock Text="{Binding Title}" FontSize="{DynamicResource CkanFontSizeSubtitle}"
+                                 FontWeight="Bold" Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                                 VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding Description}" IsVisible="{Binding HasDescription}"
+                                 Classes="CkanCaption" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                 ToolTip.Tip="{Binding Description}" />
+                    </StackPanel>
+                  </Border>
 
                 <!-- 标量设置项：一项一个可折叠项 -->
-                <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding HasItems}">
+                <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding HasItems}"
+                              Margin="12,0,12,4">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="st:SettingItemViewModel">
-                      <ui:FASettingsExpander Header="{Binding DisplayName}"
-                                             Description="{Binding Description}"
-                                             IsEnabled="{Binding IsEnabled}"
-                                             Classes="stagger-card"
-                                             RenderTransform="translate(0px, 0px)"
-                                             HorizontalAlignment="Stretch">
-                        <ui:FASettingsExpander.Footer>
-                          <StackPanel Spacing="6" HorizontalAlignment="Right">
-                            <!-- 多行列表：固定三行高，不随密度压缩（否则编辑过滤器时看不全） -->
-                            <TextBox Text="{Binding EditValue, Mode=TwoWay}"
-                                     IsVisible="{Binding IsMultiline}"
-                                     AcceptsReturn="True"
-                                     TextWrapping="Wrap"
-                                     Width="380"
-                                     CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                                     MinHeight="{Binding EditorMinHeight}" />
-
+                      <!-- 紧凑行：左「名称 · 说明 · 提示」一行，右「240 编辑器 + 88 动作槽」，右边缘全部对齐。
+                           动作槽即使没有按钮也占位，避免左右两行的控件各自漂移。 -->
+                      <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CkanHairlineBrush}"
+                              Padding="0,3" IsEnabled="{Binding IsEnabled}">
+                        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto,Auto">
+                          <!-- 名称列固定 200：38 行的名称长短不一，若用横向 StackPanel，说明的起点会随名称宽度漂移，
+                               整页看起来参差不齐。固定列宽后名称、说明、提示三列各自成一条竖线。 -->
+                          <Grid Grid.Row="0" Grid.Column="0" ColumnDefinitions="200,*,Auto"
+                                Margin="0,0,16,0" VerticalAlignment="Center">
+                            <TextBlock Grid.Column="0" Text="{Binding DisplayName}"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                       ToolTip.Tip="{Binding DisplayName}" />
+                            <TextBlock Grid.Column="1" Text="{Binding Description}" IsVisible="{Binding HasDescription}"
+                                       Classes="CkanCaption" Margin="10,0,0,0" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Description}" />
+                            <TextBlock Grid.Column="2" Text="{Binding HintText}" IsVisible="{Binding HasHint}"
+                                       Margin="10,0,0,0" VerticalAlignment="Center"
+                                       FontSize="{DynamicResource CkanFontSizeCaption}"
+                                       Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                       TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding HintText}" />
+                          </Grid>
+                          <StackPanel Grid.Row="0" Grid.Column="1" Spacing="4" HorizontalAlignment="Right">
                             <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right"
                                         VerticalAlignment="Center">
                               <!-- 编辑器列固定宽度：不同 kind 的行左边缘才不会各自漂移 -->
@@ -125,11 +154,11 @@
                                               SpinButtonPlacementMode="Inline"
                                               HorizontalAlignment="Stretch" />
 
-                              <!-- 布尔开关：拨动即生效 -->
+                              <!-- 布尔开关：拨动即生效；右对齐，开关右边缘与下拉/数字框对齐 -->
                               <ToggleSwitch IsVisible="{Binding IsBooleanKind}"
                                             IsChecked="{Binding BooleanValue, Mode=TwoWay}"
                                             OnContent="" OffContent=""
-                                            HorizontalAlignment="Left" />
+                                            HorizontalAlignment="Right" />
 
                               <!-- 单选 -->
                               <ComboBox ItemsSource="{Binding Choices}"
@@ -145,29 +174,37 @@
                               </ComboBox>
 
                               </Grid>
-
-                              <!-- 行内辅助动作（如「打开目录」） -->
-                              <Button Content="{Binding AuxiliaryLabel}"
-                                      Classes="CkanGhost CkanSmall"
-                                      Command="{Binding AuxiliaryCommand}"
-                                      IsVisible="{Binding HasAuxiliaryAction}" />
-
-                              <TextBlock Text="{Binding HintText}" IsVisible="{Binding HasHint}"
-                                         VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="240"
-                                         FontSize="{DynamicResource CkanFontSizeCaption}"
-                                         Foreground="{DynamicResource CkanTextTertiaryBrush}" />
                             </StackPanel>
 
-                            <!-- 行内校验/保存失败 -->
+                          </StackPanel>
+
+                          <!-- 辅助动作占固定 96px 槽位、按钮右对齐：没有按钮的行也留白，
+                               所有动作按钮的右边缘落在同一条竖线上 -->
+                          <Border Grid.Row="0" Grid.Column="2" Width="96" Margin="8,0,0,0"
+                                  VerticalAlignment="Center">
+                            <Button Content="{Binding AuxiliaryLabel}"
+                                    Classes="CkanGhost CkanSmall"
+                                    HorizontalAlignment="Right"
+                                    Command="{Binding AuxiliaryCommand}"
+                                    IsVisible="{Binding HasAuxiliaryAction}" />
+                          </Border>
+
+                          <!-- 多行列表与行内校验/失败横跨整行，不挤压右侧控件 -->
+                          <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Spacing="2" Margin="0,2,0,0">
+                            <TextBox Text="{Binding EditValue, Mode=TwoWay}"
+                                     IsVisible="{Binding IsMultiline}"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     HorizontalAlignment="Stretch"
+                                     CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                                     MinHeight="{Binding EditorMinHeight}" />
                             <TextBlock Text="{Binding ErrorText}" IsVisible="{Binding HasError}" TextWrapping="Wrap"
-                                       HorizontalAlignment="Right"
                                        Foreground="{DynamicResource CkanDangerBrush}" FontSize="12" />
                             <TextBlock Text="{Binding FailureHint}" IsVisible="{Binding HasFailureHint}"
-                                       TextWrapping="Wrap" HorizontalAlignment="Right"
-                                       Classes="CkanCaption" />
+                                       TextWrapping="Wrap" Classes="CkanCaption" />
                           </StackPanel>
-                        </ui:FASettingsExpander.Footer>
-                      </ui:FASettingsExpander>
+                        </Grid>
+                      </Border>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -176,7 +213,7 @@
                 <ContentControl Content="{Binding TokenEditor}" IsVisible="{Binding IsTokenGroup}">
                   <ContentControl.ContentTemplate>
                     <DataTemplate x:DataType="st:AuthTokenEditorViewModel">
-                      <StackPanel Spacing="8">
+                      <StackPanel Spacing="8" Margin="12,8,12,10">
 
                         <Grid ColumnDefinitions="200,*,Auto" ColumnSpacing="8">
                           <TextBox Text="{Binding NewHost, Mode=TwoWay}" PlaceholderText="{DynamicResource Ui_SettingsPage_Host_Placeholder}"
@@ -229,7 +266,7 @@
                 <ContentControl Content="{Binding Diagnostics}" IsVisible="{Binding IsDiagnosticsGroup}">
                   <ContentControl.ContentTemplate>
                     <DataTemplate x:DataType="st:SettingsDiagnosticsViewModel">
-                      <StackPanel Spacing="8">
+                      <StackPanel Spacing="8" Margin="12,8,12,10">
                         <ItemsControl ItemsSource="{Binding Rows}">
                           <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="dlg:DiagnosticItem">
@@ -250,7 +287,8 @@
                     </DataTemplate>
                   </ContentControl.ContentTemplate>
                 </ContentControl>
-              </StackPanel>
+                </StackPanel>
+              </Border>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>

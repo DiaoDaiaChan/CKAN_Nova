@@ -406,6 +406,34 @@ public sealed class ModConfigPageEditingTests
     }
 
     [Test]
+    public async Task DraftsForSameKeyInDifferentNodes_DoNotOverwriteEachOther()
+    {
+        var file = EditableFile(
+            SettingsPath,
+            ModConfigTestData.Field("gain", ModConfigFieldType.Float, "1", nodePath: "ROOT"),
+            ModConfigTestData.Field("gain", ModConfigFieldType.Float, "1", nodePath: "ROOT/CHILD_A"));
+        var harness = Create(mods: [ModConfigTestData.Mod(files: [file])]);
+        var rows = harness.Vm.FieldGroups.SelectMany(group => group.Rows).Where(row => row.Key == "gain").ToList();
+        Assert.That(rows, Has.Count.EqualTo(2), "同名键分属两个节点，必须是两行");
+
+        rows.Single(row => row.Field.NodePath == "ROOT").EditValue = "2";
+        rows.Single(row => row.Field.NodePath == "ROOT/CHILD_A").EditValue = "3";
+
+        Assert.That(harness.Vm.PendingChangeCount, Is.EqualTo(2), "草稿键必须带节点，否则后改的会顶掉先改的");
+
+        await harness.Vm.SaveCommand.ExecuteAsync(null);
+
+        var changes = harness.Writer.Calls.Single().Changes;
+        Assert.That(
+            changes.Select(change => (change.Key, change.NodePath, change.NewValue)),
+            Is.EquivalentTo(new[]
+            {
+                ("gain", (string?)"ROOT", "2"),
+                ("gain", (string?)"ROOT/CHILD_A", "3"),
+            }));
+    }
+
+    [Test]
     public async Task SaveRow_WritesOnlyThatFile()
     {
         var harness = Create(mods: [TwoFileMod()]);

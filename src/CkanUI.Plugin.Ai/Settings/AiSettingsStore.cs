@@ -28,6 +28,9 @@ public sealed class AiSettingsStore
     /// <summary>替换目标文件时的重试次数（Windows 上杀毒/另一个读者会短暂占用）。</summary>
     private const int MoveAttempts = 5;
 
+    /// <summary>当任意实例保存新设置时触发，便于主窗口与独立窗口双向同步设置。</summary>
+    public static event Action<AiSettings>? SettingsChanged;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -149,6 +152,13 @@ public sealed class AiSettingsStore
             // SerializeToUtf8Bytes 不写 BOM：JsonSerializer 读回时把 0xEF 当非法起始字符会让整份设置回落默认值。
             File.WriteAllBytes(temp, JsonSerializer.SerializeToUtf8Bytes(settings, JsonOptions));
             MoveWithRetry(temp, FilePath);
+            try
+            {
+                SettingsChanged?.Invoke(settings);
+            }
+            catch
+            {
+            }
             return OperationResult.Ok();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or JsonException)

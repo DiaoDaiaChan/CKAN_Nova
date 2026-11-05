@@ -81,6 +81,10 @@ public sealed class StarfieldBackground : Control
     private static readonly double[] StrokeWidths = [1.0, 1.2, 1.4, 1.6, 2.0];
 
     private readonly StarfieldModel _model = new();
+
+    /// <summary>星座节点在星点表中的标记：星座节点跟着连线层走，环境星点跟着星空层走。</summary>
+    private readonly bool[] _figureNodeMask;
+
     private readonly DispatcherTimer? _timer;
     private readonly Color[] _starColors = new Color[AlphaSteps + 1];
     private readonly Color[] _warmColors = new Color[AlphaSteps + 1];
@@ -96,6 +100,9 @@ public sealed class StarfieldBackground : Control
 
     /// <summary>光标位移判定阈值（DIP）：低于这个值不重画，肉眼也看不出差别。</summary>
     private const double PointerMoveThreshold = 0.5;
+
+    /// <summary>星空分层视差：每层一个像素偏移，越靠近镜头的层偏移越大。</summary>
+    private readonly record struct ParallaxLayers(Point Stars, Point Figures, Point Trails, Point Station);
 
     /// <summary>两族星轨的离屏位图：重建一次贴一帧，替掉每帧 604 条 DrawLine。</summary>
     private RenderTargetBitmap? _trailLayer;
@@ -123,6 +130,18 @@ public sealed class StarfieldBackground : Control
         IsHitTestVisible = false;
         ClipToBounds = true;
         IsVisible = false;
+
+        _figureNodeMask = new bool[_model.StarCount];
+        foreach (var figure in _model.Figures)
+        {
+            foreach (var node in figure.Nodes)
+            {
+                if ((uint)node < (uint)_figureNodeMask.Length)
+                {
+                    _figureNodeMask[node] = true;
+                }
+            }
+        }
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(TickIntervalMs) };
         _timer.Tick += OnTick;
@@ -204,12 +223,52 @@ public sealed class StarfieldBackground : Control
             ResolveColor("CkanTextPrimaryBrush", DefaultStarColor),
             ResolveColor("CkanAccentBrush", DefaultLineColor));
 
-        DrawStarTrails(context, size, intensity);
-        DrawFigures(context, intensity);
-        DrawPointerLinks(context, intensity);
-        DrawTrackingStation(context, size, intensity);
-        DrawMeteors(context, size, intensity);
-        DrawStars(context, intensity);
+        var parallax = ComputeParallax(size);
+        DrawStarTrails(context, size, intensity, parallax.Trails);
+        DrawFigures(context, intensity, parallax.Figures);
+        DrawPointerLinks(context, intensity, parallax.Figures);
+        DrawTrackingStation(context, size, intensity, parallax.Station);
+        DrawMeteors(context, size, intensity, parallax.Stars);
+        DrawStars(context, intensity, parallax.Stars, parallax.Figures);
+    }
+
+    /// <summary>
+    /// 按光标位置算出四层背景的轻微视差偏移。星点最远、星座次之、星轨更近、测控站最近；
+    /// 每层再叠一条不同相位的慢呼吸，光标停住时背景也不会完全静止。
+    /// </summary>
+    private ParallaxLayers ComputeParallax(Size size)
+    {
+        var halfWidth = Math.Max(1.0, size.Width * 0.5);
+        var halfHeight = Math.Max(1.0, size.Height * 0.5);
+        var nx = Math.Clamp((_model.PointerX - (size.Width * 0.5)) / halfWidth, -1.0, 1.0);
+        var ny = Math.Clamp((_model.PointerY - (size.Height * 0.5)) / halfHeight, -1.0, 1.0);
+        var strength = _model.PointerStrength;
+
+        // 光标向右时近层往左让，形成「视线穿过一层层背景」的深度差。
+        var pointerX = -nx * strength;
+        var pointerY = -ny * strength;
+        var time = _model.Time;
+
+        return new ParallaxLayers(
+            LayerOffset(pointerX, pointerY, time, 2.2, 1.6, 0.0, 0.55, 0.42),
+            LayerOffset(pointerX, pointerY, time, 3.6, 2.5, 1.7, 0.75, 0.55),
+            LayerOffset(pointerX, pointerY, time, 4.8, 3.3, 3.1, 0.95, 0.68),
+            LayerOffset(pointerX, pointerY, time, 6.8, 4.6, 4.6, 1.25, 0.85));
+    }
+
+    private static Point LayerOffset(
+        double pointerX,
+        double pointerY,
+        double time,
+        double depthX,
+        double depthY,
+        double phase,
+        double breathX,
+        double breathY)
+    {
+        var x = (pointerX * depthX) + (Math.Sin((time * 0.26) + phase) * breathX);
+        var y = (pointerY * depthY) + (Math.Cos((time * 0.19) + (phase * 1.37)) * breathY);
+        return new Point(x, y);
     }
 
     /// <inheritdoc />
@@ -296,8 +355,11 @@ public sealed class StarfieldBackground : Control
     /// <param name="context">当前帧的绘制上下文。</param>
     /// <param name="size">控件尺寸（DIP）。</param>
     /// <param name="intensity">主题强度系数。</param>
-    private void DrawStarTrails(DrawingContext context, Size size, double intensity)
+    /// <param name="offset">星轨层的光标视差偏移。</param>
+    private void DrawStarTrails(DrawingContext context, Size size, double intensity, Point offset)
     {
+        using var shift = context.PushTransform(Matrix.CreateTranslation(offset.X, offset.Y));
+
         if (_trailLayerUnavailable)
         {
             DrawCornerTrails(context, size, intensity);
@@ -442,7 +504,7 @@ public sealed class StarfieldBackground : Control
     /// 流星：遍历固定 schedule，头到尾分三段递减不透明度，头部再点一个亮点。
     /// 画在最上层装饰，不参与星座的可见性判断——流星划过时本来就该盖住底下的东西。
     /// </summary>
-    private void DrawMeteors(DrawingContext context, Size size, double intensity)
+    private void DrawMeteors(DrawingContext context, Size size, double intensity, Point offset)
     {
         if (intensity <= 0)
         {
@@ -458,8 +520,8 @@ public sealed class StarfieldBackground : Control
                 continue;
             }
 
-            var head = new Point(meteor.HeadX * canvasWidth, meteor.HeadY * canvasHeight);
-            var tail = new Point(meteor.TailX * canvasWidth, meteor.TailY * canvasHeight);
+            var head = new Point((meteor.HeadX * canvasWidth) + offset.X, (meteor.HeadY * canvasHeight) + offset.Y);
+            var tail = new Point((meteor.TailX * canvasWidth) + offset.X, (meteor.TailY * canvasHeight) + offset.Y);
             var headAlpha = meteor.HeadAlpha * intensity;
             var tailAlpha = meteor.TailAlpha * intensity;
             if (headAlpha < 0.002)
@@ -489,7 +551,7 @@ public sealed class StarfieldBackground : Control
         }
     }
 
-    private void DrawFigures(DrawingContext context, double intensity)
+    private void DrawFigures(DrawingContext context, double intensity, Point offset)
     {
         for (var f = 0; f < _model.FigureCount; f++)
         {
@@ -505,8 +567,8 @@ public sealed class StarfieldBackground : Control
             for (var e = 0; e < figure.Edges.Count; e++)
             {
                 var edge = figure.Edges[e];
-                var from = NodePoint(figure.Nodes[edge.From]);
-                var to = NodePoint(figure.Nodes[edge.To]);
+                var from = NodePoint(figure.Nodes[edge.From], offset);
+                var to = NodePoint(figure.Nodes[edge.To], offset);
 
                 // 与星轨同一套做法：先铺一层宽而淡的，再压一条细芯，线条才不至于"看不见"。
                 context.DrawLine(halo, from, to);
@@ -515,7 +577,7 @@ public sealed class StarfieldBackground : Control
         }
     }
 
-    private void DrawPointerLinks(DrawingContext context, double intensity)
+    private void DrawPointerLinks(DrawingContext context, double intensity, Point offset)
     {
         if (!_model.HasPointer || _model.PointerStrength < 0.05)
         {
@@ -527,7 +589,7 @@ public sealed class StarfieldBackground : Control
         var pen = LinePen(AlphaIndex(0.2 * strength * intensity));
         foreach (var index in _model.PointerLinks)
         {
-            context.DrawLine(pen, origin, NodePoint(index));
+            context.DrawLine(pen, origin, NodePoint(index, offset));
         }
 
         context.DrawEllipse(
@@ -538,7 +600,7 @@ public sealed class StarfieldBackground : Control
             5);
     }
 
-    private void DrawStars(DrawingContext context, double intensity)
+    private void DrawStars(DrawingContext context, double intensity, Point starOffset, Point figureOffset)
     {
         for (var i = 0; i < _model.StarCount; i++)
         {
@@ -549,9 +611,10 @@ public sealed class StarfieldBackground : Control
             }
 
             var radius = _model.StarRadius(i);
+            var layerOffset = _figureNodeMask[i] ? figureOffset : starOffset;
             var center = new Point(
-                _model.StarX(i) + _model.StarOffsetX(i),
-                _model.StarY(i) + _model.StarOffsetY(i));
+                _model.StarX(i) + _model.StarOffsetX(i) + layerOffset.X,
+                _model.StarY(i) + _model.StarOffsetY(i) + layerOffset.Y);
             var index = AlphaIndex(alpha);
             context.DrawEllipse(StarBrush(index, _model.Stars[i].Warmth > 0.55), null, center, radius, radius);
 
@@ -568,9 +631,9 @@ public sealed class StarfieldBackground : Control
         }
     }
 
-    private Point NodePoint(int index) => new(
-        _model.StarX(index) + _model.StarOffsetX(index),
-        _model.StarY(index) + _model.StarOffsetY(index));
+    private Point NodePoint(int index, Point offset) => new(
+        _model.StarX(index) + _model.StarOffsetX(index) + offset.X,
+        _model.StarY(index) + _model.StarOffsetY(index) + offset.Y);
 
     private static Point PointOnCircle(double centerX, double centerY, double radius, double angle) =>
         new(centerX + (Math.Cos(angle) * radius), centerY + (Math.Sin(angle) * radius));
@@ -673,7 +736,8 @@ public sealed class StarfieldBackground : Control
     /// <param name="context">当前帧的绘制上下文。</param>
     /// <param name="size">控件尺寸（DIP）。</param>
     /// <param name="intensity">主题强度系数。</param>
-    private void DrawTrackingStation(DrawingContext context, Size size, double intensity)
+    /// <param name="stationOffset">测控站层的光标视差偏移。</param>
+    private void DrawTrackingStation(DrawingContext context, Size size, double intensity, Point stationOffset)
     {
         if (intensity <= 0 || size.Width < 280 || size.Height < 240)
         {
@@ -689,9 +753,9 @@ public sealed class StarfieldBackground : Control
         var scale = boxHeight / 520.0;
 
         // 机位贴近锅盖底部向上仰望：天线中心压在右下角，口径向画外延展
-        var hubX = size.Width - (34.0 * scale);
+        var hubX = size.Width - (34.0 * scale) + stationOffset.X;
         // 锅盖下压到底缘沉入状态栏：保留可辨识的盘面与馈源，同时不露出完整的悬浮椭圆底边。
-        var hubY = size.Height - (100.0 * scale);
+        var hubY = size.Height - (18.0 * scale) + stationOffset.Y;
 
         // 轻量工程线框半透明度：即便放大也依然优雅深邃，不喧宾夺主
         var coreAlpha = 0.088 * intensity;

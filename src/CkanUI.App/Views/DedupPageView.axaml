@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="using:CkanUI.Ui.Theming"
+             xmlns:tbl="using:CkanUI.Ui.Tables"
              x:Class="CkanUI.App.Views.DedupPageView"
              x:CompileBindings="False">
   <!-- 跨实例去重页（规格 F-41 / 03 篇 UI-21 / INT-09）：实例多选 + 扫描 + 分组表格 + 预演/执行。
@@ -14,26 +15,6 @@
     </Style>
     <Style Selector="ListBoxItem.noBar">
       <Setter Property="Padding" Value="6,0" />
-    </Style>
-    <!-- 选中行左侧 3px 强调条（沿用导航栏 navIndicator 的做法） -->
-    <Style Selector="Rectangle.SelectionBar">
-      <Setter Property="Width" Value="3" />
-      <Setter Property="RadiusX" Value="1.5" />
-      <Setter Property="RadiusY" Value="1.5" />
-      <Setter Property="Fill" Value="{DynamicResource CkanAccentBrush}" />
-      <Setter Property="HorizontalAlignment" Value="Left" />
-      <Setter Property="VerticalAlignment" Value="Stretch" />
-      <Setter Property="Margin" Value="2,6" />
-      <Setter Property="Opacity" Value="0" />
-      <Setter Property="IsHitTestVisible" Value="False" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="ListBoxItem:selected Rectangle.SelectionBar">
-      <Setter Property="Opacity" Value="1" />
     </Style>
   </UserControl.Styles>
 
@@ -197,13 +178,16 @@
               <TextBlock Grid.Column="3" Text="{DynamicResource Ui_DedupPage_Reclaimable}" Classes="CkanCaption" />
             </Grid>
           </Border>
+          <!-- 筛选/排序/拖动列宽由 ListTableTools 补：表头 5 列，末列是展开箭头位。
+               体积/可释放列按原始字节数排序，不按「1.2 GB」文本。 -->
           <ListBox Grid.Row="1" ItemsSource="{Binding Groups}" Padding="0"
+                   tbl:ListTableTools.Enabled="True"
+                   tbl:ListTableTools.Columns="HashText,FileCount,SizeText~SizeBytes,ReclaimableText~ReclaimableBytes,-"
                    SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
                    BorderThickness="0" Background="Transparent">
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <Grid ColumnDefinitions="*,90,90,110,16" Margin="12,0" MinHeight="{DynamicResource CkanRowHeight}">
-                  <Rectangle Grid.ColumnSpan="4" Classes="SelectionBar" />
                   <!-- 哈希定宽、实例名占剩余宽度：横向 StackPanel 会以无限宽测量，实例名截断不生效。 -->
                   <Grid Grid.Column="0" ColumnDefinitions="88,*" VerticalAlignment="Center" Margin="0,0,8,0">
                     <TextBlock Grid.Column="0" Text="{Binding HashText}" TextTrimming="CharacterEllipsis"

@@ -1,9 +1,17 @@
 using System.Globalization;
+using System.IO;
+using System.Reflection;
+
+using CkanUI.App.Views;
 using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Ai;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.ViewModels;
 using CkanUI.ViewModels.Navigation;
+using CkanUI.ViewModels.Pages;
+using CkanUI.ViewModels.Pages.Instances;
+using CkanUI.ViewModels.Pages.Mods;
 
 namespace CkanUI.App.Ai;
 
@@ -36,6 +44,24 @@ public sealed class AiCkanBridge : IAiCkanBridge
 
     /// <summary>已安装列表上限。</summary>
     public const int MaxInstalledLimit = 500;
+
+    /// <summary>
+    /// 旧键名别名：AI 的提示词与历史对话里已经有这些写法，改名只会让老调用静默失败。
+    /// 值必须是 <see cref="UiSettings"/> 的真实属性名。
+    /// </summary>
+    private static readonly Dictionary<string, string> UiSettingAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["skin"] = nameof(UiSettings.ThemeSkin),
+        ["language"] = nameof(UiSettings.Locale),
+        ["lang"] = nameof(UiSettings.Locale),
+        ["radius"] = nameof(UiSettings.RadiusScale),
+        ["motion"] = nameof(UiSettings.MotionIntensity),
+        ["backdrop"] = nameof(UiSettings.BackdropKind),
+        ["zoom"] = nameof(UiSettings.PageZoom),
+        ["soundeffects"] = nameof(UiSettings.SoundEffectsEnabled),
+        ["music"] = nameof(UiSettings.MusicEnabled),
+        ["mute"] = nameof(UiSettings.MasterMuted),
+    };
 
     /// <summary>注册表没有快照时的空字典（不共享可变实例）。</summary>
     private static readonly IReadOnlyDictionary<string, InstalledModuleInfo> NoInstalled =
@@ -80,6 +106,10 @@ public sealed class AiCkanBridge : IAiCkanBridge
     private readonly IInstallerService? _installer;
     private readonly IOperationQueue? _queue;
     private readonly IDialogService? _dialogs;
+    private readonly IUiSettingsStore? _uiSettings;
+    private readonly ISettingsService? _settings;
+    private readonly IDispatcher? _dispatcher;
+    private readonly IServiceProvider? _serviceProvider;
 
     /// <summary>
     /// 全部依赖可选：宿主没装齐（单测、设计时、插件宿主）时桥退化成「查不到但也不炸」。
@@ -93,6 +123,10 @@ public sealed class AiCkanBridge : IAiCkanBridge
     /// <param name="installer">安装器；为 <c>null</c> 时安装整体不可用。</param>
     /// <param name="queue">后台任务队列；非空时安装入队（底栏可见、可取消），为空时直接执行。</param>
     /// <param name="dialogs">确认对话框；为 <c>null</c> 时 AI 不允许安装（没人点头不动磁盘）。</param>
+    /// <param name="uiSettings">界面设置存储。</param>
+    /// <param name="settings">核心设置服务。</param>
+    /// <param name="dispatcher">UI 调度器。</param>
+    /// <param name="serviceProvider">服务提供程序。</param>
     public AiCkanBridge(
         IRepositoryService? repository = null,
         IRegistryService? registry = null,
@@ -102,7 +136,11 @@ public sealed class AiCkanBridge : IAiCkanBridge
         IChangeSetService? changeSets = null,
         IInstallerService? installer = null,
         IOperationQueue? queue = null,
-        IDialogService? dialogs = null)
+        IDialogService? dialogs = null,
+        IUiSettingsStore? uiSettings = null,
+        ISettingsService? settings = null,
+        IDispatcher? dispatcher = null,
+        IServiceProvider? serviceProvider = null)
     {
         _repository = repository;
         _registry = registry;
@@ -113,6 +151,10 @@ public sealed class AiCkanBridge : IAiCkanBridge
         _installer = installer;
         _queue = queue;
         _dialogs = dialogs;
+        _uiSettings = uiSettings;
+        _settings = settings;
+        _dispatcher = dispatcher;
+        _serviceProvider = serviceProvider;
     }
 
     /// <inheritdoc />
@@ -248,8 +290,22 @@ public sealed class AiCkanBridge : IAiCkanBridge
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<AiPageRef> ListPages() =>
-        HostPages.Select(page => new AiPageRef(page.Key, ResolveTitle(page.TitleKey, page.FallbackTitle))).ToArray();
+    /// <remarks>
+    /// 页签来源优先取外壳的导航树（<see cref="ShellViewModel.NavItems"/>）：插件页只在那里出现，
+    /// 写死宿主表会让「帮我打开存档页」永远是未知键。拿不到外壳（单测的无参构造、DI 未装齐）时
+    /// 回落到内置表——这条回落同时保证本方法不会因为缺依赖而变成空集合。
+    /// </remarks>
+    public IReadOnlyList<AiPageRef> ListPages()
+    {
+        if (TryReadNavItems() is { Count: > 0 } items)
+        {
+            return items.Select(item => new AiPageRef(item.Key, item.Title)).ToArray();
+        }
+
+        return HostPages
+            .Select(page => new AiPageRef(page.Key, ResolveTitle(page.TitleKey, page.FallbackTitle)))
+            .ToArray();
+    }
 
     /// <inheritdoc />
     public async Task<OperationResult<bool>> NavigateAsync(string pageKey, CancellationToken cancellationToken = default)
@@ -262,9 +318,9 @@ public sealed class AiCkanBridge : IAiCkanBridge
                 "可用页面：" + KnownKeys());
         }
 
-        var page = HostPages.FirstOrDefault(
-            candidate => string.Equals(candidate.Key, wanted, StringComparison.OrdinalIgnoreCase));
-        if (page.Key is null)
+        // 键的来源是导航树（含插件页），不是写死的宿主表：插件页只在外壳的 NavItems 里出现。
+        var canonicalKey = ResolveNavigationKey(wanted);
+        if (canonicalKey is null)
         {
             // 不把键直接拼进导航调用：导航服务对未知键的行为并不统一（有的抛、有的落空白页）。
             return OperationResult<bool>.Fail(
@@ -280,7 +336,7 @@ public sealed class AiCkanBridge : IAiCkanBridge
         try
         {
             var navigated = await _navigation
-                .NavigateAsync(page.Key, parameter: null, cancellationToken)
+                .NavigateAsync(canonicalKey, parameter: null, cancellationToken)
                 .ConfigureAwait(true);
             return navigated
                 ? OperationResult<bool>.Ok(true)
@@ -491,19 +547,37 @@ public sealed class AiCkanBridge : IAiCkanBridge
             {
                 try
                 {
-                    tcs.TrySetResult(await installer.ApplyAsync(preview, progress: null, token).ConfigureAwait(true));
+                    var outcome = await installer.ApplyAsync(preview, progress: null, token).ConfigureAwait(true);
+                    tcs.TrySetResult(outcome);
+                    return QueueOutcome(outcome);
                 }
                 catch (OperationCanceledException)
                 {
                     tcs.TrySetCanceled(token);
+                    return OperationOutcome.Cancelled();
                 }
                 catch (Exception ex)
                 {
                     tcs.TrySetException(ex);
+                    return OperationOutcome.Failed("AI 安装失败：" + ex.Message);
                 }
             });
 
         return await tcs.Task.WaitAsync(cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>把安装结论翻译成队列浮层能照抄的终态（安装失败是正常返回值，不是异常）。</summary>
+    private static OperationOutcome QueueOutcome(OperationResult<InstallReport> result)
+    {
+        if (result.IsSuccess)
+        {
+            return OperationOutcome.Succeeded();
+        }
+
+        // 等待用户选定提供者时磁盘没动，选完会原样重跑，不该在浮层上写「失败」。
+        return result.PendingChoice is not null
+            ? OperationOutcome.Succeeded("等待你选定依赖提供者后继续。")
+            : OperationOutcome.Failed(result.Message ?? "安装失败，未执行任何操作。");
     }
 
     // ---- 快照读取（每个入口都兜住实现方抛异常） --------------------------------
@@ -682,7 +756,22 @@ public sealed class AiCkanBridge : IAiCkanBridge
         }
     }
 
-    private static string KnownKeys() => string.Join("、", HostPages.Select(page => page.Key));
+    private string KnownKeys() => string.Join("、", ListPages().Select(page => page.Key));
+
+    /// <summary>把用户/模型给的键对回导航树里的规范键；宿主表与插件页都认。</summary>
+    private string? ResolveNavigationKey(string wanted)
+    {
+        var host = HostPages.FirstOrDefault(
+            candidate => string.Equals(candidate.Key, wanted, StringComparison.OrdinalIgnoreCase));
+        if (host.Key is not null)
+        {
+            return host.Key;
+        }
+
+        var item = TryReadNavItems()?.FirstOrDefault(
+            candidate => string.Equals(candidate.Key, wanted, StringComparison.OrdinalIgnoreCase));
+        return item?.Key;
+    }
 
     // ---- 安装投影与文案 --------------------------------------------------------
 
@@ -736,4 +825,554 @@ public sealed class AiCkanBridge : IAiCkanBridge
 
     /// <summary>空白折成 <c>null</c>：AI 拿到的字段宁可缺失，也不要是空串。</summary>
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <inheritdoc />
+    public Task<OperationResult<bool>> SetThemeAsync(string? theme, string? skin = null, CancellationToken cancellationToken = default)
+    {
+        if (_uiSettings is null)
+        {
+            return Task.FromResult(OperationResult<bool>.Fail("界面设置服务未注册。"));
+        }
+
+        var current = _uiSettings.Current ?? _uiSettings.Load();
+        var targetTheme = current.Theme;
+        if (!string.IsNullOrWhiteSpace(theme))
+        {
+            var t = theme.Trim().ToLowerInvariant();
+            targetTheme = t switch
+            {
+                "dark" or "深色" => "dark",
+                "light" or "浅色" => "light",
+                "system" or "跟随系统" or "系统" => "system",
+                "highcontrast" or "高对比度" => "HighContrast",
+                _ => theme.Trim()
+            };
+        }
+
+        var targetSkin = current.ThemeSkin;
+        if (!string.IsNullOrWhiteSpace(skin))
+        {
+            var s = skin.Trim().ToLowerInvariant();
+            targetSkin = s switch
+            {
+                "default" or "默认" => ThemeSkinKinds.Default,
+                "coronal-gold" or "coronagold" or "corona-gold" or "日冕金" => ThemeSkinKinds.CoronaGold,
+                "moon-graphite" or "moongraphite" or "lunar-graphite" or "lunargraphite" or "月白石墨" => ThemeSkinKinds.LunarGraphite,
+                "celadon" or "青瓷" => ThemeSkinKinds.Celadon,
+                "bronze-gold" or "bronzegold" or "copper" or "铜金" => ThemeSkinKinds.Copper,
+                "nebula-purple" or "nebulapurple" or "nebula-violet" or "nebulaviolet" or "星云紫" => ThemeSkinKinds.NebulaViolet,
+                "monochrome-silver" or "monochromesilver" or "单色银" => ThemeSkinKinds.MonochromeSilver,
+                _ => ThemeSkinKinds.Normalize(skin.Trim())
+            };
+        }
+
+        var updated = current with
+        {
+            Theme = targetTheme,
+            ThemeSkin = targetSkin
+        };
+
+        _uiSettings.Save(updated);
+        return Task.FromResult(OperationResult<bool>.Ok(true, $"已切换主题：{targetTheme}，皮肤：{targetSkin}。"));
+    }
+
+    /// <inheritdoc />
+    public async Task<OperationResult<bool>> FilterModsAsync(string? query, string? filter = null, CancellationToken cancellationToken = default)
+    {
+        if (_navigation is not null)
+        {
+            await _navigation.NavigateAsync("mods", parameter: null, ct: cancellationToken).ConfigureAwait(false);
+        }
+
+        var modsVm = _serviceProvider?.GetService(typeof(ModsPageViewModel)) as ModsPageViewModel;
+        if (modsVm is not null)
+        {
+            void Apply()
+            {
+                if (query is not null)
+                {
+                    modsVm.SearchText = query;
+                }
+
+                if (!string.IsNullOrWhiteSpace(filter))
+                {
+                    var f = filter.Trim().ToLowerInvariant();
+                    switch (f)
+                    {
+                        case "compatible" or "compatibleonly" or "仅兼容":
+                            modsVm.CompatibilityFilter = ModsCompatibilityFilter.CompatibleOnly;
+                            break;
+                        case "incompatible" or "incompatibleonly" or "仅不兼容":
+                            modsVm.CompatibilityFilter = ModsCompatibilityFilter.IncompatibleOnly;
+                            break;
+                        case "installed" or "已装" or "已安装":
+                            modsVm.InstallFilter = ModsInstallFilter.Installed;
+                            break;
+                        case "not_installed" or "notinstalled" or "未装" or "未安装":
+                            modsVm.InstallFilter = ModsInstallFilter.NotInstalled;
+                            break;
+                        case "upgradeable" or "有更新" or "可升级":
+                            modsVm.InstallFilter = ModsInstallFilter.Upgradeable;
+                            break;
+                        case "all" or "全部":
+                            modsVm.InstallFilter = ModsInstallFilter.All;
+                            modsVm.CompatibilityFilter = ModsCompatibilityFilter.All;
+                            break;
+                    }
+                }
+
+                modsVm.ApplyFilter();
+            }
+
+            if (_dispatcher is not null && !_dispatcher.IsOnUiThread)
+            {
+                _dispatcher.Post(Apply);
+            }
+            else
+            {
+                Apply();
+            }
+
+            return OperationResult<bool>.Ok(true, $"已在模组页面应用筛选条件：关键字={query ?? "（未更改）"}，过滤={filter ?? "（未更改）"}。");
+        }
+
+        return OperationResult<bool>.Ok(true, "已导航至模组页面。");
+    }
+
+    /// <inheritdoc />
+    public async Task<OperationResult<bool>> SwitchInstanceAsync(string instanceName, CancellationToken cancellationToken = default)
+    {
+        if (_instances is null)
+        {
+            return OperationResult<bool>.Fail("实例服务未初始化。");
+        }
+
+        if (string.IsNullOrWhiteSpace(instanceName))
+        {
+            return OperationResult<bool>.Fail("实例名称不能为空。");
+        }
+
+        var result = await _instances.SwitchAsync(instanceName.Trim(), cancellationToken).ConfigureAwait(false);
+        if (!result.IsSuccess)
+        {
+            return OperationResult<bool>.Fail(result.Message ?? $"切换实例「{instanceName}」失败。");
+        }
+
+        return OperationResult<bool>.Ok(true, $"已成功切换至游戏实例「{result.Value?.Name ?? instanceName}」。");
+    }
+
+    /// <inheritdoc />
+    public async Task<OperationResult<bool>> LaunchGameAsync(CancellationToken cancellationToken = default)
+    {
+        var instance = _instances?.Current;
+        if (instance is null)
+        {
+            return OperationResult<bool>.Fail("当前未选中任何游戏实例。");
+        }
+
+        if (string.IsNullOrWhiteSpace(instance.GameDir) || !Directory.Exists(instance.GameDir))
+        {
+            return OperationResult<bool>.Fail($"游戏目录不存在：{instance.GameDir}");
+        }
+
+        var store = new LaunchCommandFile();
+        var command = await InstanceLaunchCommandResolver.ResolveAsync(store, instance.GameDir, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(command))
+        {
+            return OperationResult<bool>.Fail("未找到该实例的启动命令，请先在实例设置中配置启动命令。");
+        }
+
+        var launcher = new ShellInstanceLauncher();
+        var result = await launcher.LaunchGameAsync(instance.GameDir, command).ConfigureAwait(false);
+        if (!result.IsSuccess)
+        {
+            return OperationResult<bool>.Fail(result.Message ?? "启动游戏失败。");
+        }
+
+        return OperationResult<bool>.Ok(true, $"已为实例「{instance.Name}」启动游戏（命令：{command}）。");
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// 键名走反射匹配 <see cref="UiSettings"/> 的公共可写属性（大小写不敏感，另留几个旧别名），
+    /// 不再维护白名单：白名单的失效方式是「AI 说这个设置不存在」，而用户明明在界面上能改。
+    /// 写盘前先 <see cref="object.MemberwiseClone"/> 一份再改字段——<see cref="UiSettings"/> 是
+    /// <c>init</c> 记录，就地改会绕过它的相等性语义，也让 <c>Changed</c> 判不出差异。
+    /// </remarks>
+    public async Task<OperationResult<bool>> SetSettingAsync(string key, string value, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return OperationResult<bool>.Fail("设置项键名不能为空。");
+        }
+
+        var wanted = key.Trim();
+        var normalized = wanted.Replace("_", string.Empty, StringComparison.Ordinal)
+            .Replace("-", string.Empty, StringComparison.Ordinal);
+
+        if (_uiSettings is not null)
+        {
+            var current = TryRead(() => _uiSettings.Current);
+            if (current is not null)
+            {
+                var property = FindUiSettingProperty(normalized);
+                if (property is not null)
+                {
+                    if (!AiUiIntrospector.TryConvert(value, property.PropertyType, out var converted, out var error))
+                    {
+                        var choices = AiUiIntrospector.ChoicesOf(property.PropertyType);
+                        return OperationResult<bool>.Fail(
+                            $"设置项「{property.Name}」的值「{value}」无法转换：{error}",
+                            choices.Count == 0 ? null : "可选值：" + string.Join("、", choices));
+                    }
+
+                    var clone = CloneUiSettings(current);
+                    property.SetValue(clone, converted);
+                    var saved = _uiSettings.Save(clone);
+                    if (!saved.IsSuccess)
+                    {
+                        return OperationResult<bool>.Fail(saved.Message ?? $"界面设置「{property.Name}」写入失败。");
+                    }
+
+                    return OperationResult<bool>.Ok(
+                        true,
+                        $"已更新界面设置「{property.Name}」为「{AiUiIntrospector.FormatValue(converted) ?? "null"}」。");
+                }
+            }
+        }
+
+        // 界面设置里没有这个键，再交给核心设置服务（它自己管校验与回读）。
+        if (_settings is not null)
+        {
+            var result = await _settings.SetAndVerifyAsync(wanted, value, cancellationToken).ConfigureAwait(false);
+            if (result.IsSuccess)
+            {
+                return OperationResult<bool>.Ok(true, $"已更新设置「{wanted}」为「{value}」。");
+            }
+
+            return OperationResult<bool>.Fail(result.Message ?? $"设置「{wanted}」写入失败。");
+        }
+
+        return OperationResult<bool>.Fail(
+            $"未知的设置项或设置服务不可用：「{wanted}」。",
+            "用 ckan_settings 列出全部可写项。");
+    }
+
+    /// <inheritdoc />
+    public AiUiState GetUiState()
+    {
+        var page = TryRead(() => _navigation?.CurrentPage);
+        var key = TryRead(() => _navigation?.CurrentKey) ?? string.Empty;
+        var fields = new List<AiUiField>
+        {
+            new("CanGoBack", "bool", _navigation?.CanGoBack == true ? "true" : "false"),
+            new("CanGoForward", "bool", _navigation?.CanGoForward == true ? "true" : "false"),
+        };
+        fields.AddRange(AiUiIntrospector.DescribeFields(page));
+
+        return new AiUiState(
+            key,
+            ResolvePageTitle(key),
+            page?.GetType().Name ?? string.Empty,
+            fields,
+            AiUiIntrospector.DescribeActions(page));
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<AiPageAction> ListPageActions(string? pageKey = null) =>
+        AiUiIntrospector.DescribeActions(ResolvePage(pageKey));
+
+    /// <inheritdoc />
+    public async Task<OperationResult<string>> RunPageActionAsync(
+        string action,
+        string? argument = null,
+        string? pageKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(action))
+        {
+            return OperationResult<string>.Fail("动作名不能为空。", "用 ckan_page_actions 看这一页有哪些命令。");
+        }
+
+        if (_navigation is null)
+        {
+            return OperationResult<string>.Fail("宿主导航服务不可用，无法操作页面。");
+        }
+
+        var wantedKey = (pageKey ?? string.Empty).Trim();
+        if (wantedKey.Length > 0
+            && !string.Equals(wantedKey, TryRead(() => _navigation.CurrentKey), StringComparison.OrdinalIgnoreCase))
+        {
+            var navigated = await NavigateAsync(wantedKey, cancellationToken).ConfigureAwait(false);
+            if (!navigated.IsSuccess)
+            {
+                return OperationResult<string>.Fail(
+                    $"没能切换到页面「{wantedKey}」，动作未执行。",
+                    navigated.Message);
+            }
+        }
+
+        var page = ResolvePage(wantedKey.Length == 0 ? null : wantedKey);
+        if (page is null)
+        {
+            return OperationResult<string>.Fail(
+                $"页面「{(wantedKey.Length == 0 ? TryRead(() => _navigation.CurrentKey) : wantedKey)}」没有已加载的视图模型。",
+                "先 ckan_navigate 打开它，再执行动作。");
+        }
+
+        if (AiUiIntrospector.IsDestructive(action))
+        {
+            if (_dialogs is null)
+            {
+                return OperationResult<string>.Fail(
+                    $"「{action}」会改动磁盘或进程状态，但确认对话框不可用，已拒绝执行。");
+            }
+
+            var confirmed = await _dialogs.ConfirmAsync(
+                "AI 要执行一个操作",
+                $"AI 助手请求在你的界面上执行「{action}」。",
+                argument is null ? null : $"参数：{argument}").ConfigureAwait(false);
+            if (!confirmed)
+            {
+                return OperationResult<string>.Fail($"用户拒绝了「{action}」，未执行。");
+            }
+        }
+
+        return await RunOnUiThreadAsync(page, action, argument, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<OperationResult<string>> SetUiFieldAsync(
+        string field,
+        string? value,
+        string? pageKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(field))
+        {
+            return OperationResult<string>.Fail("字段名不能为空。", "用 ckan_ui_state 看这一页有哪些字段。");
+        }
+
+        if (_navigation is null)
+        {
+            return OperationResult<string>.Fail("宿主导航服务不可用，无法写入页面字段。");
+        }
+
+        var wantedKey = (pageKey ?? string.Empty).Trim();
+        if (wantedKey.Length > 0
+            && !string.Equals(wantedKey, TryRead(() => _navigation.CurrentKey), StringComparison.OrdinalIgnoreCase))
+        {
+            var navigated = await NavigateAsync(wantedKey, cancellationToken).ConfigureAwait(false);
+            if (!navigated.IsSuccess)
+            {
+                return OperationResult<string>.Fail(
+                    $"没能切换到页面「{wantedKey}」，字段未写入。",
+                    navigated.Message);
+            }
+        }
+
+        var page = ResolvePage(wantedKey.Length == 0 ? null : wantedKey);
+        if (page is null)
+        {
+            return OperationResult<string>.Fail(
+                $"页面「{(wantedKey.Length == 0 ? TryRead(() => _navigation.CurrentKey) : wantedKey)}」没有已加载的视图模型。",
+                "先 ckan_navigate 打开它，再写字段。");
+        }
+
+        try
+        {
+            if (_dispatcher is null || _dispatcher.IsOnUiThread)
+            {
+                AiUiIntrospector.TrySetField(page, field, value, out var inline);
+                return inline;
+            }
+
+            return await _dispatcher
+                .InvokeAsync(() =>
+                {
+                    AiUiIntrospector.TrySetField(page, field, value, out var result);
+                    return result;
+                })
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return OperationResult<string>.Fail($"写入「{field}」已取消。", retryable: true);
+        }
+        catch (Exception ex)
+        {
+            return OperationResult<string>.Fail($"写入「{field}」失败。", ex.Message);
+        }
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<AiSettingEntry> ListSettings()
+    {
+        var current = TryRead(() => _uiSettings?.Current);
+        if (current is null)
+        {
+            return Array.Empty<AiSettingEntry>();
+        }
+
+        var properties = typeof(UiSettings).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        Array.Sort(properties, static (left, right) => string.CompareOrdinal(left.Name, right.Name));
+
+        var entries = new List<AiSettingEntry>();
+        foreach (var property in properties)
+        {
+            if (!property.CanWrite || property.GetIndexParameters().Length > 0 || property.GetMethod is null)
+            {
+                continue;
+            }
+
+            var kind = AiUiIntrospector.KindOf(property.PropertyType) ?? "complex";
+            string? value = null;
+            if (string.Equals(property.Name, nameof(UiSettings.AiApiKeyProtected), StringComparison.Ordinal))
+            {
+                value = "***";
+            }
+            else if (kind != "complex")
+            {
+                value = AiUiIntrospector.FormatValue(TryRead(() => property.GetValue(current)));
+            }
+
+            entries.Add(new AiSettingEntry(
+                property.Name,
+                kind,
+                value,
+                AiUiIntrospector.ChoicesOf(property.PropertyType)));
+        }
+
+        return entries;
+    }
+
+    /// <summary>外壳导航树快照；拿不到（无 DI、构造中重入）时返回 <c>null</c>。</summary>
+    private IReadOnlyList<NavItem>? TryReadNavItems()
+    {
+        if (_serviceProvider is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            if (_serviceProvider.GetService(typeof(ShellViewModel)) is not ShellViewModel shell)
+            {
+                return null;
+            }
+
+            return shell.NavItems.ToList();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>页面标题：先查导航树（含插件页），再查宿主表，最后退回键名。</summary>
+    private string ResolvePageTitle(string key)
+    {
+        if (string.IsNullOrEmpty(key))
+        {
+            return string.Empty;
+        }
+
+        var item = TryReadNavItems()?.FirstOrDefault(
+            candidate => string.Equals(candidate.Key, key, StringComparison.OrdinalIgnoreCase));
+        if (item is not null)
+        {
+            return item.Title;
+        }
+
+        var host = HostPages.FirstOrDefault(
+            candidate => string.Equals(candidate.Key, key, StringComparison.OrdinalIgnoreCase));
+        return host.Key is null ? key : ResolveTitle(host.TitleKey, host.FallbackTitle);
+    }
+
+    /// <summary>
+    /// 按页面键拿视图模型：空键取当前页，宿主页走 DI 单例，插件页走 <c>PluginPageCache</c>
+    /// （与导航用的是同一个实例，命令里的状态才会和用户看到的一致）。
+    /// </summary>
+    private object? ResolvePage(string? pageKey)
+    {
+        var key = (pageKey ?? string.Empty).Trim();
+        if (_navigation is null)
+        {
+            return null;
+        }
+
+        if (key.Length == 0)
+        {
+            return TryRead(() => _navigation.CurrentPage);
+        }
+
+        if (string.Equals(key, TryRead(() => _navigation.CurrentKey), StringComparison.OrdinalIgnoreCase))
+        {
+            return TryRead(() => _navigation.CurrentPage);
+        }
+
+        if (_serviceProvider is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            if (ServiceRegistration.PageTypes.TryGetValue(key, out var type))
+            {
+                return _serviceProvider.GetService(type);
+            }
+
+            if (_serviceProvider.GetService(typeof(Plugins.PluginPageCache)) is not Plugins.PluginPageCache cache)
+            {
+                return null;
+            }
+
+            return cache.GetOrCreate(
+                key,
+                () => Plugins.PluginPageFactory.CreateFor(_serviceProvider, key, ServiceRegistration.PageTypes.Keys));
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>命令必须在 UI 线程执行：按钮的 <c>CanExecute</c> 与集合更新都没做跨线程保护。</summary>
+    private async Task<OperationResult<string>> RunOnUiThreadAsync(
+        object page,
+        string action,
+        string? argument,
+        CancellationToken cancellationToken)
+    {
+        if (_dispatcher is null || _dispatcher.IsOnUiThread)
+        {
+            return await AiUiIntrospector.InvokeAsync(page, action, argument, cancellationToken).ConfigureAwait(true);
+        }
+
+        var pending = await _dispatcher
+            .InvokeAsync(() => AiUiIntrospector.InvokeAsync(page, action, argument, cancellationToken))
+            .ConfigureAwait(false);
+        return await pending.ConfigureAwait(false);
+    }
+
+    /// <summary>按名字（已去掉分隔符）找 <see cref="UiSettings"/> 的公共可写属性，含几个旧别名。</summary>
+    private static PropertyInfo? FindUiSettingProperty(string normalizedKey)
+    {
+        var wanted = UiSettingAliases.TryGetValue(normalizedKey, out var alias) ? alias : normalizedKey;
+        var properties = typeof(UiSettings).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        return properties.FirstOrDefault(property =>
+            property.CanWrite
+            && property.GetIndexParameters().Length == 0
+            && string.Equals(property.Name, wanted, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary><see cref="UiSettings"/> 是 init 记录，改字段要克隆（见 <see cref="SetSettingAsync"/> 注释）。</summary>
+    private static UiSettings CloneUiSettings(UiSettings settings)
+    {
+        var clone = typeof(object)
+            .GetMethod("MemberwiseClone", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(settings, null);
+        return (UiSettings)clone!;
+    }
 }

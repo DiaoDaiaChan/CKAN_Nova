@@ -1,0 +1,63 @@
+// Real Fuels 的 MFSSettings 适配器（模块燃料开关）。
+// 取证：<游戏目录>/GameData/RealFuels/MFSSettings.cfg，根节点 MFSSETTINGS 直属键：
+// name / BatteryMultiplier / basemassUseTotalVolume / radiatorMinTempMult。
+// name 是身份标识不收录；子节点 IgnoreFuelsForFill 里的 8 个开关用 fields[].nodePath 定位。
+// 注意 basemassUseTotalVolume 在真机文件里写作 "True"（首字母大写），
+// 保存时会被规范成小写 true —— ConfigNode 对布尔大小写不敏感，但写回会改这一行。
+{
+  "schemaVersion": 1,
+  "id": "real-fuels-mfs",
+  "name": "Real Fuels (MFSSettings)",
+
+  "match": {
+    "ckanIdentifiers": ["RealFuels"],
+    "paths": ["GameData/RealFuels/MFSSettings.cfg"],
+    "caseInsensitive": true
+  },
+
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/RealFuels/MFSSettings.cfg",
+      "layout": "node",
+      "rootNode": "MFSSETTINGS",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "MFSSettings.cfg"
+    }
+  ],
+
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+
+  "fields": [
+    { "file": "settings", "key": "BatteryMultiplier", "type": "float", "min": 0.01, "max": 100,
+      "default": 1, "risk": "medium", "requiresRestart": true,
+      "label": "电池容量乘数（改动会影响所有飞行器的电量平衡）" },
+    { "file": "settings", "key": "basemassUseTotalVolume", "type": "bool", "default": true,
+      "risk": "medium", "requiresRestart": true,
+      "label": "干质量按总容积计算（关闭后按内容物算，直接影响推重比）" },
+    { "file": "settings", "key": "radiatorMinTempMult", "type": "float", "min": 0.1, "max": 10,
+      "default": 0.99, "risk": "medium", "requiresRestart": true,
+      "label": "散热器最低温度系数" },
+
+    { "file": "settings", "nodePath": "IgnoreFuelsForFill", "key": "IntakeAir", "type": "bool", "default": true,
+      "risk": "medium", "requiresRestart": true, "label": "加油时忽略进气空气（吸入式发动机）" },
+    { "file": "settings", "nodePath": "IgnoreFuelsForFill", "key": "KIntakeAir", "type": "bool", "default": true,
+      "risk": "medium", "requiresRestart": true, "label": "加油时忽略 KIntakeAir（核吸入式发动机）" },
+    { "file": "settings", "nodePath": "IgnoreFuelsForFill", "key": "U235Rods", "type": "bool", "default": true,
+      "risk": "medium", "requiresRestart": true, "label": "加油时忽略 U235 燃料棒" },
+    { "file": "settings", "nodePath": "IgnoreFuelsForFill", "key": "DepU235Rods", "type": "bool", "default": true,
+      "risk": "medium", "requiresRestart": true, "label": "加油时忽略贫化 U235 燃料棒" },
+    { "file": "settings", "nodePath": "IgnoreFuelsForFill", "key": "ElectricCharge", "type": "bool", "default": true,
+      "risk": "medium", "requiresRestart": true, "label": "加油时忽略电力（由电池单独管理）" },
+    { "file": "settings", "nodePath": "IgnoreFuelsForFill", "key": "Ablator", "type": "bool", "default": true,
+      "risk": "medium", "requiresRestart": true, "label": "加油时忽略烧蚀层" },
+    { "file": "settings", "nodePath": "IgnoreFuelsForFill", "key": "EnrichedUranium", "type": "bool", "default": true,
+      "risk": "medium", "requiresRestart": true, "label": "加油时忽略浓缩铀" },
+    { "file": "settings", "nodePath": "IgnoreFuelsForFill", "key": "UraniumNitride", "type": "bool", "default": true,
+      "risk": "medium", "requiresRestart": true, "label": "加油时忽略氮化铀" }
+  ]
+}

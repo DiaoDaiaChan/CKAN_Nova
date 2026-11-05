@@ -313,6 +313,58 @@ public sealed class ModConfigPageViewModelTests
         Assert.That(vm.ModCountText, Is.EqualTo("暂无已适配的 mod"));
     }
 
+    [Test]
+    public async Task Activate_SurfacesAdapterDirectoryDiagnosticOnPage()
+    {
+        // 以前目录级诊断只在卡片告警里出现，没装任何 mod 时整页只剩"空"，用户看不出是打包漏了 adapters/。
+        var service = new FakeConfigService
+        {
+            Result = OperationResult<ModConfigInstanceModel>.Ok(ModConfigTestData.Model()),
+        };
+        var catalog = new FakeCatalog
+        {
+            Diagnostics =
+            [
+                ModConfigDiagnostic.Warning(
+                    "adapter-dir-missing",
+                    "内置 adapter 目录不存在：C:/app/adapters（适配器可能没随包复制）"),
+            ],
+        };
+        var vm = Create(service, catalog);
+
+        vm.Activate();
+        await WaitUntilAsync(() => vm.HasPageDiagnostics);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vm.PageDiagnostics, Has.Count.EqualTo(1));
+            Assert.That(vm.PageDiagnostics[0], Does.Contain("adapter 目录不存在"));
+            Assert.That(vm.PageDiagnosticsTitle, Is.EqualTo("配置适配器加载时发现问题："));
+            Assert.That(vm.EmptyModsHintText, Is.EqualTo("没有配置适配器目录，适配器清单为空。"),
+                "目录缺失时不能再说「把 adapter.json 放进用户目录」——用户根本没有目录");
+        });
+    }
+
+    [Test]
+    public async Task Activate_WithoutDiagnostics_KeepsQuietAndUsesPlainEmptyHint()
+    {
+        var service = new FakeConfigService
+        {
+            Result = OperationResult<ModConfigInstanceModel>.Ok(ModConfigTestData.Model()),
+        };
+        var vm = Create(service, new FakeCatalog());
+
+        vm.Activate();
+        await WaitUntilAsync(() => vm.ShowEmptyState);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vm.HasPageDiagnostics, Is.False);
+            Assert.That(vm.PageDiagnostics, Is.Empty);
+            Assert.That(vm.EmptyModsHintText, Is.EqualTo("这个实例里没有已适配的 mod：可以把 adapter.json 放进用户目录后重试。"));
+        });
+    }
+
     private static ModConfigPageViewModel Create(
         IModConfigService service,
         IAdapterCatalog? catalog = null,
@@ -363,7 +415,7 @@ public sealed class ModConfigPageViewModelTests
     {
         public IReadOnlyList<ModConfigAdapterDescription> Adapters { get; set; } = [];
 
-        public IReadOnlyList<ModConfigDiagnostic> Diagnostics => [];
+        public IReadOnlyList<ModConfigDiagnostic> Diagnostics { get; set; } = [];
 
         public int ReloadCount { get; private set; }
 

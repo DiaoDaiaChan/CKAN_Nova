@@ -28,7 +28,7 @@ public sealed class SoundtrackPluginTests
         Assert.That(page.Key, Is.EqualTo("music"));
         Assert.That(page.Title, Is.EqualTo("音乐"));
         Assert.That(page.Glyph, Is.EqualTo("Music"));
-        Assert.That(page.Section, Is.EqualTo("plugins"), "工具分节：这一页不能跑到侧栏顶格");
+        Assert.That(page.Section, Is.Null, "独立侧栏入口：这一页在扩展分组独立成Tab");
         Assert.That(page.Order, Is.EqualTo(20));
     }
 

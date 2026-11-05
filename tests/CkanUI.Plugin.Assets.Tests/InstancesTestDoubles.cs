@@ -272,6 +272,36 @@ internal sealed class InstancesFakeErrorReporter : IErrorReporter
     }
 }
 
+/// <summary>存档服务替身：飞船页只用到 saves 目录与存档列表，校验/格式化直接拒绝。</summary>
+internal sealed class InstancesFakeSaveFiles : ISaveFileService
+{
+    /// <summary>预设的存档清单（同一存档文件夹可以有多条，页面要按文件夹去重）。</summary>
+    public List<SaveGameInfo> Saves { get; } = new();
+
+    /// <summary>非 null 时 <see cref="ListSavesAsync"/> 返回这个失败结果。</summary>
+    public OperationResult<IReadOnlyList<SaveGameInfo>>? ListFailure { get; set; }
+
+    public int ListCalls { get; private set; }
+
+    /// <inheritdoc />
+    public string GetSavesDirectory(string gameDir) => gameDir + "/saves";
+
+    /// <inheritdoc />
+    public Task<OperationResult<IReadOnlyList<SaveGameInfo>>> ListSavesAsync(string gameDir, CancellationToken cancellationToken = default)
+    {
+        ListCalls++;
+        return Task.FromResult(ListFailure ?? OperationResult<IReadOnlyList<SaveGameInfo>>.Ok(Saves.ToList()));
+    }
+
+    /// <inheritdoc />
+    public Task<OperationResult<SaveValidationReport>> ValidateAsync(string filePath, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("飞船页不校验存档结构。");
+
+    /// <inheritdoc />
+    public Task<OperationResult<SaveFormatOutcome>> FormatAsync(SaveFormatRequest request, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("飞船页不格式化存档。");
+}
+
 /// <summary>单行文本输入替身：按队列返回预设值，并记录每次提示的标题/说明/初始值。</summary>
 internal sealed class InstancesFakeTextPrompt : IInstanceTextPrompt
 {

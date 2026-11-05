@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Styling;
 using CkanUI.ViewModels.Relations;
 
 namespace CkanUI.App.Views.Relations;
@@ -61,6 +62,15 @@ public sealed class RelationNetworkControl : Control
     private RelationGraphNode? hoveredNode;
 
     private static readonly DashStyle OrbitDash = new(new double[] { 3, 5 }, 0);
+
+    /// <summary>把 270px 最外圈（含节点半径）完整装进当前可用区域的自适应缩放系数。</summary>
+    private double FitScale => Math.Clamp(
+        Math.Min(Bounds.Width, Bounds.Height) / (2.0 * (270.0 + 46.0)),
+        0.28,
+        1.0);
+
+    /// <summary>用户缩放 × 自适应缩放后的实际绘制比例。</summary>
+    private double Scale => zoom * FitScale;
 
     static RelationNetworkControl()
     {
@@ -138,19 +148,29 @@ public sealed class RelationNetworkControl : Control
 
         var center = new Point(width / 2.0 + panOffset.X, height / 2.0 + panOffset.Y);
 
-        // 1. 绘制太空深空背景与同心天体引力轨道
-        DrawCelestialBackground(context, center, width, height);
-
         var nodes = Nodes?.ToList();
         var edges = Edges?.ToList();
 
         if (nodes is null || nodes.Count == 0)
         {
+            // 1. 绘制太空深空背景
+            DrawCelestialBackground(context, center, width, height, null);
             DrawEmptyHint(context, center);
             return;
         }
 
-        // 2. 绘制节点间的引力连线
+        // 1. 绘制太空深空背景与同心天体引力轨道（仅绘制实际有节点的轨道）
+        DrawCelestialBackground(context, center, width, height, nodes);
+
+        // 2. 先统一排布所有节点标签（含防重叠），再画连线与节点
+        var labels = BuildLabels(nodes, center);
+        var labelMap = new Dictionary<RelationGraphNode, NodeLabel>(labels.Count);
+        foreach (var label in labels)
+        {
+            labelMap[label.Node] = label;
+        }
+
+        // 3. 绘制节点间的引力连线
         if (edges is not null && edges.Count > 0)
         {
             foreach (var edge in edges)
@@ -159,32 +179,37 @@ public sealed class RelationNetworkControl : Control
             }
         }
 
-        // 3. 绘制节点天体（先画非根节点，最后画根节点与高亮节点）
+        // 4. 绘制节点天体（先画非根节点，最后画根节点与高亮节点）
         foreach (var node in nodes.Where(n => !n.IsRoot && n != hoveredNode && n != SelectedNode))
         {
-            DrawNode(context, node, center);
+            DrawNode(context, node, center, labelMap.GetValueOrDefault(node));
         }
 
         var rootNode = nodes.FirstOrDefault(n => n.IsRoot);
         if (rootNode is not null && rootNode != hoveredNode && rootNode != SelectedNode)
         {
-            DrawNode(context, rootNode, center);
+            DrawNode(context, rootNode, center, labelMap.GetValueOrDefault(rootNode));
         }
 
         // 优先将选中和悬停节点浮于顶层
         if (SelectedNode is not null && SelectedNode != hoveredNode)
         {
-            DrawNode(context, SelectedNode, center);
+            DrawNode(context, SelectedNode, center, labelMap.GetValueOrDefault(SelectedNode));
         }
 
         if (hoveredNode is not null)
         {
-            DrawNode(context, hoveredNode, center);
+            DrawNode(context, hoveredNode, center, labelMap.GetValueOrDefault(hoveredNode));
             DrawHoverCard(context, hoveredNode, center);
         }
     }
 
-    private void DrawCelestialBackground(DrawingContext context, Point center, double width, double height)
+    private void DrawCelestialBackground(
+        DrawingContext context,
+        Point center,
+        double width,
+        double height,
+        IReadOnlyList<RelationGraphNode>? nodes)
     {
         // 微弱深空径向渐变底色
         var bgBrush = new RadialGradientBrush
@@ -201,30 +226,24 @@ public sealed class RelationNetworkControl : Control
         };
         context.FillRectangle(bgBrush, new Rect(0, 0, width, height));
 
-        // 同心引力轨道 (110px, 190px, 270px)
+        // 同心引力轨道 (110px, 190px, 270px)，仅绘制实际承载节点的轨道。
+        // 轨道不再画罗马数字说明：400px 宽的详情面板里那圈文字必然压到节点标签，
+        // 分类语义已经由上方计数胶囊（依赖/推荐/冲突 + 颜色 + 数量）承担。
         var orbitRadii = new[] { 110.0, 190.0, 270.0 };
-        var orbitLabels = new[] { "I · 必需依赖 (Depends)", "II · 推荐与扩展 (Recommends / Suggests)", "III · 冲突与警告 (Conflicts / Incompatible)" };
         var orbitBrush = ResolveThemeBrush("CkanBorderBrush");
         var orbitPen = new Pen(orbitBrush, 1.0, OrbitDash);
-        var labelBrush = ResolveThemeBrush("CkanTextSecondaryBrush");
 
         for (var i = 0; i < orbitRadii.Length; i++)
         {
-            var r = orbitRadii[i] * zoom;
-            context.DrawEllipse(null, orbitPen, center, r, r);
-
-            // 轨道标签
-            if (zoom >= 0.75)
+            var ringIndex = i + 1;
+            var hasNodes = nodes is not null && nodes.Any(n => !n.IsRoot && n.OrbitRing == ringIndex);
+            if (!hasNodes)
             {
-                var labelText = new FormattedText(
-                    orbitLabels[i],
-                    CultureInfo.CurrentCulture,
-                    FlowDirection.LeftToRight,
-                    Typeface.Default,
-                    9.5,
-                    labelBrush);
-                context.DrawText(labelText, new Point(center.X + 8, center.Y - r - 12));
+                continue;
             }
+
+            var r = orbitRadii[i] * Scale;
+            context.DrawEllipse(null, orbitPen, center, r, r);
         }
     }
 
@@ -253,16 +272,16 @@ public sealed class RelationNetworkControl : Control
         context.DrawEllipse(new SolidColorBrush(edgeColor), null, new Point(midX, midY), dotRadius, dotRadius);
     }
 
-    private void DrawNode(DrawingContext context, RelationGraphNode node, Point center)
+    private void DrawNode(DrawingContext context, RelationGraphNode node, Point center, NodeLabel? label)
     {
         var pt = GetScreenPos(node, center);
-        var baseRadius = node.Radius * zoom;
+        var baseRadius = node.Radius * Scale;
         var isHover = node == hoveredNode;
         var isSelect = node == SelectedNode;
         var r = isHover ? baseRadius + 3.0 : baseRadius;
 
         var kindBrush = GetRelationBrush(node.Kind);
-        var cardBg = ResolveThemeBrush("CkanSurfaceCardBrush");
+        var cardBg = ResolveThemeBrush("CkanCardBackgroundBrush");
 
         // 如果节点被分类过滤掉了，以微弱半透明渲染
         var opacity = node.IsFiltered ? 0.25 : 1.0;
@@ -308,25 +327,249 @@ public sealed class RelationNetworkControl : Control
 
             // 节点内核心圆点
             context.DrawEllipse(new SolidColorBrush(strokeColor), null, pt, Math.Max(2.5, r * 0.35), Math.Max(2.5, r * 0.35));
+
+            // 未满足的必需依赖：右上角危险标记
+            if (!node.IsSatisfied && node.Kind == RelationKind.Depends)
+            {
+                var dangerColor = ResolveThemeBrush("CkanDangerBrush") is ISolidColorBrush db
+                    ? Color.FromArgb(255, db.Color.R, db.Color.G, db.Color.B)
+                    : Color.FromArgb(255, 179, 38, 30);
+                var dotRadius = Math.Max(3.0, r * 0.3);
+                context.DrawEllipse(new SolidColorBrush(dangerColor), null,
+                    new Point(pt.X + r * 0.72, pt.Y - r * 0.72), dotRadius, dotRadius);
+            }
         }
 
-        // 3. 节点文字
-        var textBrush = ResolveThemeBrush("CkanTextPrimaryBrush");
-        var displayLabel = node.IsRoot ? $"★ {node.DisplayText}" : node.DisplayText;
-        if (displayLabel.Length > 16 && !isHover)
+        // 3. 节点文字（位置由 BuildLabels 统一排布并做过防重叠处理）
+        if (label is not null)
         {
-            displayLabel = displayLabel.Substring(0, 14) + "…";
+            context.DrawText(label.Text, new Point(label.X, label.Y));
+        }
+    }
+
+    /// <summary>
+    /// 统一排布所有节点标签。详情面板只有 320–640px 宽，完整模组名经常比两条轨道半径还宽；
+    /// 这里给每个节点在自己四周（右/左/上/下 × 近/远两档）找第一个不压字、不压圆的空位，
+    /// 找不到就逐步缩短标签再试。实在挤不下才不画（悬停卡片仍显示完整名字），
+    /// 而不是把标签甩到画布边缘——那样标签和节点对不上，比不画更糟。
+    /// </summary>
+    private List<NodeLabel> BuildLabels(IReadOnlyList<RelationGraphNode> nodes, Point center)
+    {
+        var textBrush = ResolveThemeBrush("CkanTextPrimaryBrush");
+        var labels = new List<NodeLabel>(nodes.Count);
+        var placed = new List<Rect>(nodes.Count);
+        var circles = new List<(Point Center, double Radius)>(nodes.Count);
+
+        foreach (var node in nodes)
+        {
+            circles.Add((GetScreenPos(node, center), node.Radius * Scale + 5.0));
         }
 
-        var label = new FormattedText(
-            displayLabel,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            Typeface.Default,
-            node.IsRoot ? 11.5 : 10.5,
-            textBrush);
+        // 根节点优先占位，其次由内向外：重要的标签先挑位置
+        foreach (var node in nodes.OrderBy(n => n.IsRoot ? 0 : n.OrbitRing + 1))
+        {
+            var displayLabel = node.IsRoot ? $"★ {node.DisplayText}" : node.DisplayText;
+            var fontSize = node.IsRoot ? 11.5 : (Scale < 0.6 ? 9.5 : 10.5);
+            var available = Math.Max(48.0, Bounds.Width * (node.IsRoot ? 0.62 : 0.46));
 
-        context.DrawText(label, new Point(pt.X - label.Width / 2.0, pt.Y + r + 4));
+            var pt = GetScreenPos(node, center);
+            var r = node.Radius * Scale;
+            Rect? chosen = null;
+
+            // 由宽到窄四档：先试完整名字，挤不下再逐级截短，避免窄栏里一片「标签消失」
+            foreach (var factor in new[] { 1.0, 0.78, 0.62, 0.45 })
+            {
+                var text = FitLabel(displayLabel, fontSize, available * factor, textBrush);
+                var w = text.Width;
+                var h = text.Height;
+
+                foreach (var candidate in BuildLabelCandidates(node, pt, r, w, h))
+                {
+                    var rect = new Rect(
+                        Math.Clamp(candidate.X, 4.0, Math.Max(4.0, Bounds.Width - w - 4.0)),
+                        Math.Clamp(candidate.Y, 2.0, Math.Max(2.0, Bounds.Height - h - 2.0)),
+                        w,
+                        h);
+
+                    if (Collides(rect, placed, circles))
+                    {
+                        continue;
+                    }
+
+                    chosen = rect;
+                    break;
+                }
+
+                if (chosen is not null)
+                {
+                    labels.Add(new NodeLabel
+                    {
+                        Node = node,
+                        Text = text,
+                        X = chosen.Value.X,
+                        Y = chosen.Value.Y
+                    });
+                    placed.Add(chosen.Value);
+                    break;
+                }
+            }
+
+            // 根节点必须始终可读：实在挤不下就压在圆的正下方，允许轻微重叠
+            if (chosen is null && node.IsRoot)
+            {
+                var text = FitLabel(displayLabel, fontSize, available, textBrush);
+                var rect = new Rect(
+                    Math.Clamp(pt.X - text.Width / 2.0, 4.0, Math.Max(4.0, Bounds.Width - text.Width - 4.0)),
+                    Math.Clamp(pt.Y + r + 6.0, 2.0, Math.Max(2.0, Bounds.Height - text.Height - 2.0)),
+                    text.Width,
+                    text.Height);
+
+                labels.Add(new NodeLabel
+                {
+                    Node = node,
+                    Text = text,
+                    X = rect.X,
+                    Y = rect.Y
+                });
+                placed.Add(rect);
+            }
+        }
+
+        return labels;
+    }
+
+    /// <summary>
+    /// 节点四周的候选槽位：朝外的方向优先，近档放不下还有远档（更远离自己的圆），
+    /// 窄栏里多两个空位就少一次「标签画不出来」。
+    /// </summary>
+    private static IEnumerable<(double X, double Y)> BuildLabelCandidates(
+        RelationGraphNode node, Point pt, double r, double w, double h)
+    {
+        static IEnumerable<(double X, double Y)> Slots(Point pt, double r, double w, double h, double gap)
+        {
+            yield return (pt.X + r + gap, pt.Y - h / 2.0);          // 右
+            yield return (pt.X - r - gap - w, pt.Y - h / 2.0);      // 左
+            yield return (pt.X - w / 2.0, pt.Y - r - gap - h);      // 上
+            yield return (pt.X - w / 2.0, pt.Y + r + gap);          // 下
+        }
+
+        var near = Slots(pt, r, w, h, 6.0).ToList();
+        var far = Slots(pt, r, w, h, 6.0 + h * 0.85).ToList();
+
+        if (node.IsRoot)
+        {
+            foreach (var slot in near.Concat(far))
+            {
+                yield return slot;
+            }
+
+            yield break;
+        }
+
+        var dirX = node.X;
+        var dirY = node.Y;
+        var length = Math.Sqrt(dirX * dirX + dirY * dirY);
+        if (length < 0.001)
+        {
+            length = 1;
+        }
+
+        dirX /= length;
+        dirY /= length;
+
+        int[] order;
+        if (Math.Abs(dirX) >= Math.Abs(dirY))
+        {
+            order = dirX >= 0 ? new[] { 0, 2, 3, 1 } : new[] { 1, 2, 3, 0 };
+        }
+        else
+        {
+            order = dirY >= 0 ? new[] { 3, 0, 1, 2 } : new[] { 2, 0, 1, 3 };
+        }
+
+        // 先按方位把近档排一遍，再按同样顺序补远档
+        foreach (var index in order)
+        {
+            yield return near[index];
+        }
+
+        foreach (var index in order)
+        {
+            yield return far[index];
+        }
+    }
+
+    private static bool Collides(
+        Rect rect,
+        IReadOnlyList<Rect> placed,
+        IReadOnlyList<(Point Center, double Radius)> circles)
+    {
+        // 视觉间隙：两段文字贴在一起会被读成一整串（如 "ScattererRealPlume"）
+        var padded = new Rect(rect.X - 8.0, rect.Y - 5.0, rect.Width + 16.0, rect.Height + 10.0);
+        foreach (var other in placed)
+        {
+            if (padded.Intersects(other))
+            {
+                return true;
+            }
+        }
+
+        foreach (var circle in circles)
+        {
+            var closestX = Math.Clamp(circle.Center.X, padded.X, padded.Right);
+            var closestY = Math.Clamp(circle.Center.Y, padded.Y, padded.Bottom);
+            var dx = closestX - circle.Center.X;
+            var dy = closestY - circle.Center.Y;
+            if (dx * dx + dy * dy < circle.Radius * circle.Radius)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>生成一条不超过 maxWidth 的标签：超宽时逐字截断补省略号，保证标签不会互相压字。</summary>
+    private static FormattedText FitLabel(string raw, double fontSize, double maxWidth, IBrush brush)
+    {
+        var text = CreateText(raw, fontSize, brush);
+        if (text.Width <= maxWidth)
+        {
+            return text;
+        }
+
+        for (var length = raw.Length - 1; length > 2; length--)
+        {
+            // 不要从代理对中间截断（模组名里偶有 emoji）
+            if (char.IsLowSurrogate(raw[length]))
+            {
+                continue;
+            }
+
+            var candidate = CreateText(string.Concat(raw.AsSpan(0, length), "…"), fontSize, brush);
+            if (candidate.Width <= maxWidth)
+            {
+                return candidate;
+            }
+        }
+
+        return CreateText(string.Concat(raw.AsSpan(0, 1), "…"), fontSize, brush);
+    }
+
+    private static FormattedText CreateText(string value, double fontSize, IBrush brush) =>
+        new(value, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, fontSize, brush);
+
+    private sealed class NodeLabel
+    {
+        public required RelationGraphNode Node { get; init; }
+
+        public required FormattedText Text { get; init; }
+
+        public double X { get; set; }
+
+        public double Y { get; set; }
+
+        public Rect Bounds => new(X, Y, Text.Width, Text.Height);
     }
 
     private void DrawHoverCard(DrawingContext context, RelationGraphNode node, Point center)
@@ -334,16 +577,16 @@ public sealed class RelationNetworkControl : Control
         var pt = GetScreenPos(node, center);
         var cardWidth = 220.0;
         var cardHeight = 74.0;
-        var cardX = Math.Clamp(pt.X - cardWidth / 2.0, 10, Bounds.Width - cardWidth - 10);
-        var cardY = pt.Y - node.Radius * zoom - cardHeight - 12;
+        var cardX = Math.Clamp(pt.X - cardWidth / 2.0, 10, Math.Max(10, Bounds.Width - cardWidth - 10));
+        var cardY = pt.Y - node.Radius * Scale - cardHeight - 12;
         if (cardY < 10)
         {
-            cardY = pt.Y + node.Radius * zoom + 32;
+            cardY = pt.Y + node.Radius * Scale + 32;
         }
 
         var cardRect = new Rect(cardX, cardY, cardWidth, cardHeight);
-        var bg = new SolidColorBrush(Color.FromArgb(235, 15, 23, 42));
-        var borderPen = new Pen(new SolidColorBrush(Color.FromArgb(180, 56, 189, 248)), 1.2);
+        var bg = ResolveThemeBrush("CkanCardBackgroundBrush");
+        var borderPen = new Pen(ResolveThemeBrush("CkanBorderBrush"), 1.2);
 
         // 卡片圆角外框与阴影
         context.DrawRectangle(bg, borderPen, new RoundedRect(cardRect, 6));
@@ -355,7 +598,7 @@ public sealed class RelationNetworkControl : Control
             FlowDirection.LeftToRight,
             Typeface.Default,
             12.0,
-            Brushes.White);
+            ResolveThemeBrush("CkanTextPrimaryBrush"));
         context.DrawText(titleText, new Point(cardX + 10, cardY + 8));
 
         var kindBrush = GetRelationBrush(node.Kind);
@@ -374,7 +617,7 @@ public sealed class RelationNetworkControl : Control
             FlowDirection.LeftToRight,
             Typeface.Default,
             9.5,
-            node.IsKnown ? new SolidColorBrush(Color.FromRgb(148, 163, 184)) : new SolidColorBrush(Color.FromRgb(239, 68, 68)));
+            node.IsKnown ? ResolveThemeBrush("CkanTextSecondaryBrush") : ResolveThemeBrush("CkanDangerBrush"));
         context.DrawText(tipText, new Point(cardX + 10, cardY + 48));
     }
 
@@ -393,7 +636,7 @@ public sealed class RelationNetworkControl : Control
 
     private Point GetScreenPos(RelationGraphNode node, Point center)
     {
-        return new Point(center.X + node.X * zoom, center.Y + node.Y * zoom);
+        return new Point(center.X + node.X * Scale, center.Y + node.Y * Scale);
     }
 
     private RelationGraphNode? HitTest(Point pos)
@@ -408,7 +651,7 @@ public sealed class RelationNetworkControl : Control
         {
             var node = nodes[i];
             var screenPos = GetScreenPos(node, center);
-            var r = (node.Radius + 6.0) * zoom;
+            var r = (node.Radius + 6.0) * Scale;
             var dx = pos.X - screenPos.X;
             var dy = pos.Y - screenPos.Y;
             if (dx * dx + dy * dy <= r * r)
@@ -488,16 +731,14 @@ public sealed class RelationNetworkControl : Control
 
     private IBrush ResolveThemeBrush(string key)
     {
-        if (this.TryFindResource(key, out var resource) && resource is IBrush brush)
+        // 必须显式带上 ActualThemeVariant：不带主题的 TryFindResource 会落到
+        // ThemeDictionaries 里的第一个主题（暗色），浅色主题下文字/卡片会变成
+        // 暗色主题的颜色 —— 白底白字，等于没画。
+        if (this.TryFindResource(key, ActualThemeVariant, out var resource) && resource is IBrush brush)
         {
             return brush;
         }
 
-        if (this.TryFindResource("CkanTextPrimaryBrush", out var fallback) && fallback is IBrush fb)
-        {
-            return fb;
-        }
-
-        return Brushes.White;
+        return ActualThemeVariant == ThemeVariant.Dark ? Brushes.White : Brushes.Black;
     }
 }

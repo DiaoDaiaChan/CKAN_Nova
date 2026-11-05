@@ -62,6 +62,15 @@ internal sealed class ChangesFakeInstallerService : IInstallerService
     /// <summary>非 null 时 <see cref="ApplyAsync"/> 抛出该异常（用于异常收口用例）。</summary>
     public Exception? ThrowOnApply { get; set; }
 
+    /// <summary>按次返回的结果队列：用于「第一次要求用户选提供者、选完第二次成功」这类多轮闭环。</summary>
+    public Queue<OperationResult<InstallReport>> Results { get; } = new();
+
+    /// <summary>执行期要回放的进度序列（用于断言阶段徽标与百分比落点）。</summary>
+    public IReadOnlyList<OperationProgress> ProgressToReport { get; set; } = Array.Empty<OperationProgress>();
+
+    /// <summary>非 null 时在回放完进度后挂起，便于断言"执行中"的中间态。</summary>
+    public TaskCompletionSource? HangAfterProgress { get; set; }
+
     /// <summary><see cref="ApplyAsync"/> 被调用次数。</summary>
     public int ApplyCount { get; private set; }
 
@@ -91,7 +100,17 @@ internal sealed class ChangesFakeInstallerService : IInstallerService
             await Task.Yield();
         }
 
-        return Result;
+        foreach (var item in ProgressToReport)
+        {
+            progress?.Report(item);
+        }
+
+        if (HangAfterProgress is { } gate)
+        {
+            await gate.Task.ConfigureAwait(false);
+        }
+
+        return Results.Count > 0 ? Results.Dequeue() : Result;
     }
 }
 

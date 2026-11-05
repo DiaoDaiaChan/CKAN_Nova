@@ -117,20 +117,37 @@ public ModConfigPageViewModel(
 | `id` 匹配 `^[a-z0-9]+(-[a-z0-9]+)*$` | Error |
 | `name` 非空；`homepage`/`docUrl` 必须 http(s) | Error |
 | `match.ckanIdentifiers` 至少 1 项 | Error |
+| `match.paths` 每项非空、非绝对路径 | Error |
+| `match.resolveByInstalledFiles`（旧字段） | Warning `adapter-option-deprecated`——按已安装文件判定已是默认行为 |
+| `match.paths` 参与安装判定：注册表优先，未命中时按声明路径在实例里找（`caseInsensitive` 生效） | 命中就出卡片，附 Warning `matched-by-path`（版本无法确认） |
 | `modVersionRange` 每项走 `ModConfigVersionRange.TryParseConstraint` | Error（消息带 `modVersionRange：` 前缀） |
 | `files` 至少 1 项；`path` 非空且非绝对路径；`layout` ∈ node/flat/custom；`mode` ∈ editable/readonly | Error |
 | `layout = custom` **必须** `mode = readonly` | Error（我方不理解私有语法，允许写等于允许写坏） |
 | `onMissing = create-from-template` 必须给 `template` | Error |
 | `file` 引用（整数下标或字符串 id）必须能解析到已声明文件 | Error |
-| 同文件内 key 不重复 | Error |
+| 同文件内同一节点里 key 不重复（判重按**解析后的名链**，`/ROOT/CHILD` 与 `CHILD` 指向同一节点时算重复） | Error |
+| `fields[].nodePath` 只能用在 `layout = node` 的文件上；`A//B` 这类空节点名 | Error |
 | `type` 必须是 10 种之一；`enum` 必须给 `values`；`min <= max`；`pattern` 必须能编译 | Error |
 | 未知属性 | **只 Warning** `adapter-unknown-property`（大概率是拼错），不影响启用 |
 
 **任一 Error → 整份 adapter 停用**（`Adapter` 为 null）。不做"半可用"：一个 adapter 只有一部分字段可信时，用户看到的界面会骗人。
 
+**`fields[].nodePath`（嵌套子节点）**：ConfigNode 里子节点的键不在根层，默认读不到。声明 `nodePath` 后，读侧与写侧都按同一条规则把键定位到子节点：
+
+| 写法 | 解析结果（`rootNode = KSP_COMMUNITY_FIXES`） | 用途 |
+| --- | --- | --- |
+| 不写 / `""` / 全空白 | `KSP_COMMUNITY_FIXES` | 根层键（默认） |
+| `"MANEUVER_TOOL_DEFAULTS"` | `KSP_COMMUNITY_FIXES/MANEUVER_TOOL_DEFAULTS` | 相对 rootNode |
+| `"/OTHER"`（前导 `/`） | `OTHER` | 绝对名链，用于 rootNode 之外的节点 |
+| `"KSP_COMMUNITY_FIXES/CHILD"` | `KSP_COMMUNITY_FIXES/CHILD` | 已带根名时不再重复拼接（容错） |
+
+限制：名链里的每个节点名必须在文件里**只出现一次**——`FindPair` 只返回第一个匹配，同名重复的节点（如 DynamicBatteryStorage 里出现 14 次的 `HANDLERCATEGORY`）不能这样定位。写侧遇到"同名键散在多个节点、请求又没给 nodePath"时**拒绝写入**而不是猜第一个。
+
 ### 4.3 诊断码表
 
-`adapter-json-invalid`（JSON 语法错）· `adapter-schema`（结构/取值非法）· `adapter-field`（字段声明错）· `adapter-version-range`（版本区间错）· `adapter-unknown-property`（Warning）· `adapter-dir-missing` / `adapter-dir-io`（目录问题）· `adapter-overridden` / `adapter-duplicate`（Warning）。
+`adapter-json-invalid`（JSON 语法错）· `adapter-schema`（结构/取值非法）· `adapter-field`（字段声明错）· `adapter-version-range`（版本区间错）· `adapter-unknown-property`（Warning）· `adapter-option-deprecated`（Warning，旧字段）· `adapter-dir-missing` / `adapter-dir-io`（目录问题）· `adapter-overridden` / `adapter-duplicate`（Warning）。
+
+读侧另有 `matched-by-path`（Warning）：CKAN 注册表里查不到这个 mod，但 `match.paths` 在磁盘上命中了文件。这条只在"用户手动装了 zip / 注册表损坏"时出现，页面照常可编辑，但版本区间退化为"未知"。
 
 ### 4.4 与 schema 的关系
 
@@ -154,6 +171,7 @@ public static ModConfigAdapterState DetectAdapterState(
 | # | 条件 | 结果 | 诊断 |
 | --- | --- | --- | --- |
 | 1 | 注册表没装 且 声明的文件都不存在 | `NotInstalled`（页面不显示卡片） | 无 |
+| 1b | 注册表没装，但 `match.paths` 命中磁盘文件 | 按"已安装"继续往下（版本区间退化） | Warning `matched-by-path` |
 | 2 | 版本区间判定不出来（版本未知/非法） | 按支持处理，继续往下 | Warning `version-unknown` |
 | 3 | 版本不满足区间 | `ReadOnlyVersion` | Warning `version-out-of-range` |
 | 4 | 声明的文件全不存在 | `CreatableByTemplate`（有模板）否则 `ReadOnlyRaw` | `files-missing` |
@@ -295,20 +313,57 @@ public interface IModConfigFieldRenderer
 - 没有配置项搜索跨 mod 聚合：搜索只匹配当前 adapter 声明过的 label 与配置文件注释。
 - 没有本地化：页面文案是中文原文，经 `Func<string,string>` 委托转出，键由 Lead 统一登记。
 
-## 8. 首批 adapter 与取证状态
+## 8. 内置 adapter 与取证状态
 
-| adapter | 状态 | 覆盖 | 说明 |
-| --- | --- | --- | --- |
-| `adapters/ksp-community-fixes/` | 完整示例 | 1 文件 / **3 字段** | `RefundingOnRecovery`(bool)、`Language`(enum 6 值)、`MaxPhysicsDelta`(float 0.01~0.2 unit s)。**该 mod 的 Settings.cfg 实测有 138 条键，其余 135 条未收录** |
-| `adapters/kerbalism/` | 骨架 | 1 文件 / **0 字段** | 文件语法形态未核验 → `layout: custom` + `mode: readonly` + `onMissing: readonly`，只做只读展示 |
+19 份内置 adapter，合计 **256 个字段**。每份目录里都有 `adapter.json` + `README.md`（写覆盖范围与未收录原因），H-08 用 `docs/design/adapter.schema.json` 逐份校验。
 
-为什么只写 3 个键：本机没有 KSP 实例，键名/默认值只能取 15 篇 §4.1/§4.2 里**已取证**的那几条；本会话的联网检索工具不可用（凭据失效），无法进一步核验。按 §7 Q4，盲写键名等于埋雷，所以**宁缺勿错**，其余键在 README 里列了补齐 4 步（取证 → 加字段带 label/risk → 加 fixture 与往返测试 → 跑 H-08）。
+| adapter | 覆盖 | 说明 |
+| --- | --- | --- |
+| `ksp-community-fixes/` | 1 文件 / **29 字段** | 21 个根节点直属键（8 主要修复、6 次要修复、4 性能、3 体验）+ 3 个子节点里的 8 个键（`MANEUVER_TOOL_DEFAULTS` 2、`MEMORY_LEAKS_DEBUGGING` 4、`COMMNET_THROTTLING_SETTINGS` 2，走 `fields[].nodePath`）。该文件实测 **137 个键**，其余未收录（未取证的不写） |
+| `dynamic-battery-storage/` | 1 文件 / **9 字段** | 7 个 `Debug*` 开关、`MinimumWarpFactor`(100)、`BufferScaling`(1.75，作者注明下限 1.25)。`HANDLERCATEGORY`/`HANDLER` 是数据声明，不收录 |
+| `ksp-wheel/` | 1 文件 / **1 字段** | `powerConversion`(int，实测 65)。风险 medium：改的是全部轮子的电机换算 |
+| `textures-unlimited/` | 1 文件 / **7 字段** | 根层 `logReplacements`/`logErrors` + `UV_EXPORT` 子节点 5 个（`exportUVs`/`exportPath`/`width`/`height`/`thickness`，走 nodePath）。`name` 是配置身份标识不收录 |
+| `real-fuels-mfs/` | 1 文件 / **11 字段** | 根层 `BatteryMultiplier`/`basemassUseTotalVolume`/`radiatorMinTempMult` + `IgnoreFuelsForFill` 子节点 8 个开关（走 nodePath） |
+| `parallax-continued/` | 1 文件 / **19 字段** | `ParallaxGlobal` 下 6 个子节点：地形着色 5、散射系统 5、光照 2、缩放空间 4、调试 2、对象池 1。`onMissing: readonly`——默认值与贴图包配套，猜错画面直接崩，不凭模板造文件 |
+| `kerbalism/` | 1 文件 / **41 字段** | 原为 0 字段只读骨架（语法形态未核验）。语料核对后改为 `layout: node` + `mode: editable`：12 个玩法开关 + 28 个浮点系数 + `Profile`（string，risk=high——换档案等于整套玩法参数替换） |
+| `system-heat/` | 1 文件 / **24 字段** | 根 `SYSTEMHEAT` 的散热调参；排除 `HarvesterPatchesInstalled`/`ConverterPatchesInstalled`（ModuleManager 补丁写回的安装标记，不是用户设置）。`SpaceTemperature` 默认值原文 `2.7f` |
+| `ferram-aerospace-research/` | 1 文件 / **17 字段** | `FARConfig` 下 4 个子节点（`Settings`/`Debug`/`FlightLog`/`Exposure`，走 nodePath）。同时匹配 `FerramAerospaceResearch` 与 fork 的 `FerramAerospaceResearchContinued`。`logLevel` 用 enum（文件注释写明 6 个取值），`Exposure.device` 用 string（取值未取证） |
+| `time-control/` | 1 文件 / **10 字段** | `GlobalSettings` 的 12 个根键里收 10 个；跳过 `Version`（版本戳）与 `KeyBinds` 子节点（16 个 `KeyBind` 同名重复，见 §8.2） |
+| `krpc/` | 1 文件 / **11 字段** | `KRPCConfiguration` 14 键收 11 个，跳过两个窗口可见性开关。`logLevel` 用 string |
+| `space-dust/` | 1 文件 / **15 字段** | 6 个 Debug 开关 + 3 个粒子数上限 + 2 个「全部发现/识别」（risk=high，不可逆）+ 3 个发现率/奖励 + `GameScale`。着色器、贴图、颜色（0–1 RGBA，不是 hex）不收录 |
+| `real-chute/` | 1 文件 / **5 字段** | `autoArm`/`mustBeEngineer`/`engineerLevel`/`jokeActivated`/`activateNyan`，文件只有这 5 键 |
+| `vab-organizer/` | 1 文件 / **5 字段** | `DebugMode`/`KSPDefaultFont`/两个字号/`LabelAlpha`，文件只有这 5 键 |
+| `rcs-build-aid/` | 1 文件 / **19 字段** | 质心标记与平衡计算的玩法选项；排除 `window_x/y`、`menu_*`、`drycom_*`、`drag_altitude_*`（窗口状态与运行时缓存） |
+| `waypoint-manager/` | 1 文件 / **13 字段** | HUD 显示项、显示范围、透明度/缩放/背景灰度；排除窗口坐标与拖拽框 |
+| `memgraph/` | 1 文件 / **10 字段** | `layout: flat`（文件无根节点）：2 个显示开关 + 日志开关 + 6 个快捷键，全部收录 |
+| `too-many-orbits/` | 1 文件 / **5 字段** | 4 个隐藏开关 + `ToggleKey`；排除窗口位置/最小化 |
+| `lunar-transfer-planner/` | 1 文件 / **5 字段** | 启用开关、两个按钮开关、默认飞行时间、时间加速余量；排除窗口矩形 |
 
-待补 adapter 清单（15 篇 §8，全部未开始）：MemGraph（fixture pending）、Kerbalism 完整版、KSPIE、RealChute、Scatterer、Restock、Waterfall 等。
+**取证口径**：键名、类型、默认值一律取真实配置文件原文（含 `True`/`true`、`2.7f` 这类写法），并用脚本按 `nodePath` 逐键比对。2026-11 的两轮校验覆盖 **19 份 adapter / 256 个键**，新 adapter 的默认值全部逐字命中；既有 adapter 里只有大小写差异（`True` vs `true`）与 3 个被整合包用户改过的值（KSPCF 的 `FewerSaves`/`SkipIndentsOnSavesAndCraftFiles`/`minRealTimeInterval`），前者由值比较器吸收，后者保留上游默认不动。
+
+**值比较器**：`src/CkanUI.Services.Abstractions/ModConfig/ModConfigValueComparer.cs` 的 `AreEqual(type, actual, expected)`——bool 忽略大小写、float 剥 `f/F` 后缀后按数值比较，其余按序数比较。`ModConfigService` 的「已修改计数」与 `ModConfigFieldRowViewModel.IsModified` 都走它，所以 `True`/`true`、`2.7`/`2.7f` 不会再被误标成「用户改过」。
+
+### 8.1 语料审计方法（2026-11，336 mod 整合包）
+
+扫 `D:/SteamLibrary/steamapps/common/Kerbal Space Program/GameData` 的 16,775 个 `.cfg`，解析 ConfigNode 结构与值类型，筛「根层标量键 ≥ 5 且没有更大的子节点」的文件——文件名过滤（settings/config/options…）只能命中 66 个 mod，结构过滤才能覆盖全部。结果 6 个候选，排除 1 个本地化词条文件后 5 个全部做成 adapter（`rcs-build-aid`/`waypoint-manager`/`memgraph`/`too-many-orbits`/`lunar-transfer-planner`）。
+
+### 8.2 明确排除的候选与理由
+
+| 候选 | 排除理由 |
+| --- | --- |
+| EVE / TUFX / Scatterer / Restock / Waterfall / RealPlume | 纯视觉；且多数只有 ModuleManager 补丁（`@PART` 开头），没有自己的设置文件，改了也只能在游戏里看效果 |
+| `AntennaHelper/Localization/ja.cfg` | 本地化词条（68 个键），不是设置 |
+| `ProceduralFairings/PF_Settings.cfg` | 9 个同名 `FairingSideShapePreset` 子节点，当前 `FindPair` 只能定位第一个 → 需要「同名重复子节点」能力，见 §11 |
+| `TimeControl` 的 `KeyBinds` | 16 个同名 `KeyBind` 子节点，同上 |
+| 部件/数据库类 `.cfg`（B9PartSwitch、Restock 的 part 定义等） | 不是用户设置，改了就坏档 |
+
+**历史教训（保留）**：最初 ksp-community-fixes 声明的 `Language`(enum) 与 `MaxPhysicsDelta`(float) 来自规格文档而非真机文件，实测**根本不存在**；页面会永远显示空白，真去写则报「文件里没有键 `{key}`」。现已被 29 个实测键替换，模板 `fixtures/settings.default.cfg` 同步重写，并由 `AdapterCatalogTests.Adapters_CreateFromTemplateFixtures_ContainEveryDeclaredKey` 守住。
+
+**内置清单门禁**：`AdapterCatalogTests.Adapters_RepoBuiltinDirectory_LoadsEveryBundledAdapter` 精确断言 19 个 id——新增/删除内置 adapter 必须同步该数组，否则发行版会静默少功能。
 
 ## 9. 与规格 15 篇的差异 / 不一致处
 
-1. **KSPCF 覆盖面**：15 篇示例给了 3 个键，但正文提到该 mod 有 138 条键。本段只实现示例那 3 个，并在 adapter.json 顶部注释与 README 里写明"其余 135 条待核验"。**这不是缩水，是取证边界**。
+1. **KSPCF 覆盖面**：15 篇示例给了 3 个键，但正文提到该 mod 有 138 条键。本段实现 29 个真机取证过的键（21 根层 + 8 子节点 `nodePath`），并在 adapter.json 顶部注释与 README 里写明"其余未收录及原因（同名重复节点 / 未核验）"。**这不是缩水，是取证边界**——示例里的 `Language`/`MaxPhysicsDelta` 实测不存在，已删除。
 2. **custom 布局强制只读**：15 篇只说 custom 是"mod 私有语法"，没有明说禁止写。本项目把"custom 必须 readonly"做成**读取器的硬错误**（写错就得改 adapter），理由是允许写等于允许写坏。
 3. **ConfigNode 复用上游**：15 篇 §9 说"复用 CKAN 的 ConfigNode 实现"。实际复用只到 `SfsParser`（语义解析），序列化自研（`ConfigNodeDocument` 的行内切片），因为 `SfsWriter` 没有按行注入的入口。上游代码零修改。
 4. **JSON Schema**：15 篇提到 schema 校验但没指定位置。仓库里原有一份 `tools/verify-layout/adapter.schema.json`（旧项目版，缺 `custom/id/lineEnding/separator/readonlyReason/label/default`），H-08 现在**只认** `docs/design/adapter.schema.json`。本段新增后者，与读取器规则对齐；旧文件已于 2026-10-29 删除（`tools/verify-layout/GatesData.cs` 不再有 `ProjectSchema` 兜底、csproj 的拷贝项一并移除），H-08 只认这一份，缺失即阻断并点名 `docs/design/adapter.schema.json`。
@@ -320,18 +375,21 @@ public interface IModConfigFieldRenderer
 | 套件 | 文件 | 用例 |
 | --- | --- | --- |
 | ConfigNode 往返 | `tests/CkanUI.Services.Tests/ModConfig/ConfigNodeDocumentTests.cs` | 33 |
-| adapter 读取 | `.../AdapterJsonReaderTests.cs` | 35 |
-| adapter 目录 | `.../AdapterCatalogTests.cs` | 9 |
-| 状态机 | `.../ModConfigDetectorTests.cs` | 18 |
+| adapter 读取（含 nodePath 解析） | `.../AdapterJsonReaderTests.cs` | 41 |
+| adapter 目录 | `.../AdapterCatalogTests.cs` | 11 |
+| 读侧（adapter + 磁盘 → 模型，含 match.paths 兜底） | `.../ModConfigServiceTests.cs` | 3 |
+| 状态机（含 float 的 f/F 后缀） | `.../ModConfigDetectorTests.cs` | 19 |
 | 版本区间 | `.../ModConfigVersionRangeTests.cs` | 19 |
-| 写盘安全 | `.../AdapterWriterTests.cs` | 23 |
-| 页面 VM / 编辑 / 回滚 | `tests/CkanUI.ViewModels.Tests/ModConfig/*` | 119 |
+| 写盘安全（含嵌套节点定位） | `.../AdapterWriterTests.cs` | 27 |
+| 页面 VM / 编辑 / 回滚 | `tests/CkanUI.Plugin.ModConfig.Tests/*` | 173（含 1 条无头渲染） |
 
-写盘安全用例覆盖：只改目标行、快照字节等于写前文件、无 `*.tmp-*` 残留、同秒两次写不覆盖快照、KSP 运行中拒绝/确认后成功、高风险需确认、只读文件/未知键/未声明文件/越界值/非法枚举被拒、缺失文件按模板创建、非 UTF-8 拒写、含空格值加引号后重解析等价、node 布局不误伤其它节点同名键、并发两次写都落盘。
+内置 adapter 还有一道**语料门禁**（不进 CI，因为依赖本机 KSP 实例）：脚本逐份定位真实配置文件，按 `nodePath` 取键并逐字比对 `default`。2026-11 覆盖 19 份 / 256 键；adapter 数据改动后应重跑，避免"声明的默认值和文件里的值不一致"导致全表飘红「已修改」。
+
+写盘安全用例覆盖：只改目标行、快照字节等于写前文件、无 `*.tmp-*` 残留、同秒两次写不覆盖快照、KSP 运行中拒绝/确认后成功、高风险需确认、只读文件/未知键/未声明文件/越界值/非法枚举被拒、缺失文件按模板创建、非 UTF-8 拒写、含空格值加引号后重解析等价、node 布局不误伤其它节点同名键、并发两次写都落盘；`nodePath` 场景另覆盖：只改指定子节点的同名键、`/OTHER` 绝对名链能改到 rootNode 之外的节点、节点名写错时报错且文件字节不变、同名键散在多个节点又没给 nodePath 时拒绝猜第一个。
 
 页面侧编辑用例（CFG-04 新增 55 例，其中 19 例行编辑语义、27 例页面写盘编排、9 例 .bak 恢复器真实文件 IO）覆盖：编辑即置脏与底部计数（"改动 2 项（待保存 1 项）"）、改回原值清脏、**每文件恰好一次 `WriteAsync` 且请求参数（实例名/游戏目录/adapterId/改动键值）正确**、跨 mod 按 adapter 分组、无确认需求时两个确认位保持 `false`、游戏运行中同意写入（`ConfirmedGameRunning = true`）与拒绝不写、高风险拒绝不写、两个确认各问一次、没有 `IDialogService` 时拒绝写盘、成功/部分失败/全失败的文案与"失败文件草稿保留"、写盘器抛异常时逐文件报错、保存后重新读盘（`LoadAsync(string.Empty)`）且停在原选中 mod、保存后暴露 `.bak` 供回滚、回滚拒绝不调用、回滚成功清空快照与草稿、回滚失败保留快照、放弃草稿恢复原值、筛选与搜索来回之后草稿仍保留、只读文件行不产生草稿、`SaveRowCommand` 只写本行所属文件、list 字段逐行文本写盘时拼成不带换行的单行。
 
-命令（**禁 `dotnet test`**，沙箱拒绝 Testhost）：
+命令（本机 `dotnet test` 可直接用；历史上沙箱拒 Testhost，故保留 TestRunner 兜底路径）：
 
 ```bash
 dotnet build tests/CkanUI.Services.Tests/CkanUI.Services.Tests.csproj --nologo -v q /nodeReuse:false
@@ -346,6 +404,7 @@ dotnet run --project tools/verify-layout
 1. **颜色 / 按键 / 路径三类控件已补齐**：color 走色块预览 + 十六进制文本（`ModConfigColorText` 归一化只用于预览与提示，写盘仍是原文）；keybinding 走 `OnKeyCaptureKeyDown` 捕获（含 Ctrl/Alt/Meta 才算组合键）；path 走「浏览…」按钮（宿主未注入 `PathPicker` 时不显示，不假装有）。三者的判定逻辑都在 ViewModels 层，可单测。
 2. **没有实例选择器**：页面固定读 `IInstanceService.Current`，切实例靠上层页面。
 3. **回滚只回滚到"上一次写盘前"**：`IAdapterWriter` 每次写盘都新建带时间戳的快照（不覆盖旧快照），但页面只跟踪本会话最近一次保存返回的那批 `.bak`；历史快照需要手工在磁盘上找。服务层没有"从快照恢复"的公共方法，所以恢复逻辑放在 ViewModels 层的 `ModConfigBackupRestorer`（做 IO 在本仓库有先例：`StabilityToleranceFile` / `LaunchCommandFile`），没有改 Services 层。
-4. **adapter 导入/远程更新只到服务层**：ADP-04 已交付 `IAdapterInstaller`（本地 json/zip、远程 URL、SHA-256 清单、ETag 更新检查、原子替换与回滚），细节见 [adapter-import.md](adapter-import.md)；页面还没有「导入 adapter…」入口，15 篇 §4.4 的信任模型仍只到"内置 + 用户目录 + 手动放入"。
+4. **adapter 导入已在页面上打通，远程更新仍只在服务层**：ADP-04 交付的 `IAdapterInstaller`（本地 json/zip、远程 URL、SHA-256 清单、ETag 更新检查、原子替换与回滚）已接到工具条的「导入 adapter」按钮——`ModConfigPageView.axaml` 的按钮 `IsVisible="{Binding CanImportAdapter}"`（宿主注入了安装器与文件选择器才出现），点击走 `ModConfigPageViewModel.ImportAdapterAsync` → `AdapterPackageSource.FromFile`。远程 URL 的**自动更新检查**还没接进页面，细节见 [adapter-import.md](adapter-import.md)。
 5. **配置项关键词的本地化**：搜索只匹配 adapter 声明的中英文 label 与注释，不做中文同义词。
-6. **Avalonia 视图未截图验证**：本段只能保证编译 0 警告、绑定名与 VM 属性一致（`IsSelectionEmpty` 这类取反属性已补进 VM 而不是在 XAML 里做转换）。
+6. **同名重复子节点无法定位**：`FindPair` 只返回第一个匹配，所以 `ProceduralFairings` 的 9 个 `FairingSideShapePreset`、`TimeControl` 的 16 个 `KeyBind` 目前既不收录也不能写。要支持就得引入「第 N 个同名节点」的定位语法（如 `nodePath: "Preset[2]"`），并同步读取器、写盘器与 schema——属于下一阶段能力，不是数据问题。
+7. **Avalonia 视图未截图验证**：本段只能保证编译 0 警告、绑定名与 VM 属性一致（`IsSelectionEmpty` 这类取反属性已补进 VM 而不是在 XAML 里做转换）。

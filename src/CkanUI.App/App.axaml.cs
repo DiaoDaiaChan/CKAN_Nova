@@ -206,7 +206,8 @@ public sealed partial class App : Application
             // 玩家往往是先看到游戏报错，再回来翻日志，那时错误已经写进文件了。
             AttachKspLogTail(instanceService);
 
-            var window = new MainWindow { DataContext = shell };
+            // 方案 A：先把窗口建成不可见，等启动序列把重页面预建完再显示（见 PrewarmStartupPagesAsync）。
+            var window = new MainWindow { DataContext = shell, Opacity = 0 };
             _mainWindow = window;
             Mark("main-window-new");
 
@@ -274,19 +275,27 @@ public sealed partial class App : Application
             _tray.Install();
             Mark("tray");
 
-            window.Closing += (_, e) =>
+            window.Closing += async (_, e) =>
             {
                 if (!trayMenu.HideOnClose) return;
                 e.Cancel = true;
+                if (Animations.WindowAnimation.GetDuration(window) > TimeSpan.Zero)
+                {
+                    await Animations.WindowAnimation.AnimateHideToTaskbarAsync(window).ConfigureAwait(true);
+                }
                 window.Hide();
             };
 
-            window.PropertyChanged += (_, e) =>
+            window.PropertyChanged += async (_, e) =>
             {
                 if (e.Property == Window.WindowStateProperty
                     && window.WindowState == WindowState.Minimized
                     && trayMenu.HideOnMinimize)
                 {
+                    if (Animations.WindowAnimation.GetDuration(window) > TimeSpan.Zero)
+                    {
+                        await Animations.WindowAnimation.AnimateHideToTaskbarAsync(window).ConfigureAwait(true);
+                    }
                     window.Hide();
                 }
             };
@@ -401,6 +410,48 @@ public sealed partial class App : Application
         }
     }
 
+    /// <summary>启动期预建的重页面：按首进成本从高到低（模组 1.2s / 模配置 0.6s / 下载统计 0.4s / 设置 0.2s）。</summary>
+    private static readonly string[] StartupPrewarmKeys = ["mods", "modconfig", "downloadstats", "settings"];
+
+    /// <summary>
+    /// 方案 A：窗口显示前预建重页面。窗口初始 Opacity=0，这里建完并排完版再显示，
+    /// 用户看不到任何一帧冻结；代价只是「启动到看见窗口」变长。
+    /// 任何失败都只降级为「窗口照常显示、页面首次进入时再建」，绝不能把窗口留在不可见状态。
+    /// </summary>
+    private async Task PrewarmStartupPagesAsync(IDispatcher dispatcher)
+    {
+        var window = _mainWindow;
+        if (window is null)
+        {
+            return;
+        }
+
+        await dispatcher.InvokeAsync(() =>
+        {
+            if (string.Equals(Environment.GetEnvironmentVariable("CKANUI_PREWARM"), "0", StringComparison.Ordinal))
+            {
+                window.Opacity = 1;
+                return;
+            }
+
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                window.PrewarmBeforeShow(StartupPrewarmKeys);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or InvalidCastException)
+            {
+                Log.Warn($"[启动] 预建页面失败（已忽略）：{ex.Message}");
+            }
+            finally
+            {
+                window.Opacity = 1;
+            }
+
+            TraceStartup($"[启动计时] prewarm={watch.ElapsedMilliseconds}ms");
+        }).ConfigureAwait(false);
+    }
+
     private async Task StartAsync(ShellViewModel shell, IReadOnlyList<string>? launchArgs = null)
     {
         // 这段同步序言会挡住窗口显示 —— 它跑在 Avalonia 调用 Show() 之前，于是这里多花的时间
@@ -420,6 +471,10 @@ public sealed partial class App : Application
             TraceStartup($"[启动计时] bootstrap-done={_startupWatch.ElapsedMilliseconds}ms");
             startupReady = result.IsSuccess;
 
+            // 方案 A：数据就绪（bootstrap 已读完本地注册表与缓存索引）但窗口还没显示之前，
+            // 把最重的几页建好并排完版。用户第一次点进去只剩切可见性，不再有 1 秒级冻结。
+            await PrewarmStartupPagesAsync(dispatcher).ConfigureAwait(false);
+
             // 语言包预热：详情面板的译文只读 IModTextService.Provider，而 Provider 只在 ReloadPacksAsync
             // 之后才有内容——此前全仓唯一触发点是 i18n 页面，等于用户不点开那一页就永远看到英文。
             // 后台预热不挡窗口显示；失败只降级为英文原文，不影响启动（17 篇 §7「不阻塞首帧」）。
@@ -437,7 +492,15 @@ public sealed partial class App : Application
             Log.Error("启动序列抛出未捕获异常。", ex);
             errors.Report(ex, "启动序列", "CKAN UI 启动失败。");
             var failedText = services.GetRequiredService<ILocalizer>().Get("Ui_Common_Status_StartupFailed");
-            await dispatcher.InvokeAsync(() => shell.StatusText = failedText).ConfigureAwait(false);
+            await dispatcher.InvokeAsync(() =>
+            {
+                shell.StatusText = failedText;
+                // 预建没跑成也要把窗口露出来，不能让它停在启动时的 Opacity=0。
+                if (_mainWindow is { } failedWindow)
+                {
+                    failedWindow.Opacity = 1;
+                }
+            }).ConfigureAwait(false);
         }
         finally
         {

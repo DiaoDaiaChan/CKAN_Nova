@@ -47,7 +47,14 @@ public sealed record ChangeResolution(
     IReadOnlyList<ResolvedChangeRequest> Requests,
     IReadOnlyList<ResolvedModule> ExtraModules,
     IReadOnlyList<string> Conflicts,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings)
+{
+    /// <summary>
+    /// 与 <see cref="Conflicts"/> 一一对应的结构化冲突（B0/B2）。以 <c>init</c> 属性追加，
+    /// 位置参数保持不变——既有构造点（含测试 fake）一个都不用改。
+    /// </summary>
+    public IReadOnlyList<ConflictEntry> ConflictEntries { get; init; } = Array.Empty<ConflictEntry>();
+}
 
 /// <summary>
 /// 变更集计算里唯一触达 CKAN Core 的一层（INT-07，见 02-core-integration.md）。

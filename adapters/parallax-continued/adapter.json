@@ -1,0 +1,97 @@
+// Parallax Continued 的配置适配器。
+// 取证：<游戏目录>/GameData/ParallaxContinued/Config/ParallaxGlobalSettings.cfg
+// （760 字节全文核对，根节点 ParallaxGlobal 下有 6 个设置子节点，每个只出现一次）。
+// 这份配置的价值全在子节点里：根节点直属键一个都没有。所以本 adapter 是
+// fields[].nodePath 的主要用例——每个字段用 nodePath 指向所属子节点。
+//
+// 为什么不写 onMissing=create-from-template：Parallax 的默认值会随版本调整
+// （地形细分预算、散射密度都跟贴图包配套），凭一个手写模板造文件等于替用户
+// 猜一套"官方默认"，猜错了画面会直接崩。文件不存在就只读，让用户先跑一次游戏。
+{
+  "schemaVersion": 1,
+  "id": "parallax-continued",
+  "name": "Parallax Continued",
+  "homepage": "https://github.com/Linaria-Forker/Parallax-Continued",
+
+  "match": {
+    "ckanIdentifiers": ["ParallaxContinued"],
+    "paths": ["GameData/ParallaxContinued/Config/ParallaxGlobalSettings.cfg"],
+    "caseInsensitive": true
+  },
+
+  "files": [
+    {
+      "id": "global",
+      "path": "GameData/ParallaxContinued/Config/ParallaxGlobalSettings.cfg",
+      "layout": "node",
+      "rootNode": "ParallaxGlobal",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "ParallaxGlobalSettings.cfg"
+    }
+  ],
+
+  "descriptionFromComment": false,
+  "unlisted": "preserve",
+
+  "fields": [
+    { "file": "global", "nodePath": "TerrainShaderSettings", "key": "maxTessellation", "type": "int",
+      "min": 1, "max": 256, "default": 64, "risk": "medium", "requiresRestart": true,
+      "label": "地形细分上限（越高地形越细，显存和 GPU 压力也越大）" },
+    { "file": "global", "nodePath": "TerrainShaderSettings", "key": "tessellationEdgeLength", "type": "float",
+      "min": 0.1, "max": 64, "default": 4, "risk": "medium", "requiresRestart": true,
+      "label": "细分边长（越小越细）" },
+    { "file": "global", "nodePath": "TerrainShaderSettings", "key": "maxTessellationRange", "type": "float",
+      "min": 0.1, "max": 200, "default": 30, "unit": "km", "risk": "medium", "requiresRestart": true,
+      "label": "细分生效的最远距离" },
+    { "file": "global", "nodePath": "TerrainShaderSettings", "key": "useAdvancedTextureBlending", "type": "bool",
+      "default": true, "risk": "medium", "requiresRestart": true, "label": "启用高级贴图混合（关掉会明显变糊）" },
+    { "file": "global", "nodePath": "TerrainShaderSettings", "key": "useAmbientOcclusion", "type": "bool",
+      "default": true, "risk": "low", "requiresRestart": true, "label": "地形环境光遮蔽" },
+
+    { "file": "global", "nodePath": "ScatterSystemSettings", "key": "densityMultiplier", "type": "float",
+      "min": 0, "max": 8, "default": 1, "risk": "medium", "requiresRestart": true,
+      "label": "地表散射物密度乘数（调到 0 等于关掉所有草和石头）" },
+    { "file": "global", "nodePath": "ScatterSystemSettings", "key": "rangeMultiplier", "type": "float",
+      "min": 0, "max": 8, "default": 1, "risk": "medium", "requiresRestart": true,
+      "label": "散射物可见距离乘数" },
+    { "file": "global", "nodePath": "ScatterSystemSettings", "key": "fadeOutStartRange", "type": "float",
+      "min": 0, "max": 1, "default": 0.8, "risk": "low", "requiresRestart": true,
+      "label": "散射物开始淡出的距离比例（相对可见距离）" },
+    { "file": "global", "nodePath": "ScatterSystemSettings", "key": "collisionLevel", "type": "int",
+      "min": 0, "max": 5, "default": 2, "risk": "medium", "requiresRestart": true,
+      "label": "散射物碰撞等级（0 关闭碰撞）" },
+    { "file": "global", "nodePath": "ScatterSystemSettings", "key": "colliderLookaheadTime", "type": "float",
+      "min": 0, "max": 5, "default": 0, "unit": "s", "risk": "low", "requiresRestart": true,
+      "label": "碰撞体预加载提前量" },
+
+    { "file": "global", "nodePath": "LightingSettings", "key": "lightShadows", "type": "bool",
+      "default": true, "risk": "low", "requiresRestart": true, "label": "启用光照阴影" },
+    { "file": "global", "nodePath": "LightingSettings", "key": "lightShadowQuality", "type": "enum",
+      "values": ["Low", "Medium", "High"], "default": "Medium", "risk": "medium", "requiresRestart": true,
+      "label": "阴影质量" },
+
+    { "file": "global", "nodePath": "ScaledSystemSettings", "key": "scaledSpaceShadows", "type": "bool",
+      "default": true, "risk": "low", "requiresRestart": true, "label": "行星尺度空间的阴影" },
+    { "file": "global", "nodePath": "ScaledSystemSettings", "key": "smoothScaledSpaceShadows", "type": "bool",
+      "default": true, "risk": "low", "requiresRestart": true, "label": "平滑行星尺度阴影（关掉会有锯齿）" },
+    { "file": "global", "nodePath": "ScaledSystemSettings", "key": "scaledRaymarchedShadowStepCount", "type": "int",
+      "min": 8, "max": 256, "default": 48, "risk": "medium", "requiresRestart": true,
+      "label": "行星尺度阴影光线步进次数（越高越准，越吃 GPU）" },
+    { "file": "global", "nodePath": "ScaledSystemSettings", "key": "loadTexturesImmediately", "type": "bool",
+      "default": false, "risk": "medium", "requiresRestart": true,
+      "label": "立即加载全部贴图（启动更慢、内存峰值更高，但飞行中不卡）" },
+
+    { "file": "global", "nodePath": "DebugSettings", "key": "wireframeTerrain", "type": "bool",
+      "default": false, "risk": "low", "requiresRestart": true, "label": "地形线框模式（排查细分问题用）" },
+    { "file": "global", "nodePath": "DebugSettings", "key": "suppressCriticalMessages", "type": "bool",
+      "default": false, "risk": "medium", "requiresRestart": true,
+      "label": "屏蔽致命错误提示（排查时才该开，平时会掩盖真问题）" },
+
+    { "file": "global", "nodePath": "ObjectPoolSettings", "key": "cachedColliderCount", "type": "int",
+      "min": 0, "max": 20000, "default": 1000, "risk": "medium", "requiresRestart": true,
+      "label": "碰撞体缓存池大小（太小会反复重建、太大吃内存）" }
+  ]
+}

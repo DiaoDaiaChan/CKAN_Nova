@@ -5,124 +5,222 @@
              x:Class="CkanUI.Plugin.Rp1.UI.Rp1CareerPageView"
              x:CompileBindings="False">
   <UserControl.Styles>
-    <Style Selector="Border.rp1-event-row">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
-      <Setter Property="Padding" Value="8,7" />
-      <Setter Property="Margin" Value="0,1" />
-    </Style>
-    <Style Selector="Border.rp1-event-row.selected">
-      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
-    </Style>
-    <Style Selector="Border.rp1-stat">
+    <!-- 时间线卡片样式 -->
+    <Style Selector="Border.rp1-timeline-card">
       <Setter Property="Background" Value="{DynamicResource CkanSurfaceBackgroundBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource CkanGlassBorderBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
-      <Setter Property="Padding" Value="10,7" />
-      <Setter Property="Margin" Value="0,0,8,8" />
-      <Setter Property="MinWidth" Value="104" />
+      <Setter Property="Padding" Value="9,7" />
+      <Setter Property="Margin" Value="4,1,2,3" />
+      <Setter Property="Cursor" Value="Hand" />
     </Style>
+    <Style Selector="Border.rp1-timeline-card:pointerover">
+      <Setter Property="Background" Value="{DynamicResource CkanGlassFillHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentSubtleBrush}" />
+    </Style>
+    <Style Selector="Border.rp1-timeline-card.selected">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="BorderThickness" Value="1.5" />
+    </Style>
+    <Style Selector="Border.rp1-timeline-card.milestone">
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanWarningBrush}" />
+    </Style>
+
+    <!-- 交互式微型指标卡按钮（统一样式） -->
+    <Style Selector="Button.rp1-stat">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="6,3" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.rp1-stat:pointerover">
+      <Setter Property="Background" Value="{DynamicResource CkanGlassFillHoverBrush}" />
+    </Style>
+
+    <!-- 时间线分类胶囊筛选器 -->
+    <Style Selector="Button.rp1-chip">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+      <Setter Property="Padding" Value="7,2" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusPill}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+      <Setter Property="FontSize" Value="{DynamicResource CkanFontSizeCaption}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Margin" Value="0,0,4,0" />
+    </Style>
+    <Style Selector="Button.rp1-chip:pointerover">
+      <Setter Property="Background" Value="{DynamicResource CkanSurfaceBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.rp1-chip.selected">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- 指标选项胶囊按钮 -->
     <Style Selector="Button.rp1-metric-tab">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Padding" Value="9,3" />
+      <Setter Property="Padding" Value="8,2" />
       <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusPill}" />
       <Setter Property="Foreground" Value="{DynamicResource CkanTextSecondaryBrush}" />
+      <Setter Property="Cursor" Value="Hand" />
     </Style>
     <Style Selector="Button.rp1-metric-tab.selected">
       <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- 预算周期行卡片 -->
+    <Style Selector="Button.rp1-period-row">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanBorderBrush}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource CkanCornerRadiusSmall}" />
+      <Setter Property="Padding" Value="8,6" />
+      <Setter Property="Margin" Value="0,0,0,4" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.rp1-period-row:pointerover">
+      <Setter Property="Background" Value="{DynamicResource CkanSurfaceBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+    </Style>
+    <Style Selector="Button.rp1-period-row.selected">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanWarningBrush}" />
+      <Setter Property="BorderThickness" Value="1.5" />
+    </Style>
+
+    <!-- 时间线 ListBoxItem 模板定制：去除默认蓝色侧边条，由卡片和节点自绘选中/悬停态 -->
+    <Style Selector="ListBox.rp1-timeline-list > ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="ListBox.rp1-timeline-list > ListBoxItem /template/ Rectangle#SelectionIndicator">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="ListBox.rp1-timeline-list > ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.rp1-timeline-list > ListBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.rp1-timeline-list > ListBoxItem:selected Border.rp1-timeline-card">
+      <Setter Property="Background" Value="{DynamicResource CkanAccentSubtleBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="BorderThickness" Value="1.5" />
+    </Style>
+    <Style Selector="ListBox.rp1-timeline-list > ListBoxItem:selected Ellipse.rp1-timeline-node">
+      <Setter Property="Fill" Value="{DynamicResource CkanAccentBrush}" />
+      <Setter Property="Stroke" Value="{DynamicResource CkanAccentBrush}" />
     </Style>
   </UserControl.Styles>
 
-  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}" Background="Transparent">
+  <Grid RowDefinitions="Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}" Background="Transparent">
 
-    <!-- 页头：这页读的是 RP-1 的存档场景，不是原版生涯 -->
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
-      <StackPanel Grid.Column="0" Spacing="4">
-        <TextBlock Text="RP-1 生涯日志" Classes="CkanPageTitle" />
-        <TextBlock Text="读取 RP-1 存档里的 CareerLog、里程碑、合同追踪与项目记录，按游戏内时间摊成一条生涯时间线。"
-                   Classes="CkanCaption" TextWrapping="Wrap" MaxWidth="780" />
-      </StackPanel>
-      <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right">
-        <TextBlock Text="{Binding InstanceName}" FontWeight="SemiBold" HorizontalAlignment="Right" />
-        <TextBlock Text="{Binding InstanceGameDir}" Classes="CkanCaption" HorizontalAlignment="Right"
-                   TextTrimming="CharacterEllipsis" MaxWidth="420" />
-      </StackPanel>
+    <!-- 紧凑页头与操作条：合并标题、版本、当前时间与实例，消除多层空白与长文本噪音 -->
+    <Grid Grid.Row="0" Margin="0,0,0,4" RowDefinitions="Auto,Auto" RowSpacing="4">
+      <!-- 第一行：标题 + 核心徽标 + 实例徽章 -->
+      <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+        <!-- 标题 + 核心状态 -->
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="RP-1 生涯日志" Classes="CkanPageTitle" VerticalAlignment="Center" />
+          <Border Classes="CkanBadge Accent" VerticalAlignment="Center" ToolTip.Tip="游戏内当前推演时间">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <ui:GlyphIcon Glyph="Clock" Size="11" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding CurrentDateText, StringFormat='当前 {0}'}" FontWeight="SemiBold" />
+            </StackPanel>
+          </Border>
+          <Border Classes="CkanBadge" VerticalAlignment="Center" ToolTip.Tip="检测到的组件版本">
+            <TextBlock Text="{Binding Rp1VersionText, StringFormat='RP-1 {0}'}" />
+          </Border>
+          <Border Classes="CkanBadge" VerticalAlignment="Center" ToolTip.Tip="KSP 主程序版本">
+            <TextBlock Text="{Binding KspVersionText, StringFormat='KSP {0}'}" />
+          </Border>
+          <Border Classes="CkanBadge Warning" IsVisible="{Binding HasDiagnostics}" VerticalAlignment="Center" ToolTip.Tip="{Binding DiagnosticsText}">
+            <TextBlock Text="有解析诊断" />
+          </Border>
+          <TextBlock Text="读盘中…" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                     VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />
+        </StackPanel>
+
+        <!-- 右侧：实例名与存档计数 -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" HorizontalAlignment="Right">
+          <Border Classes="CkanBadge" Padding="8,3" ToolTip.Tip="{Binding InstanceGameDir}">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <ui:GlyphIcon Glyph="Folder" Size="11" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              <TextBlock Text="{Binding InstanceName}" FontWeight="SemiBold" MaxWidth="220" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </Border>
+          <Border Classes="CkanBadge" Padding="8,3" ToolTip.Tip="{Binding SavePathText}">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <ui:GlyphIcon Glyph="File" Size="11" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+              <TextBlock Text="{Binding SaveCountText}" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Grid>
+
+      <!-- 第二行：统一工具条（存档选择器 + 搜索框 + 读盘状态 + 刷新） -->
+      <Border Grid.Row="1" Classes="CkanToolbar" Padding="8,4">
+        <Grid ColumnDefinitions="290,*,Auto,Auto" ColumnSpacing="8">
+          <ComboBox Grid.Column="0" ItemsSource="{Binding Saves}"
+                    SelectedItem="{Binding SelectedSave, Mode=TwoWay}"
+                    HorizontalAlignment="Stretch" MinHeight="30"
+                    ToolTip.Tip="{Binding SavePathText}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <TextBox Grid.Column="1" Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                   PlaceholderText="搜索事件标题、航天员、说明…" Classes="CkanSearchBox" MinHeight="30" />
+          <Border Grid.Column="2" Classes="CkanBadge" IsVisible="{Binding HasStatusMessage}" VerticalAlignment="Center" Padding="6,2">
+            <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource CkanSuccessBrush}" FontSize="{DynamicResource CkanFontSizeCaption}" />
+          </Border>
+          <Button Grid.Column="3" Command="{Binding RefreshCommand}"
+                  Classes="CkanGhost" MinHeight="30" ToolTip.Tip="重新扫描并读取存档">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <ui:GlyphIcon Glyph="Clock" Size="12" VerticalAlignment="Center" />
+              <TextBlock Text="刷新" />
+            </StackPanel>
+          </Button>
+        </Grid>
+      </Border>
     </Grid>
 
-    <!-- 事实条：版本、当前日期、存档路径 -->
-    <StackPanel Grid.Row="1" Spacing="4" Margin="0,0,0,8">
-      <WrapPanel Orientation="Horizontal">
-        <Border Classes="CkanBadge" Margin="0,0,8,4">
-          <TextBlock Text="{Binding Rp1VersionText, StringFormat='RP-1 {0}'}" />
-        </Border>
-        <Border Classes="CkanBadge" Margin="0,0,8,4">
-          <TextBlock Text="{Binding KspVersionText, StringFormat='KSP {0}'}" />
-        </Border>
-        <Border Classes="CkanBadge" Margin="0,0,8,4">
-          <TextBlock Text="{Binding CurrentDateText, StringFormat='当前 {0}'}" />
-        </Border>
-        <Border Classes="CkanBadge" Margin="0,0,8,4">
-          <TextBlock Text="{Binding SaveCountText}" />
-        </Border>
-        <Border Classes="CkanBadge Warning" IsVisible="{Binding HasDiagnostics}" Margin="0,0,8,4">
-          <TextBlock Text="有解析诊断" />
-        </Border>
-        <TextBlock Text="读盘中…" Classes="CkanCaption" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />
-      </WrapPanel>
-      <TextBlock Text="{Binding SavePathText}" Classes="CkanCaption"
-                 Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                 TextTrimming="CharacterEllipsis" />
-    </StackPanel>
-
-    <!-- 工具条：存档、搜索、筛选、刷新 -->
-    <Border Grid.Row="2" Classes="CkanToolbar" Padding="10,8" Margin="0,0,0,8">
-      <Grid ColumnDefinitions="2*,*,Auto,Auto" ColumnSpacing="8">
-        <ComboBox Grid.Column="0" ItemsSource="{Binding Saves}"
-                  SelectedItem="{Binding SelectedSave, Mode=TwoWay}"
-                  HorizontalAlignment="Stretch" MinHeight="32"
-                  ToolTip.Tip="存档按最近修改排序">
-          <ComboBox.ItemTemplate>
-            <DataTemplate>
-              <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
-            </DataTemplate>
-          </ComboBox.ItemTemplate>
-        </ComboBox>
-        <TextBox Grid.Column="1" Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                 PlaceholderText="搜索标题、人员、说明…" Classes="CkanSearchBox" MinHeight="32" />
-        <ComboBox Grid.Column="2" ItemsSource="{Binding FilterOptions}"
-                  SelectedItem="{Binding SelectedFilter, Mode=TwoWay}" MinWidth="112" MinHeight="32" />
-        <Button Grid.Column="3" Content="刷新" Command="{Binding RefreshCommand}"
-                Classes="CkanGhost" MinHeight="32" />
-      </Grid>
-    </Border>
-
-    <!-- 错误/状态/诊断 -->
-    <StackPanel Grid.Row="3" Spacing="6" Margin="0,0,0,8">
+    <!-- 异常与诊断通知（仅在报错时显示） -->
+    <StackPanel Grid.Row="1" Spacing="4" Margin="0,0,0,6">
       <Border IsVisible="{Binding HasError}"
               Background="{DynamicResource CkanDangerBackgroundBrush}"
-              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,10">
+              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="12,6">
         <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap"
                    Foreground="{DynamicResource CkanDangerBrush}" Classes="CkanCaption" />
       </Border>
-      <Border IsVisible="{Binding HasStatusMessage}"
-              Background="{DynamicResource CkanSuccessBackgroundBrush}"
-              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,10">
-        <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"
-                   Foreground="{DynamicResource CkanSuccessBrush}" Classes="CkanCaption" />
-      </Border>
       <Border IsVisible="{Binding HasDiagnostics}"
               Background="{DynamicResource CkanWarningBackgroundBrush}"
-              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="14,10">
+              CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="10,5">
         <TextBlock Text="{Binding DiagnosticsText}" TextWrapping="Wrap"
                    Foreground="{DynamicResource CkanTextSecondaryBrush}" Classes="CkanCaption" />
       </Border>
     </StackPanel>
 
     <!-- 空态：四层文案由 VM 给 -->
-    <Border Grid.Row="4" Classes="CkanEmptyStateCard Elevated" IsVisible="{Binding ShowEmptyState}"
+    <Border Grid.Row="2" Classes="CkanEmptyStateCard Elevated" IsVisible="{Binding ShowEmptyState}"
             VerticalAlignment="Top">
       <StackPanel Spacing="10" MaxWidth="760" HorizontalAlignment="Left">
         <TextBlock Text="{Binding EmptyTitle}" Classes="CkanSectionTitle" TextWrapping="Wrap" />
@@ -132,264 +230,451 @@
       </StackPanel>
     </Border>
 
-    <!-- 主体：左时间线，右统计与详情 -->
-    <Grid Grid.Row="4" ColumnDefinitions="390,12,*" IsVisible="{Binding ShowContent}">
+    <!-- 主体：统一的全景交互式生涯时间线工作台（合并宏观走势曲线、微观事件轴与详情） -->
+    <Border Grid.Row="2" Classes="CkanCard" Padding="10,8" IsVisible="{Binding ShowContent}">
+      <Grid RowDefinitions="Auto,*" RowSpacing="6">
 
-      <Border Grid.Column="0" Classes="CkanCard" Padding="4">
-        <Grid RowDefinitions="Auto,*,Auto">
-          <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="10,8,8,6">
-            <StackPanel Grid.Column="0" Spacing="1">
-              <TextBlock Text="生涯时间线" FontWeight="SemiBold"
-                         FontSize="{DynamicResource CkanFontSizeCaption}"
-                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-              <TextBlock Text="{Binding EventCountText}" Classes="CkanCaption" />
-            </StackPanel>
-            <TextBlock Grid.Column="1" Text="{Binding PeriodCountText}" Classes="CkanCaption"
-                       VerticalAlignment="Center" />
+        <!-- 顶部：宏观全景走势轴与核心指标标尺（全宽曲线 + 指标切换与即时读数） -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+                BorderBrush="{DynamicResource CkanGlassBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                Padding="10,6">
+          <Grid RowDefinitions="Auto,Auto" RowSpacing="4">
+            <!-- 第一行：全景走势标题、指标切换按钮组（含即时数值）、定位事件胶囊 -->
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+              <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <ui:GlyphIcon Glyph="Curve" Size="13" Foreground="{DynamicResource CkanWarningBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="宏观走势" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
+                <Border Classes="CkanBadge" Padding="4,1" VerticalAlignment="Center" ToolTip.Tip="{Binding CareerSeriesSummary}">
+                  <TextBlock Text="{Binding PeriodCountText}" FontSize="11" FontWeight="SemiBold" />
+                </Border>
+              </StackPanel>
+
+              <!-- 中间：当前时间线所选事件的联动定位徽章 -->
+              <Border Grid.Column="1" HorizontalAlignment="Center"
+                      IsVisible="{Binding HasLinkedPeriod}"
+                      Background="{DynamicResource CkanAccentSubtleBrush}"
+                      BorderBrush="{DynamicResource CkanWarningBrush}"
+                      BorderThickness="1"
+                      CornerRadius="{DynamicResource CkanCornerRadiusPill}"
+                      Padding="8,1" Margin="8,0">
+                <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                  <ui:GlyphIcon Glyph="Milestone" Size="10" Foreground="{DynamicResource CkanWarningBrush}" VerticalAlignment="Center" />
+                  <TextBlock Text="定位:" Classes="CkanCaption" Foreground="{DynamicResource CkanWarningBrush}" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding LinkedEventLabel}" Classes="CkanCaption" FontWeight="SemiBold" MaxWidth="280" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding LinkedPeriodText, StringFormat='({0})'}" Classes="CkanCaption" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                </StackPanel>
+              </Border>
+
+              <!-- 右侧：指标切换页签（直接集成资金/科技/信心/声望读数） -->
+              <Border Grid.Column="2"
+                      Background="{DynamicResource CkanCardBackgroundBrush}"
+                      BorderBrush="{DynamicResource CkanBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="{DynamicResource CkanCornerRadiusPill}"
+                      Padding="2">
+                <ItemsControl ItemsSource="{Binding CareerMetricOptions}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" Spacing="2" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Button Classes="rp1-metric-tab"
+                              Classes.selected="{Binding IsSelected}"
+                              Command="{Binding $parent[UserControl].DataContext.SelectCareerMetricCommand}"
+                              CommandParameter="{Binding Key}">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                          <ui:GlyphIcon Glyph="{Binding Glyph}" Size="11" VerticalAlignment="Center" />
+                          <TextBlock Text="{Binding Label}" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                          <TextBlock Text="{Binding ValueText}" FontWeight="SemiBold" FontSize="{DynamicResource CkanFontSizeCaption}"
+                                     Margin="2,0,0,0"
+                                     IsVisible="{Binding ValueText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Border>
+            </Grid>
+
+            <!-- 第二行：全景走势图 CurveChart (高度优化为 76，紧凑精致，支持曲线上双向联动) -->
+            <charts:CurveChart Grid.Row="1" Height="76"
+                               Series="{Binding CareerSeries}"
+                               IncludeZero="False"
+                               YAxisLabelWidth="70"
+                               ValueFormat="0.#"
+                               ValueSuffix="{Binding CareerSeriesSuffix}"
+                               Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                               HighlightedIndex="{Binding LinkedPeriodIndex}"
+                               HighlightedLabel="{Binding LinkedEventLabel}"
+                               PointClickCommand="{Binding JumpToPeriodIndexCommand}" />
           </Grid>
+        </Border>
 
-          <ListBox Grid.Row="1" ItemsSource="{Binding VisibleEvents}"
-                   SelectedItem="{Binding SelectedEvent, Mode=TwoWay}"
-                   BorderThickness="0" Background="Transparent"
-                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-            <ListBox.ItemTemplate>
-              <DataTemplate>
-                <Border Classes="rp1-event-row" Classes.selected="{Binding IsSelected}">
-                  <Grid RowDefinitions="Auto,Auto,Auto">
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
-                      <Border Classes="CkanBadge" Padding="5,1">
-                        <TextBlock Text="{Binding BadgeText}" FontSize="{DynamicResource CkanFontSizeCaption}" />
-                      </Border>
-                      <TextBlock Text="{Binding DateText}" Classes="CkanCaption"
-                                 Foreground="{DynamicResource CkanTextTertiaryBrush}" VerticalAlignment="Center" />
+        <!-- 中部与下部：TabControl 整合「事件时间线与详情」与「预算周期明细表」 -->
+        <TabControl Grid.Row="1" Background="Transparent"
+                    SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+          <!-- Tab 0: 事件时间线与详情 (主交互工作台) -->
+          <TabItem Header="事件时间线与详情">
+            <Grid ColumnDefinitions="480,14,*" Margin="0,4,0,0">
+
+              <!-- 左侧：纵向互动时间线流 -->
+              <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto">
+                <!-- 时间线控制头：分类筛选胶囊与快速跳转合并为单行紧凑工具栏 -->
+                <Border Grid.Row="0" Margin="0,0,0,4" Padding="0,0,0,4"
+                        BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CkanBorderBrush}">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <!-- 左侧：分类快速过滤胶囊 -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+                      <Button Classes="rp1-chip" Classes.selected="{Binding IsFilterAll}"
+                              Command="{Binding SelectFilterCommand}" CommandParameter="全部">
+                        <StackPanel Orientation="Horizontal" Spacing="3">
+                          <TextBlock Text="全部" />
+                          <TextBlock Text="{Binding TotalEventCountText, StringFormat='({0})'}" />
+                        </StackPanel>
+                      </Button>
+                      <Button Classes="rp1-chip" Classes.selected="{Binding IsFilterMilestone}"
+                              Command="{Binding SelectFilterCommand}" CommandParameter="里程碑">
+                        <StackPanel Orientation="Horizontal" Spacing="3">
+                          <ui:GlyphIcon Glyph="Milestone" Size="10" VerticalAlignment="Center" />
+                          <TextBlock Text="里程碑" />
+                          <TextBlock Text="{Binding MilestoneCountText, StringFormat='({0})'}" />
+                        </StackPanel>
+                      </Button>
+                      <Button Classes="rp1-chip" Classes.selected="{Binding IsFilterContract}"
+                              Command="{Binding SelectFilterCommand}" CommandParameter="合同">
+                        <StackPanel Orientation="Horizontal" Spacing="3">
+                          <ui:GlyphIcon Glyph="Contract" Size="10" VerticalAlignment="Center" />
+                          <TextBlock Text="合同" />
+                          <TextBlock Text="{Binding ContractCountText, StringFormat='({0})'}" />
+                        </StackPanel>
+                      </Button>
+                      <Button Classes="rp1-chip" Classes.selected="{Binding IsFilterProgram}"
+                              Command="{Binding SelectFilterCommand}" CommandParameter="项目">
+                        <StackPanel Orientation="Horizontal" Spacing="3">
+                          <ui:GlyphIcon Glyph="Program" Size="10" VerticalAlignment="Center" />
+                          <TextBlock Text="项目" />
+                          <TextBlock Text="{Binding ProgramCountText, StringFormat='({0})'}" />
+                        </StackPanel>
+                      </Button>
+                      <Button Classes="rp1-chip" Classes.selected="{Binding IsFilterCrew}"
+                              Command="{Binding SelectFilterCommand}" CommandParameter="人员">
+                        <StackPanel Orientation="Horizontal" Spacing="3">
+                          <ui:GlyphIcon Glyph="Crew" Size="10" VerticalAlignment="Center" />
+                          <TextBlock Text="人员" />
+                          <TextBlock Text="{Binding CrewEventsCountText, StringFormat='({0})'}" />
+                        </StackPanel>
+                      </Button>
                     </StackPanel>
-                    <TextBlock Grid.Row="1" Text="{Binding Title}" FontWeight="SemiBold"
-                               TextWrapping="Wrap" Margin="0,3,0,0" />
-                    <TextBlock Grid.Row="2" Text="{Binding Subtitle}" Classes="CkanCaption"
-                               TextTrimming="CharacterEllipsis" Margin="0,1,0,0"
-                               IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+                    <!-- 右侧：快速跳转按钮组 -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                      <Button Classes="CkanGhost" Padding="5,1" MinHeight="22"
+                              Command="{Binding JumpToEarliestCommand}"
+                              ToolTip.Tip="跳转到时间线最早事件">
+                        <TextBlock Text="⏮ 最早" FontSize="11" />
+                      </Button>
+                      <Button Classes="CkanGhost" Padding="5,1" MinHeight="22"
+                              Command="{Binding JumpToMilestoneCommand}"
+                              ToolTip.Tip="跳转到下一个里程碑">
+                        <TextBlock Text="🏆 里程碑" FontSize="11" />
+                      </Button>
+                      <Button Classes="CkanGhost" Padding="5,1" MinHeight="22"
+                              Command="{Binding JumpToLatestCommand}"
+                              ToolTip.Tip="跳转到时间线最新事件">
+                        <TextBlock Text="⏭ 最新" FontSize="11" />
+                      </Button>
+                    </StackPanel>
                   </Grid>
                 </Border>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
 
-          <TextBlock Grid.Row="1" Text="没有符合筛选的事件。" Classes="CkanCaption"
-                     HorizontalAlignment="Center" VerticalAlignment="Center"
-                     IsVisible="{Binding HasNoVisibleEvents}" />
+                <!-- 时间线列表：带有左侧时间轴连续导轨与微型节点 -->
+                <ListBox Grid.Row="1" ItemsSource="{Binding VisibleEvents}"
+                         SelectedItem="{Binding SelectedEvent}"
+                         Classes="rp1-timeline-list"
+                         Background="Transparent" BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <Grid Margin="0,0,0,2">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="20" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
 
-          <Border Grid.Row="2" Padding="10,7" BorderThickness="0,1,0,0"
-                  BorderBrush="{DynamicResource CkanBorderBrush}">
-            <TextBlock Text="时间来自存档里的完成/解锁记录；解析不了的项目不会从列表里消失，只会显示为“时间未知”。"
-                       Classes="CkanCaption" TextWrapping="Wrap"
-                       Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-          </Border>
-        </Grid>
-      </Border>
+                        <!-- 时间轴纵向连贯导轨线条与节点圆点 -->
+                        <Grid Grid.Column="0">
+                          <Rectangle Width="2" Fill="{DynamicResource CkanBorderBrush}"
+                                     HorizontalAlignment="Center" VerticalAlignment="Stretch" />
+                          <Ellipse Classes="rp1-timeline-node" Width="8" Height="8" HorizontalAlignment="Center" VerticalAlignment="Top"
+                                   Margin="0,9,0,0"
+                                   Fill="{DynamicResource CkanSurfaceBackgroundBrush}"
+                                   Stroke="{DynamicResource CkanTextTertiaryBrush}"
+                                   StrokeThickness="2" />
+                          <Ellipse Width="4" Height="4" HorizontalAlignment="Center" VerticalAlignment="Top"
+                                   Margin="0,11,0,0"
+                                   Fill="{DynamicResource CkanWarningBrush}"
+                                   IsVisible="{Binding IsMilestone}" />
+                        </Grid>
 
-      <Border Grid.Column="2" Classes="CkanCard" Padding="14">
-        <Grid RowDefinitions="Auto,*" RowSpacing="10">
+                        <!-- 事件内容卡片 -->
+                        <Border Grid.Column="1" Classes="rp1-timeline-card"
+                                Classes.milestone="{Binding IsMilestone}"
+                                Margin="4,1,2,3">
+                          <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="2">
+                            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+                              <Border Grid.Column="0" Classes="CkanBadge"
+                                      Classes.Warning="{Binding IsMilestone}"
+                                      Padding="4,1">
+                                <TextBlock Text="{Binding BadgeText}"
+                                           FontSize="10" FontWeight="SemiBold" />
+                              </Border>
+                              <TextBlock Grid.Column="2" Text="{Binding DateText}" Classes="CkanCaption"
+                                         Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                                         VerticalAlignment="Center" />
+                            </Grid>
 
-          <!-- 统计卡 -->
-          <StackPanel Grid.Row="0" Spacing="2">
-            <TextBlock Text="{Binding SelectedSave.DisplayName}" FontWeight="SemiBold" FontSize="15"
-                       TextTrimming="CharacterEllipsis" />
-            <WrapPanel Orientation="Horizontal" Margin="0,8,0,0">
-              <Border Classes="rp1-stat">
-                <StackPanel Spacing="1">
-                  <StackPanel Orientation="Horizontal" Spacing="4">
-                    <ui:GlyphIcon Glyph="Contract" Size="12" VerticalAlignment="Center"
-                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                    <TextBlock Text="合同" Classes="CkanCaption" />
-                  </StackPanel>
-                  <TextBlock Text="{Binding ContractCountText}" FontWeight="SemiBold" FontSize="16" />
-                </StackPanel>
-              </Border>
-              <Border Classes="rp1-stat">
-                <StackPanel Spacing="1">
-                  <StackPanel Orientation="Horizontal" Spacing="4">
-                    <ui:GlyphIcon Glyph="Milestone" Size="12" VerticalAlignment="Center"
-                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                    <TextBlock Text="里程碑" Classes="CkanCaption" />
-                  </StackPanel>
-                  <TextBlock Text="{Binding MilestoneCountText}" FontWeight="SemiBold" FontSize="16" />
-                </StackPanel>
-              </Border>
-              <Border Classes="rp1-stat">
-                <StackPanel Spacing="1">
-                  <StackPanel Orientation="Horizontal" Spacing="4">
-                    <ui:GlyphIcon Glyph="Program" Size="12" VerticalAlignment="Center"
-                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                    <TextBlock Text="项目" Classes="CkanCaption" />
-                  </StackPanel>
-                  <TextBlock Text="{Binding ProgramCountText}" FontWeight="SemiBold" FontSize="16" />
-                </StackPanel>
-              </Border>
-              <Border Classes="rp1-stat">
-                <StackPanel Spacing="1">
-                  <StackPanel Orientation="Horizontal" Spacing="4">
-                    <ui:GlyphIcon Glyph="Crew" Size="12" VerticalAlignment="Center"
-                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                    <TextBlock Text="退役 / 损失" Classes="CkanCaption" />
-                  </StackPanel>
-                  <TextBlock Text="{Binding CrewCountText}" FontWeight="SemiBold" FontSize="16" />
-                </StackPanel>
-              </Border>
-              <Border Classes="rp1-stat">
-                <StackPanel Spacing="1">
-                  <StackPanel Orientation="Horizontal" Spacing="4">
-                    <ui:GlyphIcon Glyph="Money" Size="12" VerticalAlignment="Center"
-                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                    <TextBlock Text="资金" Classes="CkanCaption" />
-                  </StackPanel>
-                  <TextBlock Text="{Binding CurrentFundsText}" FontWeight="SemiBold" FontSize="16" />
-                </StackPanel>
-              </Border>
-              <Border Classes="rp1-stat">
-                <StackPanel Spacing="1">
-                  <StackPanel Orientation="Horizontal" Spacing="4">
-                    <ui:GlyphIcon Glyph="Science" Size="12" VerticalAlignment="Center"
-                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                    <TextBlock Text="科技" Classes="CkanCaption" />
-                  </StackPanel>
-                  <TextBlock Text="{Binding CurrentScienceText}" FontWeight="SemiBold" FontSize="16" />
-                </StackPanel>
-              </Border>
-              <Border Classes="rp1-stat">
-                <StackPanel Spacing="1">
-                  <StackPanel Orientation="Horizontal" Spacing="4">
-                    <ui:GlyphIcon Glyph="Confidence" Size="12" VerticalAlignment="Center"
-                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                    <TextBlock Text="信心" Classes="CkanCaption" />
-                  </StackPanel>
-                  <TextBlock Text="{Binding CurrentConfidenceText}" FontWeight="SemiBold" FontSize="16" />
-                </StackPanel>
-              </Border>
-              <Border Classes="rp1-stat">
-                <StackPanel Spacing="1">
-                  <StackPanel Orientation="Horizontal" Spacing="4">
-                    <ui:GlyphIcon Glyph="Reputation" Size="12" VerticalAlignment="Center"
-                                  Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                    <TextBlock Text="声望" Classes="CkanCaption" />
-                  </StackPanel>
-                  <TextBlock Text="{Binding CurrentReputationText}" FontWeight="SemiBold" FontSize="16" />
-                </StackPanel>
-              </Border>
-            </WrapPanel>
-          </StackPanel>
+                            <!-- 标题 -->
+                            <TextBlock Grid.Row="1" Text="{Binding Title}" FontWeight="SemiBold"
+                                       FontSize="12" TextWrapping="Wrap" />
 
-          <!-- 详情 / 预算周期 -->
-          <TabControl Grid.Row="1" Background="Transparent">
-            <TabItem Header="事件详情">
-              <Grid>
-                <ScrollViewer IsVisible="{Binding ShowEventDetail}">
-                  <StackPanel Spacing="10" Margin="2,8,8,8">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                      <Border Classes="CkanBadge" Padding="5,1">
-                        <TextBlock Text="{Binding SelectedEvent.BadgeText}" />
-                      </Border>
-                      <TextBlock Text="{Binding SelectedEvent.DateText}" Classes="CkanCaption"
-                                 VerticalAlignment="Center" />
-                    </StackPanel>
-                    <TextBlock Text="{Binding SelectedEvent.Title}" FontWeight="SemiBold" FontSize="18"
-                               TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding SelectedEvent.Subtitle}" Classes="CkanCaption"
-                               TextWrapping="Wrap" IsVisible="{Binding SelectedEvent.Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                    <Border Background="{DynamicResource CkanSurfaceBackgroundBrush}"
-                            CornerRadius="{DynamicResource CkanCornerRadiusSmall}" Padding="12,10">
-                      <TextBlock Text="{Binding SelectedDetail}" TextWrapping="Wrap"
-                                 LineHeight="20" />
-                    </Border>
-                    <TextBlock Text="{Binding SelectedMeta}" Classes="CkanCaption"
-                               Foreground="{DynamicResource CkanTextTertiaryBrush}" TextWrapping="Wrap" />
-                  </StackPanel>
-                </ScrollViewer>
-                <TextBlock Text="从左边选一个事件看详情。" Classes="CkanCaption"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                           IsVisible="{Binding ShowEventPlaceholder}" />
-              </Grid>
-            </TabItem>
-
-            <TabItem Header="预算周期">
-              <Grid RowDefinitions="Auto,*,Auto">
-                <!-- 生涯曲线：全量周期（不止最近 12 期），一次只画一个量纲 -->
-                <Border Grid.Row="0"
-                        Background="{DynamicResource CkanSurfaceBackgroundBrush}"
-                        BorderBrush="{DynamicResource CkanGlassBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
-                        Padding="10,8"
-                        Margin="2,8,8,4">
-                  <StackPanel Spacing="6">
-                    <Grid ColumnDefinitions="Auto,*">
-                      <TextBlock Grid.Column="0" Text="生涯曲线" Classes="CkanSectionTitle" />
-                      <TextBlock Grid.Column="1"
-                                 Text="{Binding CareerSeriesSummary}"
-                                 Classes="CkanCaption"
-                                 HorizontalAlignment="Right"
-                                 Foreground="{DynamicResource CkanTextTertiaryBrush}"
-                                 TextWrapping="Wrap" />
-                    </Grid>
-                    <ItemsControl ItemsSource="{Binding CareerMetricOptions}">
-                      <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                          <WrapPanel Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                      </ItemsControl.ItemsPanel>
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                          <Button Classes="rp1-metric-tab"
-                                  Classes.selected="{Binding IsSelected}"
-                                  Command="{Binding $parent[UserControl].DataContext.SelectCareerMetricCommand}"
-                                  CommandParameter="{Binding Key}"
-                                  Margin="0,0,4,0">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                              <ui:GlyphIcon Glyph="{Binding Glyph}" Size="12" VerticalAlignment="Center" />
-                              <TextBlock Text="{Binding Label}" />
-                            </StackPanel>
-                          </Button>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <charts:CurveChart Height="150"
-                                       Series="{Binding CareerSeries}"
-                                       IncludeZero="False"
-                                       ValueFormat="0.#"
-                                       ValueSuffix="{Binding CareerSeriesSuffix}"
-                                       Foreground="{DynamicResource CkanTextTertiaryBrush}" />
-                  </StackPanel>
-                </Border>
-                <ScrollViewer Grid.Row="1">
-                  <ItemsControl ItemsSource="{Binding Periods}" Margin="2,8,8,8">
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate>
-                        <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CkanBorderBrush}"
-                                Padding="4,7">
-                          <Grid ColumnDefinitions="130,*,Auto">
-                            <TextBlock Grid.Column="0" Text="{Binding DateText}" Classes="CkanCaption" />
-                            <StackPanel Grid.Column="1" Spacing="1">
-                              <TextBlock Text="{Binding FundsText, StringFormat='资金 {0}'}" />
-                              <TextBlock Text="{Binding ScienceText, StringFormat='本期科技 +{0}'}" Classes="CkanCaption" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="2" Spacing="1" HorizontalAlignment="Right">
-                              <TextBlock Text="{Binding ConfidenceText, StringFormat='信心 {0}'}" Classes="CkanCaption" />
-                              <TextBlock Text="{Binding CrewLostText}" Classes="CkanCaption"
-                                         Foreground="{DynamicResource CkanDangerBrush}"
-                                         IsVisible="{Binding HasCrewLost}" />
-                            </StackPanel>
+                            <!-- 说明副标题 -->
+                            <TextBlock Grid.Row="2" Text="{Binding Subtitle}" Classes="CkanCaption"
+                                       Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                       TextTrimming="CharacterEllipsis"
+                                       IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                           </Grid>
                         </Border>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                </ScrollViewer>
-                <TextBlock Grid.Row="2" Text="列表只显示最近 12 期；完整周期数见工具条右侧，曲线画的是全部周期。" Classes="CkanCaption"
-                           Foreground="{DynamicResource CkanTextTertiaryBrush}" Margin="2,4,0,0" />
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+
+                <TextBlock Grid.Row="1" Text="没有符合筛选的事件。" Classes="CkanCaption"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           IsVisible="{Binding HasNoVisibleEvents}" />
+
+                <!-- 时间线底部工具条：步进导航与说明 -->
+                <Border Grid.Row="2" Padding="0,6,0,0" BorderThickness="0,1,0,0"
+                        BorderBrush="{DynamicResource CkanBorderBrush}">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="事件时间源自存档记录。"
+                               ToolTip.Tip="未解析项目显示为“时间未知”。"
+                               Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                      <Button Classes="CkanGhost" Padding="6,2" MinHeight="22"
+                              Command="{Binding SelectPreviousEventCommand}"
+                              IsEnabled="{Binding HasPreviousEvent}"
+                              ToolTip.Tip="查看上一个事件">
+                        <TextBlock Text="⬆ 上一个" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                      </Button>
+                      <Button Classes="CkanGhost" Padding="6,2" MinHeight="22"
+                              Command="{Binding SelectNextEventCommand}"
+                              IsEnabled="{Binding HasNextEvent}"
+                              ToolTip.Tip="查看下一个事件">
+                        <TextBlock Text="⬇ 下一个" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                      </Button>
+                    </StackPanel>
+                  </Grid>
+                </Border>
               </Grid>
-            </TabItem>
-          </TabControl>
-        </Grid>
-      </Border>
-    </Grid>
+
+              <!-- 右侧：选定事件档案详情与微型财务联动 -->
+              <Grid Grid.Column="2">
+                <ScrollViewer IsVisible="{Binding ShowEventDetail}">
+                  <Border Classes="CkanCard" Background="{DynamicResource CkanSurfaceBackgroundBrush}"
+                          BorderBrush="{DynamicResource CkanGlassBorderBrush}" BorderThickness="1"
+                          Padding="14,12" Margin="0,0,4,4">
+                    <StackPanel Spacing="10">
+                      <!-- 详情头部元信息与聚焦按钮 -->
+                      <Grid ColumnDefinitions="Auto,*,Auto">
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                          <Border Classes="CkanBadge" Classes.Warning="{Binding SelectedEvent.IsMilestone}" Padding="6,2">
+                            <TextBlock Text="{Binding SelectedEvent.BadgeText}" FontWeight="SemiBold" />
+                          </Border>
+                          <Border Classes="CkanBadge" Padding="6,2">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                              <ui:GlyphIcon Glyph="Clock" Size="10" VerticalAlignment="Center" />
+                              <TextBlock Text="{Binding SelectedEvent.DateText}" />
+                            </StackPanel>
+                          </Border>
+                        </StackPanel>
+
+                        <!-- 右上角：在走势图上聚焦 -->
+                        <Button Grid.Column="2" Classes="CkanGhost" Padding="6,2" MinHeight="22"
+                                Command="{Binding OpenCareerCurveForCurrentEventCommand}"
+                                IsVisible="{Binding HasLinkedPeriod}"
+                                ToolTip.Tip="在上方生涯走势图上高亮聚焦本期走势">
+                          <StackPanel Orientation="Horizontal" Spacing="4">
+                            <ui:GlyphIcon Glyph="Curve" Size="11" Foreground="{DynamicResource CkanWarningBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="走势图聚焦 ↗" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                          </StackPanel>
+                        </Button>
+                      </Grid>
+
+                      <!-- 里程碑专属成就横幅 -->
+                      <Border IsVisible="{Binding SelectedEvent.IsMilestone}"
+                              Background="{DynamicResource CkanWarningBackgroundBrush}"
+                              BorderBrush="{DynamicResource CkanWarningBrush}"
+                              BorderThickness="1"
+                              CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                              Padding="10,6">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <ui:GlyphIcon Glyph="Milestone" Size="14" Foreground="{DynamicResource CkanWarningBrush}" VerticalAlignment="Center" />
+                          <TextBlock Text="达成 RP-1 重要生涯里程碑！已记录在航天历史档案中。"
+                                     Foreground="{DynamicResource CkanWarningBrush}"
+                                     FontWeight="SemiBold" Classes="CkanCaption" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </Border>
+
+                      <!-- 事件主副标题 -->
+                      <StackPanel Spacing="3">
+                        <TextBlock Text="{Binding SelectedEvent.Title}" FontWeight="SemiBold" FontSize="16"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding SelectedEvent.Subtitle}" Classes="CkanCaption"
+                                   Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                                   TextWrapping="Wrap" IsVisible="{Binding SelectedEvent.Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                      </StackPanel>
+
+                      <!-- 详细说明正文（无过多嵌套框） -->
+                      <TextBlock Text="{Binding SelectedDetail}" TextWrapping="Wrap"
+                                 LineHeight="22" Margin="0,2,0,4" />
+
+                      <!-- 当期宏观经济与预算联动 (四格仪表盘卡片) -->
+                      <Border IsVisible="{Binding HasLinkedPeriod}"
+                              Background="{DynamicResource CkanCardBackgroundBrush}"
+                              BorderBrush="{DynamicResource CkanBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
+                              Padding="12,10">
+                        <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
+                          <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                              <ui:GlyphIcon Glyph="Curve" Size="12" Foreground="{DynamicResource CkanWarningBrush}" VerticalAlignment="Center" />
+                              <TextBlock Text="{Binding LinkedPeriodText, StringFormat='事件发生时宏观经济（{0}）'}"
+                                         FontWeight="SemiBold" Classes="CkanCaption" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Classes="CkanGhost" Padding="4,1" MinHeight="20"
+                                    Command="{Binding OpenCareerCurveForCurrentEventCommand}"
+                                    ToolTip.Tip="定位至走势图对应周期">
+                              <TextBlock Text="定位 ↗" FontSize="11" Foreground="{DynamicResource CkanAccentBrush}" />
+                            </Button>
+                          </Grid>
+                          <Grid Grid.Row="1" ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
+                            <Border Grid.Column="0" Classes="CkanBadge" Padding="8,4" HorizontalAlignment="Stretch">
+                              <StackPanel Spacing="2">
+                                <TextBlock Text="资金" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                                <TextBlock Text="{Binding LinkedPeriodFundsText}" FontWeight="SemiBold" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                              </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Classes="CkanBadge" Padding="8,4" HorizontalAlignment="Stretch">
+                              <StackPanel Spacing="2">
+                                <TextBlock Text="科技" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                                <TextBlock Text="{Binding LinkedPeriodScienceText, StringFormat='+{0}'}" FontWeight="SemiBold" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                              </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Classes="CkanBadge" Padding="8,4" HorizontalAlignment="Stretch">
+                              <StackPanel Spacing="2">
+                                <TextBlock Text="信心" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                                <TextBlock Text="{Binding LinkedPeriodConfidenceText}" FontWeight="SemiBold" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                              </StackPanel>
+                            </Border>
+                            <Border Grid.Column="3" Classes="CkanBadge" Padding="8,4" HorizontalAlignment="Stretch">
+                              <StackPanel Spacing="2">
+                                <TextBlock Text="声望" Classes="CkanCaption" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                                <TextBlock Text="{Binding LinkedPeriodReputationText}" FontWeight="SemiBold" FontSize="{DynamicResource CkanFontSizeCaption}" />
+                              </StackPanel>
+                            </Border>
+                          </Grid>
+                        </Grid>
+                      </Border>
+
+                      <!-- 标识与扩展信息 -->
+                      <TextBlock Text="{Binding SelectedMeta, StringFormat='记录标识: {0}'}" Classes="CkanCaption"
+                                 Foreground="{DynamicResource CkanTextTertiaryBrush}" TextWrapping="Wrap"
+                                 IsVisible="{Binding SelectedMeta, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+                  </Border>
+                </ScrollViewer>
+
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8"
+                            IsVisible="{Binding ShowEventPlaceholder}">
+                  <ui:GlyphIcon Glyph="Calendar" Size="32" Foreground="{DynamicResource CkanTextTertiaryBrush}" HorizontalAlignment="Center" />
+                  <TextBlock Text="从左侧时间线选择事件查看档案详情。" Classes="CkanCaption"
+                             Foreground="{DynamicResource CkanTextTertiaryBrush}" HorizontalAlignment="Center" />
+                </StackPanel>
+              </Grid>
+            </Grid>
+          </TabItem>
+
+          <!-- Tab 1: 预算周期明细表 -->
+          <TabItem Header="预算周期明细表">
+            <Grid RowDefinitions="Auto,*,Auto" Margin="0,6,0,0">
+              <!-- 周期列表工具栏：范围切换与提示 -->
+              <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="2,4,8,8">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+                  <Button Classes="rp1-chip" Classes.selected="{Binding IsRecentPeriodScope}"
+                          Command="{Binding SetPeriodScopeCommand}" CommandParameter="recent">
+                    <TextBlock Text="最近 12 期" />
+                  </Button>
+                  <Button Classes="rp1-chip" Classes.selected="{Binding IsLinkedPeriodScope}"
+                          Command="{Binding SetPeriodScopeCommand}" CommandParameter="linked"
+                          IsEnabled="{Binding HasLinkedPeriod}"
+                          ToolTip.Tip="查看当前选中事件所在周期及其前后各 5 期">
+                    <TextBlock Text="当前事件周边" />
+                  </Button>
+                  <Button Classes="rp1-chip" Classes.selected="{Binding IsAllPeriodScope}"
+                          Command="{Binding SetPeriodScopeCommand}" CommandParameter="all">
+                    <TextBlock Text="全部周期" />
+                  </Button>
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="点击周期行可联动上方全景走势图与时间线" Classes="CkanCaption"
+                           Foreground="{DynamicResource CkanTextTertiaryBrush}" VerticalAlignment="Center" />
+              </Grid>
+
+              <ScrollViewer Grid.Row="1">
+                <ItemsControl ItemsSource="{Binding Periods}" Margin="2,0,8,8">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Button Classes="rp1-period-row"
+                              Classes.selected="{Binding IsSelected}"
+                              Command="{Binding $parent[UserControl].DataContext.SelectPeriodCommand}"
+                              CommandParameter="{Binding}">
+                        <Grid ColumnDefinitions="140,*,Auto">
+                          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding DateText}" Classes="CkanCaption" VerticalAlignment="Center" />
+                            <Border Classes="CkanBadge Warning" IsVisible="{Binding IsSelected}" Padding="4,1" VerticalAlignment="Center">
+                              <TextBlock Text="当前事件" FontSize="10" FontWeight="SemiBold" />
+                            </Border>
+                          </StackPanel>
+                          <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding FundsText, StringFormat='资金 {0}'}" />
+                            <TextBlock Text="{Binding ScienceText, StringFormat='本期科技 +{0}'}" Classes="CkanCaption" />
+                          </StackPanel>
+                          <StackPanel Grid.Column="2" Spacing="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding ConfidenceText, StringFormat='信心 {0}'}" Classes="CkanCaption" />
+                            <TextBlock Text="{Binding CrewLostText}" Classes="CkanCaption"
+                                       Foreground="{DynamicResource CkanDangerBrush}"
+                                       IsVisible="{Binding HasCrewLost}" />
+                          </StackPanel>
+                        </Grid>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+
+              <TextBlock Grid.Row="2" Text="周期横轴与上方全景走势图完全对应；点击曲线上任意点或下方列表行可双向跳转时间线事件。" Classes="CkanCaption"
+                         Foreground="{DynamicResource CkanTextTertiaryBrush}" Margin="2,4,0,0" />
+            </Grid>
+          </TabItem>
+        </TabControl>
+      </Grid>
+    </Border>
   </Grid>
 </UserControl>

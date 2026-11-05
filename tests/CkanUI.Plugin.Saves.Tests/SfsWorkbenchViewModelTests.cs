@@ -331,6 +331,174 @@ public sealed class SfsWorkbenchViewModelTests
         });
     }
 
+    [Test]
+    public async Task Navigation_PushesToHistoryAndRestoresOnBack()
+    {
+        var service = new FakeSaveEditorService();
+        var vm = new SfsWorkbenchViewModel(@"C:\saves\persistent.sfs", service);
+        await vm.InitializeAsync();
+
+        Assert.That(vm.CanNavigateBack, Is.False);
+
+        // Switch section
+        vm.SelectedSection = vm.Sections[1];
+        Assert.Multiple(() =>
+        {
+            Assert.That(vm.CanNavigateBack, Is.True);
+            Assert.That(vm.SelectedSection.Title, Is.EqualTo("资金"));
+        });
+
+        // Expand node
+        vm.SelectedSection = vm.Sections[0];
+        vm.SelectedNode = vm.Sections[0].Dto.Nodes[0];
+        await vm.ExpandNodeCommand.ExecuteAsync(null);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vm.BreadcrumbText, Does.Contain("VESSEL"));
+            Assert.That(vm.CanNavigateBack, Is.True);
+        });
+
+        // Navigate back from expanded node
+        vm.NavigateBackCommand.Execute(null);
+        Assert.That(vm.BreadcrumbText, Does.Contain("GAME"));
+
+        // Navigate back from second section change
+        vm.NavigateBackCommand.Execute(null);
+        Assert.That(vm.CanNavigateBack, Is.True);
+
+        // Navigate back to initial section
+        vm.NavigateBackCommand.Execute(null);
+        Assert.That(vm.CanNavigateBack, Is.False);
+    }
+
+    [Test]
+    public async Task QuickTools_ToggleAndInputs_WorkCorrectly()
+    {
+        var service = new FakeSaveEditorService();
+        var vm = new SfsWorkbenchViewModel(@"C:\saves\persistent.sfs", service);
+        await vm.InitializeAsync();
+
+        Assert.That(vm.IsQuickToolsOpen, Is.False);
+        vm.ToggleQuickToolsCommand.Execute(null);
+        Assert.That(vm.IsQuickToolsOpen, Is.True);
+        vm.ToggleQuickToolsCommand.Execute(null);
+        Assert.That(vm.IsQuickToolsOpen, Is.False);
+    }
+
+    [Test]
+    public async Task QuickApplyFunds_SetsDirectAndFormulaValues()
+    {
+        var service = new FakeSaveEditorService();
+        var vm = new SfsWorkbenchViewModel(@"C:\saves\persistent.sfs", service);
+        await vm.InitializeAsync();
+
+        // 1. Direct value from QuickFundsInput
+        vm.QuickFundsInput = "500000";
+        await vm.QuickApplyFundsCommand.ExecuteAsync(null);
+
+        Assert.That(service.Edits, Has.Count.EqualTo(1));
+        Assert.That(service.Edits[0].Value, Is.EqualTo("500000"));
+        Assert.That(vm.QuickFundsInput, Is.Empty);
+
+        // 2. Increment parameter formula: +100000 on 1234.5 = 101234.5
+        await vm.QuickApplyFundsCommand.ExecuteAsync("+100000");
+        Assert.That(service.Edits, Has.Count.EqualTo(2));
+        Assert.That(service.Edits[1].Value, Is.EqualTo("101234.5"));
+    }
+
+    [Test]
+    public async Task QuickApplyScienceAndReputation_AppliesFormulas()
+    {
+        var service = new FakeSaveEditorService();
+        var vm = new SfsWorkbenchViewModel(@"C:\saves\persistent.sfs", service);
+        await vm.InitializeAsync();
+
+        // Science increment: 42 + 500 = 542
+        await vm.QuickApplyScienceCommand.ExecuteAsync("+500");
+        Assert.That(service.Edits.Any(e => e.Key == "sci" && e.Value == "542"), Is.True);
+
+        // Reputation direct set
+        await vm.QuickApplyReputationCommand.ExecuteAsync("950");
+        Assert.That(service.Edits.Any(e => e.Key == "rep" && e.Value == "950"), Is.True);
+    }
+
+    [Test]
+    public async Task QuickStepNumericValue_UpdatesEditValueCorrectly()
+    {
+        var service = new FakeSaveEditorService();
+        var vm = new SfsWorkbenchViewModel(@"C:\saves\persistent.sfs", service);
+        await vm.InitializeAsync();
+
+        vm.SelectedField = vm.Fields.First(f => f.Key == "funds");
+        Assert.That(vm.IsNumericField, Is.True);
+        Assert.That(vm.EditValue, Is.EqualTo("1234.5"));
+
+        // Step +100
+        vm.QuickStepNumericValueCommand.Execute("+100");
+        Assert.That(vm.EditValue, Is.EqualTo("1334.5"));
+
+        // Step *10
+        vm.QuickStepNumericValueCommand.Execute("*10");
+        Assert.That(vm.EditValue, Is.EqualTo("13345"));
+
+        // Step /2
+        vm.QuickStepNumericValueCommand.Execute("/2");
+        Assert.That(vm.EditValue, Is.EqualTo("6672.5"));
+
+        // Step 0
+        vm.QuickStepNumericValueCommand.Execute("0");
+        Assert.That(vm.EditValue, Is.EqualTo("0"));
+    }
+
+    [Test]
+    public async Task CopyCommands_PutsExpectedTextInClipboard()
+    {
+        var service = new FakeSaveEditorService();
+        var vm = new SfsWorkbenchViewModel(@"C:\saves\persistent.sfs", service);
+        await vm.InitializeAsync();
+
+        string? copied = null;
+        vm.ClipboardWriter = text =>
+        {
+            copied = text;
+            return Task.CompletedTask;
+        };
+
+        vm.SelectedField = vm.Fields.First(f => f.Key == "funds");
+
+        await vm.CopyFieldKeyCommand.ExecuteAsync(null);
+        Assert.That(copied, Is.EqualTo("funds"));
+
+        await vm.CopyFieldValueCommand.ExecuteAsync(null);
+        Assert.That(copied, Is.EqualTo("1234.5"));
+
+        await vm.CopyFieldPathCommand.ExecuteAsync(null);
+        Assert.That(copied, Is.EqualTo("GAME/SCENARIO"));
+
+        vm.SelectedNode = vm.Nodes.First();
+        await vm.CopyNodePathCommand.ExecuteAsync(null);
+        Assert.That(copied, Is.EqualTo("GAME/FLIGHTSTATE/VESSEL#0"));
+    }
+
+    [Test]
+    public async Task ReviveDeadKerbals_ModifiesKerbalsInRoster()
+    {
+        var service = new FakeSaveEditorService { IncludeRoster = true };
+        var vm = new SfsWorkbenchViewModel(@"C:\saves\persistent.sfs", service);
+        await vm.InitializeAsync();
+
+        await vm.ReviveDeadKerbalsCommand.ExecuteAsync(null);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(service.Edits.Count, Is.EqualTo(3)); // 2 state edits + 1 ToD edit
+            Assert.That(service.Edits.Count(e => e.Key == "state" && e.Value == "Available"), Is.EqualTo(2));
+            Assert.That(service.Edits.Count(e => e.Key == "ToD" && e.Value == "0"), Is.EqualTo(1));
+            Assert.That(vm.StatusText, Does.Contain("2 位遇难/失踪乘员"));
+        });
+    }
+
     private sealed class FakeSaveEditorService : ISaveEditorService
     {
         private static readonly SaveOutlineFieldDto Funds = new()
@@ -346,9 +514,37 @@ public sealed class SfsWorkbenchViewModelTests
             Priority = 0,
         };
 
+        private static readonly SaveOutlineFieldDto Science = new()
+        {
+            Path = "GAME/SCENARIO",
+            Key = "sci",
+            Label = "科技点",
+            Value = "42",
+            DisplayValue = "42",
+            Line = 23,
+            IsKnown = true,
+            IsHighlighted = true,
+            Priority = 1,
+        };
+
+        private static readonly SaveOutlineFieldDto Reputation = new()
+        {
+            Path = "GAME/SCENARIO",
+            Key = "rep",
+            Label = "声望",
+            Value = "100",
+            DisplayValue = "100",
+            Line = 24,
+            IsKnown = true,
+            IsHighlighted = true,
+            Priority = 2,
+        };
+
         public bool LargeFile { get; set; }
 
         public bool TruncateFunding { get; set; }
+
+        public bool IncludeRoster { get; set; }
 
         public int Loads { get; private set; }
 
@@ -421,8 +617,24 @@ public sealed class SfsWorkbenchViewModelTests
                 Version = "1.12.5",
                 Mode = "CAREER",
                 Funds = "√1234.5",
-                Highlights = [Funds],
-                Sections = [section, funding],
+                Highlights = [Funds, Science, Reputation],
+                Sections = IncludeRoster
+                    ? [section, funding, new SaveOutlineSectionDto
+                    {
+                        Id = "scenario:1:ROSTER",
+                        Title = "乘员名册",
+                        Subtitle = "ROSTER",
+                        Fields =
+                        [
+                            new SaveOutlineFieldDto { Key = "name", Value = "Jebediah Kerman", Line = 50, Path = "GAME/ROSTER/KERBAL" },
+                            new SaveOutlineFieldDto { Key = "state", Value = "Dead", Line = 51, Path = "GAME/ROSTER/KERBAL" },
+                            new SaveOutlineFieldDto { Key = "ToD", Value = "12345", Line = 52, Path = "GAME/ROSTER/KERBAL" },
+                            new SaveOutlineFieldDto { Key = "name", Value = "Bill Kerman", Line = 55, Path = "GAME/ROSTER/KERBAL" },
+                            new SaveOutlineFieldDto { Key = "state", Value = "Missing", Line = 56, Path = "GAME/ROSTER/KERBAL" },
+                        ],
+                        Nodes = [],
+                    }]
+                    : [section, funding],
                 LineCount = 24,
                 PairCount = 4,
                 NodeCount = 3,
@@ -458,7 +670,22 @@ public sealed class SfsWorkbenchViewModelTests
         }
 
         public Task<OperationResult<SaveNodeDetailDto>> DescribeNodeAsync(string filePath, int line, CancellationToken cancellationToken = default)
-            => Task.FromResult(OperationResult<SaveNodeDetailDto>.Fail("未实现"));
+        {
+            return Task.FromResult(OperationResult<SaveNodeDetailDto>.Ok(new SaveNodeDetailDto
+            {
+                Name = "VESSEL",
+                Path = "GAME/FLIGHTSTATE/VESSEL#0",
+                Line = line,
+                Fields =
+                [
+                    new SaveOutlineFieldDto { Key = "pid", Value = "v1", Line = line + 1, Path = "GAME/FLIGHTSTATE/VESSEL#0" }
+                ],
+                Nodes =
+                [
+                    new SaveOutlineNodeDto { Name = "PART", Path = "GAME/FLIGHTSTATE/VESSEL#0/PART#0", Line = line + 5 }
+                ]
+            }));
+        }
 
         public Task<OperationResult<SaveEditOutcomeDto>> EditAsync(SaveEditRequest request, CancellationToken cancellationToken = default)
         {

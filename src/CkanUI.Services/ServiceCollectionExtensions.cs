@@ -1,5 +1,6 @@
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Assets;
+using CkanUI.Services.Abstractions.Audio;
 using CkanUI.Services.Assets;
 using CkanUI.Services.Bootstrap;
 using CkanUI.Services.Cache;
@@ -49,6 +50,11 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IErrorReporter, ErrorReporter>();
         services.TryAddSingleton<IOperationQueue, OperationQueue>();
 
+        // 界面音效与背景音乐播放系统
+        services.TryAddSingleton<ISoundEffectService, Audio.SoundEffectService>();
+        services.TryAddSingleton<IMusicPlayerService, Audio.MusicPlayerService>();
+        services.TryAddSingleton<IAudioService, Audio.AudioService>();
+
         // 领域服务（顺序无关，构造函数注入会按需解析）。
         services.TryAddSingleton<IInstanceService, InstanceService>();
         services.TryAddSingleton<IRegistryService, RegistryService>();
@@ -89,6 +95,10 @@ public static class ServiceCollectionExtensions
         // Mod 元数据翻译服务（17 篇 E5）：纯内存查找器 + 语言包扫描与仓库联动。
         services.TryAddSingleton<CkanUI.ModText.IModTextService, ModText.ModTextService>();
 
+        // SpaceDock 浏览 / 下载 / GameData 安装：匿名 API，不写 CKAN 注册表。
+        services.TryAddSingleton<ISpaceDockService, Spacedock.SpaceDockService>();
+        services.TryAddSingleton<ISpaceDockInstaller, Spacedock.SpaceDockInstaller>();
+
         // SpaceDock 图片抓取服务：按需懒加载模组截图与背景预览。
         services.TryAddSingleton<ISpacedockImageService, Spacedock.SpacedockImageService>();
 
@@ -121,6 +131,11 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<InstallHistoryRecorder>(),
             provider.GetRequiredService<IRegistryService>()));
         services.TryAddSingleton<IUiSettingsStore, Settings.UiSettingsStore>();
+
+        // 音频子系统（音效合成器、音乐播放器、全局主音频管理）
+        services.TryAddSingleton<ISoundEffectService, Audio.SoundEffectService>();
+        services.TryAddSingleton<IMusicPlayerService, Audio.MusicPlayerService>();
+        services.TryAddSingleton<IAudioService, Audio.AudioService>();
 
         // 插件系统（F-17）：用户插件目录默认 %LocalAppData%/CKAN/plugins，内置插件目录是 <App>/plugins，
         // 激活状态落在 %LocalAppData%/CKAN/plugin-activation.json。

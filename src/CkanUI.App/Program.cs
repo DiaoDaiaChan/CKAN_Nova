@@ -11,8 +11,17 @@ namespace CkanUI.App;
 /// <summary>进程入口（ARC-01 / ARC-04 / ARC-05）。</summary>
 public static class Program
 {
-    /// <summary>单实例互斥量与命名管道使用同一标识。</summary>
-    public const string AppId = "CkanUI";
+    /// <summary>
+    /// 单实例互斥量与命名管道使用同一标识。默认 <c>CkanUI</c>，可用环境变量 <c>CKANUI_APP_ID</c> 覆盖——
+    /// 只给诊断/测量用（同一台机器同时跑两个实例），不改变默认单实例行为。
+    /// </summary>
+    public static readonly string AppId = ReadAppId();
+
+    private static string ReadAppId()
+    {
+        var configured = Environment.GetEnvironmentVariable("CKANUI_APP_ID");
+        return string.IsNullOrWhiteSpace(configured) ? "CkanUI" : configured.Trim();
+    }
 
     private static readonly ILog Log = LogManager.GetLogger(typeof(Program));
 
@@ -112,10 +121,22 @@ public static class Program
         }
     }
 
+    /// <summary>
+    /// Win32 平台选项：弹层（下拉列表 / 右键菜单 / Flyout / ToolTip）一律嵌进窗口自身的
+    /// Overlay 层，不各开一个顶层子窗口。Windows 的 Z 序里子窗口恒在主窗口之上，
+    /// 任何「窗口内图层」都压不住它——包括 ZIndex = int.MaxValue 的自绘光标层。
+    /// 只有把弹层收进同一个 VisualLayerManager，光标才能稳定排在弹层前面。
+    /// </summary>
+    public static Win32PlatformOptions CreateWin32PlatformOptions() => new()
+    {
+        OverlayPopups = true,
+    };
+
     /// <summary>Avalonia 引导（保持不变，供设计器与测试复用）。</summary>
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<App>()
                   .UsePlatformDetect()
+                  .With(CreateWin32PlatformOptions())
                   .WithInterFont()
                   .LogToTrace();
 

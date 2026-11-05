@@ -4,7 +4,7 @@ using CkanUI.Services.Abstractions.Commands;
 namespace CkanUI.Services.Commands;
 
 /// <summary>
-/// 内置命令表（UI-40）：16 个宿主内置导航页 + 10 个界面动作，命令面板开箱即用。
+/// 内置命令表（UI-40）：16 个宿主内置导航页 + 17 个界面动作，命令面板开箱即用。
 /// </summary>
 /// <remarks>
 /// <para><b>为什么放在服务层</b>：命令表是纯数据 + 纯字符串拼接，和 App 外壳无关；
@@ -14,8 +14,9 @@ namespace CkanUI.Services.Commands;
 /// 还是自己的动作映射表，不需要给命令面板开一个回调注册表。</para>
 /// <para><b>文案</b>：导航标题复用既有的 <c>Ui_NavRail_*</c> 键（与左侧导航栏同一份译文，避免两处不一致），
 /// 其余键是本任务新增的。没注入翻译委托时用中文兜底，绝不把 <c>Ui_*</c> 键名显示给用户。</para>
-/// <para><b>快捷键文本</b>：只写真正会接线的键位（Ctrl+K / Ctrl+/），后退/前进一步的键位由外壳决定后再补，
-/// 免得快捷键目录里出现按了没反应的行。</para>
+/// <para><b>快捷键文本</b>：只写真正会接线的键位，免得快捷键目录里出现按了没反应的行。
+/// 页签与侧栏的切换（Ctrl+Tab / Ctrl+Alt+↑↓ / Ctrl+1..9）由外壳的 <c>ShellShortcutMap</c> 处理，
+/// 这里登记动作只为让它们进命令面板和 Ctrl+/ 目录；后退/前进的键位仍由外壳的 Window.KeyBindings 决定。</para>
 /// </remarks>
 public static class DefaultCommands
 {
@@ -75,6 +76,13 @@ public static class DefaultCommands
         new("check-updates", "Ui_Cmd_Action_CheckUpdates", new[] { "更新", "update", "检查", "版本" }, "", false),
         new("toggle-theme", "Ui_Cmd_Action_ToggleTheme", new[] { "主题", "theme", "深色", "浅色", "外观" }, "", false),
         new("toggle-density", "Ui_Cmd_Action_ToggleDensity", new[] { "密度", "density", "紧凑", "间距", "布局" }, "", false),
+        // 全键盘（UI-12）：页签与侧栏的切换原先只能点，键盘用户到不了第二个页签。
+        new("next-tab", "Ui_Cmd_Action_NextTab", new[] { "页签", "tab", "下一个", "切换", "右" }, "Ctrl+Tab", false),
+        new("previous-tab", "Ui_Cmd_Action_PreviousTab", new[] { "页签", "tab", "上一个", "切换", "左" }, "Ctrl+Shift+Tab", false),
+        new("next-rail", "Ui_Cmd_Action_NextRail", new[] { "侧栏", "入口", "rail", "下一个", "切换" }, "Ctrl+Alt+↓", false),
+        new("previous-rail", "Ui_Cmd_Action_PreviousRail", new[] { "侧栏", "入口", "rail", "上一个", "切换" }, "Ctrl+Alt+↑", false),
+        new("focus-search", "Ui_Cmd_Action_FocusSearch", new[] { "搜索", "search", "查找", "过滤", "聚焦" }, "Ctrl+F", false),
+        new("open-settings", "Ui_Cmd_Action_OpenSettings", new[] { "设置", "settings", "偏好", "选项" }, "Ctrl+,", false),
     };
 
     /// <summary>拼一条导航命令的 Id（宿主与插件都按这个约定生成）。</summary>
@@ -210,5 +218,11 @@ public static class DefaultCommands
         ["Ui_Cmd_Action_CheckUpdates"] = "检查更新",
         ["Ui_Cmd_Action_ToggleTheme"] = "切换主题",
         ["Ui_Cmd_Action_ToggleDensity"] = "切换密度",
+        ["Ui_Cmd_Action_NextTab"] = "下一个页签",
+        ["Ui_Cmd_Action_PreviousTab"] = "上一个页签",
+        ["Ui_Cmd_Action_NextRail"] = "下一个侧栏入口",
+        ["Ui_Cmd_Action_PreviousRail"] = "上一个侧栏入口",
+        ["Ui_Cmd_Action_FocusSearch"] = "聚焦搜索框",
+        ["Ui_Cmd_Action_OpenSettings"] = "打开设置",
     };
 }

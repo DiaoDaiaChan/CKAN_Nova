@@ -112,8 +112,18 @@ public sealed class AiToolRunnerTests
             "ckan_mod_detail",
             "ckan_installed",
             "ckan_list_pages",
+            "ckan_ui_state",
+            "ckan_page_actions",
+            "ckan_run_page_action",
+            "ckan_set_ui_field",
+            "ckan_settings",
             "ckan_navigate",
             "ckan_install_mod",
+            "ckan_set_theme",
+            "ckan_filter_mods",
+            "ckan_switch_instance",
+            "ckan_launch_game",
+            "ckan_set_setting",
             "web_search",
         }));
     }
@@ -236,6 +246,325 @@ public sealed class AiToolRunnerTests
             Assert.That(result.Json, Does.Contain("navigate_failed"));
             Assert.That(result.Json, Does.Contain("导航被宿主拒绝"));
             Assert.That(bridge.LastNavigateKey, Is.EqualTo("settings"));
+        });
+    }
+
+    [Test]
+    public async Task SetThemeSuccessAndFailureTranslateCorrectly()
+    {
+        var bridge = new FakeCkanBridge();
+        var runner = new AiToolRunner(bridge);
+
+        var success = await runner.InvokeAsync("ckan_set_theme", """{"theme":"dark","skin":"coronal-gold"}""");
+        Assert.Multiple(() =>
+        {
+            Assert.That(success.Ok, Is.True);
+            Assert.That(success.Json, Does.Contain("已应用主题设置"));
+            Assert.That(bridge.LastSetTheme, Is.EqualTo("dark"));
+            Assert.That(bridge.LastSetSkin, Is.EqualTo("coronal-gold"));
+        });
+
+        var badArgs = await runner.InvokeAsync("ckan_set_theme", "{}");
+        Assert.Multiple(() =>
+        {
+            Assert.That(badArgs.Ok, Is.False);
+            Assert.That(badArgs.Json, Does.Contain("bad_arguments"));
+        });
+
+        bridge.SetThemeResult = OperationResult<bool>.Fail("主题不存在");
+        var failed = await runner.InvokeAsync("ckan_set_theme", """{"theme":"nonexistent"}""");
+        Assert.Multiple(() =>
+        {
+            Assert.That(failed.Ok, Is.False);
+            Assert.That(failed.Json, Does.Contain("set_theme_failed"));
+            Assert.That(failed.Json, Does.Contain("主题不存在"));
+        });
+    }
+
+    [Test]
+    public async Task FilterModsSuccessAndFailureTranslateCorrectly()
+    {
+        var bridge = new FakeCkanBridge();
+        var runner = new AiToolRunner(bridge);
+
+        var success = await runner.InvokeAsync("ckan_filter_mods", """{"query":"warp","filter":"installed"}""");
+        Assert.Multiple(() =>
+        {
+            Assert.That(success.Ok, Is.True);
+            Assert.That(success.Json, Does.Contain("已应用模组筛选"));
+            Assert.That(bridge.LastFilterQuery, Is.EqualTo("warp"));
+            Assert.That(bridge.LastFilterKind, Is.EqualTo("installed"));
+        });
+
+        var badArgs = await runner.InvokeAsync("ckan_filter_mods", "{}");
+        Assert.Multiple(() =>
+        {
+            Assert.That(badArgs.Ok, Is.False);
+            Assert.That(badArgs.Json, Does.Contain("bad_arguments"));
+        });
+
+        bridge.FilterModsResult = OperationResult<bool>.Fail("导航模组页失败");
+        var failed = await runner.InvokeAsync("ckan_filter_mods", """{"query":"test"}""");
+        Assert.Multiple(() =>
+        {
+            Assert.That(failed.Ok, Is.False);
+            Assert.That(failed.Json, Does.Contain("filter_mods_failed"));
+            Assert.That(failed.Json, Does.Contain("导航模组页失败"));
+        });
+    }
+
+    [Test]
+    public async Task SwitchInstanceSuccessAndFailureTranslateCorrectly()
+    {
+        var bridge = new FakeCkanBridge();
+        var runner = new AiToolRunner(bridge);
+
+        var success = await runner.InvokeAsync("ckan_switch_instance", """{"name":"KSP-1.12"}""");
+        Assert.Multiple(() =>
+        {
+            Assert.That(success.Ok, Is.True);
+            Assert.That(success.Json, Does.Contain("已切换至实例"));
+            Assert.That(bridge.LastSwitchedInstance, Is.EqualTo("KSP-1.12"));
+        });
+
+        var badArgs = await runner.InvokeAsync("ckan_switch_instance", """{"name":"   "}""");
+        Assert.Multiple(() =>
+        {
+            Assert.That(badArgs.Ok, Is.False);
+            Assert.That(badArgs.Json, Does.Contain("bad_arguments"));
+        });
+
+        bridge.SwitchInstanceResult = OperationResult<bool>.Fail("实例未找到");
+        var failed = await runner.InvokeAsync("ckan_switch_instance", """{"name":"Missing"}""");
+        Assert.Multiple(() =>
+        {
+            Assert.That(failed.Ok, Is.False);
+            Assert.That(failed.Json, Does.Contain("switch_instance_failed"));
+            Assert.That(failed.Json, Does.Contain("实例未找到"));
+        });
+    }
+
+    [Test]
+    public async Task LaunchGameSuccessAndFailureTranslateCorrectly()
+    {
+        var bridge = new FakeCkanBridge();
+        var runner = new AiToolRunner(bridge);
+
+        var success = await runner.InvokeAsync("ckan_launch_game", "{}");
+        Assert.Multiple(() =>
+        {
+            Assert.That(success.Ok, Is.True);
+            Assert.That(success.Json, Does.Contain("游戏已启动"));
+            Assert.That(bridge.LaunchGameCalls, Is.EqualTo(1));
+        });
+
+        bridge.LaunchGameResult = OperationResult<bool>.Fail("游戏启动文件丢失");
+        var failed = await runner.InvokeAsync("ckan_launch_game", "{}");
+        Assert.Multiple(() =>
+        {
+            Assert.That(failed.Ok, Is.False);
+            Assert.That(failed.Json, Does.Contain("launch_game_failed"));
+            Assert.That(failed.Json, Does.Contain("游戏启动文件丢失"));
+        });
+    }
+
+    [Test]
+    public async Task SetSettingSuccessAndFailureTranslateCorrectly()
+    {
+        var bridge = new FakeCkanBridge();
+        var runner = new AiToolRunner(bridge);
+
+        var success = await runner.InvokeAsync("ckan_set_setting", """{"key":"Locale","value":"zh-CN"}""");
+        Assert.Multiple(() =>
+        {
+            Assert.That(success.Ok, Is.True);
+            Assert.That(success.Json, Does.Contain("已更新"));
+            Assert.That(bridge.LastSettingKey, Is.EqualTo("Locale"));
+            Assert.That(bridge.LastSettingValue, Is.EqualTo("zh-CN"));
+        });
+
+        var badArgs = await runner.InvokeAsync("ckan_set_setting", """{"key":"Locale"}""");
+        Assert.Multiple(() =>
+        {
+            Assert.That(badArgs.Ok, Is.False);
+            Assert.That(badArgs.Json, Does.Contain("bad_arguments"));
+        });
+
+        bridge.SetSettingResult = OperationResult<bool>.Fail("无效键名");
+        var failed = await runner.InvokeAsync("ckan_set_setting", """{"key":"Invalid","value":"val"}""");
+        Assert.Multiple(() =>
+        {
+            Assert.That(failed.Ok, Is.False);
+            Assert.That(failed.Json, Does.Contain("set_setting_failed"));
+            Assert.That(failed.Json, Does.Contain("无效键名"));
+        });
+    }
+
+    [Test]
+    public async Task UiStateFlattensFieldsAndActions()
+    {
+        var bridge = new FakeCkanBridge();
+        var runner = new AiToolRunner(bridge);
+
+        var result = await runner.InvokeAsync("ckan_ui_state", "{}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.True);
+            Assert.That(result.Json, Does.Contain("\"page\":\"mods\""));
+            Assert.That(result.Json, Does.Contain("\"view_model\":\"ModsPageViewModel\""));
+            Assert.That(result.Json, Does.Contain("\"name\":\"SearchText\""), "字段要摊平成 name/kind/value，模型才读得懂");
+            Assert.That(result.Json, Does.Contain("\"can_execute\":true"));
+            Assert.That(result.Json, Does.Contain("ApplyCommand"));
+        });
+    }
+
+    [Test]
+    public async Task PageActionsPassPageKeyAndReportCount()
+    {
+        var bridge = new FakeCkanBridge();
+        var runner = new AiToolRunner(bridge);
+
+        var result = await runner.InvokeAsync("ckan_page_actions", """{"page_key":"mods"}""");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.True);
+            Assert.That(bridge.LastPageActionsQuery, Is.EqualTo("mods"));
+            Assert.That(result.Json, Does.Contain("\"count\":2"));
+            Assert.That(result.Json, Does.Contain("SelectCommand"));
+            Assert.That(result.Json, Does.Contain("\"parameter\":\"Int32\""));
+        });
+    }
+
+    [Test]
+    public async Task RunPageActionRequiresActionNameAndNeverCallsBridge()
+    {
+        var bridge = new FakeCkanBridge();
+        var runner = new AiToolRunner(bridge);
+
+        var result = await runner.InvokeAsync("ckan_run_page_action", """{"argument":"3"}""");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.False);
+            Assert.That(result.Json, Does.Contain("missing_action"));
+            Assert.That(bridge.RunPageActionCalls, Is.Zero);
+        });
+    }
+
+    [Test]
+    public async Task RunPageActionPassesArgumentAndPageKey()
+    {
+        var bridge = new FakeCkanBridge();
+        var runner = new AiToolRunner(bridge);
+
+        var result = await runner.InvokeAsync(
+            "ckan_run_page_action",
+            """{"action":"SelectCommand","argument":"3","page_key":"mods"}""");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.True);
+            Assert.That(bridge.LastPageAction, Is.EqualTo("SelectCommand"));
+            Assert.That(bridge.LastPageActionArgument, Is.EqualTo("3"));
+            Assert.That(bridge.LastPageActionPageKey, Is.EqualTo("mods"));
+            Assert.That(result.Json, Does.Contain("已执行"));
+        });
+    }
+
+    [Test]
+    public async Task RunPageActionFailureIsDataNotException()
+    {
+        var bridge = new FakeCkanBridge
+        {
+            RunPageActionResult = OperationResult<string>.Fail("用户拒绝了这次操作。", "confirm_denied"),
+        };
+        var runner = new AiToolRunner(bridge);
+
+        var result = await runner.InvokeAsync("ckan_run_page_action", """{"action":"UninstallCommand"}""");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.False);
+            Assert.That(result.Json, Does.Contain("run_page_action_failed"));
+            Assert.That(result.Json, Does.Contain("用户拒绝了这次操作。"));
+            Assert.That(result.Json, Does.Contain("confirm_denied"));
+        });
+    }
+
+    [Test]
+    public async Task SetUiFieldRequiresFieldAndNeverCallsBridge()
+    {
+        var bridge = new FakeCkanBridge();
+        var runner = new AiToolRunner(bridge);
+
+        var result = await runner.InvokeAsync("ckan_set_ui_field", """{"value":"realchute"}""");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.False);
+            Assert.That(result.Json, Does.Contain("missing_field"));
+            Assert.That(bridge.SetUiFieldCalls, Is.Zero);
+        });
+    }
+
+    [Test]
+    public async Task SetUiFieldPassesValueAndPageKey()
+    {
+        var bridge = new FakeCkanBridge();
+        var runner = new AiToolRunner(bridge);
+
+        var result = await runner.InvokeAsync(
+            "ckan_set_ui_field",
+            """{"field":"SearchText","value":"realchute","page_key":"mods"}""");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.True);
+            Assert.That(bridge.LastUiField, Is.EqualTo("SearchText"));
+            Assert.That(bridge.LastUiFieldValue, Is.EqualTo("realchute"));
+            Assert.That(bridge.LastUiFieldPageKey, Is.EqualTo("mods"));
+            Assert.That(result.Json, Does.Contain("「SearchText」"), "把桥返回的旧值→新值原样转给模型");
+        });
+    }
+
+    [Test]
+    public async Task SetUiFieldFailureIsDataNotException()
+    {
+        var bridge = new FakeCkanBridge
+        {
+            SetUiFieldResult = OperationResult<string>.Fail("字段「ApiKey」属于密钥类值，拒绝从对话写入。"),
+        };
+        var runner = new AiToolRunner(bridge);
+
+        var result = await runner.InvokeAsync("ckan_set_ui_field", """{"field":"ApiKey","value":"x"}""");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.False);
+            Assert.That(result.Json, Does.Contain("set_ui_field_failed"));
+            Assert.That(result.Json, Does.Contain("密钥"));
+        });
+    }
+
+    [Test]
+    public async Task SettingsListKindsAndChoices()
+    {
+        var runner = new AiToolRunner(new FakeCkanBridge());
+
+        var result = await runner.InvokeAsync("ckan_settings", "{}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.True);
+            Assert.That(result.Json, Does.Contain("\"count\":2"));
+            Assert.That(result.Json, Does.Contain("\"key\":\"Density\""));
+            Assert.That(result.Json, Does.Contain("\"choices\":[\"standard\",\"compact\"]"));
+            Assert.That(
+                result.Json,
+                Does.Contain("\"key\":\"Theme\",\"kind\":\"text\",\"value\":\"dark\"}"),
+                "无枚举取值的项不要带空 choices 数组，否则模型会以为枚举为空");
         });
     }
 }

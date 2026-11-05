@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Text;
 using CkanUI.Plugin.Soundtrack.Playlists;
 using CkanUI.Services.Abstractions;
+using CkanUI.Services.Abstractions.Audio;
 using CkanUI.Services.Abstractions.Dtos;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -26,6 +27,8 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
 
     private readonly ISoundtrackService? _soundtrack;
     private readonly IInstanceService? _instances;
+    private readonly IMusicPlayerService? _musicPlayer;
+    private readonly ISoundEffectService? _soundEffects;
     private readonly Action<string> _openPath;
     private readonly List<SoundtrackLibraryRowViewModel> _libraryAll = new();
 
@@ -37,11 +40,15 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
     private bool _disposed;
 
     /// <summary>
-    /// 宿主用 ActivatorUtilities 构造：两个服务都从 DI 取。参数允许为 null，是因为插件服务要由宿主注册；
+    /// 宿主用 ActivatorUtilities 构造：服务都从 DI 取。参数允许为 null，是因为插件服务要由宿主注册；
     /// 没注册时页面至少能打开并说清缺什么，而不是让 PluginPageFactory 构造失败后静默地少一个页签。
     /// </summary>
-    public SoundtrackPageViewModel(ISoundtrackService? soundtrack, IInstanceService? instances)
-        : this(soundtrack, instances, OpenWithShell)
+    public SoundtrackPageViewModel(
+        ISoundtrackService? soundtrack,
+        IInstanceService? instances,
+        IMusicPlayerService? musicPlayer = null,
+        ISoundEffectService? soundEffects = null)
+        : this(soundtrack, instances, musicPlayer, soundEffects, OpenWithShell)
     {
     }
 
@@ -49,20 +56,41 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
     /// 宿主只注册了实例服务时的构造：播放列表服务由插件自己造——它读写的这个文件只有本插件懂，
     /// 让宿主去注册一个插件内部实现是本末倒置。
     /// </summary>
-    public SoundtrackPageViewModel(IInstanceService instances)
-        : this(new SoundtrackService(), instances)
+    public SoundtrackPageViewModel(
+        IInstanceService instances,
+        IMusicPlayerService? musicPlayer = null,
+        ISoundEffectService? soundEffects = null)
+        : this(new SoundtrackService(), instances, musicPlayer, soundEffects)
     {
     }
 
-    private SoundtrackPageViewModel(ISoundtrackService? soundtrack, IInstanceService? instances, Action<string> openPath)
+    private SoundtrackPageViewModel(
+        ISoundtrackService? soundtrack,
+        IInstanceService? instances,
+        IMusicPlayerService? musicPlayer,
+        ISoundEffectService? soundEffects,
+        Action<string> openPath)
     {
         _soundtrack = soundtrack;
         _instances = instances;
+        _musicPlayer = musicPlayer;
+        _soundEffects = soundEffects;
         _openPath = openPath;
+
+        if (_musicPlayer is not null)
+        {
+            _musicPlayer.PlaybackStateChanged += OnPlaybackStateChanged;
+            _musicPlayer.TrackChanged += OnTrackChanged;
+            _musicPlayer.PositionChanged += OnPositionChanged;
+        }
+
         if (_instances is not null)
         {
             _instances.CurrentChanged += OnCurrentChanged;
         }
+
+        RefreshBodyNameOptions();
+        RebuildNewConditionEditor(NewConditionField);
     }
 
     /// <summary>
@@ -72,17 +100,267 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
     public static SoundtrackPageViewModel CreateForTests(
         ISoundtrackService soundtrack,
         IInstanceService? instances = null,
+        IMusicPlayerService? musicPlayer = null,
+        ISoundEffectService? soundEffects = null,
         Action<string>? openPath = null)
-        => new(soundtrack, instances, openPath ?? OpenWithShell);
+        => new(soundtrack, instances, musicPlayer, soundEffects, openPath ?? OpenWithShell);
+
+    /// <summary>节点里点一个播放列表：只切换选中，不改任何文档字段。</summary>
+    [RelayCommand]
+    private void SelectPlaylist(SoundtrackPlaylistRowViewModel? row)
+    {
+        if (row is not null)
+        {
+            SelectedPlaylist = row;
+            _soundEffects?.Play(SoundEffectType.Select);
+        }
+    }
+
+    /// <summary>展开/收起一个场景分组。展开状态只活在页面里，不写进 playlists.cfg。</summary>
+    [RelayCommand]
+    private void ToggleGroup(SoundtrackSceneGroupViewModel? group)
+    {
+        if (group is not null)
+        {
+            group.IsExpanded = !group.IsExpanded;
+            _soundEffects?.Play(SoundEffectType.Click);
+        }
+    }
+
+    /// <summary>展开/收起一个星球子分组。和场景组一样只影响界面，不改 playWhen。</summary>
+    [RelayCommand]
+    private void ToggleBodyGroup(SoundtrackBodyGroupViewModel? group)
+    {
+        if (group is not null)
+        {
+            group.IsExpanded = !group.IsExpanded;
+            _soundEffects?.Play(SoundEffectType.Click);
+        }
+    }
+
+    /// <summary>展开“添加条件”表单。默认收起，避免详情区一进来就多一排行。</summary>
+    [RelayCommand]
+    private void OpenTriggerEditor()
+    {
+        if (_selectedPlaylist is null)
+        {
+            ShowError("先在左栏选一个播放列表，再添加条件。");
+            return;
+        }
+
+        NewConditionError = string.Empty;
+        IsTriggerEditorOpen = true;
+        _soundEffects?.Play(SoundEffectType.Click);
+    }
+
+    [RelayCommand]
+    private void CancelTriggerEditor()
+    {
+        IsTriggerEditorOpen = false;
+        NewConditionError = string.Empty;
+        _soundEffects?.Play(SoundEffectType.Click);
+    }
+
+    /// <summary>
+    /// 把表单里的键值加到选中列表的 playWhen。值和键都先过目录校验：
+    /// Soundtrack 遇到不认识的枚举会抛异常并整份回落原版播放列表，所以宁可在这里拦住。
+    /// </summary>
+    [RelayCommand]
+    private void AddCondition()
+    {
+        if (_selectedPlaylist is null)
+        {
+            ShowError("先在左栏选一个播放列表，再添加条件。");
+            return;
+        }
+
+        var field = NewConditionField;
+        if (field is null)
+        {
+            NewConditionError = "先选一个要添加的键。";
+            return;
+        }
+
+        if (_selectedPlaylist.Model.PlayWhen.Any(pair =>
+                pair.Key.Equals(field.Key, StringComparison.OrdinalIgnoreCase)))
+        {
+            NewConditionError = $"「{field.Label}」已经有一条了，直接改下面那条的值。";
+            return;
+        }
+
+        if (!SoundtrackTriggerCatalog.TryNormalize(field, NewConditionValue, out var normalized, out var error))
+        {
+            NewConditionError = error;
+            _soundEffects?.Play(SoundEffectType.Warning);
+            return;
+        }
+
+        _selectedPlaylist.ApplyCondition(field.Key, normalized);
+        IsTriggerEditorOpen = false;
+        NewConditionError = string.Empty;
+        RefreshConditionRows();
+        _soundEffects?.Play(SoundEffectType.Check);
+        ShowStatus($"已给「{_selectedPlaylist.Name}」加上条件 {field.Key} = {normalized}，保存后生效。");
+    }
+
+    /// <summary>应用一条条件的草稿值；同一行可以反复改，模型里同键只留一条。</summary>
+    [RelayCommand]
+    private void ApplyCondition(SoundtrackConditionRowViewModel? row)
+    {
+        if (row is null || _selectedPlaylist is null)
+        {
+            return;
+        }
+
+        if (!SoundtrackTriggerCatalog.TryNormalize(row.Field, row.Draft, out var normalized, out var error))
+        {
+            ShowError($"{row.Label}：{error}");
+            _soundEffects?.Play(SoundEffectType.Warning);
+            return;
+        }
+
+        _selectedPlaylist.ApplyCondition(row.Key, normalized);
+        if (string.Equals(row.Key, "scene", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(row.Key, "bodyName", StringComparison.OrdinalIgnoreCase))
+        {
+            RebuildTriggerTree();
+        }
+        RefreshConditionRows();
+        _soundEffects?.Play(SoundEffectType.Check);
+        ShowStatus($"已把「{_selectedPlaylist.Name}」的 {row.Key} 改成 {normalized}，保存后生效。");
+    }
+
+    /// <summary>删掉一条条件。删掉 scene 会让列表落回「未限定场景」分组，树会跟着重排。</summary>
+    [RelayCommand]
+    private void RemoveCondition(SoundtrackConditionRowViewModel? row)
+    {
+        if (row is null || _selectedPlaylist is null)
+        {
+            return;
+        }
+
+        if (!_selectedPlaylist.RemoveCondition(row.Key))
+        {
+            return;
+        }
+
+        if (string.Equals(row.Key, "scene", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(row.Key, "bodyName", StringComparison.OrdinalIgnoreCase))
+        {
+            RebuildTriggerTree();
+        }
+        RefreshConditionRows();
+        _soundEffects?.Play(SoundEffectType.Click);
+        ShowStatus($"已从「{_selectedPlaylist.Name}」移除条件 {row.Key}，保存后生效。");
+    }
 
     /// <summary>左栏的播放列表行，顺序即 playlists.cfg 里的节点顺序。</summary>
     public ObservableCollection<SoundtrackPlaylistRowViewModel> Playlists { get; } = new();
+
+    /// <summary>
+    /// 节点树：一级节点按 scene 分组，组内是播放列表。
+    /// </summary>
+    /// <remarks>
+    /// 分组结果和 <see cref="Playlists"/> 是同一批行对象，不是副本——改名/开关时两边一起变，
+    /// 否则节点树会显示旧名字，比不做树还糟。
+    /// </remarks>
+    public ObservableCollection<SoundtrackSceneGroupViewModel> TriggerGroups { get; } = new();
 
     /// <summary>右栏当前选中播放列表的曲目行，顺序即播放顺序。</summary>
     public ObservableCollection<SoundtrackTrackRowViewModel> SelectedTracks { get; } = new();
 
     /// <summary>乐曲库里当前可见的行（受 <see cref="LibrarySearch"/> 过滤）。</summary>
     public ObservableCollection<SoundtrackLibraryRowViewModel> LibraryRows { get; } = new();
+
+    /// <summary>右栏可编辑的条件行，顺序即 playWhen 在文件里的顺序。</summary>
+    public ObservableCollection<SoundtrackConditionRowViewModel> SelectedConditions { get; } = new();
+
+    /// <summary>「添加条件」下拉里的全部键，顺序与触发器目录一致。</summary>
+    public IReadOnlyList<SoundtrackTriggerField> TriggerFieldOptions => SoundtrackTriggerCatalog.Fields;
+
+    /// <summary>bodyName 选择器的建议值：库存天体 + 当前文档里出现过的天体名。</summary>
+    public ObservableCollection<string> BodyNameOptions { get; } = new();
+
+    /// <summary>「添加条件」表单的选择器状态；与 NewConditionValue 双向同步，旧测试仍可直接给 NewConditionValue 赋值。</summary>
+    [ObservableProperty]
+    private SoundtrackConditionRowViewModel? _newConditionEditor;
+
+    /// <summary>是否展开“添加条件”表单；收起时不占高度。</summary>
+    [ObservableProperty]
+    private bool _isTriggerEditorOpen;
+
+    [ObservableProperty]
+    private SoundtrackTriggerField? _newConditionField = SoundtrackTriggerCatalog.Fields[0];
+
+    [ObservableProperty]
+    private string _newConditionValue = SoundtrackTriggerCatalog.Fields[0].DefaultValue;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNewConditionError))]
+    private string _newConditionError = string.Empty;
+
+    public bool HasNewConditionError => NewConditionError.Length > 0;
+
+    /// <summary>切换要添加的键时，把值重置成该键的合法默认值，避免留下上一条的枚举名。</summary>
+    partial void OnNewConditionFieldChanged(SoundtrackTriggerField? value)
+    {
+        NewConditionError = string.Empty;
+        NewConditionValue = value?.DefaultValue ?? string.Empty;
+        RebuildNewConditionEditor(value);
+        OnPropertyChanged(nameof(NewConditionHint));
+        OnPropertyChanged(nameof(NewConditionOptions));
+        OnPropertyChanged(nameof(HasNewConditionOptions));
+    }
+
+    /// <summary>把选择器的草稿同步回旧属性，保存/校验仍然只读 NewConditionValue 这一处。</summary>
+    partial void OnNewConditionValueChanged(string value)
+    {
+        if (NewConditionEditor is { } editor
+            && !string.Equals(editor.Draft, value, StringComparison.Ordinal))
+        {
+            editor.Draft = value;
+        }
+    }
+
+    private void RebuildNewConditionEditor(SoundtrackTriggerField? field)
+    {
+        if (NewConditionEditor is not null)
+        {
+            NewConditionEditor.PropertyChanged -= OnNewConditionEditorPropertyChanged;
+        }
+
+        NewConditionEditor = field is null
+            ? null
+            : new SoundtrackConditionRowViewModel(null, field.Key, NewConditionValue);
+        if (NewConditionEditor is not null)
+        {
+            NewConditionEditor.SetBodyOptions(BodyNameOptions);
+            NewConditionEditor.PropertyChanged += OnNewConditionEditorPropertyChanged;
+        }
+    }
+
+    private void OnNewConditionEditorPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(SoundtrackConditionRowViewModel.Draft))
+        {
+            return;
+        }
+
+        if (NewConditionEditor is { } editor
+            && !string.Equals(NewConditionValue, editor.Draft, StringComparison.Ordinal))
+        {
+            NewConditionValue = editor.Draft;
+        }
+    }
+
+    public string NewConditionHint => NewConditionField?.ValueHint ?? string.Empty;
+
+    public IReadOnlyList<SoundtrackTriggerValue> NewConditionOptions =>
+        NewConditionField?.Options ?? Array.Empty<SoundtrackTriggerValue>();
+
+    public bool HasNewConditionOptions => NewConditionOptions.Count > 0;
+
+    public bool HasConditionRows => SelectedConditions.Count > 0;
 
     [ObservableProperty]
     private string _instanceName = "未选择实例";
@@ -95,6 +373,10 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
 
     [ObservableProperty]
     private string _modStatusText = "未找到";
+
+    /// <summary>页脚用的短状态，完整的模组路径太长，放在页脚会把整行撑成一个路径栏。</summary>
+    [ObservableProperty]
+    private string _modStatusShortText = "未找到 Soundtrack";
 
     [ObservableProperty]
     private bool _isModInstalled;
@@ -168,6 +450,11 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
 
     public bool HasSelectedTracks => SelectedTracks.Count > 0;
 
+    public bool HasTriggerGroups => TriggerGroups.Count > 0;
+
+    /// <summary>整份文档里是否有缺失曲目；页脚只在真缺歌时才挂那个红色徽标。</summary>
+    public bool HasMissingTracks => (_document?.MissingTrackCount ?? 0) > 0;
+
     public bool HasLibraryRows => LibraryRows.Count > 0;
 
     /// <summary>当前选中的播放列表行。切换时把右栏的曲目快照与详情字段一起换掉。</summary>
@@ -190,6 +477,7 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
             if (_selectedPlaylist is not null)
             {
                 _selectedPlaylist.IsSelected = true;
+                RevealSelection();
             }
 
             OnPropertyChanged();
@@ -274,6 +562,15 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         }
     }
 
+    /// <summary>详情区的条件原文；没有 playWhen 时也给出可读的替代说明，不留一片空白。</summary>
+    public string SelectedPlayWhenText => _selectedPlaylist is null
+        ? string.Empty
+        : _selectedPlaylist.HasPlayWhen
+            ? _selectedPlaylist.RawPlayWhenText
+            : "playWhen 里没有写任何键";
+
+    public bool SelectedHasPlayWhen => _selectedPlaylist?.HasPlayWhen == true;
+
     /// <summary>右栏曲目区的标题句：缺失数量要在这里说清，用户才知道为什么有歌播不出来。</summary>
     public string SelectedTrackCountText
     {
@@ -314,6 +611,7 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
     public async Task ReloadAsync()
     {
         _started = true;
+        _soundEffects?.Play(SoundEffectType.Click);
         await LoadCoreAsync().ConfigureAwait(true);
     }
 
@@ -324,6 +622,7 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         if (_document is null)
         {
             ShowError("先选择一个游戏实例，才能新建播放列表。");
+            _soundEffects?.Play(SoundEffectType.Warning);
             return;
         }
 
@@ -331,11 +630,13 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         _document.Playlists.Add(playlist);
         var row = CreatePlaylistRow(playlist);
         Playlists.Add(row);
+        RebuildTriggerTree();
         SelectedPlaylist = row;
         RefreshCounts();
         RefreshViewState();
         RefreshDirty();
         NotifyCommandStates();
+        _soundEffects?.Play(SoundEffectType.Check);
         ShowStatus($"已新建播放列表「{playlist.Name}」，保存后写入 playlists.cfg。");
     }
 
@@ -359,6 +660,7 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         if (_selectedPlaylist is null || _document is null)
         {
             ShowError("先在左栏选中一个播放列表，再删除。");
+            _soundEffects?.Play(SoundEffectType.Warning);
             return;
         }
 
@@ -366,11 +668,13 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         var index = Math.Max(0, Playlists.IndexOf(removed));
         _document.Playlists.Remove(removed.Model);
         Playlists.Remove(removed);
+        RebuildTriggerTree();
         SelectedPlaylist = Playlists.Count == 0 ? null : Playlists[Math.Min(index, Playlists.Count - 1)];
         RefreshCounts();
         RefreshViewState();
         RefreshDirty();
         NotifyCommandStates();
+        _soundEffects?.Play(SoundEffectType.Uncheck);
         ShowStatus($"已删除播放列表「{removed.Name}」，保存后才会从 playlists.cfg 消失。");
     }
 
@@ -378,6 +682,7 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
     [RelayCommand(CanExecute = nameof(CanDiscardChanges))]
     public async Task DiscardChangesAsync()
     {
+        _soundEffects?.Play(SoundEffectType.Click);
         await LoadCoreAsync().ConfigureAwait(true);
         if (ErrorMessage.Length == 0)
         {
@@ -392,12 +697,14 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         if (_soundtrack is null)
         {
             ShowError("播放列表服务未就绪，暂时不能保存。");
+            _soundEffects?.Play(SoundEffectType.Warning);
             return;
         }
 
         if (_document is null)
         {
             ShowError("先选择一个游戏实例，才有地方保存播放列表。");
+            _soundEffects?.Play(SoundEffectType.Warning);
             return;
         }
 
@@ -406,9 +713,17 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
             return;
         }
 
+        // 先规范化再校验：旧文件里 situation 可能是逗号分隔，规范化后才是合法值。
+        if (NormalizePlayWhen())
+        {
+            RefreshConditionRows();
+            OnPropertyChanged(nameof(SelectedPlayWhenText));
+        }
+
         if (!TryValidate(out var validationError))
         {
             ShowError(validationError);
+            _soundEffects?.Play(SoundEffectType.Warning);
             return;
         }
 
@@ -424,6 +739,7 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
             {
                 // 服务返回失败时脏标记必须留着：用户还要靠它知道磁盘上仍是旧内容。
                 ShowError($"保存失败：{result.Message ?? "服务没有给出原因"}");
+                _soundEffects?.Play(SoundEffectType.Error);
                 return;
             }
 
@@ -445,12 +761,14 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
                 ShowStatus($"已保存 {outcome.PlaylistCount} 个播放列表、{outcome.TrackCount} 首曲目（第一次写入，没有旧文件需要备份）。");
             }
 
+            _soundEffects?.Play(SoundEffectType.Ok);
             RefreshViewState();
             NotifyCommandStates();
         }
         catch (Exception ex)
         {
             ShowError($"保存失败：{ex.Message}");
+            _soundEffects?.Play(SoundEffectType.Error);
         }
         finally
         {
@@ -493,6 +811,7 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         RefreshCounts();
         RefreshDirty();
         NotifyCommandStates();
+        _soundEffects?.Play(SoundEffectType.Check);
         ShowStatus($"已把「{row.Name}」加入「{_selectedPlaylist.Name}」，保存后写入 playlists.cfg。");
     }
 
@@ -506,6 +825,7 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
             return;
         }
 
+        _soundEffects?.Play(SoundEffectType.Click);
         MoveTrack(index, index - 1);
     }
 
@@ -519,6 +839,7 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
             return;
         }
 
+        _soundEffects?.Play(SoundEffectType.Click);
         MoveTrack(index, index + 1);
     }
 
@@ -544,6 +865,7 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         RefreshCounts();
         RefreshDirty();
         NotifyCommandStates();
+        _soundEffects?.Play(SoundEffectType.Uncheck);
         ShowStatus($"已从「{_selectedPlaylist.Name}」移除「{row.Name}」，保存后生效。");
     }
 
@@ -555,10 +877,228 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         }
 
         _disposed = true;
+
+        if (_musicPlayer is not null)
+        {
+            _musicPlayer.PlaybackStateChanged -= OnPlaybackStateChanged;
+            _musicPlayer.TrackChanged -= OnTrackChanged;
+            _musicPlayer.PositionChanged -= OnPositionChanged;
+        }
+
         if (_instances is not null)
         {
             _instances.CurrentChanged -= OnCurrentChanged;
         }
+    }
+
+    private void OnPlaybackStateChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(IsPlaying));
+        OnPropertyChanged(nameof(IsPaused));
+        OnPropertyChanged(nameof(PlayPauseButtonText));
+        OnPropertyChanged(nameof(NowPlayingTrackName));
+        OnPropertyChanged(nameof(NowPlayingPlaylistName));
+        OnPropertyChanged(nameof(NowPlayingFullInfo));
+        OnPropertyChanged(nameof(IsPlayerMuted));
+        OnPropertyChanged(nameof(PlayerMuteButtonText));
+        OnPropertyChanged(nameof(PlayerVolume));
+    }
+
+    private void OnTrackChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(NowPlayingTrackName));
+        OnPropertyChanged(nameof(NowPlayingPlaylistName));
+        OnPropertyChanged(nameof(NowPlayingFullInfo));
+        OnPropertyChanged(nameof(Duration));
+        OnPropertyChanged(nameof(ProgressText));
+        OnPropertyChanged(nameof(ProgressValue));
+    }
+
+    private void OnPositionChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(CurrentPosition));
+        OnPropertyChanged(nameof(ProgressText));
+        OnPropertyChanged(nameof(ProgressValue));
+    }
+
+    public bool IsPlaying => _musicPlayer?.IsPlaying == true;
+    public bool IsPaused => _musicPlayer?.IsPaused == true;
+    public string PlayPauseButtonText => IsPlaying ? "暂停" : (IsPaused ? "继续" : "播放");
+
+    public string NowPlayingTrackName => _musicPlayer?.CurrentTrackName ?? "未在播放";
+    public string NowPlayingPlaylistName => !string.IsNullOrEmpty(_musicPlayer?.CurrentPlaylistName)
+        ? $"[{_musicPlayer.CurrentPlaylistName}]"
+        : string.Empty;
+    public string NowPlayingFullInfo => IsPlaying || IsPaused
+        ? $"{NowPlayingTrackName} {NowPlayingPlaylistName}".Trim()
+        : "无正在播放的曲目";
+
+    public TimeSpan CurrentPosition => _musicPlayer?.Position ?? TimeSpan.Zero;
+    public TimeSpan Duration => _musicPlayer?.Duration ?? TimeSpan.Zero;
+    public string ProgressText => Duration.TotalSeconds > 0
+        ? $"{CurrentPosition:mm\\:ss} / {Duration:mm\\:ss}"
+        : "--:-- / --:--";
+
+    public double ProgressValue
+    {
+        get => _musicPlayer is { Duration.TotalSeconds: > 0 }
+            ? Math.Clamp((_musicPlayer.Position.TotalSeconds / _musicPlayer.Duration.TotalSeconds) * 100.0, 0.0, 100.0)
+            : 0.0;
+        set
+        {
+            if (_musicPlayer is { Duration.TotalSeconds: > 0 })
+            {
+                var target = TimeSpan.FromSeconds(Math.Clamp(value / 100.0 * _musicPlayer.Duration.TotalSeconds, 0, _musicPlayer.Duration.TotalSeconds));
+                _musicPlayer.Seek(target);
+            }
+        }
+    }
+
+    public double PlayerVolume
+    {
+        get => (_musicPlayer?.Volume ?? 0.7) * 100.0;
+        set
+        {
+            if (_musicPlayer is not null)
+            {
+                _musicPlayer.Volume = Math.Clamp(value / 100.0, 0.0, 1.0);
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool IsPlayerMuted
+    {
+        get => _musicPlayer?.IsMuted ?? false;
+        set
+        {
+            if (_musicPlayer is not null)
+            {
+                _musicPlayer.IsMuted = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlayerMuteButtonText));
+            }
+        }
+    }
+
+    public string PlayerMuteButtonText => IsPlayerMuted ? "🔇" : "🔊";
+
+    [RelayCommand]
+    public void TogglePlayerMute()
+    {
+        if (_musicPlayer is not null)
+        {
+            _musicPlayer.IsMuted = !_musicPlayer.IsMuted;
+            OnPropertyChanged(nameof(IsPlayerMuted));
+            OnPropertyChanged(nameof(PlayerMuteButtonText));
+            _soundEffects?.Play(IsPlayerMuted ? SoundEffectType.Uncheck : SoundEffectType.Check);
+        }
+    }
+
+    [RelayCommand]
+    public void TogglePlayPause()
+    {
+        if (_musicPlayer is null) return;
+        if (_musicPlayer.IsPlaying)
+        {
+            _musicPlayer.Pause();
+            _soundEffects?.Play(SoundEffectType.Click);
+        }
+        else if (_musicPlayer.IsPaused)
+        {
+            _musicPlayer.Resume();
+            _soundEffects?.Play(SoundEffectType.Click);
+        }
+        else
+        {
+            PlaySelectedPlaylist();
+        }
+    }
+
+    [RelayCommand]
+    public void PreviousTrack()
+    {
+        _musicPlayer?.Previous();
+        _soundEffects?.Play(SoundEffectType.Click);
+    }
+
+    [RelayCommand]
+    public void NextTrack()
+    {
+        _musicPlayer?.Next();
+        _soundEffects?.Play(SoundEffectType.Click);
+    }
+
+    [RelayCommand]
+    public void StopMusic()
+    {
+        _musicPlayer?.Stop();
+        _soundEffects?.Play(SoundEffectType.Click);
+    }
+
+    [RelayCommand]
+    public void PlaySelectedPlaylist()
+    {
+        var validTracks = SelectedTracks.Where(t => t.Exists && !string.IsNullOrEmpty(t.Model.FilePath)).ToList();
+        if (validTracks.Count > 0)
+        {
+            _musicPlayer?.PlayPlaylist(
+                validTracks.Select(t => t.Model.FilePath!),
+                validTracks.Select(t => t.Name),
+                0,
+                SelectedPlaylistName);
+            _soundEffects?.Play(SoundEffectType.Ok);
+            ShowStatus($"正在播放列表「{SelectedPlaylistName}」（共 {validTracks.Count} 首曲目）。");
+        }
+        else
+        {
+            _soundEffects?.Play(SoundEffectType.Warning);
+            ShowStatus("当前选中的播放列表没有可在磁盘上找到的有效音频文件。");
+        }
+    }
+
+    [RelayCommand]
+    public void PlayTrack(SoundtrackTrackRowViewModel? track)
+    {
+        if (track is null || !track.Exists || string.IsNullOrEmpty(track.Model.FilePath))
+        {
+            _soundEffects?.Play(SoundEffectType.Warning);
+            ShowStatus("此曲目文件在磁盘上不存在，无法播放。");
+            return;
+        }
+
+        var validTracks = SelectedTracks.Where(t => t.Exists && !string.IsNullOrEmpty(t.Model.FilePath)).ToList();
+        int index = validTracks.IndexOf(track);
+        if (index >= 0)
+        {
+            _musicPlayer?.PlayPlaylist(
+                validTracks.Select(t => t.Model.FilePath!),
+                validTracks.Select(t => t.Name),
+                index,
+                SelectedPlaylistName);
+        }
+        else
+        {
+            _musicPlayer?.Play(track.Model.FilePath!, track.Name, SelectedPlaylistName);
+        }
+
+        _soundEffects?.Play(SoundEffectType.Select);
+        ShowStatus($"正在播放曲目「{track.Name}」。");
+    }
+
+    [RelayCommand]
+    public void PlayLibraryTrack(SoundtrackLibraryRowViewModel? row)
+    {
+        if (row is null || !File.Exists(row.FullPath))
+        {
+            _soundEffects?.Play(SoundEffectType.Warning);
+            ShowStatus("所选音频文件不存在。");
+            return;
+        }
+
+        _musicPlayer?.Play(row.FullPath, row.Name, "音乐库");
+        _soundEffects?.Play(SoundEffectType.Select);
+        ShowStatus($"正在播放「{row.Name}」。");
     }
 
     partial void OnIsBusyChanged(bool value) => NotifyCommandStates();
@@ -645,6 +1185,7 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
     private void ApplyDocument(SoundtrackDocument document)
     {
         _document = document;
+        RefreshBodyNameOptions();
 
         // 文档里的路径比页面拼出来的更权威：服务可能按 Core 的实例布局解析到别的位置。
         PlaylistFilePath = string.IsNullOrWhiteSpace(document.FilePath)
@@ -654,12 +1195,15 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         ModStatusText = IsModInstalled
             ? $"已安装（{document.ModDirectory}）"
             : "未找到（GameData 下没有 Soundtrack 目录）";
+        ModStatusShortText = IsModInstalled ? "Soundtrack 已安装" : "未找到 Soundtrack";
 
         Playlists.Clear();
         foreach (var playlist in document.Playlists)
         {
             Playlists.Add(CreatePlaylistRow(playlist));
         }
+
+        RebuildTriggerTree();
 
         _libraryAll.Clear();
         foreach (var file in document.MusicLibrary)
@@ -670,7 +1214,10 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         _libraryAll.Sort((left, right) => string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase));
         ApplyLibraryFilter();
 
-        SelectedPlaylist = Playlists.Count > 0 ? Playlists[0] : null;
+        // 初始选中取节点树第一行，而不是 cfg 里的第一个节点：树按场景重排过，
+        // 按文件顺序选会让右栏编辑的列表落在树的中段，一进页面就看不见选中的是谁。
+        SelectedPlaylist = TriggerGroups.SelectMany(group => group.RowsInDisplayOrder).FirstOrDefault()
+            ?? (Playlists.Count > 0 ? Playlists[0] : null);
         RefreshCounts();
         RefreshViewState();
         _baselineSignature = ComputeSignature();
@@ -686,6 +1233,7 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         ShowCreateEntry = false;
         IsModInstalled = false;
         ModStatusText = "未找到";
+        ModStatusShortText = "未找到 Soundtrack";
     }
 
     private void ApplyServiceMissingState()
@@ -696,12 +1244,14 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         ShowCreateEntry = false;
         IsModInstalled = false;
         ModStatusText = "未找到";
+        ModStatusShortText = "未找到 Soundtrack";
     }
 
     private void ResetToEmptyState(string title, string detail)
     {
         _document = null;
         Playlists.Clear();
+        RebuildTriggerTree();
         _libraryAll.Clear();
         LibraryRows.Clear();
         SelectedPlaylist = null;
@@ -712,6 +1262,39 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         RefreshCounts();
         RefreshDirty();
         NotifyCommandStates();
+    }
+
+    /// <summary>独立乐曲库窗口读取同一批行对象，加入后右键/列表里的「已加入」状态会同步回来。</summary>
+    public IReadOnlyList<SoundtrackLibraryRowViewModel> AllLibraryRows => _libraryAll;
+
+    /// <summary>天体名建议值：库存天体 + 文档里出现过的 bodyName；条件行和添加表单共用。</summary>
+    private void RefreshBodyNameOptions()
+    {
+        var bodies = new List<string>(SoundtrackTriggerCatalog.BodyNames);
+        if (_document is not null)
+        {
+            foreach (var playlist in _document.Playlists)
+            {
+                foreach (var pair in playlist.PlayWhen)
+                {
+                    if (pair.Key.Equals(SoundtrackTriggers.BodyNameKey, StringComparison.OrdinalIgnoreCase)
+                        && !string.IsNullOrWhiteSpace(pair.Value))
+                    {
+                        bodies.Add(pair.Value.Trim());
+                    }
+                }
+            }
+        }
+
+        BodyNameOptions.Clear();
+        foreach (var body in bodies
+                     .Distinct(StringComparer.OrdinalIgnoreCase)
+                     .OrderBy(body => body, StringComparer.OrdinalIgnoreCase))
+        {
+            BodyNameOptions.Add(body);
+        }
+
+        NewConditionEditor?.SetBodyOptions(BodyNameOptions);
     }
 
     private void ApplyLibraryFilter()
@@ -771,8 +1354,117 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         OnPropertyChanged(nameof(SelectedPauseOnGamePause));
         OnPropertyChanged(nameof(SelectedDisableAfterPlay));
         OnPropertyChanged(nameof(SelectedTrackCountText));
+        OnPropertyChanged(nameof(SelectedPlayWhenText));
+        OnPropertyChanged(nameof(SelectedHasPlayWhen));
         OnPropertyChanged(nameof(HasSelectedTracks));
         RefreshLibraryAddedFlags();
+        RefreshConditionRows();
+        IsTriggerEditorOpen = false;
+        NewConditionError = string.Empty;
+    }
+
+    /// <summary>
+    /// 按 scene 重建节点树。组内保持 cfg 顺序，因为 Soundtrack 同时命中多份时也是按文件顺序排队。
+    /// </summary>
+    /// <param name="preserveExpansion">条件编辑后重建时保留用户手动收起的分组，否则每次应用条件树都会全部弹开。</param>
+    private void RebuildTriggerTree(bool preserveExpansion = false)
+    {
+        var collapsed = preserveExpansion
+            ? TriggerGroups.Where(group => !group.IsExpanded).Select(group => group.Key).ToHashSet(StringComparer.Ordinal)
+            : null;
+        var collapsedBodies = preserveExpansion
+            ? TriggerGroups.ToDictionary(
+                group => group.Key,
+                group => (ISet<string>)group.BodyGroups
+                    .Where(body => !body.IsExpanded)
+                    .Select(body => body.Key)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase),
+                StringComparer.Ordinal)
+            : null;
+
+        TriggerGroups.Clear();
+        foreach (var bucket in Playlists
+                     .GroupBy(row => row.SceneGroupKey)
+                     .OrderBy(bucket => SoundtrackScenes.GroupOrder(bucket.Key)))
+        {
+            var group = new SoundtrackSceneGroupViewModel(bucket.Key)
+            {
+                IsExpanded = collapsed is null || !collapsed.Contains(bucket.Key),
+            };
+            foreach (var row in bucket)
+            {
+                group.Playlists.Add(row);
+            }
+
+            group.RebuildBodyGroups(
+                collapsedBodies is not null && collapsedBodies.TryGetValue(bucket.Key, out var bodyCollapsed)
+                    ? bodyCollapsed
+                    : null);
+            TriggerGroups.Add(group);
+        }
+
+        OnPropertyChanged(nameof(HasTriggerGroups));
+    }
+
+    /// <summary>
+    /// 按 playWhen 的当前内容重建右栏条件行。同一个键写了两遍时只显示一条（值取最后一条），
+    /// 与 Soundtrack 的 Upsert 读取保持一致。
+    /// </summary>
+    private void RefreshConditionRows()
+    {
+        SelectedConditions.Clear();
+        if (_selectedPlaylist is not null)
+        {
+            var order = new List<string>();
+            var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in _selectedPlaylist.Model.PlayWhen)
+            {
+                if (!values.ContainsKey(pair.Key))
+                {
+                    order.Add(pair.Key);
+                }
+
+                values[pair.Key] = pair.Value;
+            }
+
+            foreach (var key in order)
+            {
+                var row = new SoundtrackConditionRowViewModel(_selectedPlaylist, key, values[key]);
+                row.SetBodyOptions(BodyNameOptions);
+                SelectedConditions.Add(row);
+            }
+        }
+
+        OnPropertyChanged(nameof(HasConditionRows));
+    }
+
+    /// <summary>从详情/命令切到某个列表时，把它所在的分组展开，否则用户会以为点击没反应。</summary>
+    private void RevealSelection()
+    {
+        if (_selectedPlaylist is null)
+        {
+            return;
+        }
+
+        foreach (var group in TriggerGroups)
+        {
+            if (!group.Playlists.Contains(_selectedPlaylist))
+            {
+                continue;
+            }
+
+            group.IsExpanded = true;
+            foreach (var body in group.BodyGroups)
+            {
+                if (body.Playlists.Contains(_selectedPlaylist))
+                {
+                    body.IsExpanded = true;
+                    break;
+                }
+            }
+
+            return;
+        }
     }
 
     private void RefreshCounts()
@@ -783,7 +1475,12 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         PlaylistCountText = $"{playlistCount} 个";
         TrackCountText = $"{trackCount} 首";
         MissingTrackCountText = missing == 0 ? "无缺失" : $"{missing} 首缺失";
+        OnPropertyChanged(nameof(HasMissingTracks));
         OnPropertyChanged(nameof(SelectedTrackCountText));
+        foreach (var group in TriggerGroups)
+        {
+            group.NotifyCountsChanged();
+        }
     }
 
     private void RefreshViewState()
@@ -845,6 +1542,12 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
                 .Append(playlist.Shuffle).Append('')
                 .Append(playlist.PauseOnGamePause).Append('')
                 .Append(playlist.DisableAfterPlay).Append('');
+            // playWhen 也算用户可改的字段：少了它，改完条件页面会假装“已与磁盘一致”。
+            foreach (var condition in playlist.PlayWhen)
+            {
+                builder.Append("[when]").Append(condition.Key).Append('=').Append(condition.Value).Append(';');
+            }
+
             foreach (var track in playlist.Tracks)
             {
                 builder.Append(track.Name).Append('');
@@ -880,8 +1583,106 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
             }
         }
 
+        if (!TryValidatePlayWhen(out error))
+        {
+            return false;
+        }
+
         error = string.Empty;
         return true;
+    }
+
+    /// <summary>
+    /// 校验所有 playWhen 的值。Soundtrack 的 Enums.Parse 遇到不认识的枚举会抛异常，
+    /// 外层 catch 会把整份文件回落到原版播放列表——所以这里必须拦，不能交给游戏去发现。
+    /// </summary>
+    private bool TryValidatePlayWhen(out string error)
+    {
+        error = string.Empty;
+        if (_document is null)
+        {
+            return true;
+        }
+
+        foreach (var playlist in _document.Playlists)
+        {
+            var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in playlist.PlayWhen)
+            {
+                values[pair.Key] = pair.Value;
+            }
+
+            foreach (var pair in playlist.PlayWhen)
+            {
+                var field = SoundtrackTriggerCatalog.Find(pair.Key);
+                if (field is null)
+                {
+                    // 不认识的键 Soundtrack 会忽略；页面原样保留，不拦保存。
+                    continue;
+                }
+
+                if (!SoundtrackTriggerCatalog.TryNormalize(field, pair.Value, out _, out var reason))
+                {
+                    error = $"播放列表「{playlist.Name}」的条件 {pair.Key} 填得不对：{reason}";
+                    return false;
+                }
+            }
+
+            foreach (var range in SoundtrackTriggers.Ranges)
+            {
+                if (!values.TryGetValue(range.MinKey, out var minRaw)
+                    || !values.TryGetValue(range.MaxKey, out var maxRaw)
+                    || !float.TryParse(minRaw, NumberStyles.Float, CultureInfo.InvariantCulture, out var min)
+                    || !float.TryParse(maxRaw, NumberStyles.Float, CultureInfo.InvariantCulture, out var max))
+                {
+                    continue;
+                }
+
+                if (min > max)
+                {
+                    error = $"播放列表「{playlist.Name}」的{range.Label}下限 {minRaw} 大于上限 {maxRaw}。";
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 把可编辑键的值统一成 Soundtrack 能读的写法（多选一律 A | B）。
+    /// 旧版 SoundtrackEditor 会把 situation 写成 "LANDED, ORBITING"，游戏读到就整份回落；
+    /// 用户在页面里保存一次，顺手把这个坑修掉。
+    /// </summary>
+    private bool NormalizePlayWhen()
+    {
+        if (_document is null)
+        {
+            return false;
+        }
+
+        var changed = false;
+        foreach (var playlist in _document.Playlists)
+        {
+            for (var index = 0; index < playlist.PlayWhen.Count; index++)
+            {
+                var pair = playlist.PlayWhen[index];
+                var field = SoundtrackTriggerCatalog.Find(pair.Key);
+                if (field is null
+                    || !SoundtrackTriggerCatalog.TryNormalize(field, pair.Value, out var normalized, out _))
+                {
+                    continue;
+                }
+
+                if (!string.Equals(pair.Value, normalized, StringComparison.Ordinal))
+                {
+                    playlist.PlayWhen[index] = new KeyValuePair<string, string>(pair.Key, normalized);
+                    changed = true;
+                }
+            }
+        }
+
+        return changed;
     }
 
     private void MoveTrack(int from, int to)
@@ -920,7 +1721,11 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
     }
 
     private SoundtrackPlaylistRowViewModel CreatePlaylistRow(SoundtrackPlaylist playlist)
-        => new(playlist, OnPlaylistRowChanged);
+    {
+        var row = new SoundtrackPlaylistRowViewModel(playlist, OnPlaylistRowChanged);
+        row.TriggersChanged += OnPlaylistTriggersChanged;
+        return row;
+    }
 
     private void OnPlaylistRowChanged(SoundtrackPlaylistRowViewModel row)
     {
@@ -929,6 +1734,23 @@ public sealed partial class SoundtrackPageViewModel : ObservableObject, IPluginP
         if (ReferenceEquals(row, _selectedPlaylist))
         {
             OnPropertyChanged(nameof(SelectedPlaylistName));
+        }
+    }
+
+    /// <summary>
+    /// playWhen 改动后：分组可能变了（删掉 scene 会落回未限定组），所以要重建树；
+    /// 选中列表的条件行和原文也要跟着换，否则用户看到的是改之前的照片。
+    /// </summary>
+    private void OnPlaylistTriggersChanged(object? sender, EventArgs e)
+    {
+        RebuildTriggerTree(preserveExpansion: true);
+        RefreshCounts();
+        RefreshDirty();
+        if (ReferenceEquals(sender, _selectedPlaylist))
+        {
+            RefreshConditionRows();
+            OnPropertyChanged(nameof(SelectedPlayWhenText));
+            OnPropertyChanged(nameof(SelectedHasPlayWhen));
         }
     }
 

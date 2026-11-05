@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 
 namespace CkanUI.App.Animations;
 
@@ -48,14 +49,56 @@ public sealed class IconHoverTrack
     /// <summary>轻推形态进场时的放大倍率。</summary>
     public const double NudgeEntranceScale = 1.06d;
 
+    /// <summary>展开形态进场时的横向放大倍率。</summary>
+    public const double UnfoldEntranceScaleX = 1.07d;
+
+    /// <summary>展开形态进场时的纵向放大倍率（等比饱满，收敛在包围盒内，绝不上溢截断与失真）。</summary>
+    public const double UnfoldEntranceScaleY = 1.07d;
+
+    /// <summary>展开形态进场抬升高度（像素）。</summary>
+    public const double UnfoldEntranceLiftPixels = 1.6d;
+
+    /// <summary>展开形态呼吸周期（秒）。</summary>
+    public const double UnfoldPeriodSeconds = 1.6d;
+
+    /// <summary>机架抽屉形态进场放大的倍率。</summary>
+    public const double RackEntranceScale = 1.06d;
+
+    /// <summary>机架抽屉形态滑出的距离（像素，控制在微交互安全区，绝不越界截断）。</summary>
+    public const double RackSlidePixels = 1.6d;
+
+    /// <summary>机架抽屉形态沉底压实的高度（像素）。</summary>
+    public const double RackLiftPixels = 0.0d;
+
+    /// <summary>机架抽屉形态寻道周期（秒）。</summary>
+    public const double RackPeriodSeconds = 1.1d;
+
+    /// <summary>穿梭形态进场放大的倍率。</summary>
+    public const double ShuttleEntranceScale = 1.06d;
+
+    /// <summary>穿梭形态左右滑行的最大距离（像素，对流往返，绝不超界切断箭头尖端）。</summary>
+    public const double ShuttleSlidePixels = 1.7d;
+
+    /// <summary>穿梭形态周期（秒）。</summary>
+    public const double ShuttlePeriodSeconds = 1.2d;
+
+    /// <summary>雀跃轻跳形态进场放大的倍率。</summary>
+    public const double BounceEntranceScale = 1.07d;
+
+    /// <summary>雀跃轻跳形态向上跃起的高度（像素，轻快而不冲出天花板）。</summary>
+    public const double BounceLiftPixels = 1.7d;
+
+    /// <summary>雀跃轻跳形态跳动周期（秒）。</summary>
+    public const double BouncePeriodSeconds = 1.4d;
+
     /// <summary>进场抬起的角度（度）。</summary>
     public const double EnterTiltDegrees = WaggleEntranceTiltDegrees;
 
     /// <summary>进场放大的倍率。</summary>
     public const double EnterScale = WaggleEntranceScale;
 
-    /// <summary>悬停多久后进入循环。</summary>
-    public const double SustainDelaySeconds = 0.55d;
+    /// <summary>悬停多久后进入循环（280ms 灵敏过渡，告别漫长呆滞感）。</summary>
+    public const double SustainDelaySeconds = 0.28d;
 
     /// <summary>旋转形态的稳态角速度（度/秒）。</summary>
     public const double SpinDegreesPerSecond = 200d;
@@ -141,6 +184,9 @@ public sealed class IconHoverTrack
         ArgumentNullException.ThrowIfNull(target);
 
         _target = target;
+        _target.ClipToBounds = false;
+        UnclipAncestors(_target);
+
         _group.Children.Add(_translate);
         _group.Children.Add(_rotate);
         _group.Children.Add(_scale);
@@ -156,6 +202,21 @@ public sealed class IconHoverTrack
         _scaleY = new SpringChannel(1, SpringSpec.Snappy, 0.0004, 0.005);
         _offsetX = new SpringChannel(0, SpringSpec.Glide, 0.01, 0.5);
         _offsetY = new SpringChannel(0, SpringSpec.Glide, 0.01, 0.5);
+    }
+
+    private static void UnclipAncestors(Control target)
+    {
+        Visual? current = target.GetVisualParent();
+        var depth = 0;
+        while (current is not null && depth < 4)
+        {
+            if (current is Control ctrl)
+            {
+                ctrl.ClipToBounds = false;
+            }
+            current = current.GetVisualParent();
+            depth++;
+        }
     }
 
     /// <summary>取某个图标共享的轨道；没有就建一根。</summary>
@@ -186,6 +247,9 @@ public sealed class IconHoverTrack
     /// <summary>钟摆绕上沿摆：支点挪到贴着顶边的地方，才摆得出"挂着"的弧度。</summary>
     private static RelativePoint TopHinge => new(0.5, 0.04, RelativeUnit.Relative);
 
+    /// <summary>展开形态绕底边转：支点挪到贴着底边的地方，才掀得出文件夹翻盖的纵向开合。</summary>
+    private static RelativePoint BottomHinge => new(0.5, 0.96, RelativeUnit.Relative);
+
     /// <summary>指针进入：按形态起势，并记下持续阶段的形态。</summary>
     /// <param name="shape">形态。</param>
     public void Enter(IconHoverShape shape)
@@ -194,6 +258,9 @@ public sealed class IconHoverTrack
         {
             return;
         }
+
+        _target.ClipToBounds = false;
+        UnclipAncestors(_target);
 
         _hoverCount++;
         if (_hoverCount > 1)
@@ -330,7 +397,12 @@ public sealed class IconHoverTrack
         var beat = new IconHoverBeat(0, 0, MotionBudget.AmplitudeScale, _character, _phase);
         var entry = _choreography.Enter(beat);
 
-        _target.RenderTransformOrigin = entry.Pivot == IconPivot.TopHinge ? TopHinge : Center;
+        _target.RenderTransformOrigin = entry.Pivot switch
+        {
+            IconPivot.TopHinge => TopHinge,
+            IconPivot.BottomHinge => BottomHinge,
+            _ => Center,
+        };
 
         if (entry.ImpulseX != 0 || entry.ImpulseY != 0)
         {
@@ -364,7 +436,7 @@ public sealed class IconHoverTrack
         }
 
         _scaleX.Retarget(pose.Scale);
-        _scaleY.Retarget(pose.Scale);
+        _scaleY.Retarget(pose.ScaleY > 0d ? pose.ScaleY : pose.Scale);
         _offsetX.Retarget(pose.Slide);
         _offsetY.Retarget(pose.Lift);
     }

@@ -478,6 +478,8 @@ public class AiCkanBridgeTests
     private sealed class StubInstanceService : IInstanceService
     {
         public InstanceInfo? Instance { get; init; }
+        public string? LastSwitchedInstance { get; private set; }
+        public bool SwitchResult { get; init; } = true;
 
         public IReadOnlyList<InstanceInfo> Instances => Instance is null ? Array.Empty<InstanceInfo>() : [Instance];
 
@@ -498,8 +500,13 @@ public class AiCkanBridgeTests
         public Task<OperationResult<IReadOnlyList<InstanceInfo>>> RefreshAsync(CancellationToken ct = default) =>
             Task.FromResult(OperationResult<IReadOnlyList<InstanceInfo>>.Ok(Instances));
 
-        public Task<OperationResult<InstanceInfo>> SwitchAsync(string instanceName, CancellationToken ct = default) =>
-            Task.FromResult(OperationResult<InstanceInfo>.Fail("测试替身不支持切换实例。"));
+        public Task<OperationResult<InstanceInfo>> SwitchAsync(string instanceName, CancellationToken ct = default)
+        {
+            if (!SwitchResult)
+                return Task.FromResult(OperationResult<InstanceInfo>.Fail("测试替身不支持切换实例。"));
+            LastSwitchedInstance = instanceName;
+            return Task.FromResult(OperationResult<InstanceInfo>.Ok(new InstanceInfo(instanceName, @"D:\KSP", "1.12.5", IsDefault: true, IsLocked: false, ModuleCount: 0)));
+        }
 
         public Task<OperationResult<InstanceInfo>> AddAsync(
             string path,
@@ -546,5 +553,154 @@ public class AiCkanBridgeTests
             Calls.Add(pageKey);
             return Failure is null ? Task.FromResult(Result) : Task.FromException<bool>(Failure);
         }
+    }
+
+    private sealed class StubUiSettingsStore : IUiSettingsStore
+    {
+        public UiSettings Current { get; set; } = new UiSettings();
+
+        public event Action<UiSettings>? Changed;
+
+        public UiSettings Load() => Current;
+
+        public OperationResult<bool> Save(UiSettings settings)
+        {
+            Current = settings;
+            Changed?.Invoke(settings);
+            return OperationResult<bool>.Ok(true);
+        }
+    }
+
+    private sealed class StubSettingsService : ISettingsService
+    {
+        public Dictionary<string, string?> Settings { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public event Action<string, string?>? SettingChanged;
+
+        public Task<OperationResult<string?>> GetAsync(string key, CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<string?>.Ok(Settings.GetValueOrDefault(key)));
+
+        public Task<OperationResult<bool>> SetAsync(string key, string? value, CancellationToken ct = default)
+        {
+            Settings[key] = value;
+            SettingChanged?.Invoke(key, value);
+            return Task.FromResult(OperationResult<bool>.Ok(true));
+        }
+
+        public Task<OperationResult<IReadOnlyDictionary<string, string?>>> GetAllAsync(CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<IReadOnlyDictionary<string, string?>>.Ok(Settings));
+
+        public Task<OperationResult<string?>> SetAndVerifyAsync(string key, string? value, CancellationToken ct = default)
+        {
+            Settings[key] = value;
+            SettingChanged?.Invoke(key, value);
+            return Task.FromResult(OperationResult<string?>.Ok(value));
+        }
+    }
+
+    private sealed class ImmediateDispatcher : IDispatcher
+    {
+        public bool IsOnUiThread => true;
+        public void Post(Action action) => action();
+        public Task InvokeAsync(Action action) { action(); return Task.CompletedTask; }
+        public Task<T> InvokeAsync<T>(Func<T> func) => Task.FromResult(func());
+    }
+
+    // ---- GUI 控制扩展（主题 / 模组筛选 / 实例切换 / 启动游戏 / 设置项） ----
+
+    [Test]
+    public async Task SetThemeAsync_WithValidThemeAndSkin_UpdatesUiSettingsStore()
+    {
+        var store = new StubUiSettingsStore();
+        var bridge = new AiCkanBridge(uiSettings: store);
+
+        var result = await bridge.SetThemeAsync("dark", "coronal-gold");
+
+        Assert.That(result.IsSuccess, Is.True);
+        Assert.That(store.Current.Theme, Is.EqualTo("dark"));
+        Assert.That(store.Current.ThemeSkin, Is.EqualTo(ThemeSkinKinds.CoronaGold));
+    }
+
+    [Test]
+    public async Task SetThemeAsync_WithoutUiSettingsStore_ReturnsFailure()
+    {
+        var bridge = new AiCkanBridge(uiSettings: null);
+
+        var result = await bridge.SetThemeAsync("dark");
+
+        Assert.That(result.IsSuccess, Is.False);
+        Assert.That(result.Message, Does.Contain("未注册"));
+    }
+
+    [Test]
+    public async Task FilterModsAsync_NavigatesToModsAndReturnsSuccess()
+    {
+        var navigation = new RecordingNavigation();
+        var bridge = new AiCkanBridge(navigation: navigation, dispatcher: new ImmediateDispatcher());
+
+        var result = await bridge.FilterModsAsync("warp", "installed");
+
+        Assert.That(result.IsSuccess, Is.True);
+        Assert.That(navigation.Calls, Does.Contain("mods"));
+    }
+
+    [Test]
+    public async Task SwitchInstanceAsync_CallsInstanceService()
+    {
+        var instanceService = new StubInstanceService();
+        var bridge = new AiCkanBridge(instances: instanceService);
+
+        var result = await bridge.SwitchInstanceAsync("KSP-1.12");
+
+        Assert.That(result.IsSuccess, Is.True);
+        Assert.That(instanceService.LastSwitchedInstance, Is.EqualTo("KSP-1.12"));
+    }
+
+    [Test]
+    public async Task SwitchInstanceAsync_BlankName_FailsFast()
+    {
+        var instanceService = new StubInstanceService();
+        var bridge = new AiCkanBridge(instances: instanceService);
+
+        var result = await bridge.SwitchInstanceAsync("   ");
+
+        Assert.That(result.IsSuccess, Is.False);
+        Assert.That(instanceService.LastSwitchedInstance, Is.Null);
+    }
+
+    [Test]
+    public async Task LaunchGameAsync_NoCurrentInstance_ReturnsFailure()
+    {
+        var instanceService = new StubInstanceService { Instance = null };
+        var bridge = new AiCkanBridge(instances: instanceService);
+
+        var result = await bridge.LaunchGameAsync();
+
+        Assert.That(result.IsSuccess, Is.False);
+        Assert.That(result.Message, Does.Contain("实例"));
+    }
+
+    [Test]
+    public async Task SetSettingAsync_UiSettingKey_UpdatesUiSettingsStore()
+    {
+        var store = new StubUiSettingsStore();
+        var bridge = new AiCkanBridge(uiSettings: store);
+
+        var result = await bridge.SetSettingAsync("Locale", "zh-CN");
+
+        Assert.That(result.IsSuccess, Is.True);
+        Assert.That(store.Current.Locale, Is.EqualTo("zh-CN"));
+    }
+
+    [Test]
+    public async Task SetSettingAsync_CoreSettingKey_DelegatesToSettingsService()
+    {
+        var settingsService = new StubSettingsService();
+        var bridge = new AiCkanBridge(settings: settingsService);
+
+        var result = await bridge.SetSettingAsync("AutoUpdateRepositories", "true");
+
+        Assert.That(result.IsSuccess, Is.True);
+        Assert.That(settingsService.Settings["AutoUpdateRepositories"], Is.EqualTo("true"));
     }
 }

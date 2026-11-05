@@ -294,6 +294,29 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
     public string LicenseText =>
         string.IsNullOrWhiteSpace(_details?.License) ? "未标注许可证" : _details!.License!;
 
+    /// <summary>本模组是否与某个内置 GUI 插件联动（清单见 <see cref="Pages.Mods.ModsCompanionCatalog"/>，纯静态表）。</summary>
+    public bool HasCompanionLink => FindCompanion() is not null;
+
+    /// <summary>联动插件显示名（无联动时为空串）。</summary>
+    public string CompanionPluginName => FindCompanion()?.PluginName ?? string.Empty;
+
+    /// <summary>联动收益：装上这个模组之后插件能做什么。</summary>
+    public string CompanionBenefit => FindCompanion()?.Benefit ?? string.Empty;
+
+    /// <summary>联动区的标题文案（视图按 <see cref="HasCompanionLink"/> 显隐，XAML 不写死中文）。</summary>
+    public string CompanionTitle => "可与内置插件联动";
+
+    /// <summary>联动区的行动提示：未装说清"推荐安装 + 为什么"，已装说清"去哪用"。</summary>
+    public string CompanionHint => FindCompanion() is { } link
+        ? IsInstalled
+            ? $"已安装，可在「{link.PluginName}」页里直接使用。"
+            : $"推荐安装：装上后「{link.PluginName}」才有数据可读。"
+        : string.Empty;
+
+    /// <summary>当前模组的联动声明（无联动为 null）。Identifier 变化后由 Refresh() 的整对象通知兜底。</summary>
+    private CkanUI.ViewModels.Pages.Mods.ModsCompanionCatalog.Link? FindCompanion() =>
+        CkanUI.ViewModels.Pages.Mods.ModsCompanionCatalog.TryGet(_identifier, out var link) ? link : null;
+
     /// <summary>主页链接（空表示没有主页）。</summary>
     public string HomepageText => _details?.Homepage ?? string.Empty;
 
@@ -467,6 +490,9 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
     /// <summary>缺失（未满足）的依赖数量。</summary>
     public int MissingDependencyCount => CountMissing(Dependencies);
 
+    /// <summary>是否有缺失（未满足）的依赖项。</summary>
+    public bool HasMissingDependencies => MissingDependencyCount > 0;
+
     /// <summary>依赖摘要文案，例如"依赖 3 项，其中 1 项缺失"。</summary>
     public string DependencySummaryText
     {
@@ -637,6 +663,15 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
     /// </summary>
     public Action<string>? ExternalNavigateAction { get; set; }
 
+    /// <summary>
+    /// 关系树跳转的接管委托（模组标识 → void）。由模组页注入：面板里的关系跳转必须回到页面的
+    /// 选中链路，否则左侧列表高亮不动、前进/后退历史也不记录，面板左上角的返回键就是个死键。
+    /// 未注入时（设计时构造/单测）退化成面板内 <see cref="Select"/>。
+    /// </summary>
+    public Action<string>? RelationNavigateAction { get; set; }
+    /// <summary>关系页签在页签条里的下标（<see cref="SelectedTabIndex"/> 的取值）。</summary>
+    private const int RelationsTabIndex = 1;
+    private bool _preserveTabOnNextSwap;
     private string? _installStatusText;
 
     /// <summary>版本安装的状态反馈文案（未发起过安装时为空）。</summary>
@@ -1005,7 +1040,8 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
             var edges = new List<RelationEdge>();
             foreach (var d in Dependencies)
             {
-                edges.Add(new RelationEdge(RelationKind.Depends, d.Identifier));
+                // 把"已满足/缺失"带进关系树，行内才能直接标出缺失的必需依赖
+                edges.Add(new RelationEdge(RelationKind.Depends, d.Identifier, d.IsSatisfied));
             }
             foreach (var r in Recommendations)
             {
@@ -1025,23 +1061,62 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
             {
                 [_identifier] = Name,
             };
-            foreach (var d in Dependencies) names[d.Identifier] = d.DisplayText ?? d.Identifier;
-            foreach (var r in Recommendations) names[r.Identifier] = r.DisplayText ?? r.Identifier;
-            foreach (var c in Conflicts) names[c.Identifier] = c.DisplayText ?? c.Identifier;
+            foreach (var d in Dependencies) names[d.Identifier] = RelationName(d);
+            foreach (var r in Recommendations) names[r.Identifier] = RelationName(r);
+            foreach (var c in Conflicts) names[c.Identifier] = RelationName(c);
 
             _relationTree = new RelationTreeViewModel(
                 _identifier,
                 graph,
                 names,
                 knownIdentifiers: names.Keys,
-                navigate: id => Select(id));
+                navigate: NavigateFromRelations,
+                missingIdentifiers: Dependencies
+                    .Where(item => !item.IsSatisfied)
+                    .Select(item => item.Identifier));
         }
         else
         {
             _relationTree = null;
         }
 
+        // 关系跳转落在「没有任何关系」的模组上时，依赖关系页签会是空的：回落到元数据页，
+        // 别让用户对着一片空白（保留页签只对「还有关系可读」的目标成立）。
+        if (SelectedTabIndex == RelationsTabIndex && !HasRelations)
+        {
+            SelectedTabIndex = 0;
+        }
+
         Refresh();
+    }
+
+    /// <summary>
+    /// 关系树里双击/单击一个模组：优先交回模组页（让列表选中、前进后退历史一起更新），
+    /// 没有宿主接管时退化成面板内换选中项。
+    /// </summary>
+    private void NavigateFromRelations(string identifier)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            return;
+        }
+
+        // 关系跳转保留依赖关系页签（跳到没有关系的模组时由 Reload 回落到元数据页）。
+        _preserveTabOnNextSwap = true;
+        try
+        {
+            if (RelationNavigateAction is { } navigate)
+            {
+                navigate(identifier);
+                return;
+            }
+
+            Select(identifier);
+        }
+        finally
+        {
+            _preserveTabOnNextSwap = false;
+        }
     }
 
     private void Refresh() => OnPropertyChanged(string.Empty);
@@ -1067,7 +1142,11 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
             return;
         }
 
-        SelectedTabIndex = 0;
+        // 从关系树里跳到另一个模组时留在依赖关系页签：用户正在读关系，不是要换到元数据页重读一遍。
+        // 其它入口（列表点选 / 前进后退 / 刷新）仍回到第一个页签，避免残留上一个模组的一次性反馈。
+        var keepTab = _preserveTabOnNextSwap && SelectedTabIndex == RelationsTabIndex;
+        _preserveTabOnNextSwap = false;
+        SelectedTabIndex = keepTab ? RelationsTabIndex : 0;
         SetInstallStatus(string.Empty, isError: false);
         LastChangeSet = null;
         ContentNavigationStatusText = string.Empty;
@@ -1158,6 +1237,25 @@ public sealed partial class ModDetailsViewModel : ObservableObject, IActivatable
     }
 
     private bool CanOpenSpacedockUrl() => HasSpacedockUrl;
+
+    /// <summary>
+    /// 关系行在树/图里显示的标题：优先用数据自带的名字，其次回查仓库里的模组名，
+    /// 都没有才退回标识符。目录里的名字比裸标识符可读得多，缺失依赖也能看出是什么模组。
+    /// </summary>
+    private string RelationName(ModRelationItem item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.Name))
+        {
+            return item.Name!;
+        }
+
+        if (FindRow(item.Identifier) is ModRowData data && !string.IsNullOrWhiteSpace(data.Name))
+        {
+            return data.Name;
+        }
+
+        return item.Identifier;
+    }
 
     private ModRowData? FindRow(string identifier)
     {

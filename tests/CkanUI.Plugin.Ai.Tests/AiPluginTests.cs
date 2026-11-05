@@ -27,7 +27,7 @@ public sealed class AiPluginTests
             Assert.That(page.Key, Is.EqualTo("ai-assistant"));
             Assert.That(page.Title, Is.EqualTo("AI 助手"));
             Assert.That(page.Glyph, Is.EqualTo("Sparkle"));
-            Assert.That(page.Section, Is.EqualTo("plugins"));
+            Assert.That(page.Section, Is.Null);
             Assert.That(page.Order, Is.EqualTo(10));
             Assert.That(page.ViewModelTypeName, Is.EqualTo("CkanUI.Plugin.Ai.AiAssistantPageViewModel"));
         });

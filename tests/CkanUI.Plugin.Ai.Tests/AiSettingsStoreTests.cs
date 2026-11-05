@@ -18,7 +18,7 @@ public sealed class AiSettingsStoreTests
     [SetUp]
     public void SetUp()
     {
-        _directory = Path.Combine(Path.GetTempPath(), "ckan-ai-tests", Guid.NewGuid().ToString("N"));
+        _directory = Path.Combine(AppContext.BaseDirectory, "artifacts", "tmp", "ckan-ai-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_directory);
     }
 

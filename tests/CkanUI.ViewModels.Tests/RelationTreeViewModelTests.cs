@@ -300,7 +300,8 @@ public sealed class RelationTreeViewModelTests
             ("A", RelationKind.Conflicts, "Conf1")),
             new[] { "A", "Dep1", "Rec1", "Conf1" });
 
-        Assert.That(vm.IsGraphView, Is.True, "默认应开启可视化关系网");
+        Assert.That(vm.IsGraphView, Is.False, "详情面板默认使用紧凑树视图");
+        Assert.That(vm.IsTreeView, Is.True);
         Assert.That(vm.GraphNodes, Has.Count.EqualTo(4));
         Assert.That(vm.GraphEdges, Has.Count.EqualTo(3));
 
@@ -327,15 +328,81 @@ public sealed class RelationTreeViewModelTests
     public void VisualRelationNetwork_ToggleViewMode_SwitchesBetweenGraphAndTree()
     {
         var vm = Create(new());
-        Assert.That(vm.IsGraphView, Is.True);
-        Assert.That(vm.ViewModeButtonText, Is.EqualTo("树状图"));
-
-        vm.ToggleViewModeCommand.Execute(null);
         Assert.That(vm.IsGraphView, Is.False);
         Assert.That(vm.ViewModeButtonText, Is.EqualTo("关系网"));
 
         vm.ToggleViewModeCommand.Execute(null);
         Assert.That(vm.IsGraphView, Is.True);
+        Assert.That(vm.ViewModeButtonText, Is.EqualTo("树状图"));
+
+        vm.ToggleViewModeCommand.Execute(null);
+        Assert.That(vm.IsGraphView, Is.False);
+
+        // 分段切换命令与布尔切换必须等价
+        vm.ShowGraphViewCommand.Execute(null);
+        Assert.That(vm.IsGraphView, Is.True);
+        vm.ShowTreeViewCommand.Execute(null);
+        Assert.That(vm.IsGraphView, Is.False);
+    }
+
+    [Test]
+    public void KindChips_ExposeCountsForPresentKindsOnly()
+    {
+        var vm = Create(Graph(
+            ("A", RelationKind.Depends, "Dep1"),
+            ("A", RelationKind.Depends, "Dep2"),
+            ("A", RelationKind.Conflicts, "Conf1")),
+            new[] { "A", "Dep1", "Dep2", "Conf1" });
+
+        Assert.That(vm.KindChips.Select(c => c.Kind), Is.EqualTo(new[] { RelationKind.Depends, RelationKind.Conflicts }),
+            "只展示实际存在的分类，且按图例顺序排列");
+        Assert.That(vm.KindChips[0].Count, Is.EqualTo(2));
+        Assert.That(vm.KindChips[0].CountText, Is.EqualTo("2"));
+        Assert.That(vm.HasKindChips, Is.True);
+
+        vm.FilterKindCommand.Execute(RelationKind.Depends);
+        Assert.That(vm.KindChips[0].IsActive, Is.True);
+        Assert.That(vm.KindChips[1].IsActive, Is.False);
+        Assert.That(vm.Roots[0].Children, Has.Count.EqualTo(1), "筛选后树只保留命中的分类");
+
+        vm.FilterKindCommand.Execute(RelationKind.Depends);
+        Assert.That(vm.KindChips[0].IsActive, Is.False);
+        Assert.That(vm.Roots[0].Children, Has.Count.EqualTo(2));
+    }
+
+    [Test]
+    public void MissingDependency_IsFlaggedOnRowsAndCounters()
+    {
+        var vm = Create(
+            new Dictionary<string, IReadOnlyList<RelationEdge>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["A"] = new[]
+                {
+                    new RelationEdge(RelationKind.Depends, "Dep1", IsSatisfied: false),
+                    new RelationEdge(RelationKind.Depends, "Dep2"),
+                }
+            },
+            new[] { "A", "Dep1", "Dep2" });
+
+        var category = vm.Roots[0].Children.Single(c => c.Kind == RelationKind.Depends);
+        Assert.That(category.Count, Is.EqualTo(2));
+        Assert.That(category.ShowCount, Is.True);
+        Assert.That(category.Children.Single(c => c.Identifier == "Dep1").ShowMissing, Is.True);
+        Assert.That(category.Children.Single(c => c.Identifier == "Dep2").ShowMissing, Is.False);
+        Assert.That(vm.MissingDependencyCount, Is.EqualTo(1));
+        Assert.That(vm.HasMissingDependencies, Is.True);
+    }
+
+    [Test]
+    public void SingleKeyGraph_HidesDirectionToggle()
+    {
+        var vm = Create(Graph(("A", RelationKind.Depends, "Dep1")), new[] { "A", "Dep1" });
+        Assert.That(vm.CanToggleDirection, Is.False, "详情面板图谱只有根键，反向关系无数据可展示");
+
+        var multi = Create(Graph(
+            ("A", RelationKind.Depends, "Dep1"),
+            ("Dep1", RelationKind.Depends, "A")), new[] { "A", "Dep1" });
+        Assert.That(multi.CanToggleDirection, Is.True);
     }
 
     [Test]

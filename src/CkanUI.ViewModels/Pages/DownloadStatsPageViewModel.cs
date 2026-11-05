@@ -158,6 +158,7 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
     /// <summary>空状态：已取过数、没有错误、也没有任何模组。</summary>
     public bool ShowEmptyState => !IsLoading && ErrorText is null && ModuleCount == 0;
 
+
     /// <summary>下载量合计文本。</summary>
     public string TotalDownloadsText => DownloadStatsFormat.Count(TotalDownloads);
 

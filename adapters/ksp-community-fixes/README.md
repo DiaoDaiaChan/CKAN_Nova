@@ -10,23 +10,34 @@
 
 - ✅ 匹配：CKAN 标识 `KSPCommunityFixes` + 文件探测 `GameData/KSPCommunityFixes/Settings.cfg`（大小写不敏感，实测该目录同时存在 Settings.cfg 与 settings.cfg 两个名字）。
 - ✅ 文件：`Settings.cfg`，`layout: node`，根节点 `KSP_COMMUNITY_FIXES`，可编辑，缺失时从 `fixtures/settings.default.cfg` 创建。
-- ✅ 字段：**只有 3 个**——`RefundingOnRecovery`(bool)、`Language`(enum)、`MaxPhysicsDelta`(float)。
-- ❌ 未覆盖：实测该文件有 138 条键，其余 135 条**没有**写进来。
+- ✅ 字段：**21 个**，全部真机取证（键名、类型、默认值对照实测文件）。
+- ❌ 未覆盖：实测该文件有 137 条顶层键 + 4 个嵌套子节点，其余键与全部嵌套节点键没有写进来。
 
-## 为什么只写 3 个键
+## 已收录的键
 
-docs/plan/15 `7 Q4 明确写着"盲写等于给自己埋雷"：adapter 的价值全在键名与默认值准确。
-本机没有 KSP 安装（无法取到真实 Settings.cfg），因此首版只收录规格里已经取证过的三个键。
+| 分组 | 键 |
+| --- | --- |
+| 主要修复 | RefundingOnRecovery / KerbalInventoryPersistence / RoboticsDrift / DockingPortRotationDriftAndFixes / AutoStrutDrift / ModuleIndexingMismatch / PackedPartsRotation / PartStartStability |
+| 次要修复 | PAWGroupMemory / PAWItemsOrder / ReactionWheelsPotentialTorque / CorrectDragForFlags / RespawnDeadKerbals / StrategyDuration |
+| 性能 | SceneLoadSpeedBoost / MemoryLeaks / FewerSaves / SkipIndentsOnSavesAndCraftFiles |
+| 使用体验 | DisableNewGameIntro / DisableHiddenPortraits / DebugConsoleDontStealInput |
 
-## 补键步骤（有真机后）
+## 为什么没把 137 条全写进来
 
-1. 打开 `<游戏目录>/GameData/KSPCommunityFixes/Settings.cfg`，复制真实键名与默认值；
+1. **嵌套节点写不了**：`MANEUVER_TOOL_DEFAULTS` / `MEMORY_LEAKS_DEBUGGING` / `COMMNET_THROTTLING_SETTINGS` 等子节点里的键，当前 `layout: node` 只能定位根节点直属键（`ConfigNodeDocument` 的 NodePath 形如 `ROOT/CHILD`，schema 还没有 nodePath 表达），硬写会读不到值。
+2. **宁缺勿错**：adapter 的价值全在键名与默认值准确。写进去的每一条都要能在真机文件里找到对应行，否则就是"幽灵键"——页面显示空白，用户以为没设置，真去写却报「文件里没有键」。
+
+> 历史教训：本适配器第一版声明的 `Language` 与 `MaxPhysicsDelta` 在真实 Settings.cfg 里**根本不存在**（来自规格文档而非真机），已删除并替换为实测存在的键。
+
+## 补键步骤
+
+1. 打开 `<游戏目录>/GameData/KSPCommunityFixes/Settings.cfg`，确认目标键**在根节点第一层**（缩进 2 空格），复制真实键名与默认值；
 2. 在 `fields` 里按 `bool`/`int`/`float`/`enum`/`string` 分类追加，务必带 `label`（中文说明）与 `risk`；
-3. 把一份脱敏后的样本放进 `fixtures/`，并为它写"改 3 项只变 3 行"的往返测试；
+3. 同步更新 `fixtures/settings.default.cfg`（模板只含声明过的键）；
 4. 跑 `dotnet run --project tools/verify-layout`（H-08 会用 docs/design/adapter.schema.json 校验本文件）。
 
 ## 只读与安全
 
 - `unlisted: "preserve"`：插件对未知键"忽略但不报错"，我方**更不会删**。
-- 版本区间 `[">=1.30", "<2.0"]`：已装版本越界时整卡强制只读并显示横幅（`4.3），不写盘。
+- 版本区间 `[">=1.30", "<2.0"]`：已装版本越界时整卡强制只读并显示横幅，不写盘。
 - 写盘永远走 `IAdapterWriter`：快照 → 原子替换 → 写后重新解析自校验 → 失败回滚。

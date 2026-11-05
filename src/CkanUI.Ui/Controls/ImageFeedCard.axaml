@@ -1,0 +1,56 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CkanUI.Ui.Controls.ImageFeedCard"
+             x:Name="CardRoot"
+             x:CompileBindings="False">
+  <!-- 图片信息流卡片：SpaceDock 与旗帜画廊共用。
+       图片源优先用 ImageSource（异步下载好的 Bitmap），否则按 ImagePath 走缩略图缓存。 -->
+  <Border Classes="ImageFeedCard"
+          Background="{DynamicResource CkanSubtleBackgroundBrush}"
+          BorderBrush="{DynamicResource CkanBorderBrush}"
+          BorderThickness="1"
+          CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+          ClipToBounds="True">
+    <Grid>
+      <StackPanel Spacing="8">
+        <Border Height="{Binding ImageHeight, ElementName=CardRoot}"
+                Background="{DynamicResource CkanCanvasBackgroundBrush}"
+                ClipToBounds="True">
+          <Grid>
+            <TextBlock Text="{Binding PlaceholderText, ElementName=CardRoot}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Classes="CkanCaption" TextWrapping="Wrap" TextAlignment="Center"
+                       Margin="12" />
+            <Image Source="{Binding DisplayImage, ElementName=CardRoot}"
+                   Stretch="UniformToFill" />
+            <Border Classes="CkanBadge Accent"
+                    HorizontalAlignment="Left" VerticalAlignment="Top"
+                    Margin="8"
+                    IsVisible="{Binding IsBadgeVisible, ElementName=CardRoot}">
+              <TextBlock Text="{Binding BadgeText, ElementName=CardRoot}" />
+            </Border>
+          </Grid>
+        </Border>
+        <StackPanel Spacing="3" Margin="8,0,8,8">
+          <TextBlock Text="{Binding Title, ElementName=CardRoot}"
+                     Foreground="{DynamicResource CkanTextPrimaryBrush}"
+                     FontWeight="Medium"
+                     TextTrimming="CharacterEllipsis"
+                     ToolTip.Tip="{Binding Title, ElementName=CardRoot}" />
+          <TextBlock Text="{Binding Subtitle, ElementName=CardRoot}"
+                     Classes="CkanCaption"
+                     TextTrimming="CharacterEllipsis" />
+          <TextBlock Text="{Binding MetaText, ElementName=CardRoot}"
+                     Classes="CkanCaption"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}"
+                     TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+      </StackPanel>
+      <Border BorderBrush="{DynamicResource CkanAccentBrush}"
+              BorderThickness="2"
+              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+              IsVisible="{Binding IsSelected, ElementName=CardRoot}"
+              IsHitTestVisible="False" />
+    </Grid>
+  </Border>
+</UserControl>

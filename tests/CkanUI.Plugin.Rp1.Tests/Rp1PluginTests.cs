@@ -19,7 +19,7 @@ public sealed class Rp1PluginTests
             Assert.That(plugin.Pages[0].Key, Is.EqualTo("rp1-career"));
             Assert.That(plugin.Pages[0].Title, Is.EqualTo("RP-1 生涯日志"));
             Assert.That(plugin.Pages[0].Glyph, Is.EqualTo("History"));
-            Assert.That(plugin.Pages[0].Section, Is.EqualTo("plugins"));
+            Assert.That(plugin.Pages[0].Section, Is.Null, "独立侧栏入口：生涯日志页签独立成Tab");
             Assert.That(plugin.Pages[0].Order, Is.EqualTo(40));
             Assert.That(plugin.Pages[0].ViewModelTypeName, Is.EqualTo(typeof(Rp1CareerPageViewModel).FullName));
         });

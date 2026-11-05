@@ -22,6 +22,9 @@ public sealed class SnapshotCache
     /// <summary>缓存结构版本：行投影的字段含义变化时递增，旧文件自然失效。</summary>
     public const int SchemaVersion = 1;
 
+    /// <summary>落盘保留的投影份数（按写入时间从新到旧）。</summary>
+    private const int KeepSnapshots = 3;
+
     private static readonly ILog Log = LogManager.GetLogger(typeof(SnapshotCache));
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -124,6 +127,7 @@ public sealed class SnapshotCache
                 }, JsonOptions);
             }
             File.Move(temporary, path, overwrite: true);
+            PruneOlderSnapshots();
         }
         catch (IOException ex)
         {
@@ -132,6 +136,46 @@ public sealed class SnapshotCache
         catch (UnauthorizedAccessException ex)
         {
             Log.Debug("写入模组快照缓存被拒绝。", ex);
+        }
+    }
+
+    /// <summary>
+    /// 每个指纹一个文件，仓库每刷新一次指纹就换一次，所以落盘量会无限长大（实测 95 个文件 / 334MB）。
+    /// 只留最近的几份：命中只可能是最新指纹那一份，旧的留着纯占盘。
+    /// </summary>
+    private void PruneOlderSnapshots()
+    {
+        try
+        {
+            var files = new DirectoryInfo(_directory).GetFiles("mods-*.json");
+            if (files.Length <= KeepSnapshots)
+            {
+                return;
+            }
+
+            foreach (var stale in files.OrderByDescending(file => file.LastWriteTimeUtc).Skip(KeepSnapshots))
+            {
+                try
+                {
+                    stale.Delete();
+                }
+                catch (IOException)
+                {
+                    // 别的进程正读着这一份：下次写的时候再清。
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // 同上，清理失败不影响本次写入。
+                }
+            }
+        }
+        catch (IOException ex)
+        {
+            Log.Debug("清理模组快照缓存失败。", ex);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Log.Debug("清理模组快照缓存被拒绝。", ex);
         }
     }
 

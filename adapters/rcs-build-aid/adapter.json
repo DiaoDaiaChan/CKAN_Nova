@@ -1,0 +1,212 @@
+{
+  "schemaVersion": 1,
+  "id": "rcs-build-aid",
+  "name": "RCS Build Aid",
+  "homepage": "https://github.com/dukecrazydog/RCSBuildAid",
+  "match": {
+    "ckanIdentifiers": [
+      "RCSBuildAid"
+    ],
+    "paths": [
+      "GameData/RCSBuildAid/Plugins/PluginData/settings.cfg"
+    ],
+    "caseInsensitive": true
+  },
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/RCSBuildAid/Plugins/PluginData/settings.cfg",
+      "layout": "flat",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "settings.cfg"
+    }
+  ],
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+  "fields": [
+    {
+      "file": "settings",
+      "key": "com_reference",
+      "type": "int",
+      "default": "0",
+      "min": 0,
+      "max": 2,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "质心参考模式（mod 内部编号 0/1/2）"
+    },
+    {
+      "file": "settings",
+      "key": "plugin_mode",
+      "type": "int",
+      "default": "1",
+      "min": 0,
+      "max": 2,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "插件模式（mod 内部编号）"
+    },
+    {
+      "file": "settings",
+      "key": "shortcut_key",
+      "type": "keybinding",
+      "default": "Alpha5",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "呼出窗口快捷键"
+    },
+    {
+      "file": "settings",
+      "key": "marker_scale",
+      "type": "float",
+      "default": "1",
+      "min": 0.1,
+      "max": 5,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "标记大小倍率"
+    },
+    {
+      "file": "settings",
+      "key": "gui_scale",
+      "type": "float",
+      "default": "1",
+      "min": 0.5,
+      "max": 3,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "界面缩放"
+    },
+    {
+      "file": "settings",
+      "key": "include_rcs",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "RCS 推力计入平衡计算"
+    },
+    {
+      "file": "settings",
+      "key": "include_wheels",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "轮子计入平衡计算"
+    },
+    {
+      "file": "settings",
+      "key": "eng_include_rcs",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "引擎的 RCS 计入平衡计算"
+    },
+    {
+      "file": "settings",
+      "key": "resource_amount",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "按资源量而不是质量显示"
+    },
+    {
+      "file": "settings",
+      "key": "use_dry_mass",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "用干质量计算"
+    },
+    {
+      "file": "settings",
+      "key": "show_marker_com",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "显示质心（CoM）标记"
+    },
+    {
+      "file": "settings",
+      "key": "show_marker_dcom",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "显示干质心标记"
+    },
+    {
+      "file": "settings",
+      "key": "show_marker_acom",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "显示气动中心标记"
+    },
+    {
+      "file": "settings",
+      "key": "show_dcom_offset",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "显示干质心偏移"
+    },
+    {
+      "file": "settings",
+      "key": "show_rcs_twr",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "显示 RCS 推重比"
+    },
+    {
+      "file": "settings",
+      "key": "marker_autoscale",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "标记随距离自动缩放"
+    },
+    {
+      "file": "settings",
+      "key": "show_massless_resources",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "把无质量资源也列出来"
+    },
+    {
+      "file": "settings",
+      "key": "disable_mod_compatibility_check",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "跳过 mod 兼容性检查"
+    },
+    {
+      "file": "settings",
+      "key": "direction",
+      "type": "int",
+      "default": "1",
+      "min": 0,
+      "max": 2,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "方向显示模式（mod 内部编号）"
+    }
+  ]
+}

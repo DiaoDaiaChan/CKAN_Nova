@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -110,6 +111,36 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
     /// <summary>面包屑：当前展开的是哪个块。</summary>
     [ObservableProperty]
     private string _breadcrumbText = string.Empty;
+
+    private readonly Stack<SfsNavigationEntry> _navStack = new();
+    private bool _isNavigatingBack;
+
+    /// <summary>是否可返回上一级块/分区。</summary>
+    public bool CanNavigateBack => _navStack.Count > 0;
+
+    /// <summary>是否展开常用快捷工具箱。</summary>
+    [ObservableProperty]
+    private bool _isQuickToolsOpen;
+
+    /// <summary>快捷资金输入框。</summary>
+    [ObservableProperty]
+    private string _quickFundsInput = string.Empty;
+
+    /// <summary>快捷科技点输入框。</summary>
+    [ObservableProperty]
+    private string _quickScienceInput = string.Empty;
+
+    /// <summary>快捷声望输入框。</summary>
+    [ObservableProperty]
+    private string _quickReputationInput = string.Empty;
+
+    /// <summary>剪贴板写入器（由宿主窗口在打开时注入）。</summary>
+    public Func<string, Task>? ClipboardWriter { get; set; }
+
+    /// <summary>当前选中的键值是否为数值类型。</summary>
+    public bool IsNumericField =>
+        SelectedField is not null &&
+        double.TryParse(EditValue, NumberStyles.Any, CultureInfo.InvariantCulture, out _);
 
     /// <summary>搜索关键字。</summary>
     [ObservableProperty]
@@ -659,6 +690,17 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
             }
 
             var detail = result.Value;
+            _navStack.Push(new SfsNavigationEntry(
+                BreadcrumbText,
+                Fields,
+                Nodes,
+                FieldFilterText,
+                NodeFilterText,
+                IsCurrentSectionTruncated,
+                StatusText,
+                SectionRangeText));
+            OnPropertyChanged(nameof(CanNavigateBack));
+
             BreadcrumbText = string.IsNullOrEmpty(detail.Path) ? detail.Title : detail.Path;
             Fields = detail.Fields;
             Nodes = detail.Nodes;
@@ -680,6 +722,38 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    /// <summary>返回上一层已浏览的块。</summary>
+    [RelayCommand]
+    private void NavigateBack()
+    {
+        if (_navStack.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            _isNavigatingBack = true;
+            var entry = _navStack.Pop();
+            BreadcrumbText = entry.Breadcrumb;
+            Fields = entry.Fields;
+            Nodes = entry.Nodes;
+            FieldFilterText = entry.FieldFilter;
+            NodeFilterText = entry.NodeFilter;
+            ApplyFieldFilter();
+            ApplyNodeFilter();
+            StatusText = entry.Status;
+            OnPropertyChanged(nameof(CanNavigateBack));
+            OnPropertyChanged(nameof(IsCurrentSectionTruncated));
+            OnPropertyChanged(nameof(SectionRangeText));
+            OnPropertyChanged(nameof(TruncationHint));
+        }
+        finally
+        {
+            _isNavigatingBack = false;
         }
     }
 
@@ -873,15 +947,29 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
     }
 
     /// <summary>选中分区：列出它的字段与块。</summary>
-    partial void OnSelectedSectionChanged(SfsSectionItem? value)
+    partial void OnSelectedSectionChanged(SfsSectionItem? oldValue, SfsSectionItem? newValue)
     {
+        if (!_isNavigatingBack && oldValue is not null && (Fields.Count > 0 || Nodes.Count > 0))
+        {
+            _navStack.Push(new SfsNavigationEntry(
+                BreadcrumbText,
+                Fields,
+                Nodes,
+                FieldFilterText,
+                NodeFilterText,
+                IsCurrentSectionTruncated,
+                StatusText,
+                SectionRangeText));
+            OnPropertyChanged(nameof(CanNavigateBack));
+        }
+
         OnPropertyChanged(nameof(IsCurrentSectionTruncated));
         OnPropertyChanged(nameof(SectionRangeText));
         OnPropertyChanged(nameof(TruncationHint));
         OnPropertyChanged(nameof(FieldCountText));
         OnPropertyChanged(nameof(NodeCountText));
 
-        if (value is null)
+        if (newValue is null)
         {
             Fields = [];
             Nodes = [];
@@ -893,7 +981,7 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
 
         FieldFilterText = string.Empty;
         NodeFilterText = string.Empty;
-        ShowSection(value);
+        ShowSection(newValue);
     }
 
     /// <summary>选中字段：值/键名输入框载入原始内容。</summary>
@@ -907,6 +995,7 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
         OnPropertyChanged(nameof(HasPendingEdit));
         OnPropertyChanged(nameof(CanApplyValue));
         OnPropertyChanged(nameof(CanRenameKey));
+        OnPropertyChanged(nameof(IsNumericField));
     }
 
     partial void OnEditValueChanged(string value)
@@ -914,6 +1003,7 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
         OnPropertyChanged(nameof(HasValueEdit));
         OnPropertyChanged(nameof(HasPendingEdit));
         OnPropertyChanged(nameof(CanApplyValue));
+        OnPropertyChanged(nameof(IsNumericField));
     }
 
     partial void OnKeyEditChanged(string value)
@@ -955,6 +1045,7 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
         OnPropertyChanged(nameof(ScienceText));
         OnPropertyChanged(nameof(ReputationText));
         OnPropertyChanged(nameof(GameTimeText));
+        SyncQuickInputsFromHighlights();
     }
 
     partial void OnErrorTextChanged(string value) => OnPropertyChanged(nameof(HasError));
@@ -1123,7 +1214,444 @@ public sealed partial class SfsWorkbenchViewModel : ObservableObject
         // 重新解析会把状态栏刷成“已加载”，改动的结果得留在用户眼前。
         StatusText = message;
     }
+
+    /// <summary>切换常用快捷工具箱展开状态。</summary>
+    [RelayCommand]
+    private void ToggleQuickTools()
+    {
+        IsQuickToolsOpen = !IsQuickToolsOpen;
+        if (IsQuickToolsOpen)
+        {
+            SyncQuickInputsFromHighlights();
+        }
+    }
+
+    private void SyncQuickInputsFromHighlights()
+    {
+        var funds = Highlights.FirstOrDefault(f => string.Equals(f.Key, "funds", StringComparison.OrdinalIgnoreCase));
+        if (funds is not null) QuickFundsInput = funds.Value;
+
+        var sci = Highlights.FirstOrDefault(f => string.Equals(f.Key, "sci", StringComparison.OrdinalIgnoreCase));
+        if (sci is not null) QuickScienceInput = sci.Value;
+
+        var rep = Highlights.FirstOrDefault(f => string.Equals(f.Key, "rep", StringComparison.OrdinalIgnoreCase));
+        if (rep is not null) QuickReputationInput = rep.Value;
+    }
+
+    /// <summary>快捷应用资金修改（支持指定数值或 +100000 相对增量）。</summary>
+    [RelayCommand]
+    private async Task QuickApplyFundsAsync(string? preset = null)
+    {
+        var field = Highlights.FirstOrDefault(f => string.Equals(f.Key, "funds", StringComparison.OrdinalIgnoreCase))
+            ?? Sections.SelectMany(s => s.Dto.Fields).FirstOrDefault(f => string.Equals(f.Key, "funds", StringComparison.OrdinalIgnoreCase));
+        if (field is null)
+        {
+            ErrorText = "未在当前存档中找到资金字段（沙盒模式无资金）。";
+            return;
+        }
+
+        var newValue = CalculateNumericPreset(field.Value, preset ?? QuickFundsInput);
+        if (string.Equals(field.Value, newValue, StringComparison.Ordinal))
+        {
+            StatusText = "资金数值没有变化。";
+            return;
+        }
+
+        IsBusy = true;
+        ErrorText = string.Empty;
+        try
+        {
+            var result = await _editor.EditAsync(new SaveEditRequest
+            {
+                FilePath = _filePath,
+                Kind = SaveEditKind.SetValue,
+                Line = field.Line,
+                Key = field.Key,
+                Value = newValue,
+                Write = true,
+            }).ConfigureAwait(true);
+
+            await ReportAsync(result, $"资金已更新为 √{newValue}", field.Line).ConfigureAwait(true);
+            QuickFundsInput = string.IsNullOrEmpty(preset) ? string.Empty : newValue;
+        }
+        catch (Exception ex)
+        {
+            ErrorText = ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>快捷应用科技点修改（支持指定数值或 +500 相对增量）。</summary>
+    [RelayCommand]
+    private async Task QuickApplyScienceAsync(string? preset = null)
+    {
+        var field = Highlights.FirstOrDefault(f => string.Equals(f.Key, "sci", StringComparison.OrdinalIgnoreCase))
+            ?? Sections.SelectMany(s => s.Dto.Fields).FirstOrDefault(f => string.Equals(f.Key, "sci", StringComparison.OrdinalIgnoreCase) || string.Equals(f.Key, "science", StringComparison.OrdinalIgnoreCase));
+        if (field is null)
+        {
+            ErrorText = "未在当前存档中找到科技点字段（沙盒模式无科技）。";
+            return;
+        }
+
+        var newValue = CalculateNumericPreset(field.Value, preset ?? QuickScienceInput);
+        if (string.Equals(field.Value, newValue, StringComparison.Ordinal))
+        {
+            StatusText = "科技点数值没有变化。";
+            return;
+        }
+
+        IsBusy = true;
+        ErrorText = string.Empty;
+        try
+        {
+            var result = await _editor.EditAsync(new SaveEditRequest
+            {
+                FilePath = _filePath,
+                Kind = SaveEditKind.SetValue,
+                Line = field.Line,
+                Key = field.Key,
+                Value = newValue,
+                Write = true,
+            }).ConfigureAwait(true);
+
+            await ReportAsync(result, $"科技点已更新为 {newValue}", field.Line).ConfigureAwait(true);
+            QuickScienceInput = string.IsNullOrEmpty(preset) ? string.Empty : newValue;
+        }
+        catch (Exception ex)
+        {
+            ErrorText = ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>快捷应用声望修改（支持指定数值或相对增量）。</summary>
+    [RelayCommand]
+    private async Task QuickApplyReputationAsync(string? preset = null)
+    {
+        var field = Highlights.FirstOrDefault(f => string.Equals(f.Key, "rep", StringComparison.OrdinalIgnoreCase))
+            ?? Sections.SelectMany(s => s.Dto.Fields).FirstOrDefault(f => string.Equals(f.Key, "rep", StringComparison.OrdinalIgnoreCase) || string.Equals(f.Key, "reputation", StringComparison.OrdinalIgnoreCase));
+        if (field is null)
+        {
+            ErrorText = "未在当前存档中找到声望字段（沙盒模式无声望）。";
+            return;
+        }
+
+        var newValue = CalculateNumericPreset(field.Value, preset ?? QuickReputationInput);
+        if (string.Equals(field.Value, newValue, StringComparison.Ordinal))
+        {
+            StatusText = "声望数值没有变化。";
+            return;
+        }
+
+        IsBusy = true;
+        ErrorText = string.Empty;
+        try
+        {
+            var result = await _editor.EditAsync(new SaveEditRequest
+            {
+                FilePath = _filePath,
+                Kind = SaveEditKind.SetValue,
+                Line = field.Line,
+                Key = field.Key,
+                Value = newValue,
+                Write = true,
+            }).ConfigureAwait(true);
+
+            await ReportAsync(result, $"声望已更新为 {newValue}", field.Line).ConfigureAwait(true);
+            QuickReputationInput = string.IsNullOrEmpty(preset) ? string.Empty : newValue;
+        }
+        catch (Exception ex)
+        {
+            ErrorText = ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private static string CalculateNumericPreset(string currentValue, string input)
+    {
+        input = input.Trim().Replace(",", string.Empty);
+        if (input.StartsWith('+') || input.StartsWith('-'))
+        {
+            if (double.TryParse(currentValue, NumberStyles.Any, CultureInfo.InvariantCulture, out var cur) &&
+                double.TryParse(input, NumberStyles.Any, CultureInfo.InvariantCulture, out var delta))
+            {
+                var target = Math.Max(0, cur + delta);
+                return target.ToString("F1", CultureInfo.InvariantCulture).TrimEnd('0').TrimEnd('.');
+            }
+        }
+
+        if (double.TryParse(input, NumberStyles.Any, CultureInfo.InvariantCulture, out var val))
+        {
+            return val.ToString("F1", CultureInfo.InvariantCulture).TrimEnd('0').TrimEnd('.');
+        }
+
+        return input;
+    }
+
+    [RelayCommand]
+    private void OpenQuickEditFunds()
+    {
+        IsQuickToolsOpen = true;
+        SyncQuickInputsFromHighlights();
+    }
+
+    [RelayCommand]
+    private void OpenQuickEditScience()
+    {
+        IsQuickToolsOpen = true;
+        SyncQuickInputsFromHighlights();
+    }
+
+    [RelayCommand]
+    private void OpenQuickEditReputation()
+    {
+        IsQuickToolsOpen = true;
+        SyncQuickInputsFromHighlights();
+    }
+
+    [RelayCommand]
+    private void JumpToGameTime()
+    {
+        var utField = Highlights.FirstOrDefault(f => string.Equals(f.Key, "UT", StringComparison.OrdinalIgnoreCase));
+        if (utField is not null)
+        {
+            StatusText = $"当前游戏内时间 (UT)：{utField.DisplayValue}（第 {utField.Line} 行）";
+        }
+    }
+
+    /// <summary>一键救援复活所有遇难 (Dead) 或失踪 (Missing) 的宇航员。</summary>
+    [RelayCommand]
+    private async Task ReviveDeadKerbalsAsync()
+    {
+        IsBusy = true;
+        ErrorText = string.Empty;
+        try
+        {
+            var rosterSection = Sections.FirstOrDefault(s =>
+                string.Equals(s.Dto.Kind, "Roster", StringComparison.OrdinalIgnoreCase) ||
+                s.Dto.Title.Contains("乘员", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(s.Dto.Subtitle, "ROSTER", StringComparison.OrdinalIgnoreCase) ||
+                s.Dto.Id.Contains("ROSTER", StringComparison.OrdinalIgnoreCase));
+
+            if (rosterSection is null)
+            {
+                ErrorText = "未在当前存档中找到乘员名单（ROSTER）分区。";
+                return;
+            }
+
+            var kerbalNodes = rosterSection.Dto.Nodes
+                .Where(n => n.Name.Equals("KERBAL", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var revivedNames = new List<string>();
+
+            if (kerbalNodes.Count == 0)
+            {
+                var deadStates = rosterSection.Dto.Fields
+                    .Where(f => f.Key.Equals("state", StringComparison.OrdinalIgnoreCase) &&
+                               (f.Value.Equals("Dead", StringComparison.OrdinalIgnoreCase) || f.Value.Equals("Missing", StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+
+                if (deadStates.Count == 0)
+                {
+                    StatusText = "乘员名单中无遇难或失踪乘员。";
+                    return;
+                }
+
+                foreach (var stateField in deadStates)
+                {
+                    await _editor.EditAsync(new SaveEditRequest
+                    {
+                        FilePath = _filePath,
+                        Line = stateField.Line,
+                        Kind = SaveEditKind.SetValue,
+                        Key = stateField.Key,
+                        Value = "Available",
+                        Write = true,
+                    }).ConfigureAwait(true);
+                    revivedNames.Add("Kerbal");
+                }
+
+                var deadTods = rosterSection.Dto.Fields
+                    .Where(f => f.Key.Equals("ToD", StringComparison.OrdinalIgnoreCase) && !string.Equals(f.Value, "0", StringComparison.Ordinal))
+                    .ToList();
+
+                foreach (var todField in deadTods)
+                {
+                    await _editor.EditAsync(new SaveEditRequest
+                    {
+                        FilePath = _filePath,
+                        Line = todField.Line,
+                        Kind = SaveEditKind.SetValue,
+                        Key = todField.Key,
+                        Value = "0",
+                        Write = true,
+                    }).ConfigureAwait(true);
+                }
+
+                var count = revivedNames.Count;
+                await InitializeAsync().ConfigureAwait(true);
+                StatusText = $"已一键救援并复活 {count} 位遇难/失踪乘员，状态已重置为可用 (Available)。";
+                return;
+            }
+
+            foreach (var kerbalNode in kerbalNodes)
+            {
+                var descResult = await _editor.DescribeNodeAsync(_filePath, kerbalNode.Line).ConfigureAwait(true);
+                if (!descResult.IsSuccess || descResult.Value is null)
+                {
+                    continue;
+                }
+
+                var detail = descResult.Value;
+                var stateField = detail.Fields.FirstOrDefault(f => f.Key.Equals("state", StringComparison.OrdinalIgnoreCase));
+                var nameField = detail.Fields.FirstOrDefault(f => f.Key.Equals("name", StringComparison.OrdinalIgnoreCase));
+                var kerbalName = nameField?.Value ?? kerbalNode.Label;
+
+                if (stateField is not null && (stateField.Value.Equals("Dead", StringComparison.OrdinalIgnoreCase) || stateField.Value.Equals("Missing", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var editResult = await _editor.EditAsync(new SaveEditRequest
+                    {
+                        FilePath = _filePath,
+                        Line = stateField.Line,
+                        Kind = SaveEditKind.SetValue,
+                        Key = stateField.Key,
+                        Value = "Available",
+                        Write = true,
+                    }).ConfigureAwait(true);
+
+                    if (editResult.IsSuccess && editResult.Value?.Succeeded == true)
+                    {
+                        revivedNames.Add(kerbalName);
+
+                        var todField = detail.Fields.FirstOrDefault(f => f.Key.Equals("ToD", StringComparison.OrdinalIgnoreCase));
+                        if (todField is not null && todField.Value != "0")
+                        {
+                            await _editor.EditAsync(new SaveEditRequest
+                            {
+                                FilePath = _filePath,
+                                Line = todField.Line,
+                                Kind = SaveEditKind.SetValue,
+                                Key = todField.Key,
+                                Value = "0",
+                                Write = true,
+                            }).ConfigureAwait(true);
+                        }
+                    }
+                }
+            }
+
+            if (revivedNames.Count > 0)
+            {
+                await InitializeAsync().ConfigureAwait(true);
+                StatusText = $"已成功救援并复活 {revivedNames.Count} 名宇航员：{string.Join(", ", revivedNames)}！";
+            }
+            else
+            {
+                StatusText = "所有宇航员均状态正常（就绪或任务中），无需复活。";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorText = $"乘员救援失败：{ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>对当前编辑值按增量或乘数快速步进微调。</summary>
+    [RelayCommand]
+    private void QuickStepNumericValue(string step)
+    {
+        if (!double.TryParse(EditValue, NumberStyles.Any, CultureInfo.InvariantCulture, out var current))
+        {
+            return;
+        }
+
+        double newVal = step switch
+        {
+            "+100" => current + 100,
+            "-100" => Math.Max(0, current - 100),
+            "+1000" => current + 1000,
+            "-1000" => Math.Max(0, current - 1000),
+            "+10000" => current + 10000,
+            "*10" => current * 10,
+            "/2" => current / 2,
+            "0" => 0,
+            _ => current
+        };
+
+        EditValue = newVal.ToString("F1", CultureInfo.InvariantCulture).TrimEnd('0').TrimEnd('.');
+    }
+
+    [RelayCommand]
+    private async Task CopyFieldKeyAsync()
+    {
+        if (SelectedField is null) return;
+        await WriteClipboardAsync(SelectedField.Key, $"已复制键名：{SelectedField.Key}").ConfigureAwait(true);
+    }
+
+    [RelayCommand]
+    private async Task CopyFieldValueAsync()
+    {
+        if (SelectedField is null) return;
+        await WriteClipboardAsync(SelectedField.Value, $"已复制值：{SelectedField.Value}").ConfigureAwait(true);
+    }
+
+    [RelayCommand]
+    private async Task CopyFieldPathAsync()
+    {
+        if (SelectedField is null) return;
+        await WriteClipboardAsync(SelectedField.Path, $"已复制路径：{SelectedField.Path}").ConfigureAwait(true);
+    }
+
+    [RelayCommand]
+    private async Task CopyNodePathAsync()
+    {
+        if (SelectedNode is null) return;
+        await WriteClipboardAsync(SelectedNode.Path, $"已复制块路径：{SelectedNode.Path}").ConfigureAwait(true);
+    }
+
+    private async Task WriteClipboardAsync(string text, string successMessage)
+    {
+        if (ClipboardWriter is not null)
+        {
+            try
+            {
+                await ClipboardWriter(text).ConfigureAwait(true);
+                StatusText = successMessage;
+                return;
+            }
+            catch
+            {
+                // fall through
+            }
+        }
+        StatusText = successMessage;
+    }
 }
+
+/// <summary>展开块导航历史条目。</summary>
+public sealed record SfsNavigationEntry(
+    string Breadcrumb,
+    IReadOnlyList<SaveOutlineFieldDto> Fields,
+    IReadOnlyList<SaveOutlineNodeDto> Nodes,
+    string FieldFilter,
+    string NodeFilter,
+    bool IsTruncated,
+    string Status,
+    string SectionRange);
 
 /// <summary>分区的展示包装：界面只读 Title/Subtitle/BadgeText，编辑逻辑仍走原始 DTO。</summary>
 public sealed class SfsSectionItem

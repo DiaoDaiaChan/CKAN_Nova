@@ -52,6 +52,55 @@ public sealed class AdapterWriterTests
         }
         """;
 
+    /// <summary>同一个键名散落在根层与两个子节点里，外加一个根层之外的节点：专门用来证明 nodePath 真的在起作用。</summary>
+    private const string NestedAdapterJsonText = """
+        {
+          "schemaVersion": 1,
+          "id": "demo-mod",
+          "name": "Demo Mod",
+          "match": { "ckanIdentifiers": ["DemoMod"] },
+          "files": [
+            {
+              "id": "settings",
+              "path": "GameData/Demo/settings.cfg",
+              "layout": "node",
+              "rootNode": "ROOT",
+              "mode": "editable",
+              "onMissing": "readonly",
+              "lineEnding": "preserve",
+              "separator": " = "
+            }
+          ],
+          "fields": [
+            { "file": "settings", "key": "enabled", "type": "bool", "default": true },
+            { "file": "settings", "key": "gain", "type": "float", "min": 0, "max": 10, "default": 1 },
+            { "file": "settings", "nodePath": "CHILD_A", "key": "gain", "type": "float", "min": 0, "max": 10, "default": 1 },
+            { "file": "settings", "nodePath": "CHILD_B", "key": "gain", "type": "float", "min": 0, "max": 10, "default": 2 },
+            { "file": "settings", "nodePath": "/OTHER", "key": "gain", "type": "float", "min": 0, "max": 10, "default": 3 }
+          ]
+        }
+        """;
+
+    private const string NestedSettingsText = """
+        ROOT
+        {
+          enabled = true
+          gain = 1
+          CHILD_A
+          {
+            gain = 1
+          }
+          CHILD_B
+          {
+            gain = 2
+          }
+        }
+        OTHER
+        {
+          gain = 3
+        }
+        """;
+
     [Test]
     public async Task Write_BoolChange_UpdatesOnlyThatLineAndKeepsTheRest()
     {
@@ -419,6 +468,64 @@ public sealed class AdapterWriterTests
     }
 
     [Test]
+    public async Task Write_NestedNodePath_ChangesOnlyTheNamedChild()
+    {
+        using var scenario = Scenario.Create(adapterJson: NestedAdapterJsonText, settingsText: NestedSettingsText);
+
+        var result = await scenario.Writer.WriteAsync(scenario.RequestWithNode("gain", "CHILD_A", "4.5"));
+
+        Assert.That(result.IsSuccess, Is.True, result.Message);
+        var lines = scenario.ReadSettingsLines();
+        Assert.Multiple(() =>
+        {
+            Assert.That(lines.Count(l => l == "    gain = 4.5"), Is.EqualTo(1), "CHILD_A 里的键要改");
+            Assert.That(lines.Count(l => l == "    gain = 2"), Is.EqualTo(1), "CHILD_B 的同名键不许动");
+            Assert.That(lines.Count(l => l == "  gain = 3"), Is.EqualTo(1), "ROOT 之外的 OTHER 节点不许动");
+            Assert.That(lines.Count(l => l == "  gain = 1"), Is.EqualTo(1), "根层的同名键不许动");
+        });
+    }
+
+    [Test]
+    public async Task Write_AbsoluteNodePath_ReachesNodeOutsideRoot()
+    {
+        using var scenario = Scenario.Create(adapterJson: NestedAdapterJsonText, settingsText: NestedSettingsText);
+
+        var result = await scenario.Writer.WriteAsync(scenario.RequestWithNode("gain", "/OTHER", "7"));
+
+        Assert.That(result.IsSuccess, Is.True, result.Message);
+        Assert.That(scenario.ReadSettingsLines().Count(l => l == "  gain = 7"), Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task Write_UnknownNodePath_IsRejectedWithNodeInMessage()
+    {
+        using var scenario = Scenario.Create(adapterJson: NestedAdapterJsonText, settingsText: NestedSettingsText);
+
+        var result = await scenario.Writer.WriteAsync(scenario.RequestWithNode("gain", "CHILD_C", "1"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsSuccess, Is.False, "nodePath 写错不能落到别的节点上");
+            Assert.That(result.Message, Does.Contain("CHILD_C"), "错误信息要指出是哪个节点：" + result.Message);
+            Assert.That(scenario.ReadSettings(), Is.EqualTo(NestedSettingsText + NewLine), "被拒的写入不许碰文件");
+        });
+    }
+
+    [Test]
+    public async Task Write_AmbiguousKeyWithoutNodePath_IsRejected()
+    {
+        using var scenario = Scenario.Create(adapterJson: NestedAdapterJsonText, settingsText: NestedSettingsText);
+
+        var result = await scenario.Writer.WriteAsync(scenario.Request("gain", "1"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsSuccess, Is.False, "同名键散落在多个节点、又没给 nodePath 时只能拒绝，不能猜第一个");
+            Assert.That(result.Message, Does.Contain("gain"));
+        });
+    }
+
+    [Test]
     public async Task Write_ConcurrentWrites_AreSerialized()
     {
         using var scenario = Scenario.Create();
@@ -467,16 +574,19 @@ public sealed class AdapterWriterTests
             bool gameRunning = false,
             bool fixedClock = false,
             bool readonlySettingsFile = false,
-            bool createSettingsFile = true)
+            bool createSettingsFile = true,
+            string? adapterJson = null,
+            string? settingsText = null)
         {
             var temp = new TempDirectory("writer");
             string gameDir = Path.Combine(temp.Path, "game");
             Directory.CreateDirectory(gameDir);
 
-            var adapterJson = AdapterJsonText;
+            var adapterJsonText = adapterJson ?? AdapterJsonText;
+            var settings = settingsText ?? SettingsText;
             if (readonlySettingsFile)
             {
-                adapterJson = adapterJson
+                adapterJsonText = adapterJsonText
                     .Replace("\"mode\": \"editable\"", "\"mode\": \"readonly\"", StringComparison.Ordinal)
                     .Replace(
                         "\"separator\": \" = \"",
@@ -484,14 +594,14 @@ public sealed class AdapterWriterTests
                         StringComparison.Ordinal);
             }
 
-            temp.Adapter("adapters/demo-mod", adapterJson);
-            temp.File("adapters/demo-mod/fixtures/default.cfg", SettingsText + NewLine);
+            temp.Adapter("adapters/demo-mod", adapterJsonText);
+            temp.File("adapters/demo-mod/fixtures/default.cfg", settings + NewLine);
 
             var settingsPath = Path.Combine(gameDir, "GameData", "Demo", "settings.cfg");
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
             if (createSettingsFile)
             {
-                File.WriteAllText(settingsPath, SettingsText + NewLine);
+                File.WriteAllText(settingsPath, settings + NewLine);
             }
 
             var catalog = new AdapterCatalog([Path.Combine(temp.Path, "adapters")], [Path.Combine(temp.Path, "user")]);
@@ -511,6 +621,13 @@ public sealed class AdapterWriterTests
                 [new ModConfigFieldChange(SettingsPath, key, value)],
                 ConfirmedRiskHigh: confirmRiskHigh,
                 ConfirmedGameRunning: confirmRunning);
+
+        public AdapterWriteRequest RequestWithNode(string key, string? nodePath, string value)
+            => new(
+                "test",
+                GameDir,
+                "demo-mod",
+                [new ModConfigFieldChange(SettingsPath, key, value, nodePath)]);
 
         public AdapterWriteRequest Request(params (string Key, string Value)[] changes)
             => new(

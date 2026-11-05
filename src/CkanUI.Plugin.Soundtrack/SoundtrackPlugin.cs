@@ -23,7 +23,6 @@ public sealed class SoundtrackPlugin : ICkanUiPlugin
             typeof(CkanUI.Plugin.Soundtrack.UI.SoundtrackPageViewModel).FullName
                 ?? nameof(CkanUI.Plugin.Soundtrack.UI.SoundtrackPageViewModel),
             Glyph: "Music",
-            Section: "plugins",
             Order: 20),
     };
 

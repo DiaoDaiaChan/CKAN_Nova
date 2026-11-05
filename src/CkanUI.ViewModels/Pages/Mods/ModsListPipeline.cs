@@ -24,7 +24,8 @@ public static class ModsListPipeline
         ModsSortColumn column,
         bool ascending,
         IReadOnlyCollection<string>? labels = null,
-        string? category = null)
+        string? category = null,
+        bool companionOnly = false)
     {
         ArgumentNullException.ThrowIfNull(all);
 
@@ -42,6 +43,12 @@ public static class ModsListPipeline
             }
 
             if (!ModsLabelFilter.Matches(row, labels))
+            {
+                continue;
+            }
+
+            // 联动模组：只留能与内置 GUI 插件配合的模组（清单是页面声明的静态表，见 ModsCompanionCatalog）。
+            if (companionOnly && !ModsCompanionCatalog.IsCompanion(row.Identifier))
             {
                 continue;
             }

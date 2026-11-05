@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using CkanUI.Services.Abstractions.Dtos;
 
 namespace CkanUI.ViewModels.Pages.InstallHistory;
@@ -7,7 +11,11 @@ public sealed class InstallHistoryEntryRowViewModel
 {
     private readonly InstallHistoryEntry _entry;
 
-    public InstallHistoryEntryRowViewModel(InstallHistoryEntry entry)
+    public InstallHistoryEntryRowViewModel(
+        InstallHistoryEntry entry,
+        Predicate<string>? isAvailableInCkan = null,
+        Func<string, Task>? navigateToMod = null,
+        Func<bool, string>? tooltipResolver = null)
     {
         ArgumentNullException.ThrowIfNull(entry);
         _entry = entry;
@@ -15,11 +23,19 @@ public sealed class InstallHistoryEntryRowViewModel
         var modules = entry.Snapshot?.Modules ?? Array.Empty<InstallHistoryModule>();
         InstalledModules = modules
             .Where(module => module.IsInstalled)
-            .Select(module => new InstallHistoryModuleRowViewModel(module))
+            .Select(module => new InstallHistoryModuleRowViewModel(
+                module,
+                isAvailableInCkan?.Invoke(module.Identifier) ?? true,
+                navigateToMod,
+                tooltipResolver))
             .ToArray();
         MissingModules = modules
             .Where(module => !module.IsInstalled)
-            .Select(module => new InstallHistoryModuleRowViewModel(module))
+            .Select(module => new InstallHistoryModuleRowViewModel(
+                module,
+                isAvailableInCkan?.Invoke(module.Identifier) ?? true,
+                navigateToMod,
+                tooltipResolver))
             .ToArray();
     }
 
@@ -38,7 +54,11 @@ public sealed class InstallHistoryEntryRowViewModel
     /// <summary>结果文案。</summary>
     public string OutcomeText => InstallHistoryText.OutcomeLabel(_entry.Outcome);
 
-    /// <summary>是否失败（部分失败也算失败，列表里要标红）。</summary>
+    /// <summary>
+    /// 是否失败（部分失败也算失败，列表里要标红）。
+    /// 注意：<see cref="InstallHistoryOutcome.PartiallyFailed"/> 的语义是"确实有失败项"，
+    /// 仅警告不会落到这个状态（见服务层 B1/B4）；本属性不负责把警告推断成失败。
+    /// </summary>
     public bool IsFailure => _entry.Outcome is InstallHistoryOutcome.PartiallyFailed or InstallHistoryOutcome.Failed;
 
     /// <summary>变更条数文案。</summary>
@@ -88,4 +108,18 @@ public sealed class InstallHistoryEntryRowViewModel
 
     /// <summary>能否从这条历史重装（要有非空快照）。</summary>
     public bool CanRestore => HasSnapshot && SnapshotModuleCount > 0;
+
+    /// <summary>更新快照模组在 CKAN 中的收录状态。</summary>
+    public void UpdateCkanAvailability(Predicate<string> isAvailableInCkan)
+    {
+        ArgumentNullException.ThrowIfNull(isAvailableInCkan);
+        foreach (var row in InstalledModules)
+        {
+            row.SetExistsInCkan(isAvailableInCkan(row.Identifier));
+        }
+        foreach (var row in MissingModules)
+        {
+            row.SetExistsInCkan(isAvailableInCkan(row.Identifier));
+        }
+    }
 }

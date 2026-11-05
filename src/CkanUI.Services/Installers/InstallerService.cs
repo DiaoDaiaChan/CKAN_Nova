@@ -108,8 +108,15 @@ public sealed class InstallerService : IInstallerService
         return await completion.Task.ConfigureAwait(false);
     }
 
-    /// <summary>队列工作项：无论成功、失败还是取消都给出唯一结论，且不把异常抛给队列。</summary>
-    private async Task RunAsync(IInstallerBackend backend,
+    /// <summary>
+    /// 队列工作项：无论成功、失败还是取消都给出唯一结论，且不把异常抛给队列。
+    /// </summary>
+    /// <remarks>
+    /// 返回值不是装饰：安装失败按服务契约是「正常返回一个失败的 OperationResult」，
+    /// 队列拿到 <see cref="OperationOutcome.Failed"/> 才能把浮层写成「失败」，
+    /// 而不是像以前那样一律写「全部完成」——页面与浮层自相矛盾。
+    /// </remarks>
+    private async Task<OperationOutcome> RunAsync(IInstallerBackend backend,
                                 ChangeSetPreview changeSet,
                                 ProgressReporter reporter,
                                 TaskCompletionSource<OperationResult<InstallReport>> completion,
@@ -121,17 +128,37 @@ public sealed class InstallerService : IInstallerService
             var outcome = await Task.Run(() => Execute(backend, changeSet, reporter, queueToken),
                                          CancellationToken.None).ConfigureAwait(false);
             completion.TrySetResult(outcome);
+            return QueueOutcome(outcome);
         }
         catch (OperationCanceledException)
         {
             completion.TrySetResult(OperationResult<InstallReport>.Fail(CancelledMessage));
+            return OperationOutcome.Cancelled();
         }
         catch (Exception ex)
         {
             _errors?.Report(ex, "InstallerService.ApplyAsync", "安装过程中发生未预期的错误。");
             completion.TrySetResult(OperationResult<InstallReport>.Fail(
                 "安装过程中发生未预期的错误，已尝试还原。", ex.Message, retryable: true));
+            return OperationOutcome.Failed("安装过程中发生未预期的错误，已尝试还原。");
         }
+    }
+
+    /// <summary>把安装结论翻译成队列能照抄的终态。</summary>
+    /// <remarks>
+    /// <see cref="OperationResult{T}.PendingChoice"/> 不算失败：那时磁盘什么都没改，
+    /// 用户选完提供者就会原样重跑；写成失败会让人以为装坏了。
+    /// </remarks>
+    private static OperationOutcome QueueOutcome(OperationResult<InstallReport> result)
+    {
+        if (result.IsSuccess)
+        {
+            return OperationOutcome.Succeeded();
+        }
+
+        return result.PendingChoice is not null
+            ? OperationOutcome.Succeeded("等待你选定依赖提供者后继续。")
+            : OperationOutcome.Failed(result.Message ?? "安装失败，未执行任何操作。");
     }
 
     /// <summary>同步执行体（跑在线程池上）：解析 → 卸载 → 安装，失败/取消即回滚。</summary>
@@ -155,6 +182,15 @@ public sealed class InstallerService : IInstallerService
         }
 
         var resolve = backend.Resolve(changeSet, ct, out var plan);
+
+        // 依赖有多个提供者：不是失败，是「还差一步用户裁决」。把候选原样带回去让 UI 弹选择框，
+        // 选完由页面把提供者并进变更集重试；这里绝不能落成失败（否则一屏四条同义的「未执行任何操作」）。
+        if (resolve.Status == InstallerBackendStatus.NeedsChoice && resolve.PendingChoice is { } pendingChoice)
+        {
+            return OperationResult<InstallReport>.NeedsChoice(
+                "依赖有多个提供者，需要你先选定一个，未执行任何操作。", pendingChoice);
+        }
+
         if (resolve.Status == InstallerBackendStatus.Cancelled)
         {
             return Cancelled(resolve);
@@ -195,6 +231,17 @@ public sealed class InstallerService : IInstallerService
         {
             var install = backend.Install(plan, reporter.BackendProgress, ct);
             warnings.AddRange(install.Warnings);
+
+            // 极少数情况下解析阶段没撞上、InstallList 内部重新解析才撞上：此时可能已经卸过东西，
+            // 先还原到操作前，再把选择请求交回去，用户选完重跑整个变更集才是干净的。
+            if (install.Status == InstallerBackendStatus.NeedsChoice && install.PendingChoice is { } installChoice)
+            {
+                var aborted = Abort(backend, reporter, before, removed, warnings, null,
+                                    "安装前需要先选定依赖提供者，已尝试还原到操作前的状态。", install.Detail);
+                return OperationResult<InstallReport>.NeedsChoice(
+                    aborted.Message ?? "依赖有多个提供者，需要你先选定一个。", installChoice);
+            }
+
             if (install.Status == InstallerBackendStatus.Cancelled)
             {
                 return Abort(backend, reporter, before, removed, warnings, null, CancelledMessage, install.Detail);
@@ -273,9 +320,16 @@ public sealed class InstallerService : IInstallerService
     private OperationResult<InstallReport> Cancelled(InstallerBackendResult result)
         => OperationResult<InstallReport>.Fail(CancelledMessage, result.Detail);
 
+    /// <summary>
+    /// 失败文案只留一句：后端已经给了具体原因就用它，没有才退回编排层的兜底句。
+    /// <para>
+    /// 以前是「兜底句 + 空格 + 后端句」，两句话意思完全相同，在状态栏/错误条里各出现一次，
+    /// 一屏读下来就是同一件事说了四遍。具体原因永远比泛泛的「依赖解析失败」有用。
+    /// </para>
+    /// </summary>
     private static OperationResult<InstallReport> Failure(InstallerBackendResult result, string message)
         => OperationResult<InstallReport>.Fail(
-            string.IsNullOrEmpty(result.Message) ? message : message + " " + result.Message,
+            string.IsNullOrWhiteSpace(result.Message) ? message : result.Message!,
             result.Detail);
 
     private static void AddRange(List<string> target, IReadOnlyList<string>? source)
@@ -357,10 +411,15 @@ public sealed class InstallerService : IInstallerService
             return _taskId ?? _fallbackTaskId;
         }
 
-        public void Report(string message, double percent, bool bypassThrottle = false)
-            => Report(OperationState.Running, message, percent, bypassThrottle);
+        public void Report(string message, double percent, bool bypassThrottle = false, string? stageLabel = null)
+            => Report(OperationState.Running, message, percent, bypassThrottle, stageLabel);
 
-        public void Report(OperationState state, string message, double percent, bool bypassThrottle = false)
+        public void Report(
+            OperationState state,
+            string message,
+            double percent,
+            bool bypassThrottle = false,
+            string? stageLabel = null)
         {
             var now = Environment.TickCount64;
             lock (_gate)
@@ -384,7 +443,10 @@ public sealed class InstallerService : IInstallerService
             }
 
             Publish(new OperationProgress(CurrentTaskId(), _kind, _title, message, percent,
-                                          CanCancel: state == OperationState.Running, state));
+                                          CanCancel: state == OperationState.Running, state)
+            {
+                StageLabel = stageLabel,
+            });
         }
 
         private void Publish(OperationProgress progress)
@@ -419,7 +481,26 @@ public sealed class InstallerService : IInstallerService
                     return;
                 }
 
-                _owner.Report(value.Message, value.Percent, value.BypassThrottle);
+                _owner.Report(value.Message, value.Percent, value.BypassThrottle, StageLabelOf(value));
+            }
+
+            // 03/05 篇的进度双段：下载 n/N 与安装 m/M 各自独立成段，VM 侧并排显示阶段徽标。
+            private static string? StageLabelOf(InstallerBackendProgress value)
+            {
+                if (value.ItemIndex is not { } index || value.ItemTotal is not { } total || total <= 0)
+                {
+                    return null;
+                }
+
+                var clamped = Math.Clamp(index, 0, total);
+                return value.Phase switch
+                {
+                    InstallerPhase.Download => $"下载 {clamped}/{total}",
+                    InstallerPhase.Install => $"安装 {clamped}/{total}",
+                    InstallerPhase.Remove => $"移除 {clamped}/{total}",
+                    InstallerPhase.Rollback => $"回滚 {clamped}/{total}",
+                    _ => null,
+                };
             }
         }
     }

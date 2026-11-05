@@ -53,6 +53,17 @@ public sealed class ChangesFormatterTests
     }
 
     [Test]
+    public void Summary_LeavesDownloadVolumeToItsOwnLine()
+    {
+        // 摘要卡上是两行：粗体数量 + 小字体积。Summary 再拼一遍体积就是同一张卡说两遍。
+        var preview = ChangesFakes.Preview(new[] { ChangesFakes.Item("a") }, 20_000_000);
+
+        Assert.That(ChangesFormatter.Summary(preview), Does.Not.Contain("预计下载"));
+        Assert.That(ChangesFormatter.Summary(preview), Does.Not.Contain("19.1 MB"));
+        Assert.That(ChangesFormatter.DownloadText(preview.EstimatedDownloadBytes), Is.EqualTo("预计下载 19.1 MB"));
+    }
+
+    [Test]
     public void StateText_IsNeverEmptyForAnyState()
     {
         foreach (var state in Enum.GetValues<ChangeExecutionState>())

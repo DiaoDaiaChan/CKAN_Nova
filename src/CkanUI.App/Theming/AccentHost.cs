@@ -124,7 +124,7 @@ public sealed class AccentHost : IDisposable
             return;
         }
 
-        var isDark = _application.ActualThemeVariant == ThemeVariant.Dark;
+        var isDark = ThemeHost.IsDarkVariant(_application.ActualThemeVariant);
         Color? parsedColor = null;
 
         var preset = AccentPalettes.FindPreset(targetColor);

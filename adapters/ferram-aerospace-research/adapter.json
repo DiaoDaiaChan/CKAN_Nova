@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "id": "ferram-aerospace-research",
+  "name": "Ferram Aerospace Research",
+  "homepage": "https://github.com/dkavolis/Ferram-Aerospace-Research",
+  "match": {
+    "ckanIdentifiers": [
+      "FerramAerospaceResearch",
+      "FerramAerospaceResearchContinued"
+    ],
+    "paths": [
+      "GameData/FerramAerospaceResearch/FARConfig.cfg"
+    ],
+    "caseInsensitive": true
+  },
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/FerramAerospaceResearch/FARConfig.cfg",
+      "layout": "node",
+      "rootNode": "FARConfig",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "FARConfig.cfg"
+    }
+  ],
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+  "fields": [
+    {
+      "file": "settings",
+      "nodePath": "Settings",
+      "key": "exposedAreaUsesKSPHack",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "用 KSP 的暴露面积 hack 计算（关闭后更慢）"
+    },
+    {
+      "file": "settings",
+      "nodePath": "Settings",
+      "key": "exposedAreaLimited",
+      "type": "bool",
+      "default": "true",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "把暴露面积限制在辐射面积以内"
+    },
+    {
+      "file": "settings",
+      "nodePath": "Settings",
+      "key": "submergedDragMultiplier",
+      "type": "float",
+      "default": "0.25",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "浸没时阻力系数"
+    },
+    {
+      "file": "settings",
+      "nodePath": "Settings",
+      "key": "submergedLiftMultiplier",
+      "type": "float",
+      "default": "0.25",
+      "min": 0,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "浸没时升力系数"
+    },
+    {
+      "file": "settings",
+      "nodePath": "Debug",
+      "key": "logLevel",
+      "type": "enum",
+      "default": "info",
+      "values": [
+        "debug",
+        "info",
+        "warning",
+        "assert",
+        "error",
+        "exception"
+      ],
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "FAR 日志级别"
+    },
+    {
+      "file": "settings",
+      "nodePath": "Debug",
+      "key": "dumpOnLoad",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "加载时导出调试数据"
+    },
+    {
+      "file": "settings",
+      "nodePath": "FlightLog",
+      "key": "directory",
+      "type": "string",
+      "default": "Logs/FerramAerospaceResearch",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "飞行日志目录（相对 KSP 根目录或绝对路径）"
+    },
+    {
+      "file": "settings",
+      "nodePath": "FlightLog",
+      "key": "nameFormat",
+      "type": "string",
+      "default": "<<<VESSEL_NAME>>>_<<<DATETIME>>>.csv",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "日志文件名模板"
+    },
+    {
+      "file": "settings",
+      "nodePath": "FlightLog",
+      "key": "datetimeFormat",
+      "type": "string",
+      "default": "yyyy_MM_dd_HH_mm_ss",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "文件名里的时间格式"
+    },
+    {
+      "file": "settings",
+      "nodePath": "FlightLog",
+      "key": "period",
+      "type": "int",
+      "default": "50",
+      "min": 1,
+      "max": 1000,
+      "unit": "ms",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "采样间隔"
+    },
+    {
+      "file": "settings",
+      "nodePath": "FlightLog",
+      "key": "flushPeriod",
+      "type": "int",
+      "default": "10",
+      "min": 1,
+      "max": 100,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "每多少条写一次盘"
+    },
+    {
+      "file": "settings",
+      "nodePath": "Exposure",
+      "key": "airstream",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "用渲染方式计算迎风暴露面积"
+    },
+    {
+      "file": "settings",
+      "nodePath": "Exposure",
+      "key": "sun",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "用渲染方式计算向阳暴露面积"
+    },
+    {
+      "file": "settings",
+      "nodePath": "Exposure",
+      "key": "body",
+      "type": "bool",
+      "default": "false",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "用渲染方式计算背风暴露面积"
+    },
+    {
+      "file": "settings",
+      "nodePath": "Exposure",
+      "key": "device",
+      "type": "string",
+      "default": "PreferGPU",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "暴露面积计算设备（None 关闭渲染方案）"
+    },
+    {
+      "file": "settings",
+      "nodePath": "Exposure",
+      "key": "width",
+      "type": "int",
+      "default": "512",
+      "min": 64,
+      "max": 4096,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "暴露面积渲染纹理宽度"
+    },
+    {
+      "file": "settings",
+      "nodePath": "Exposure",
+      "key": "height",
+      "type": "int",
+      "default": "512",
+      "min": 64,
+      "max": 4096,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "暴露面积渲染纹理高度"
+    }
+  ]
+}

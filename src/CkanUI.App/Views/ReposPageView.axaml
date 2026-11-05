@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="using:CkanUI.Ui.Theming"
              xmlns:ui="using:FluentAvalonia.UI.Controls"
+             xmlns:tbl="using:CkanUI.Ui.Tables"
              x:Class="CkanUI.App.Views.ReposPageView"
              x:CompileBindings="False">
   <UserControl.Styles>
@@ -23,26 +24,6 @@
       <Setter Property="Background" Value="{DynamicResource CkanNavigationSelectionBrush}" />
     </Style>
 
-    <!-- 选中行左侧 3px 强调条：沿用 NavList 的 navIndicator 做法，其它列表要自己写同类样式 -->
-    <Style Selector="Rectangle.SelectionBar">
-      <Setter Property="Width" Value="3" />
-      <Setter Property="RadiusX" Value="1.5" />
-      <Setter Property="RadiusY" Value="1.5" />
-      <Setter Property="Fill" Value="{DynamicResource CkanAccentBrush}" />
-      <Setter Property="HorizontalAlignment" Value="Left" />
-      <Setter Property="VerticalAlignment" Value="Stretch" />
-      <Setter Property="Margin" Value="2,6" />
-      <Setter Property="Opacity" Value="0" />
-      <Setter Property="IsHitTestVisible" Value="False" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="ListBoxItem:selected Rectangle.SelectionBar">
-      <Setter Property="Opacity" Value="1" />
-    </Style>
   </UserControl.Styles>
 
   <!-- 仓库管理页：工具条 + 有序仓库表 + 新增表单 + 状态栏。
@@ -218,7 +199,10 @@
         </Border>
 
         <!-- 仓库行 -->
+        <!-- 筛选/排序/拖动列宽由 ListTableTools 补；优先级与刷新时间按原始值排序，不按「第 N 位」「上次刷新…」文本。 -->
         <ListBox Grid.Row="1" ItemsSource="{Binding Rows}"
+                 tbl:ListTableTools.Enabled="True"
+                 tbl:ListTableTools.Columns="DisplayName,Uri,PriorityText~Priority,UpdatedText~LastUpdatedAt,StatusText"
                  SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
                  BorderThickness="0" Background="Transparent"
                  Padding="4"
@@ -231,7 +215,6 @@
           <ListBox.ItemTemplate>
             <DataTemplate>
               <Grid ColumnDefinitions="*,2*,80,140,100" MinHeight="{DynamicResource CkanRowHeight}">
-                <Rectangle Grid.ColumnSpan="5" Classes="SelectionBar" />
                 <!-- 仓库名放在横向 StackPanel 里会以无限宽测量，TextTrimming 不生效 → 换成两列 Grid。 -->
                 <Grid Grid.Column="0" ColumnDefinitions="*,Auto" VerticalAlignment="Center" Margin="0,0,8,0">
                   <TextBlock Grid.Column="0" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"

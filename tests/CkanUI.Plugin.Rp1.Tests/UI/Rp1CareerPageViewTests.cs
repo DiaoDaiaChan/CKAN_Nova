@@ -62,7 +62,11 @@ public sealed class Rp1CareerPageViewTests
                 "视图挂上树就会 Start 并读到存档，之后应画出生涯曲线。");
 
             var tabs = window.GetVisualDescendants().OfType<TabControl>().FirstOrDefault();
-            Assert.That(tabs, Is.Not.Null, "预算周期页签是懒加载的，先要拿到 TabControl。");
+            Assert.That(tabs, Is.Not.Null, "主工作台整合了时间线详情与预算周期明细，包含 TabControl。");
+
+            var topCharts = window.GetVisualDescendants().OfType<CurveChart>().ToArray();
+            Assert.That(topCharts, Has.Length.EqualTo(1), "宏观走势曲线位于全景交互式时间线工作台顶部，默认常驻展示。");
+
             tabs!.SelectedIndex = 1;
 
             UiTestHost.PumpJobs();
@@ -104,6 +108,36 @@ public sealed class Rp1CareerPageViewTests
             {
                 Assert.That(viewModel.CareerSeries[0].Name, Is.EqualTo("科技"));
                 Assert.That(charts[0].ValueSuffix, Is.EqualTo(" 点"), "切到科技后 Y 轴单位要跟着换。");
+            });
+
+            // Verify curve chart bidirectional linkage bindings
+            viewModel.JumpToPeriodIndex(4);
+            UiTestHost.PumpJobs();
+            window.UpdateLayout();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(charts[0].HighlightedIndex, Is.EqualTo(4), "曲线高亮索引应同步 ViewModel 的 LinkedPeriodIndex。");
+                Assert.That(charts[0].PointClickCommand, Is.Not.Null, "点击曲线点命令应绑定。");
+                Assert.That(viewModel.CareerMetricOptions.First(o => o.Key == "funds").ValueText, Is.Not.Empty, "指标页签集成实时读数。");
+            });
+
+            // 切回 Tab 0（时间线主工作台）
+            tabs.SelectedIndex = 0;
+            UiTestHost.PumpJobs();
+            window.UpdateLayout();
+
+            var chips = window.GetVisualDescendants().OfType<Button>()
+                .Where(b => b.Classes.Contains("rp1-chip"))
+                .ToArray();
+            var timelineList = window.GetVisualDescendants().OfType<ListBox>()
+                .FirstOrDefault(b => b.Classes.Contains("rp1-timeline-list"));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(chips, Has.Length.EqualTo(5), "分类筛选胶囊应单行常驻于时间线顶部（全部、里程碑、合同、项目、人员）。");
+                Assert.That(timelineList, Is.Not.Null, "时间线列表存在。");
+                Assert.That(timelineList!.Bounds.Height, Is.GreaterThan(300), "时间线列表纵向高度舒展，卡片展示更充分。");
             });
         }
         finally

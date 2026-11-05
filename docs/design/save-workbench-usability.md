@@ -53,7 +53,8 @@
   - `SectionCountText` / `FieldCountText` / `NodeCountText` / `SectionRangeText` / `TruncationHint`；
   - `HasValueEdit` / `HasKeyEdit` / `HasPendingEdit` / `CanApplyValue` / `CanRenameKey` 与 `RevertEditCommand`；
   - `SfsSectionItem.DisplayTitle` / `DisplaySubtitle` / `Matches`。
-- `src/CkanUI.Plugin.Saves/SfsWorkbenchWindow.axaml(.cs)`：三栏筛选框、计数、截断提示、还原/未保存、双击展开、搜索回车。
+- `src/CkanUI.Plugin.Saves/SfsWorkbenchWindow.axaml(.cs)`：三栏筛选框、计数、截断提示、还原/未保存、双击展开、搜索回车；
+  无系统标题栏（`WindowDecorations=BorderOnly` + 自绘最小化/最大化/关闭），头部可拖动、双击标题栏切换最大化。
 - 回归：
   - `tests/CkanUI.Plugin.Saves.Tests/SfsWorkbenchViewModelTests.cs`：分区筛选、字段筛选、块筛选、还原、重名与场景副标题、截断计数与提示。
   - `tests/CkanUI.Plugin.Saves.Tests/SfsWorkbenchWindowTests.cs`：三栏筛选框、双击提示、还原按钮。

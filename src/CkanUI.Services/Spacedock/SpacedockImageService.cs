@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -13,10 +12,15 @@ public sealed class SpacedockImageService : ISpacedockImageService, IDisposable
 {
     private static readonly Regex ModIdRegex = new(@"spacedock\.info/mod/(\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private const long MaxImageSizeBytes = 10L * 1024 * 1024; // 10 MB 单图上限
+    private const long MaxCacheBytes = 24L * 1024 * 1024; // 图片字节缓存上限：浏览几十页后不该把整站封面留在内存里
+    private const int MaxCacheEntries = 160;
 
     private readonly HttpClient _client;
     private readonly bool _ownsClient;
-    private readonly ConcurrentDictionary<int, byte[]> _cache = new();
+    private readonly object _cacheLock = new();
+    private readonly Dictionary<int, byte[]> _cache = new();
+    private readonly Queue<int> _cacheOrder = new();
+    private long _cacheBytes;
 
     public SpacedockImageService()
         : this(new HttpClient { Timeout = TimeSpan.FromSeconds(15) }, ownsClient: true)
@@ -54,9 +58,12 @@ public sealed class SpacedockImageService : ISpacedockImageService, IDisposable
             return OperationResult<byte[]>.Fail("无法从 URL 解析 SpaceDock 模组 ID", spacedockUrl);
         }
 
-        if (_cache.TryGetValue(modId, out var cachedBytes))
+        lock (_cacheLock)
         {
-            return OperationResult<byte[]>.Ok(cachedBytes);
+            if (_cache.TryGetValue(modId, out var cachedBytes))
+            {
+                return OperationResult<byte[]>.Ok(cachedBytes);
+            }
         }
 
         try
@@ -118,7 +125,7 @@ public sealed class SpacedockImageService : ISpacedockImageService, IDisposable
                 return OperationResult<byte[]>.Fail("截图大小超过 10MB 上限，已取消下载以保护内存");
             }
 
-            _cache[modId] = imageBytes;
+            StoreInCache(modId, imageBytes);
             return OperationResult<byte[]>.Ok(imageBytes);
         }
         catch (OperationCanceledException)
@@ -131,8 +138,67 @@ public sealed class SpacedockImageService : ISpacedockImageService, IDisposable
         }
     }
 
+    /// <summary>当前缓存的图片份数；只给测试与探针读。</summary>
+    public int CachedEntryCount
+    {
+        get
+        {
+            lock (_cacheLock)
+            {
+                return _cache.Count;
+            }
+        }
+    }
+
+    /// <summary>当前缓存占用的源字节数；只给测试与探针读。</summary>
+    public long CachedBytes
+    {
+        get
+        {
+            lock (_cacheLock)
+            {
+                return _cacheBytes;
+            }
+        }
+    }
+
+    /// <summary>把图片字节按先来先出放进缓存，超预算就从最旧的开始丢。</summary>
+    private void StoreInCache(int modId, byte[] imageBytes)
+    {
+        lock (_cacheLock)
+        {
+            if (_cache.TryGetValue(modId, out var previous))
+            {
+                _cacheBytes -= previous.Length;
+            }
+            else
+            {
+                _cacheOrder.Enqueue(modId);
+            }
+
+            _cache[modId] = imageBytes;
+            _cacheBytes += imageBytes.Length;
+
+            while ((_cache.Count > MaxCacheEntries || _cacheBytes > MaxCacheBytes) && _cacheOrder.Count > 0)
+            {
+                var oldest = _cacheOrder.Dequeue();
+                if (_cache.Remove(oldest, out var evicted))
+                {
+                    _cacheBytes -= evicted.Length;
+                }
+            }
+        }
+    }
+
     public void Dispose()
     {
+        lock (_cacheLock)
+        {
+            _cache.Clear();
+            _cacheOrder.Clear();
+            _cacheBytes = 0;
+        }
+
         if (_ownsClient)
         {
             _client.Dispose();

@@ -1,7 +1,9 @@
 #pragma warning disable CS0618
 using System;
+using System.Collections;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
@@ -10,6 +12,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CkanUI.App;
+using CkanUI.App.Controls;
 using CkanUI.App.Controls.Backgrounds;
 using CkanUI.App.Localization;
 using CkanUI.App.Theming;
@@ -68,13 +71,16 @@ public static class Program
         Directory.CreateDirectory(tempSettingsDir);
         var snapshotSettingsFile = Path.Combine(tempSettingsDir, "ckan-ui.json");
         var snapshotStore = new CkanUI.Services.Settings.UiSettingsStore(snapshotSettingsFile);
-        // 场景 QA 入口：CKANUI_SNAP_SCENE=orbital|lunar|probe|lens|none，CKANUI_SNAP_MOTION=full 可看到动态帧。
+        // 场景 QA 入口：CKANUI_SNAP_SCENE=starfield|orbital|lunar|probe|lens|corona|ring|aurora|pulsar|sail|elevator|none，
+        // CKANUI_SNAP_MOTION=full 可看到动态帧，CKANUI_SNAP_SKIN=<skin> 叠加主题皮肤。
         var snapshotScene = BackgroundSceneKinds.Normalize(Environment.GetEnvironmentVariable("CKANUI_SNAP_SCENE"));
         var snapshotMotion = Environment.GetEnvironmentVariable("CKANUI_SNAP_MOTION") ?? "none";
+        var snapshotSkin = ThemeSkinKinds.Normalize(Environment.GetEnvironmentVariable("CKANUI_SNAP_SKIN"));
         snapshotStore.Save(new CkanUI.Services.Abstractions.UiSettings
         {
             MotionIntensity = snapshotMotion,
             BackgroundScene = snapshotScene,
+            ThemeSkin = snapshotSkin,
         });
 
         var services = ServiceRegistration.Build(() => mainWindow, sc =>
@@ -113,6 +119,17 @@ public static class Program
         }
         services.GetRequiredService<IInstanceService>().RefreshAsync().GetAwaiter().GetResult();
 
+        // 插件页（音乐/存档/…）默认只存在于 plugins\ 目录里、要等后台引导跑完才进导航栏；
+        // 快照是同步流程，等不到那个后台任务。CKANUI_SNAP_PLUGINS=1 时先把引导跑完再建外壳。
+        if (Environment.GetEnvironmentVariable("CKANUI_SNAP_PLUGINS") == "1")
+        {
+            services.GetRequiredService<CkanUI.Services.Plugins.PluginBootstrapper>()
+                .RunAsync()
+                .GetAwaiter()
+                .GetResult();
+            Dispatcher.UIThread.RunJobs();
+        }
+
         var shell = services.GetRequiredService<ShellViewModel>();
         mainWindow = new MainWindow
         {
@@ -147,7 +164,9 @@ public static class Program
             && double.TryParse(pointerParts[0], out var pointerX)
             && double.TryParse(pointerParts[1], out var pointerY))
         {
-            mainWindow.FindControl<BackgroundSceneCanvas>("BackgroundSceneCanvas")?.TrackPointer(new Point(pointerX, pointerY));
+            var pointer = new Point(pointerX, pointerY);
+            mainWindow.FindControl<StarfieldBackground>("BackgroundStarfield")?.TrackPointer(pointer);
+            mainWindow.FindControl<BackgroundSceneCanvas>("BackgroundSceneCanvas")?.TrackPointer(pointer);
             Dispatcher.UIThread.RunJobs();
         }
 
@@ -158,6 +177,7 @@ public static class Program
             ? Math.Max(1, limit)
             : int.MaxValue;
         var onlyPage = Environment.GetEnvironmentVariable("CKANUI_SNAP_PAGE");
+        var onlyWindow = Environment.GetEnvironmentVariable("CKANUI_SNAP_WINDOW");
         var settleMs = int.TryParse(Environment.GetEnvironmentVariable("CKANUI_SNAP_SETTLE_MS"), out var settle)
             ? Math.Max(100, settle)
             : 900;
@@ -201,31 +221,176 @@ public static class Program
                 Dispatcher.UIThread.RunJobs();
             }
 
+            var safeKey = item.Key.Replace('/', '_');
+
             // 让导航指示条淡出、滚动条自动隐藏等过渡动画收敛后再截图，
             // 否则离屏渲染会捕捉到 0.6s 过渡的中间帧。
             // 注意：每 tick 必须推进足够的动画时间（16ms ≈ 一帧），
             // 只推进 1ms 时 60 次累计才 60ms，view-layer 的 0.3-0.6s 交叉淡入会停在半透明中间帧上。
             // Avalonia 的过渡动画走真实时间（Stopwatch），空转 RunJobs 不会让它们推进，
             // 所以这里既推进渲染帧，也真的等一会儿，否则 view-layer 的交叉淡入会停在中间帧。
-            var settleWatch = System.Diagnostics.Stopwatch.StartNew();
-            while (settleWatch.ElapsedMilliseconds < settleMs)
+            void Settle(int milliseconds)
             {
-                AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
-                Dispatcher.UIThread.RunJobs();
-                Thread.Sleep(16);
+                var settleWatch = System.Diagnostics.Stopwatch.StartNew();
+                while (settleWatch.ElapsedMilliseconds < milliseconds)
+                {
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+                    Dispatcher.UIThread.RunJobs();
+                    Thread.Sleep(16);
+                }
             }
 
-            var safeKey = item.Key.Replace('/', '_');
-            var outPath = Path.Combine(outDir, $"page_{count:D2}_{safeKey}.png");
+            void Capture(string suffix)
+            {
+                var outPath = Path.Combine(outDir, $"page_{count:D2}_{safeKey}{suffix}.png");
+                var rtb = new RenderTargetBitmap(new PixelSize(1280, 800), new Vector(96, 96));
+                rtb.Render(mainWindow);
+                rtb.Save(outPath);
+                var fi = new FileInfo(outPath);
+                Console.WriteLine($"  -> 成功生成: {fi.Length} 字节 -> {Path.GetFileName(outPath)}");
+            }
 
-            var rtb = new RenderTargetBitmap(new PixelSize(1280, 800), new Vector(96, 96));
-            rtb.Render(mainWindow);
-            rtb.Save(outPath);
+            // CKANUI_SNAP_POINTERS=120,120;1150,700 在同一进程里抓多组光标位置。
+            // 星空种子每次启动都会换，跨进程对比会把「换了一份星空」误判成「视差移动」；
+            // 同一进程内只改光标，才能把分层偏移单独拍出来。
+            var pointerPoints = (Environment.GetEnvironmentVariable("CKANUI_SNAP_POINTERS") ?? string.Empty)
+                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(part => part.Split(','))
+                .Where(parts => parts.Length == 2
+                    && double.TryParse(parts[0], out _)
+                    && double.TryParse(parts[1], out _))
+                .Select(parts => new Point(double.Parse(parts[0]), double.Parse(parts[1])))
+                .ToArray();
 
-            var fi = new FileInfo(outPath);
-            Console.WriteLine($"  -> 成功生成: {fi.Length} 字节 -> {Path.GetFileName(outPath)}");
+            if (pointerPoints.Length > 0)
+            {
+                for (var p = 0; p < pointerPoints.Length; p++)
+                {
+                    var pointer = pointerPoints[p];
+                    mainWindow.FindControl<StarfieldBackground>("BackgroundStarfield")?.TrackPointer(pointer);
+                    mainWindow.FindControl<BackgroundSceneCanvas>("BackgroundSceneCanvas")?.TrackPointer(pointer);
+                    Dispatcher.UIThread.RunJobs();
+                    Settle(500);
+                    Capture($"_p{p + 1}");
+                }
+
+                continue;
+            }
+
+            // 进程内第一次换页要多等一会儿：入场弹簧靠 RequestAnimationFrame 推进，
+            // 而本工具的 Settle 每轮约 32ms 真实时间只推进 16ms 动画时间，
+            // 默认 900ms 只能推完一半，首屏会拍到半透明的中间帧（看着像整页空白）。
+            // 之后的页面有前面的帧垫底，按默认时长就够。
+            Settle(count == 1 ? settleMs * 3 : settleMs);
+            Capture(string.Empty);
+        }
+
+        if (!string.IsNullOrWhiteSpace(onlyWindow))
+        {
+            CapturePluginWindow(mainWindow, shell, onlyWindow.Trim(), outDir);
         }
 
         Console.WriteLine("=== 全量页面离屏截图完成！===");
     }
+
+    /// <summary>CKANUI_SNAP_WINDOW=music-library|sfs-workbench 时，额外打开插件窗口并单独截图。</summary>
+    private static void CapturePluginWindow(MainWindow mainWindow, ShellViewModel shell, string kind, string outDir)
+    {
+        var pageKey = kind switch
+        {
+            "music-library" => "music",
+            "sfs-workbench" => "saves",
+            _ => throw new ArgumentException($"未知的快照窗口: {kind}")
+        };
+
+        shell.NavigateCommand.Execute(pageKey);
+        mainWindow.Measure(new Size(1280, 800));
+        mainWindow.Arrange(new Rect(0, 0, 1280, 800));
+        Dispatcher.UIThread.RunJobs();
+        Pump(300);
+
+        if (kind == "music-library")
+        {
+            var pageView = mainWindow.GetVisualDescendants()
+                .FirstOrDefault(visual => visual.GetType().FullName == "CkanUI.Plugin.Soundtrack.UI.SoundtrackPageView")
+                ?? throw new InvalidOperationException("音乐页没有加载，无法打开乐曲库窗口。");
+            var pageVm = pageView.DataContext ?? throw new InvalidOperationException("音乐页没有 DataContext。");
+            var rows = pageVm.GetType().GetProperty("AllLibraryRows")?.GetValue(pageVm)
+                ?? throw new InvalidOperationException("音乐页没有 AllLibraryRows。");
+            var rowType = pageVm.GetType().GetProperty("AllLibraryRows")!.PropertyType.GetGenericArguments()[0];
+            var add = typeof(Program).GetMethod(nameof(CreateAdd), BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(rowType).Invoke(null, null);
+            var play = typeof(Program).GetMethod(nameof(CreatePlay), BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(rowType).Invoke(null, null);
+            var playlistName = pageVm.GetType().GetProperty("SelectedPlaylistName")?.GetValue(pageVm) as string ?? string.Empty;
+
+            var soundtrackAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(assembly => assembly.GetName().Name == "CkanUI.Plugin.Soundtrack")
+                ?? throw new InvalidOperationException("音乐插件程序集没有加载。");
+            var pickerType = soundtrackAssembly.GetType("CkanUI.Plugin.Soundtrack.UI.SoundtrackLibraryPickerViewModel")
+                ?? throw new InvalidOperationException("找不到乐曲库 ViewModel 类型。");
+            var windowType = soundtrackAssembly.GetType("CkanUI.Plugin.Soundtrack.UI.SoundtrackLibraryWindow")
+                ?? throw new InvalidOperationException("找不到乐曲库窗口类型。");
+            var picker = Activator.CreateInstance(pickerType, rows, add, play, playlistName)
+                ?? throw new InvalidOperationException("乐曲库 ViewModel 创建失败。");
+            var window = (Window)(Activator.CreateInstance(windowType)
+                ?? throw new InvalidOperationException("乐曲库窗口创建失败。"));
+            window.DataContext = picker;
+            window.Width = 1080;
+            window.Height = 720;
+            window.Show(mainWindow);
+            Pump(400);
+            CaptureWindow(window, Path.Combine(outDir, "window_music_library.png"), 1080, 720);
+            window.Close();
+            return;
+        }
+
+        var savesView = mainWindow.GetVisualDescendants()
+            .FirstOrDefault(visual => visual.GetType().FullName == "CkanUI.Plugin.Saves.SavesPageView")
+            ?? throw new InvalidOperationException("存档页没有加载，无法打开 SFS 工作台。");
+        var savesVm = savesView.DataContext ?? throw new InvalidOperationException("存档页没有 DataContext。");
+        var rowList = savesVm.GetType().GetProperty("Rows")?.GetValue(savesVm) as IEnumerable;
+        var firstRow = rowList?.Cast<object>().FirstOrDefault()
+            ?? throw new InvalidOperationException("种子实例没有存档，无法打开 SFS 工作台。");
+        savesVm.GetType().GetProperty("SelectedRow")!.SetValue(savesVm, firstRow);
+        savesView.GetType().GetMethod("OpenWorkbenchCore", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .Invoke(savesView, null);
+        Pump(700);
+
+        var workbench = mainWindow.OwnedWindows
+            .FirstOrDefault(window => window.GetType().FullName == "CkanUI.Plugin.Saves.SfsWorkbenchWindow")
+            ?? throw new InvalidOperationException("SFS 工作台窗口没有打开。");
+        workbench.Width = 1280;
+        workbench.Height = 860;
+        Pump(300);
+        CaptureWindow(workbench, Path.Combine(outDir, "window_sfs_workbench.png"), 1280, 860);
+        workbench.Close();
+    }
+
+    private static void CaptureWindow(Window window, string path, int width, int height)
+    {
+        window.Measure(new Size(width, height));
+        window.Arrange(new Rect(0, 0, width, height));
+        Dispatcher.UIThread.RunJobs();
+        Pump(250);
+        using var bitmap = new RenderTargetBitmap(new PixelSize(width, height), new Vector(96, 96));
+        bitmap.Render(window);
+        bitmap.Save(path);
+        Console.WriteLine($"  -> 窗口截图: {new FileInfo(path).Length} 字节 -> {Path.GetFileName(path)}");
+    }
+
+    private static void Pump(int milliseconds)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < milliseconds)
+        {
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(16);
+            Dispatcher.UIThread.RunJobs();
+            System.Threading.Thread.Sleep(16);
+        }
+    }
+
+    private static Func<T, bool> CreateAdd<T>() => _ => true;
+
+    private static Action<T> CreatePlay<T>() => _ => { };
 }

@@ -1,0 +1,227 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CkanUI.Plugin.SpaceDock.SpaceDockPageView"
+             x:CompileBindings="False"
+             xmlns:controls="using:CkanUI.Ui.Controls">
+  <!-- SpaceDock 浏览页（mods 分节）：列表 + 详情 + 下载 / 直接安装。
+       登录只用于发布，页面不引导登录；CKAN 已有模组默认隐藏，开关只影响投影。 -->
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
+        Background="Transparent">
+
+    <!-- 页头 -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+      <StackPanel Grid.Column="0" Spacing="4">
+        <TextBlock Text="{DynamicResource Ui_NavRail_SpaceDock}" Classes="CkanPageTitle" />
+        <TextBlock Text="{Binding SubtitleText}" Classes="CkanCaption" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding LoginNoteText}" Classes="CkanCaption" TextWrapping="Wrap"
+                   Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <Button Content="{DynamicResource Ui_SpaceDock_OpenSite}" Command="{Binding OpenSiteCommand}"
+                Classes="CkanSecondary" HorizontalAlignment="Right" />
+        <Border Classes="CkanBadge" HorizontalAlignment="Right" IsVisible="{Binding HasHidden}">
+          <TextBlock Text="{Binding HiddenBadgeText}" />
+        </Border>
+      </StackPanel>
+    </Grid>
+
+    <!-- 错误条 -->
+    <Border Grid.Row="1" Margin="0,0,0,8" Classes="CkanInfoBanner"
+            Background="{DynamicResource CkanDangerBackgroundBrush}"
+            BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
+            IsVisible="{Binding HasError}">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <PathIcon Grid.Column="0"
+                  Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                  Width="18" Height="18" Margin="0,0,12,0"
+                  Foreground="{DynamicResource CkanDangerBrush}" VerticalAlignment="Center" />
+        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+          <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap"
+                     FontSize="{DynamicResource CkanFontSizeBody}" FontWeight="Medium"
+                     Foreground="{DynamicResource CkanDangerBrush}" />
+          <TextBlock Text="{Binding ErrorDetail}" TextWrapping="Wrap" MaxHeight="48"
+                     IsVisible="{Binding HasErrorDetail}"
+                     FontSize="{DynamicResource CkanFontSizeCaption}"
+                     Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+        </StackPanel>
+        <Button Grid.Column="2" Content="{DynamicResource Ui_SpaceDock_Refresh}"
+                Command="{Binding RefreshCommand}" Classes="CkanSmall" Margin="12,0,0,0" />
+      </Grid>
+    </Border>
+
+    <!-- 工具条 -->
+    <Border Grid.Row="2" Classes="CkanToolbar">
+      <WrapPanel Orientation="Horizontal">
+        <TextBox Classes="CkanSearchBox" Width="280" Margin="0,0,8,0"
+                 Text="{Binding SearchText, Mode=TwoWay}"
+                 PlaceholderText="{DynamicResource Ui_SpaceDock_SearchPlaceholder}"
+                 KeyDown="OnSearchKeyDown" />
+        <Button Content="{DynamicResource Ui_SpaceDock_Search}" Command="{Binding SearchCommand}"
+                Classes="CkanPrimary" Margin="0,0,8,0" />
+        <Button Content="{DynamicResource Ui_SpaceDock_ClearSearch}" Command="{Binding ClearSearchCommand}"
+                Classes="CkanGhost" Margin="0,0,16,0" />
+        <TextBlock Text="{DynamicResource Ui_SpaceDock_Sort}" Classes="CkanCaption"
+                   VerticalAlignment="Center" Margin="0,0,8,0" />
+        <ComboBox ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort, Mode=TwoWay}"
+                  Width="150" Margin="0,0,16,0" VerticalAlignment="Center">
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Label}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <CheckBox Content="{DynamicResource Ui_SpaceDock_HideDuplicates}"
+                  IsChecked="{Binding HideCkanDuplicates, Mode=TwoWay}"
+                  VerticalAlignment="Center" Margin="0,0,12,0" />
+        <Button Content="{DynamicResource Ui_SpaceDock_Refresh}" Command="{Binding RefreshCommand}"
+                Classes="CkanSecondary" />
+      </WrapPanel>
+    </Border>
+
+    <!-- 主体：图片信息流 + 右详情 -->
+    <Grid Grid.Row="3" ColumnDefinitions="*,12,360" Margin="0,12,0,0">
+      <Border Grid.Column="0" Classes="CkanCard" Padding="8">
+        <Grid RowDefinitions="*,Auto">
+          <ListBox Grid.Row="0" ItemsSource="{Binding Mods}"
+                   SelectedItem="{Binding SelectedMod, Mode=TwoWay}"
+                   Background="Transparent" BorderThickness="0" Padding="0">
+            <ListBox.Styles>
+              <Style Selector="ListBoxItem">
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+              </Style>
+              <Style Selector="ListBoxItem:selected">
+                <Setter Property="Background" Value="Transparent" />
+              </Style>
+            </ListBox.Styles>
+            <ListBox.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <controls:ImageFeedCard Width="232" Margin="4"
+                                        Title="{Binding Name}"
+                                        Subtitle="{Binding Author}"
+                                        MetaText="{Binding MetaText}"
+                                        ImageSource="{Binding Image}"
+                                        ImageHeight="116"
+                                        BadgeText="{Binding VersionBadgeText}"
+                                        IsBadgeVisible="{Binding HasVersionBadge}"
+                                        PlaceholderText="{DynamicResource Ui_SpaceDock_NoImage}"
+                                        IsSelected="{Binding $parent[ListBoxItem].IsSelected}"
+                                        ToolTip.Tip="{Binding ShortDescription}" />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <StackPanel Grid.Row="0" IsVisible="{Binding ShowEmptyState}"
+                      VerticalAlignment="Center" HorizontalAlignment="Center"
+                      MaxWidth="320" Spacing="6" Margin="16">
+            <TextBlock Text="{DynamicResource Ui_SpaceDock_Empty}" TextAlignment="Center" TextWrapping="Wrap" />
+            <TextBlock Text="{DynamicResource Ui_SpaceDock_NoResultsHint}" Classes="CkanCaption"
+                       TextAlignment="Center" TextWrapping="Wrap" />
+          </StackPanel>
+
+          <!-- 分页 -->
+          <Border Grid.Row="1" Padding="8" IsVisible="{Binding ShowPager}"
+                  BorderBrush="{DynamicResource CkanBorderBrush}" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <Button Grid.Column="0" Content="{DynamicResource Ui_SpaceDock_PreviousPage}"
+                      Command="{Binding PreviousPageCommand}" Classes="CkanSmall" />
+              <TextBlock Grid.Column="1" Text="{Binding PageText}" Classes="CkanCaption"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+              <Button Grid.Column="2" Content="{DynamicResource Ui_SpaceDock_NextPage}"
+                      Command="{Binding NextPageCommand}" Classes="CkanSmall" />
+            </Grid>
+          </Border>
+        </Grid>
+      </Border>
+
+      <!-- 详情 -->
+      <Border Grid.Column="2" Classes="CkanCard" Padding="16">
+        <Grid>
+          <TextBlock Text="{DynamicResource Ui_SpaceDock_SelectHint}" Classes="CkanCaption"
+                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                     IsVisible="{Binding ShowDetailHint}" />
+
+          <ScrollViewer IsVisible="{Binding HasSelection}">
+            <StackPanel Spacing="10">
+              <Border Height="170" CornerRadius="6" ClipToBounds="True"
+                      Background="{DynamicResource CkanCanvasBackgroundBrush}">
+                <Grid>
+                  <TextBlock Text="{DynamicResource Ui_SpaceDock_NoImage}" Classes="CkanCaption"
+                             HorizontalAlignment="Center" VerticalAlignment="Center"
+                             IsVisible="{Binding !HasScreenshot}" />
+                  <Image Source="{Binding Screenshot}" Stretch="UniformToFill"
+                         IsVisible="{Binding HasScreenshot}" />
+                </Grid>
+              </Border>
+
+              <StackPanel Spacing="4">
+                <TextBlock Text="{Binding DetailName}" Classes="CkanSectionTitle" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding DetailAuthorText}" Classes="CkanCaption" />
+                <TextBlock Text="{Binding DetailStatsText}" Classes="CkanCaption" />
+                <TextBlock Text="{Binding DetailLicenseText}" Classes="CkanCaption" />
+                <ProgressBar IsIndeterminate="True" Width="160" HorizontalAlignment="Left"
+                             IsVisible="{Binding IsDetailLoading}" />
+              </StackPanel>
+
+              <TextBlock Text="{DynamicResource Ui_SpaceDock_Version}" Classes="CkanCaption" Margin="0,4,0,0" />
+              <ComboBox ItemsSource="{Binding Versions}" SelectedItem="{Binding SelectedVersion, Mode=TwoWay}"
+                        HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding FriendlyVersion}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+
+              <WrapPanel Orientation="Horizontal">
+                <Button Content="{DynamicResource Ui_SpaceDock_Download}"
+                        Command="{Binding DownloadCommand}" Classes="CkanSecondary" Margin="0,0,8,6" />
+                <Button Content="{DynamicResource Ui_SpaceDock_Install}"
+                        Command="{Binding InstallCommand}" Classes="CkanPrimary" Margin="0,0,8,6" />
+                <Button Content="{DynamicResource Ui_SpaceDock_MoreDetails}"
+                        Command="{Binding OpenModPageCommand}" Classes="CkanGhost" Margin="0,0,0,6" />
+              </WrapPanel>
+
+              <TextBlock Text="{Binding NoInstanceText}" Classes="CkanCaption"
+                         Foreground="{DynamicResource CkanWarningBrush}"
+                         IsVisible="{Binding !HasInstance}" />
+
+              <Border Height="1" Background="{DynamicResource CkanBorderBrush}" Margin="0,4" />
+
+              <TextBlock Text="{Binding DetailDescription}" TextWrapping="Wrap"
+                         FontSize="{DynamicResource CkanFontSizeBody}" />
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <!-- 状态栏 -->
+    <Border Grid.Row="4" Classes="CkanPageFooter" Margin="0,8,0,0">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <TextBlock Grid.Column="0" Text="{Binding StatusText}" Classes="CkanCaption"
+                   VerticalAlignment="Center" />
+        <TextBlock Grid.Column="2" Text="{Binding PageText}" Classes="CkanCaption"
+                   VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <!-- 进行中遮罩 -->
+    <Border Grid.RowSpan="5" IsVisible="{Binding IsBusy}"
+            Background="{DynamicResource CkanBlockingScrimBrush}">
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="360">
+        <ProgressBar IsIndeterminate="True" Width="240" />
+        <TextBlock Text="{Binding BusyText}" TextAlignment="Center" TextWrapping="Wrap"
+                   FontSize="{DynamicResource CkanFontSizeBody}"
+                   Foreground="{DynamicResource CkanTextInverseBrush}" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

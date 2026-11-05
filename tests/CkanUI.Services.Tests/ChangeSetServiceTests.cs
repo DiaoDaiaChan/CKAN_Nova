@@ -350,6 +350,63 @@ public sealed class ChangeSetServiceTests
         Assert.That(planner.LastIncludeRecommendations, Is.False, "快速预览不跑推荐项");
     }
 
+    [Test]
+    public async Task BuildAsync_StructuredConflicts_KeepConflictsAndEntriesInSync()
+    {
+        var alpha = CreateModule("alpha", "1.0");
+        var beta = CreateModule("beta", "2.0");
+        var service = new ChangeSetService(new ChangeSetFakePlanner
+        {
+            Resolution = new ChangeResolution(
+                new[]
+                {
+                    new ResolvedChangeRequest("alpha", ChangeAction.Install, ChangeOrigin.UserRequested,
+                                              null, alpha, 1),
+                },
+                Array.Empty<ResolvedModule>(),
+                new[] { "alpha 1.0 与 beta 2.0 冲突", "beta 2.0 与 alpha 1.0 冲突" },
+                Array.Empty<string>())
+            {
+                ConflictEntries = new[]
+                {
+                    new ConflictEntry("alpha 1.0 与 beta 2.0 冲突", "alpha", "alpha 模组"),
+                },
+            },
+        });
+
+        var result = await service.BuildAsync(new[] { new ChangeRequest("alpha", ChangeAction.Install) })
+                                .ConfigureAwait(false);
+
+        var preview = result.Value!;
+        Assert.That(preview.Conflicts, Has.Count.EqualTo(preview.ConflictEntries.Count),
+                    "Conflicts 与 ConflictEntries 必须一一对应");
+        Assert.That(preview.ConflictEntries.Single().ModuleIdentifier, Is.EqualTo("alpha"));
+        Assert.That(preview.ConflictEntries.Single().ModuleName, Is.EqualTo("alpha 模组"));
+        Assert.That(preview.Conflicts.Single(), Is.EqualTo("alpha 1.0 与 beta 2.0 冲突"));
+    }
+
+    [Test]
+    public async Task BuildAsync_TextOnlyConflicts_SynthesizesEntriesWithNullIdentifier()
+    {
+        var service = new ChangeSetService(new ChangeSetFakePlanner
+        {
+            Resolution = new ChangeResolution(
+                Array.Empty<ResolvedChangeRequest>(),
+                Array.Empty<ResolvedModule>(),
+                new[] { "alpha 1.0 与 beta 2.0 冲突", "alpha 1.0 与 beta 2.0 冲突" },
+                Array.Empty<string>()),
+        });
+
+        var result = await service.BuildAsync(new[] { new ChangeRequest("alpha", ChangeAction.Install) })
+                                .ConfigureAwait(false);
+
+        var preview = result.Value!;
+        Assert.That(preview.Conflicts, Has.Count.EqualTo(1), "旧式字符串仍按 Ordinal 去重");
+        Assert.That(preview.ConflictEntries, Has.Count.EqualTo(1));
+        Assert.That(preview.ConflictEntries.Single().ModuleIdentifier, Is.Null);
+        Assert.That(preview.ConflictEntries.Single().Description, Is.EqualTo(preview.Conflicts.Single()));
+    }
+
     private static ChangeResolution Resolution(IReadOnlyList<ResolvedChangeRequest> requests)
         => new ChangeResolution(requests, Array.Empty<ResolvedModule>(),
                                 Array.Empty<string>(), Array.Empty<string>());
@@ -401,4 +458,95 @@ public sealed class ChangeSetCorePlannerTests
         => new CoreChangeSetPlanner(
                new GameInstanceManager(new FakeUser(), new FakeConfiguration()),
                new RepositoryDataManager(workspace.Combine("repos")));
+}
+
+/// <summary>
+/// B0 去重口径：Core 会按 A→B、B→A 各写一条冲突描述，必须按「identifier 排序后的二元组」
+/// 折叠成一条，同时把模组标识/名称带出来给界面（B2）。
+/// </summary>
+[TestFixture]
+public sealed class ConflictEntryDedupTests
+{
+    [Test]
+    public void BuildConflictEntries_OppositeDirections_KeepsOne()
+    {
+        var alpha = CreateModule("alpha", "1.0");
+        var beta = CreateModule("beta", "2.0");
+
+        var entries = CoreChangeSetPlanner.BuildConflictEntries(
+            new[]
+            {
+                "alpha 1.0 与 beta 2.0 冲突",
+                "beta 2.0 与 alpha 1.0 冲突",
+            },
+            new[] { alpha, beta });
+
+        Assert.That(entries, Has.Count.EqualTo(1), "正反两条只保留一条");
+        Assert.That(entries[0].Description, Is.EqualTo("alpha 1.0 与 beta 2.0 冲突"), "Description 原样保留 Core 本地化串");
+        Assert.That(entries[0].ModuleIdentifier, Is.EqualTo("alpha"));
+        Assert.That(entries[0].ModuleName, Is.EqualTo("alpha 模组"));
+    }
+
+    [Test]
+    public void BuildConflictEntries_DistinctPairs_AreNotCollapsed()
+    {
+        var alpha = CreateModule("alpha", "1.0");
+        var beta = CreateModule("beta", "2.0");
+        var gamma = CreateModule("gamma", "3.0");
+
+        var entries = CoreChangeSetPlanner.BuildConflictEntries(
+            new[]
+            {
+                "alpha 1.0 与 beta 2.0 冲突",
+                "gamma 3.0 与 alpha 1.0 冲突",
+            },
+            new[] { alpha, beta, gamma });
+
+        Assert.That(entries, Has.Count.EqualTo(2));
+        Assert.That(entries.Select(e => e.ModuleIdentifier), Is.EqualTo(new[] { "alpha", "gamma" }));
+    }
+
+    [Test]
+    public void BuildConflictEntries_UnknownModules_FallBackToDistinctText()
+    {
+        var entries = CoreChangeSetPlanner.BuildConflictEntries(
+            new[]
+            {
+                "无法识别的冲突描述",
+                "无法识别的冲突描述",
+                "另一种无法识别的冲突",
+            },
+            Array.Empty<CkanModule>());
+
+        Assert.That(entries, Has.Count.EqualTo(2), "识别不到模组时按原字符串去重");
+        Assert.That(entries.All(e => e.ModuleIdentifier is null), Is.True);
+        Assert.That(entries[0].Description, Is.EqualTo("无法识别的冲突描述"));
+    }
+
+    [Test]
+    public void BuildConflictEntries_VersionPrefix_DoesNotMatchLongerVersion()
+    {
+        var alpha = CreateModule("alpha", "1.0");
+        var beta = CreateModule("beta", "2.0");
+
+        // "alpha 1.0.1" 不是 "alpha 1.0"，不能把它当成 alpha 的命中。
+        var entries = CoreChangeSetPlanner.BuildConflictEntries(
+            new[] { "alpha 1.0.1 与 beta 2.0 冲突" },
+            new[] { alpha, beta });
+
+        Assert.That(entries, Has.Count.EqualTo(1));
+        Assert.That(entries[0].ModuleIdentifier, Is.Null, "只命中一个模组时不算成对，退回无标识兜底");
+    }
+
+    private static CkanModule CreateModule(string identifier, string version)
+        => CkanModule.FromJson($$"""
+            {
+              "spec_version": 1,
+              "identifier": "{{identifier}}",
+              "name": "{{identifier}} 模组",
+              "version": "{{version}}",
+              "download_size": 1024,
+              "download": "https://example.com/{{identifier}}.zip"
+            }
+            """);
 }

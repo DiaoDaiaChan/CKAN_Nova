@@ -299,6 +299,31 @@ public sealed class BackgroundHostTests
         window.Close();
     }
 
+    [TestCase(BackgroundSceneKinds.Corona)]
+    [TestCase(BackgroundSceneKinds.RingPlane)]
+    [TestCase(BackgroundSceneKinds.Aurora)]
+    [TestCase(BackgroundSceneKinds.Pulsar)]
+    [TestCase(BackgroundSceneKinds.SolarSail)]
+    [TestCase(BackgroundSceneKinds.SpaceElevator)]
+    public void Host_AcceptsEveryNewSelectableScene(string scene)
+    {
+        var (host, window, controls, _) = NewHost(new UiSettings
+        {
+            BackgroundScene = scene,
+        });
+
+        using (host)
+        {
+            host.Install();
+
+            Assert.That(controls.Starfield.IsVisible, Is.False);
+            Assert.That(controls.Scene.IsVisible, Is.True);
+            Assert.That(controls.Scene.Scene, Is.EqualTo(scene));
+        }
+
+        window.Close();
+    }
+
     [Test]
     public void Host_NoneScene_HidesEveryDecorativeLayer()
     {

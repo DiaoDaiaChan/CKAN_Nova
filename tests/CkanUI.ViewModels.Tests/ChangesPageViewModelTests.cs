@@ -97,7 +97,9 @@ public sealed class ChangesPageViewModelTests
         Assert.That(vm.SummaryText, Does.Contain("升级 1 个"));
         Assert.That(vm.SummaryText, Does.Contain("卸载 1 个"));
         Assert.That(vm.DownloadText, Is.EqualTo("预计下载 19.1 MB"));
-        Assert.That(vm.SummaryText, Does.Contain("19.1 MB"));
+        // 摘要卡只有一处说体积：粗体那行说「装/升/降/卸几个」，小字那行说「预计下载多少」。
+        Assert.That(vm.SummaryText, Does.Not.Contain("19.1 MB"), "摘要文案不该再拼一遍下载体积");
+        Assert.That(vm.SummaryText, Does.Not.Contain("预计下载"));
 
         // 行投影：动作/来源/版本/体积文案都在 VM 侧（03 篇 §11）
         var upgradeRow = vm.Rows.Single(row => row.Identifier == "c");
@@ -150,7 +152,9 @@ public sealed class ChangesPageViewModelTests
         await vm.PendingWork;
 
         Assert.That(vm.State, Is.EqualTo(ChangeExecutionState.Failed));
-        Assert.That(vm.StatusText, Is.EqualTo("仓库索引已过期，请先刷新"));
+        // 失败只在一处说：状态栏第一行说「失败了」，原因只在错误栏出现一次。
+        Assert.That(vm.StatusText, Is.Empty);
+        Assert.That(vm.StateText, Is.EqualTo("计算变更集失败，原因见错误栏。"));
         Assert.That(_errors.MessageReports, Is.EqualTo(1));
         Assert.That(_errors.Entries[0].UserMessage, Is.EqualTo("仓库索引已过期，请先刷新"));
         Assert.That(_errors.Entries[0].Detail, Is.EqualTo("index.json > 7 天"));
@@ -171,7 +175,8 @@ public sealed class ChangesPageViewModelTests
         await vm.PendingWork;
 
         Assert.That(vm.State, Is.EqualTo(ChangeExecutionState.Failed));
-        Assert.That(vm.StatusText, Does.Contain("失败"));
+        Assert.That(vm.StatusText, Is.Empty);
+        Assert.That(vm.StateText, Does.Contain("失败"));
         Assert.That(_errors.ExceptionReports, Is.EqualTo(1));
         Assert.That(_errors.Entries[0].Exception, Is.TypeOf<InvalidOperationException>());
     }
@@ -254,7 +259,8 @@ public sealed class ChangesPageViewModelTests
         Assert.That(vm.State, Is.EqualTo(ChangeExecutionState.Failed));
         Assert.That(vm.ResultText, Does.Contain("B"));
         Assert.That(_errors.MessageReports, Is.EqualTo(1));
-        Assert.That(vm.StatusText, Does.Contain("失败"));
+        Assert.That(vm.StatusText, Is.Empty);
+        Assert.That(vm.StateText, Does.Contain("失败"));
     }
 
     [Test]
@@ -272,10 +278,11 @@ public sealed class ChangesPageViewModelTests
         Assert.DoesNotThrowAsync(async () => await vm.ApplyCommand.ExecuteAsync(null));
 
         Assert.That(vm.State, Is.EqualTo(ChangeExecutionState.Failed));
-        Assert.That(vm.StatusText, Is.EqualTo("应用变更时发生错误，请查看错误栏。"));
-        Assert.That(vm.ResultText, Is.EqualTo("磁盘写入失败"));
+        Assert.That(vm.StatusText, Is.Empty, "异常文案只进错误栏，不在状态栏第二行重复");
+        Assert.That(vm.StateText, Is.EqualTo("应用变更时发生错误，原因见错误栏。"));
+        Assert.That(vm.ResultText, Is.Empty, "异常消息是「为什么失败」，不能冒充「执行结果」");
         Assert.That(_errors.ExceptionReports, Is.EqualTo(1));
-        Assert.That(_errors.Entries[0].UserMessage, Does.Contain("应用变更"));
+        Assert.That(_errors.Entries[0].UserMessage, Does.Contain("磁盘写入失败"));
     }
 
     [Test]
@@ -299,7 +306,8 @@ public sealed class ChangesPageViewModelTests
 
         Assert.That(vm.State, Is.EqualTo(ChangeExecutionState.Cancelled));
         Assert.That(vm.ResultText, Is.Not.Empty);
-        Assert.That(vm.StatusText, Does.Contain("回滚"));
+        Assert.That(vm.StatusText, Is.Empty, "回滚说明由状态栏第一行说，第二行不再抄一遍");
+        Assert.That(vm.StateText, Does.Contain("回滚"));
     }
 
     [Test]

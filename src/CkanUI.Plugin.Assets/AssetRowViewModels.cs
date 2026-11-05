@@ -96,6 +96,32 @@ public sealed class CraftRowViewModel
     public bool HasThumbnail => !string.IsNullOrWhiteSpace(Asset.ThumbnailPath);
 }
 
+/// <summary>飞船页可选的一个载具库：根目录，或某个存档自己的 Ships。</summary>
+public sealed class CraftLibraryOption
+{
+    /// <summary>构造一项。</summary>
+    /// <param name="displayName">下拉框里显示的名字。</param>
+    /// <param name="shipsRoot">载具库根目录（Ships 这一层）。</param>
+    /// <param name="isRoot">是否根目录库（所有存档共用）。</param>
+    public CraftLibraryOption(string displayName, string shipsRoot, bool isRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(shipsRoot);
+        DisplayName = displayName;
+        ShipsRoot = shipsRoot;
+        IsRoot = isRoot;
+    }
+
+    /// <summary>下拉框里显示的名字。</summary>
+    public string DisplayName { get; }
+
+    /// <summary>载具库根目录（Ships 这一层），命令里回传给服务层。</summary>
+    public string ShipsRoot { get; }
+
+    /// <summary>是否根目录库（所有存档共用）。</summary>
+    public bool IsRoot { get; }
+}
+
 /// <summary>旗帜页的一行。</summary>
 public sealed partial class FlagRowViewModel : ObservableObject
 {

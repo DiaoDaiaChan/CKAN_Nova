@@ -42,6 +42,28 @@ public interface ICraftLibraryService
     /// <param name="craft">目标载具。</param>
     /// <param name="cancellationToken">取消标记。</param>
     Task<OperationResult> DeleteAsync(string gameDir, CraftAsset craft, CancellationToken cancellationToken = default);
+
+    /// <summary>扫描一个载具库：根目录的 <c>&lt;gameDir&gt;/Ships</c>，或某个存档的 <c>&lt;gameDir&gt;/saves/&lt;存档&gt;/Ships</c>。</summary>
+    /// <param name="shipsRoot">载具库根目录（就是 <c>Ships</c> 这一层）。</param>
+    /// <param name="cancellationToken">取消标记。</param>
+    /// <remarks>存档库没有 <c>@thumbs</c> 是常见情况，缩略图缺失返回 null，不算错误。</remarks>
+    Task<OperationResult<IReadOnlyList<CraftAsset>>> ScanLibraryAsync(string shipsRoot, CancellationToken cancellationToken = default);
+
+    /// <summary>把一个外部 .craft 导入指定载具库的某个分类。</summary>
+    /// <param name="shipsRoot">目标载具库根目录（<c>Ships</c> 这一层）。</param>
+    /// <param name="sourceFile">源文件绝对路径。</param>
+    /// <param name="kind">目标分类。</param>
+    /// <param name="cancellationToken">取消标记。</param>
+    Task<OperationResult<CraftAsset>> ImportToLibraryAsync(string shipsRoot, string sourceFile, CraftKind kind, CancellationToken cancellationToken = default);
+
+    /// <summary>把载具复制 / 搬运到另一个载具库，连同伴生 <c>.loadmeta</c> 与缩略图。</summary>
+    /// <param name="craft">源载具。</param>
+    /// <param name="targetShipsRoot">目标载具库根目录（<c>Ships</c> 这一层）。</param>
+    /// <param name="targetKind">目标分类（决定落在 VAB / SPH / Subassemblies）。</param>
+    /// <param name="move">true 搬运（源消失），false 复制。</param>
+    /// <param name="cancellationToken">取消标记。</param>
+    /// <remarks>目标已有同名载具时自动加 <c>(2)</c> 后缀，绝不覆盖；源与目标是同一个目录直接失败。</remarks>
+    Task<OperationResult<CraftAsset>> TransferAsync(CraftAsset craft, string targetShipsRoot, CraftKind targetKind, bool move, CancellationToken cancellationToken = default);
 }
 
 /// <summary>旗帜库：GameData 下所有名为 <c>Flags</c> 的目录。</summary>

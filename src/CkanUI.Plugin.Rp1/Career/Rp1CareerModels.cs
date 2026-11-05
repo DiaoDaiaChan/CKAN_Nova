@@ -49,6 +49,41 @@ public sealed record Rp1CareerEvent(
         Rp1EventKind.Finance => "finance",
         _ => "other",
     };
+
+    /// <summary>对应类别图标名（GlyphCatalog 中的合法字形）。</summary>
+    public string GlyphName => Kind switch
+    {
+        Rp1EventKind.Milestone => "Milestone",
+        Rp1EventKind.Contract => "Contract",
+        Rp1EventKind.ProgramStart or Rp1EventKind.ProgramCompleted => "Program",
+        Rp1EventKind.CrewRetired or Rp1EventKind.CrewLost => "Crew",
+        Rp1EventKind.Finance => "Money",
+        _ => "Milestone",
+    };
+
+    /// <summary>时间线节点样式名。</summary>
+    public string NodeClass => Kind switch
+    {
+        Rp1EventKind.Milestone => "milestone",
+        Rp1EventKind.Contract => "contract",
+        Rp1EventKind.ProgramStart or Rp1EventKind.ProgramCompleted => "program",
+        Rp1EventKind.CrewLost => "crew-lost",
+        Rp1EventKind.CrewRetired => "crew-retired",
+        _ => "default",
+    };
+
+    /// <summary>节点徽标类别样式名（Warning / Accent / Info / Danger / Success）。</summary>
+    public string BadgeClass => Kind switch
+    {
+        Rp1EventKind.Milestone => "Warning",
+        Rp1EventKind.Contract => "Accent",
+        Rp1EventKind.ProgramStart or Rp1EventKind.ProgramCompleted => "Info",
+        Rp1EventKind.CrewLost => "Danger",
+        Rp1EventKind.CrewRetired => "Success",
+        _ => string.Empty,
+    };
+
+    public bool IsMilestone => Kind == Rp1EventKind.Milestone;
 }
 
 /// <summary>CareerLog 里的一个预算周期（约 31 天）。时间线默认不展开，切到「财务周期」才看。</summary>

@@ -21,7 +21,8 @@ internal static class ModConfigTestData
         double? max = null,
         IReadOnlyList<string>? values = null,
         ModConfigFieldRisk risk = ModConfigFieldRisk.Low,
-        bool requiresRestart = false)
+        bool requiresRestart = false,
+        string? nodePath = null)
         => new(
             Key: key,
             Label: label ?? key,
@@ -35,7 +36,8 @@ internal static class ModConfigTestData
             Max: max,
             Values: values,
             Risk: risk,
-            RequiresRestart: requiresRestart);
+            RequiresRestart: requiresRestart,
+            NodePath: nodePath);
 
     /// <summary>造一个可写文件快照（Editable + node 形态）。</summary>
     public static ModConfigFileSnapshot WritableFile(params ModConfigFieldState[] fields)

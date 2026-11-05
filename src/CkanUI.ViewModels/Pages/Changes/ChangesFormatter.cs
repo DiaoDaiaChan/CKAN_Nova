@@ -104,7 +104,11 @@ public static class ChangesFormatter
         return new Counts(install, upgrade, downgrade, remove, replace, source.Items.Count);
     }
 
-    /// <summary>摘要文案（03 篇 §4）："将安装 3 个、升级 1 个、降级 0 个、卸载 0 个；预计下载 45.2 MB"。</summary>
+    /// <summary>
+    /// 摘要文案（03 篇 §4）："将安装 3 个、升级 1 个、降级 0 个、卸载 0 个"。
+    /// 下载体积不走这里——摘要卡下面有一行独立的 <see cref="DownloadText"/>，
+    /// 两边都拼就会在同一张卡上把"预计下载 X MB"说两遍（真机截图实锤过的过载）。
+    /// </summary>
     public static string Summary(ChangeSetPreview? preview)
     {
         if (preview is not { Items.Count: > 0 })
@@ -122,9 +126,7 @@ public static class ChangesFormatter
             text += string.Create(CultureInfo.CurrentCulture, $"、替换 {counts.Replace} 个");
         }
 
-        return string.Create(
-            CultureInfo.CurrentCulture,
-            $"{text}；{DownloadText(preview.EstimatedDownloadBytes)}");
+        return text;
     }
 
     /// <summary>执行流状态徽章文案。</summary>
@@ -140,7 +142,10 @@ public static class ChangesFormatter
         _ => "未知",
     };
 
-    /// <summary>状态说明（03 篇 §9：状态必须同时有文字，不能只靠颜色）。</summary>
+    /// <summary>
+    /// 状态说明（03 篇 §9：状态必须同时有文字，不能只靠颜色）。
+    /// 阶段徽标（「下载 3/12」）由进度行单独展示，这里不重复，避免同一句话里出现两遍。
+    /// </summary>
     public static string StateText(ChangeExecutionState state, double percent)
     {
         var clamped = Math.Clamp(percent, 0, 100);
@@ -153,7 +158,7 @@ public static class ChangesFormatter
                 CultureInfo.CurrentCulture,
                 $"正在应用变更… 已完成 {clamped:0}%"),
             ChangeExecutionState.Done => "变更已全部应用完成。",
-            ChangeExecutionState.Failed => "应用变更失败，请查看下方明细与错误栏。",
+            ChangeExecutionState.Failed => "应用变更失败，原因见错误栏。",
             ChangeExecutionState.Cancelled => "已取消：Core 已回滚本次事务，游戏目录保持原样。",
             _ => "状态未知",
         };
@@ -164,11 +169,14 @@ public static class ChangesFormatter
     {
         ArgumentNullException.ThrowIfNull(report);
 
-        var head = report.IsFullSuccess
-            ? "全部成功"
-            : string.Create(
+        // 提示（Warnings）不是失败：零失败时结果一律按成功说，只把提示条数附在后面。
+        var head = report.Failed.Count != 0
+            ? string.Create(
                 CultureInfo.CurrentCulture,
-                $"部分失败：成功 {report.Installed.Count + report.Removed.Count} / 失败 {report.Failed.Count} / 提示 {report.Warnings.Count}");
+                $"部分失败：成功 {report.Installed.Count + report.Removed.Count} / 失败 {report.Failed.Count} / 提示 {report.Warnings.Count}")
+            : report.HasWarnings
+                ? string.Create(CultureInfo.CurrentCulture, $"全部成功（含 {report.Warnings.Count} 条提示）")
+                : "全部成功";
         return string.Create(
             CultureInfo.CurrentCulture,
             $"{head}（安装 {report.Installed.Count}、移除 {report.Removed.Count}）");

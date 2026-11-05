@@ -11,6 +11,12 @@ public static class BackgroundSceneKinds
     public const string Lunar = "lunar";
     public const string Probe = "probe";
     public const string Lens = "lens";
+    public const string Corona = "corona";
+    public const string RingPlane = "ring";
+    public const string Aurora = "aurora";
+    public const string Pulsar = "pulsar";
+    public const string SolarSail = "sail";
+    public const string SpaceElevator = "elevator";
     public const string None = "none";
 
     /// <summary>设置页下拉框的顺序；第一项是现有星空。</summary>
@@ -21,6 +27,12 @@ public static class BackgroundSceneKinds
         Lunar,
         Probe,
         Lens,
+        Corona,
+        RingPlane,
+        Aurora,
+        Pulsar,
+        SolarSail,
+        SpaceElevator,
         None
     ];
 

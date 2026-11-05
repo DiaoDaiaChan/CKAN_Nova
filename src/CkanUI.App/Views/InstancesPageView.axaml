@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:dialogs="using:CkanUI.App.Views.Dialogs.InstanceDialogs"
              xmlns:ui="using:FluentAvalonia.UI.Controls"
+             xmlns:tbl="using:CkanUI.Ui.Tables"
              x:Class="CkanUI.App.Views.InstancesPageView"
              x:CompileBindings="False"
              KeyDown="OnRootKeyDown">
@@ -171,33 +172,33 @@
       <Grid ColumnDefinitions="*,6,380" Classes="view-layer"
             Classes.is-active="{Binding !ShowEmptyState}"
             IsHitTestVisible="{Binding !ShowEmptyState}">
+        <!-- 列表容器：统一为标准 CkanCard + 顶部轻量表头 + ListBox 交互行（对齐图 3 规范） -->
         <Border Grid.Column="0"
-                Classes="stagger-card"
-                RenderTransform="translate(0px, 0px)"
-                Background="{DynamicResource CkanCardBackgroundBrush}"
-                BorderBrush="{DynamicResource CkanCardBorderBrush}"
-                BorderThickness="1"
-                CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
+                Classes="CkanCard stagger-card"
+                Padding="0"
                 ClipToBounds="True">
           <Grid RowDefinitions="Auto,*">
-            <!-- 列头 -->
-            <Border Grid.Row="0" Padding="8,8"
+            <!-- 列头：统一使用 10,7 内边距与 Subtle 背景，移除 3px 占位列 -->
+            <Border Grid.Row="0" Padding="10,7"
                     Background="{DynamicResource CkanSubtleBackgroundBrush}"
                     BorderBrush="{DynamicResource CkanBorderBrush}"
                     BorderThickness="0,0,0,1">
-              <Grid ColumnDefinitions="3,*,104,64,104,84">
-                <TextBlock Grid.Column="1" Text="{DynamicResource Ui_Common_Name}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="2" Text="{DynamicResource Ui_Common_GameVersion}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="3" Text="{DynamicResource Ui_DownloadStatsPage_ModCount}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="4" Text="{DynamicResource Ui_InstancesPage_LockedBadge}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                <TextBlock Grid.Column="5" Text="{DynamicResource Ui_Common_Status}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+              <Grid ColumnDefinitions="*,104,64,104,84">
+                <TextBlock Grid.Column="0" Text="{DynamicResource Ui_Common_Name}" Classes="CkanCaption" FontWeight="SemiBold" Margin="4,0,0,0" />
+                <TextBlock Grid.Column="1" Text="{DynamicResource Ui_Common_GameVersion}" Classes="CkanCaption" FontWeight="SemiBold" />
+                <TextBlock Grid.Column="2" Text="{DynamicResource Ui_DownloadStatsPage_ModCount}" Classes="CkanCaption" FontWeight="SemiBold" />
+                <TextBlock Grid.Column="3" Text="{DynamicResource Ui_InstancesPage_LockedBadge}" Classes="CkanCaption" FontWeight="SemiBold" />
+                <TextBlock Grid.Column="4" Text="{DynamicResource Ui_Common_Status}" Classes="CkanCaption" FontWeight="SemiBold" />
               </Grid>
             </Border>
 
-            <!-- 实例列表（虚拟化，整表替换） -->
+            <!-- 实例列表（虚拟化，整表替换）：由 ListBoxItem 原生 SelectionIndicator 承担选中指示，清退自绘边条 -->
             <ListBox x:Name="InstancesList" Grid.Row="1"
                      ItemsSource="{Binding Rows}"
+                     tbl:ListTableTools.Enabled="True"
+                     tbl:ListTableTools.Columns="Name,VersionText,ModuleCountText~ModuleCount,LockText~IsLocked,CurrentText~IsCurrent"
                      SelectionChanged="OnRowSelectionChanged"
+                     Padding="4"
                      Background="Transparent"
                      BorderThickness="0">
               <ListBox.ItemsPanel>
@@ -207,27 +208,29 @@
               </ListBox.ItemsPanel>
               <ListBox.ItemTemplate>
                 <DataTemplate>
-                  <Grid ColumnDefinitions="3,*,104,64,104,84" Height="32">
-                    <!-- 当前实例绿色指示竖条 -->
-                    <Border Grid.Column="0" Width="3" Margin="0,4" CornerRadius="1.5"
-                            Background="{DynamicResource CkanSuccessBrush}" IsVisible="{Binding IsCurrent}" />
-                    <!-- 名称要能省略号截断：横向 StackPanel 会以无限宽测量子元素，TextTrimming 永远不会生效。 -->
-                    <Grid Grid.Column="1" ColumnDefinitions="*,Auto,Auto" VerticalAlignment="Center" Margin="6,0">
-                      <TextBlock Grid.Column="0" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                  <Grid ColumnDefinitions="*,104,64,104,84" MinHeight="{DynamicResource CkanRowHeight}">
+                    <!-- 名称列：当前实例由状态圆点统一标明（对齐图 3 的 Status Dot 机制，不再在行首画竖条与选中条冲突） -->
+                    <Grid Grid.Column="0" ColumnDefinitions="Auto,*,Auto,Auto" VerticalAlignment="Center" Margin="4,0,6,0">
+                      <Border Grid.Column="0" Width="7" Height="7" CornerRadius="3.5"
+                              Background="{DynamicResource CkanSuccessBrush}"
+                              IsVisible="{Binding IsCurrent}"
+                              VerticalAlignment="Center" Margin="0,0,6,0"
+                              ToolTip.Tip="{DynamicResource Ui_InstancesPage_CurrentBadge}" />
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
                                  ToolTip.Tip="{Binding Name}"
                                  VerticalAlignment="Center" FontWeight="Medium" Margin="0,0,6,0" />
-                      <Border Grid.Column="1" Classes="CkanBadge Accent" IsVisible="{Binding IsDefault}" Margin="0,0,4,0">
+                      <Border Grid.Column="2" Classes="CkanBadge Accent" IsVisible="{Binding IsDefault}" Margin="0,0,4,0">
                         <TextBlock Text="{DynamicResource Ui_InstancesPage_DefaultBadge}" />
                       </Border>
                       <!-- 异常态：目录不存在 -->
-                      <Border Grid.Column="2" Classes="CkanBadge Danger" IsVisible="{Binding IsPathMissing}">
+                      <Border Grid.Column="3" Classes="CkanBadge Danger" IsVisible="{Binding IsPathMissing}">
                         <TextBlock Text="{DynamicResource Ui_InstancesPage_DirectoryMissingBadge}" />
                       </Border>
                     </Grid>
-                    <TextBlock Grid.Column="2" Text="{Binding VersionText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                    <TextBlock Grid.Column="3" Text="{Binding ModuleCountText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                    <TextBlock Grid.Column="4" Text="{Binding LockText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
-                    <TextBlock Grid.Column="5" Text="{Binding CurrentText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
+                    <TextBlock Grid.Column="1" Text="{Binding VersionText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    <TextBlock Grid.Column="2" Text="{Binding ModuleCountText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    <TextBlock Grid.Column="3" Text="{Binding LockText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+                    <TextBlock Grid.Column="4" Text="{Binding CurrentText}" VerticalAlignment="Center" Foreground="{DynamicResource CkanTextTertiaryBrush}" />
                   </Grid>
                 </DataTemplate>
               </ListBox.ItemTemplate>
@@ -238,14 +241,9 @@
         <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center" ResizeDirection="Columns"
                       VerticalAlignment="Stretch" Margin="0,10" ZIndex="5" Cursor="SizeWestEast" />
 
-        <!-- 详情面板 Card -->
+        <!-- 详情面板 Card：统一为标准 CkanCard -->
         <Border Grid.Column="2" Padding="16"
-              Classes="stagger-card"
-              RenderTransform="translate(0px, 0px)"
-              CornerRadius="{DynamicResource CkanCornerRadiusMedium}"
-              Background="{DynamicResource CkanCardBackgroundBrush}"
-              BorderBrush="{DynamicResource CkanCardBorderBrush}"
-              BorderThickness="1">
+                Classes="CkanCard stagger-card">
         <Grid>
           <!-- 状态 A：未选择实例时的极简引导（不发灰的按钮墙，只留一句话）。 -->
           <StackPanel Classes="view-layer"

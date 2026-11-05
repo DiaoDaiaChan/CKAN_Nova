@@ -137,7 +137,8 @@ public static class ServiceRegistration
             sp.GetRequiredService<IInstanceService>(),
             sp.GetService<IModDialogService>(),
             sp.GetService<IUiSettingsStore>(),
-            sp.GetService<IRepositoryService>()));
+            sp.GetService<IRepositoryService>(),
+            sp.GetService<INavigationService>()));
         services.AddSingleton<IChangeRequestSink>(sp => sp.GetRequiredService<ChangesPageViewModel>());
         // 详情面板（F-26 四页签）：模组页右侧直接渲染这同一个 VM，注册成单例后由模组页工厂注入，
         // 免得每页各建一份、切换实例后状态对不上。
@@ -191,10 +192,20 @@ public static class ServiceRegistration
         // 这也是"停用插件后入口真的消失"的前提，否则 DI 里还留着一份永远不会被用到的单例。
         services.AddSingleton<UnmanagedPageViewModel>();
         services.AddSingleton<CachePageViewModel>();
-        services.AddSingleton<DownloadStatsPageViewModel>();
+        services.AddSingleton(sp => new DownloadStatsPageViewModel(
+            sp.GetRequiredService<IDownloadStatsService>(),
+            sp.GetService<IChangeRequestSink>(),
+            sp.GetService<INavigationService>(),
+            key => PageTypes.TryGetValue(key, out var pageType) ? sp.GetService(pageType) : null));
         services.AddSingleton<PlayTimePageViewModel>();
         services.AddSingleton<DedupPageViewModel>();
-        services.AddSingleton<InstallHistoryPageViewModel>();
+        services.AddSingleton(sp => new InstallHistoryPageViewModel(
+            sp.GetRequiredService<IInstallHistoryService>(),
+            sp.GetRequiredService<IErrorReporter>(),
+            sp.GetService<IDialogService>(),
+            sp.GetService<IRepositoryService>(),
+            sp.GetService<INavigationService>(),
+            key => PageTypes.TryGetValue(key, out var pageType) ? sp.GetService(pageType) : null));
         services.AddSingleton<PluginsPageViewModel>();
         // 日志页与底部抽屉（M8 / LOG-01..05）：两者共享同一个 ILogStore 单例，抽屉挂在日志页之上
         // （LogDrawerViewModel 内部另建一页供抽屉里的小时间线用），不重建日志页的状态。

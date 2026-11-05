@@ -8,7 +8,7 @@
     <conv:HexColorToBrushConverter x:Key="HexColorToBrush" />
   </UserControl.Resources>
 
-  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" Margin="{DynamicResource CkanPagePadding}"
         Background="Transparent">
 
     <!-- 页头 -->
@@ -61,8 +61,30 @@
                  Foreground="{DynamicResource CkanDangerBrush}" />
     </Border>
 
+    <!-- 页面级诊断：适配器目录缺失 / 某份 adapter 加载失败，以前只在卡片告警里出现，
+         适配器清单为空时整页看不到原因，所以提到页面顶部单列一区 -->
+    <Border Grid.Row="3" IsVisible="{Binding HasPageDiagnostics}"
+            Classes="CkanInfoBanner Warning"
+            Margin="0,0,0,8">
+      <StackPanel Spacing="4">
+        <TextBlock Text="{Binding PageDiagnosticsTitle}"
+                   TextWrapping="Wrap"
+                   FontWeight="SemiBold"
+                   Classes="CkanCaption"
+                   Foreground="{DynamicResource CkanTextPrimaryBrush}" />
+        <ItemsControl ItemsSource="{Binding PageDiagnostics}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding}" TextWrapping="Wrap" Classes="CkanCaption"
+                         Foreground="{DynamicResource CkanTextSecondaryBrush}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+
     <!-- 工具条：搜索 + 仅看已改 + 刷新（仅适配器模式） -->
-    <Border Grid.Row="3" Classes="CkanToolbar stagger-card" IsVisible="{Binding IsAdapterMode}">
+    <Border Grid.Row="4" Classes="CkanToolbar stagger-card" IsVisible="{Binding IsAdapterMode}">
       <StackPanel Spacing="0">
       <WrapPanel Orientation="Horizontal">
         <TextBox Text="{Binding SearchText, Mode=TwoWay}"
@@ -93,7 +115,7 @@
     </Border>
 
     <!-- 左：mod 卡片列表；右：字段行（仅适配器模式） -->
-    <Grid Grid.Row="4" ColumnDefinitions="340,*" Margin="0,12,0,0" IsVisible="{Binding IsAdapterMode}">
+    <Grid Grid.Row="5" ColumnDefinitions="340,*" Margin="0,12,0,0" IsVisible="{Binding IsAdapterMode}">
 
       <Border Grid.Column="0" Classes="CkanCard stagger-card" Padding="4">
         <Grid RowDefinitions="Auto,*,Auto">
@@ -161,7 +183,7 @@
                          TextWrapping="Wrap"
                          FontWeight="SemiBold"
                          Foreground="{DynamicResource CkanTextPrimaryBrush}" />
-              <TextBlock Text="{DynamicResource Ui_ModConfigPage_NoConfigsSubtitle}"
+              <TextBlock Text="{Binding EmptyModsHintText}"
                          TextWrapping="Wrap"
                          Classes="CkanCaption" />
               <Button Content="{DynamicResource Ui_ModConfigPage_GoToInstancesPage}"
@@ -428,7 +450,7 @@
     </Grid>
 
     <!-- 通用配置模式主体 -->
-    <Grid Grid.Row="4" ColumnDefinitions="340,*" Margin="0,12,0,0" IsVisible="{Binding IsGenericMode}">
+    <Grid Grid.Row="5" ColumnDefinitions="340,*" Margin="0,12,0,0" IsVisible="{Binding IsGenericMode}">
       <!-- 左：cfg 配置文件列表 -->
       <Border Grid.Column="0" Classes="CkanCard stagger-card" Padding="4">
         <Grid RowDefinitions="Auto,*,Auto">
@@ -579,7 +601,7 @@
     </Grid>
 
     <!-- 底部动作条：改动计数 + 保存/放弃/恢复快照 + 逐文件失败说明 -->
-    <Border Grid.Row="5" IsVisible="{Binding ShowActionBar}"
+    <Border Grid.Row="6" IsVisible="{Binding ShowActionBar}"
             Classes="CkanCard"
             Margin="0,12,0,0" Padding="12,10">
       <StackPanel Spacing="8">

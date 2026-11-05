@@ -1,6 +1,8 @@
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Dtos;
+using CkanUI.ViewModels.Navigation;
 using CkanUI.ViewModels.Pages;
+using CkanUI.ViewModels.Pages.Stats;
 using NUnit.Framework;
 
 namespace CkanUI.ViewModels.Tests;
@@ -213,6 +215,168 @@ public sealed class DownloadStatsPageViewModelTests
         Assert.That(page.HasError, Is.True);
         Assert.That(page.ErrorText, Is.EqualTo("下载统计服务不可用。"));
         Assert.That(page.ChartSlices, Is.Empty);
+    }
+
+    [Test]
+    public async Task InstallModCommand_WithUninstalledRow_SetsChangeRequestAndNavigatesToChanges()
+    {
+        var sink = new RecordingChangeSink();
+        var nav = new RecordingNavigationService();
+        var page = new DownloadStatsPageViewModel(new FakeStatsService(), sink, nav);
+        var row = DownloadStatsRowViewModel.From(new DownloadStatsRow("my-mod", "My Mod", 1000, 2048, false), 1000);
+
+        await page.InstallModCommand.ExecuteAsync(row);
+
+        Assert.That(sink.LastRequests, Is.Not.Null);
+        Assert.That(sink.LastRequests!.Count, Is.EqualTo(1));
+        var req = sink.LastRequests!.Single();
+        Assert.That(req.Identifier, Is.EqualTo("my-mod"));
+        Assert.That(req.Action, Is.EqualTo(ChangeAction.Install));
+        Assert.That(nav.History, Is.EqualTo(new[] { "changes" }));
+    }
+
+    [Test]
+    public async Task InstallModCommand_WithInstalledRow_DoesNothing()
+    {
+        var sink = new RecordingChangeSink();
+        var nav = new RecordingNavigationService();
+        var page = new DownloadStatsPageViewModel(new FakeStatsService(), sink, nav);
+        var row = DownloadStatsRowViewModel.From(new DownloadStatsRow("installed-mod", "Installed Mod", 500, 1024, true), 1000);
+
+        await page.InstallModCommand.ExecuteAsync(row);
+
+        Assert.That(sink.LastRequests, Is.Null);
+        Assert.That(nav.History, Is.Empty);
+    }
+
+    [Test]
+    public async Task InstallModCommand_WithStringIdentifier_SetsChangeRequestAndNavigatesToChanges()
+    {
+        var sink = new RecordingChangeSink();
+        var nav = new RecordingNavigationService();
+        var page = new DownloadStatsPageViewModel(new FakeStatsService(), sink, nav);
+
+        await page.InstallModCommand.ExecuteAsync("direct-id");
+
+        Assert.That(sink.LastRequests, Is.Not.Null);
+        var req = sink.LastRequests!.Single();
+        Assert.That(req.Identifier, Is.EqualTo("direct-id"));
+        Assert.That(req.Action, Is.EqualTo(ChangeAction.Install));
+        Assert.That(nav.History, Is.EqualTo(new[] { "changes" }));
+    }
+
+    [Test]
+    public async Task InstallModCommand_WithNullOrEmpty_DoesNothing()
+    {
+        var sink = new RecordingChangeSink();
+        var nav = new RecordingNavigationService();
+        var page = new DownloadStatsPageViewModel(new FakeStatsService(), sink, nav);
+
+        await page.InstallModCommand.ExecuteAsync(null);
+        await page.InstallModCommand.ExecuteAsync("");
+
+        Assert.That(sink.LastRequests, Is.Null);
+        Assert.That(nav.History, Is.Empty);
+    }
+
+    [Test]
+    public async Task OpenModCommand_NavigatesToMods_AndCallsShowIdentifier()
+    {
+        var nav = new RecordingNavigationService();
+        var modsPage = new ModsPageViewModel();
+        var page = new DownloadStatsPageViewModel(
+            new FakeStatsService(),
+            null,
+            nav,
+            key => key == "mods" ? modsPage : null);
+
+        await page.OpenModCommand.ExecuteAsync("scatterer");
+
+        Assert.That(nav.History, Is.EqualTo(new[] { "mods" }));
+        Assert.That(modsPage.SearchText, Is.EqualTo("scatterer"));
+    }
+
+    [Test]
+    public async Task OpenModCommand_WithSelectedRow_NavigatesAndShows()
+    {
+        var nav = new RecordingNavigationService();
+        var modsPage = new ModsPageViewModel();
+        var page = new DownloadStatsPageViewModel(
+            new FakeStatsService(),
+            null,
+            nav,
+            key => key == "mods" ? modsPage : null);
+        var row = DownloadStatsRowViewModel.From(new DownloadStatsRow("eve", "Environmental Visual Enhancements", 200, 4096, false), 500);
+        page.SelectedRow = row;
+
+        await page.OpenModCommand.ExecuteAsync(null);
+
+        Assert.That(nav.History, Is.EqualTo(new[] { "mods" }));
+        Assert.That(modsPage.SearchText, Is.EqualTo("eve"));
+    }
+
+    [Test]
+    public void AddToChangesetCommand_AddsChangeRequest_AndUpdatesStatusMessage()
+    {
+        var sink = new RecordingChangeSink();
+        var page = new DownloadStatsPageViewModel(new FakeStatsService(), sink);
+
+        page.AddToChangesetCommand.Execute("cool-mod");
+
+        Assert.That(sink.LastRequests, Is.Not.Null);
+        var req = sink.LastRequests!.Single();
+        Assert.That(req.Identifier, Is.EqualTo("cool-mod"));
+        Assert.That(req.Action, Is.EqualTo(ChangeAction.Install));
+        Assert.That(page.StatusMessage, Does.Contain("cool-mod"));
+        Assert.That(page.StatusText, Is.EqualTo(page.StatusMessage));
+    }
+
+    [Test]
+    public void AddToChangesetCommand_WithInstalledRow_DoesNothing()
+    {
+        var sink = new RecordingChangeSink();
+        var page = new DownloadStatsPageViewModel(new FakeStatsService(), sink);
+        var row = DownloadStatsRowViewModel.From(new DownloadStatsRow("installed-mod", "Installed Mod", 50, 1024, true), 500);
+
+        page.AddToChangesetCommand.Execute(row);
+
+        Assert.That(sink.LastRequests, Is.Null);
+        Assert.That(page.StatusMessage, Is.Null);
+    }
+
+    private sealed class RecordingChangeSink : IChangeRequestSink
+    {
+        public IReadOnlyCollection<ChangeRequest>? LastRequests { get; private set; }
+
+        public event Action? RequestsApplied
+        {
+            add { }
+            remove { }
+        }
+
+        public void SetRequests(IReadOnlyCollection<ChangeRequest>? requests)
+        {
+            LastRequests = requests;
+        }
+    }
+
+    private sealed class RecordingNavigationService : INavigationService
+    {
+        public object? CurrentPage => null;
+        public string CurrentKey => History.LastOrDefault() ?? string.Empty;
+        public List<string> History { get; } = new();
+
+        public event Action<object?, string>? Navigated
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<bool> NavigateAsync(string pageKey, object? parameter = null, CancellationToken ct = default)
+        {
+            History.Add(pageKey);
+            return Task.FromResult(true);
+        }
     }
 
     private sealed class FakeStatsService : IDownloadStatsService

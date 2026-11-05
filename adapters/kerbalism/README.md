@@ -1,22 +1,25 @@
-# Kerbalism 适配器（骨架）
+# Kerbalism 适配器
 
-## 状态：骨架（不是完整适配器）
+## 覆盖范围
 
-本目录只证明"目录即插件"这套机制对 Kerbalism 可用，**不承诺可编辑**：
+- 匹配：CKAN 标识 `Kerbalism`，或文件 `GameData/KerbalismConfig/Settings.cfg` 存在。
+- 文件：`GameData/KerbalismConfig/Settings.cfg`，`layout: node`，根节点 `Kerbalism`，可编辑。
+- 字段：**41 个**（string 1 / bool 12 / float 28）。
+- 未收录的键：`unlisted: "preserve"` 原样保留，不会被本适配器删掉。
 
-- ✅ 匹配：CKAN 标识 `Kerbalism`，探测路径 `GameData/KerbalismConfig/Settings.cfg`。
-- ✅ 文件：按 `layout: custom` + `mode: readonly` 登记，只读展示原始内容（不做键值解析）。
-- ❌ 字段：`fields: []`，一个都还没有。
+## 取证来源
 
-## 为什么是只读骨架
+本机 `D:/SteamLibrary/steamapps/common/Kerbal Space Program/GameData/KerbalismConfig/Settings.cfg`（2026-11 语料审计，整合包内有 336 个已装 mod）。
 
-Kerbalism 的配置体量大、且与游戏进程/存档状态强耦合，写错代价高。
-规格（docs/plan/15 `7 Q4）要求"adapter 只声明已取证的键"，而本机没有 KSP 安装，
-连 `Settings.cfg` 的根节点名与缩进风格都无从核验，所以先只读。
+- Profile 保留但标 high：它引用整套配置档案，改了会让存档玩法不兼容
+- 其余 40 个根键全部收录（12 bool + 28 float 左右）
 
-## 升级为可编辑的步骤
+## 默认值
 
-1. 取证：真实 `Settings.cfg` 的根节点名、缩进、注释风格、行尾与编码；
-2. 若为 `node` 形态：把 `layout` 改 `node`、补 `rootNode`、`mode` 改 `editable`，删掉 `readonlyReason`；
-3. 按"一个键一条 field"补键（带中文 `label` 与 `risk`），危险项（信号/生命维持相关）标 `risk: high`，写入需二次确认；
-4. 加 `fixtures/` 样本 + 往返测试，跑 H-08 schema 校验。
+`default` 一律取实测文件原文（包含 `2.7f`、`True` 这类写法），这样「已修改」判定按字节比较，不会因为大小写或后缀误报。
+
+## 安全
+
+- `onMissing: "readonly"`：文件不在时只读提示，不造模板——这些文件都是 mod 首次运行后自己写的，模板会掩盖真实默认值。
+- 高风险字段（写盘前二次确认）：`Profile`、`Reliability`、`Science`、`SpaceWeather`、`PressureFactor`。
+- 全部字段 `requiresRestart: true`：这些 mod 只在启动时读一次配置。

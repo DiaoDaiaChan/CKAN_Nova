@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:thumb="using:CkanUI.Ui.Converters"
+             xmlns:ui="using:CkanUI.Ui.Tables"
              x:Class="CkanUI.Plugin.Assets.ShipsPageView"
              x:CompileBindings="False">
   <!-- 飞船工作台（assets-workbench 篇 §3）：载具列表 + 缩略图预览 + 改名/复制/删除。
@@ -13,26 +14,6 @@
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Padding" Value="8,0" />
       <Setter Property="MinHeight" Value="{DynamicResource CkanRowHeight}" />
-    </Style>
-    <!-- 选中行左侧 3px 强调条（沿用存档页与导航栏的做法） -->
-    <Style Selector="Rectangle.SelectionBar">
-      <Setter Property="Width" Value="3" />
-      <Setter Property="RadiusX" Value="1.5" />
-      <Setter Property="RadiusY" Value="1.5" />
-      <Setter Property="Fill" Value="{DynamicResource CkanAccentBrush}" />
-      <Setter Property="HorizontalAlignment" Value="Left" />
-      <Setter Property="VerticalAlignment" Value="Stretch" />
-      <Setter Property="Margin" Value="2,6" />
-      <Setter Property="Opacity" Value="0" />
-      <Setter Property="IsHitTestVisible" Value="False" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource CkanMotionDurationBase}" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="ListBoxItem:selected Rectangle.SelectionBar">
-      <Setter Property="Opacity" Value="1" />
     </Style>
   </UserControl.Styles>
 
@@ -51,6 +32,13 @@
     <!-- 工具条 -->
     <Border Grid.Row="1" Classes="CkanToolbar stagger-card" Margin="0,12,0,0">
       <WrapPanel Orientation="Horizontal">
+        <TextBlock Text="{DynamicResource Ui_Ships_Library_Label}" Classes="CkanCaption"
+                   VerticalAlignment="Center" Margin="0,0,6,0" />
+        <ComboBox ItemsSource="{Binding Libraries}" SelectedItem="{Binding SelectedLibrary, Mode=TwoWay}"
+                  DisplayMemberBinding="{Binding DisplayName}" MinWidth="180" MinHeight="32"
+                  Margin="0,0,8,0" VerticalContentAlignment="Center"
+                  IsEnabled="{Binding !IsBusy}"
+                  ToolTip.Tip="{Binding SelectedLibrary.ShipsRoot}" />
         <Button Content="{DynamicResource Ui_Common_Refresh}" Command="{Binding RefreshCommand}"
                 Classes="CkanPrimary" Margin="0,0,8,0" IsEnabled="{Binding !IsBusy}" />
         <Button Content="{DynamicResource Ui_Assets_Action_Import}" Command="{Binding ImportCommand}"
@@ -59,6 +47,12 @@
                 Classes="CkanGhost" Margin="0,0,8,0"
                 IsEnabled="{Binding SelectedCraft, Converter={x:Static ObjectConverters.IsNotNull}}" />
         <Button Content="{DynamicResource Ui_Assets_Action_Duplicate}" Command="{Binding DuplicateCommand}"
+                Classes="CkanGhost" Margin="0,0,8,0"
+                IsEnabled="{Binding SelectedCraft, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <Button Content="{DynamicResource Ui_Ships_Action_CopyTo}" Command="{Binding CopyToLibraryCommand}"
+                Classes="CkanGhost" Margin="0,0,8,0"
+                IsEnabled="{Binding SelectedCraft, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <Button Content="{DynamicResource Ui_Ships_Action_MoveTo}" Command="{Binding MoveToLibraryCommand}"
                 Classes="CkanGhost" Margin="0,0,8,0"
                 IsEnabled="{Binding SelectedCraft, Converter={x:Static ObjectConverters.IsNotNull}}" />
         <Button Content="{DynamicResource Ui_Assets_Action_OpenFolder}" Command="{Binding OpenFolderCommand}"
@@ -111,7 +105,11 @@
             </Grid>
           </Border>
 
+          <!-- 手画表头 + ListBox 的表格：筛选/排序/拖动列宽由 ListTableTools 补上，
+               Columns 按表头列下标对齐；`展示路径~排序路径` 让文本列按原始数字/时间/版本排序。 -->
           <ListBox Grid.Row="1" ItemsSource="{Binding Crafts}" Padding="4"
+                   ui:ListTableTools.Enabled="True"
+                   ui:ListTableTools.Columns="-,Name,KindLabel,VersionText~Asset.Version,PartCountText~Asset.PartCount,StageCountText~Asset.StageCount,SizeText~Asset.SizeBytes,ModifiedText~Asset.ModifiedAt"
                    SelectedItem="{Binding SelectedCraft, Mode=TwoWay}"
                    BorderThickness="0" Background="Transparent">
             <ListBox.ItemsPanel>
@@ -122,7 +120,6 @@
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <Grid ColumnDefinitions="52,2*,72,84,44,44,68,108" MinHeight="{DynamicResource CkanRowHeight}">
-                  <Rectangle Grid.ColumnSpan="8" Classes="SelectionBar" />
                   <Border Grid.Column="0" Width="40" Height="24" CornerRadius="{DynamicResource CkanCornerRadiusSmall}"
                           Background="{DynamicResource CkanSubtleBackgroundBrush}"
                           VerticalAlignment="Center" ClipToBounds="True">

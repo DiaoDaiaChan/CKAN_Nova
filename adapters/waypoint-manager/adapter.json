@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "id": "waypoint-manager",
+  "name": "WaypointManager",
+  "homepage": "https://github.com/stevenmack/WaypointManager",
+  "match": {
+    "ckanIdentifiers": [
+      "WaypointManager"
+    ],
+    "paths": [
+      "GameData/WaypointManager/PluginData/WaypointManager.cfg"
+    ],
+    "caseInsensitive": true
+  },
+  "files": [
+    {
+      "id": "settings",
+      "path": "GameData/WaypointManager/PluginData/WaypointManager.cfg",
+      "layout": "flat",
+      "mode": "editable",
+      "onMissing": "readonly",
+      "lineEnding": "preserve",
+      "separator": " = ",
+      "label": "WaypointManager.cfg"
+    }
+  ],
+  "descriptionFromComment": true,
+  "unlisted": "preserve",
+  "fields": [
+    {
+      "file": "settings",
+      "key": "displayMode",
+      "type": "string",
+      "default": "CONTRACT",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "图标显示范围（CONTRACT/ALL 等，取值见 mod）"
+    },
+    {
+      "file": "settings",
+      "key": "distanceCalcMethod",
+      "type": "string",
+      "default": "COMPROMISE",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "距离算法（COMPROMISE/…）"
+    },
+    {
+      "file": "settings",
+      "key": "waypointDisplay",
+      "type": "string",
+      "default": "ALL",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "航点显示范围"
+    },
+    {
+      "file": "settings",
+      "key": "hudDistance",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "HUD 显示距离"
+    },
+    {
+      "file": "settings",
+      "key": "hudTime",
+      "type": "bool",
+      "default": "True",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "HUD 显示时间"
+    },
+    {
+      "file": "settings",
+      "key": "hudHeading",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "HUD 显示航向"
+    },
+    {
+      "file": "settings",
+      "key": "hudAngle",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "HUD 显示角度"
+    },
+    {
+      "file": "settings",
+      "key": "hudCoordinates",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "HUD 显示经纬度"
+    },
+    {
+      "file": "settings",
+      "key": "displayDecimal",
+      "type": "bool",
+      "default": "False",
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "距离显示小数"
+    },
+    {
+      "file": "settings",
+      "key": "opacity",
+      "type": "float",
+      "default": "1",
+      "min": 0,
+      "max": 1,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "窗口不透明度"
+    },
+    {
+      "file": "settings",
+      "key": "scaling",
+      "type": "float",
+      "default": "1",
+      "min": 0.5,
+      "max": 3,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "界面缩放"
+    },
+    {
+      "file": "settings",
+      "key": "displayOpacity",
+      "type": "float",
+      "default": "0",
+      "min": 0,
+      "max": 1,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "显示层不透明度"
+    },
+    {
+      "file": "settings",
+      "key": "backgroundGrey",
+      "type": "float",
+      "default": "0.5",
+      "min": 0,
+      "max": 1,
+      "risk": "medium",
+      "requiresRestart": true,
+      "label": "背景灰度"
+    }
+  ]
+}

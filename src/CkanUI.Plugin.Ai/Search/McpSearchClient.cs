@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -132,7 +133,11 @@ public sealed class McpSearchClient : IWebSearchTool, IDisposable
                 new JsonObject
                 {
                     ["name"] = _toolName,
-                    ["arguments"] = new JsonObject { ["query"] = query },
+                    ["arguments"] = new JsonObject
+                    {
+                        ["query"] = query,
+                        ["format"] = "json",
+                    },
                 },
                 cancellationToken).ConfigureAwait(false);
 
@@ -207,6 +212,32 @@ public sealed class McpSearchClient : IWebSearchTool, IDisposable
         foreach (var arg in _args)
         {
             startInfo.ArgumentList.Add(arg);
+        }
+
+        // 注入关键运行环境：Python/Node MCP 工具需要正确的 USERPROFILE/HOME 与无缓冲标准流
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(userProfile))
+        {
+            startInfo.EnvironmentVariables["USERPROFILE"] = userProfile;
+            startInfo.EnvironmentVariables["HOME"] = userProfile;
+        }
+        startInfo.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+        startInfo.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
+
+        var localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrWhiteSpace(localApp))
+        {
+            var mcpCacheDir = Path.Combine(localApp, "CkanUI", "search-mcp-cache");
+            try
+            {
+                Directory.CreateDirectory(mcpCacheDir);
+                startInfo.EnvironmentVariables["SEARCH_MCP_CACHE_DIR"] = mcpCacheDir;
+                startInfo.EnvironmentVariables["SEARCH_MCP_CONFIG_DIR"] = mcpCacheDir;
+            }
+            catch
+            {
+                // 忽略缓存目录创建失败
+            }
         }
 
         var process = Process.Start(startInfo)
@@ -409,7 +440,15 @@ public sealed class McpSearchClient : IWebSearchTool, IDisposable
                 }
                 else
                 {
-                    hits.Add(new WebSearchHit(string.Empty, string.Empty, text.Trim()));
+                    var mdHits = TryParseMarkdownHits(text);
+                    if (mdHits.Count > 0)
+                    {
+                        hits.AddRange(mdHits);
+                    }
+                    else
+                    {
+                        hits.Add(new WebSearchHit(string.Empty, string.Empty, text.Trim()));
+                    }
                 }
 
                 break;
@@ -494,6 +533,116 @@ public sealed class McpSearchClient : IWebSearchTool, IDisposable
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// 解析 Markdown 格式的搜索结果（如 "1. 标题 <https://...> 摘要" 或 "- [标题](url) - 摘要"）。
+    /// </summary>
+    public static List<WebSearchHit> TryParseMarkdownHits(string text)
+    {
+        var hits = new List<WebSearchHit>();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return hits;
+        }
+
+        var lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var angleRegex = new Regex(@"^\s*\d+[\.\)]\s*(.*?)\s*<([a-zA-Z][a-zA-Z0-9+\-.]*://[^>]+)>\s*(.*)$");
+        var linkRegex = new Regex(@"^\s*(?:\d+[\.\)]\s*|[-*]\s*)?\[([^\]]+)\]\(([a-zA-Z][a-zA-Z0-9+\-.]*://[^\)]+)\)(?:\s*[:\-–—]\s*(.*))?$");
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i].TrimEnd();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            var m = angleRegex.Match(line);
+            if (m.Success)
+            {
+                var title = m.Groups[1].Value.Trim().Trim('*', '_', '`');
+                var url = m.Groups[2].Value.Trim();
+                var snippet = m.Groups[3].Value.Trim();
+                if (string.IsNullOrEmpty(snippet) && i + 1 < lines.Length && !string.IsNullOrWhiteSpace(lines[i + 1]) && !angleRegex.IsMatch(lines[i + 1]) && !linkRegex.IsMatch(lines[i + 1]))
+                {
+                    snippet = lines[i + 1].Trim();
+                    i++;
+                }
+                if (!string.IsNullOrWhiteSpace(url))
+                {
+                    hits.Add(new WebSearchHit(title, url, snippet));
+                }
+                continue;
+            }
+
+            m = linkRegex.Match(line);
+            if (m.Success)
+            {
+                var title = m.Groups[1].Value.Trim();
+                var url = m.Groups[2].Value.Trim();
+                var snippet = m.Groups[3].Success ? m.Groups[3].Value.Trim() : string.Empty;
+                if (string.IsNullOrEmpty(snippet) && i + 1 < lines.Length && !string.IsNullOrWhiteSpace(lines[i + 1]) && !angleRegex.IsMatch(lines[i + 1]) && !linkRegex.IsMatch(lines[i + 1]))
+                {
+                    snippet = lines[i + 1].Trim();
+                    i++;
+                }
+                if (!string.IsNullOrWhiteSpace(url))
+                {
+                    hits.Add(new WebSearchHit(title, url, snippet));
+                }
+                continue;
+            }
+        }
+
+        return hits;
+    }
+
+    /// <summary>
+    /// 尝试探测宿主或当前环境可用的 MCP 搜索命令行（零配置自愈）。
+    /// </summary>
+    public static (string Command, IReadOnlyList<string> Args)? TryAutoDetect()
+    {
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var candidatePaths = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(userProfile))
+        {
+            candidatePaths.Add(Path.Combine(userProfile, "Documents", "github", "free-search-mcp", ".venv", "Scripts", "search-mcp.exe"));
+            candidatePaths.Add(Path.Combine(userProfile, ".local", "bin", "search-mcp.exe"));
+            candidatePaths.Add(Path.Combine(userProfile, ".local", "bin", "search-mcp"));
+        }
+
+        foreach (var path in candidatePaths)
+        {
+            if (File.Exists(path))
+            {
+                return (path, Array.Empty<string>());
+            }
+        }
+
+        var pathEnv = Environment.GetEnvironmentVariable("PATH");
+        if (!string.IsNullOrWhiteSpace(pathEnv))
+        {
+            foreach (var dir in pathEnv.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+            {
+                try
+                {
+                    var exe = Path.Combine(dir.Trim(), "search-mcp.exe");
+                    if (File.Exists(exe))
+                    {
+                        return (exe, Array.Empty<string>());
+                    }
+                    var bin = Path.Combine(dir.Trim(), "search-mcp");
+                    if (File.Exists(bin))
+                    {
+                        return (bin, Array.Empty<string>());
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>重置空闲计时器：每次用完都重新计时。</summary>

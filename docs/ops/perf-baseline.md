@@ -2310,3 +2310,279 @@ unmanaged 约 114–340 ms、downloadstats 约 180–250 ms。这是一次性、
 分项消融（临时开关，已删）：去掉 3,730 条分组列表 → layout 348 → 261 ms、nodes 620 → 498；
 把词条截到 2,000 条 → layout 527 ms（不变）→ **该页布局成本由分组列表与整体结构决定，不是词条行数**，
 词条列表本身已虚拟化（可视树只有 ~20 个行容器）。
+
+## §51 页面驻留预算：把看不见的页面树摘掉（默认开启，keep=12）
+
+### 51.1 问题
+
+宿主的换页模型是「视图只建一次、之后常驻 `PageStage`，换页只切可见性」(`MainWindow.axaml.cs:1259-1314`)：
+换来的是换页零重建，代价是**每个页面树都带着自己的样式实例、排版缓存和资源表达式活在可视树里**——
+§47.2 的托管堆头三名（`DynamicResourceExpression` 18.0 MB / 138,912 个、`StyleInstance` 17.8 MB / 166,797 个、
+`AvaloniaPropertyDictionary<IValueEntry>.Entry[]` 15.4 MB）就是这个模型的账，不是业务数据的账。
+24 个常驻页面里，用户一次会话真正会回看的通常不超过个位数。
+
+### 51.2 改法
+
+不动换页路径（它正被并行任务改），只加一条**旁路**：
+
+- 新文件 `src/CkanUI.App/MainWindow.Residency.cs`：`TrimPageResidency(keep)` 按「最近看过」把超出预算的**非活动页**
+  摘出 `PageStage`，摘除三步严格照抄既有的 `PruneRemovedPageViews`（`_pageViews` / `_pageViewKeys` / `PageStage.Children`），
+  另外必须 `ViewLocator.Discard(page)`——`ViewLocator.ViewCache` 是 `ConditionalWeakTable<object, Control>`，
+  VM 是单例，**不删缓存条目，摘下来的视图一点内存都回不来**（这是本条最重要的发现）；
+  摘除时把 `ITextPromptSink.TextPrompt` 置 null（它握着旧视图），下次进入由 `AttachPageServices` 重新注入。
+- 新文件 `src/CkanUI.App/Diagnostics/PageResidencyPolicy.cs`：挂在空闲回收器的节拍上
+  (`IdleMemoryReclaimer.IdleTick`)，条件 = 用户已空闲 **且** 距上次换页超过阈值；活跃换页期间完全不碰。
+- 开关全在环境变量里、**默认 keep=12**：`CKANUI_PAGE_RESIDENCY=<保留页数>`（设 0 关闭）、`CKANUI_PAGE_RESIDENCY_IDLE_S=<静置秒数，默认 120，下限 15>`。
+- 诊断：`[residency] evicted=.. keep=.. views=.. stage=.. ws=..MB` 写进 `CKANUI_NAV_TRACE`；
+  `CKANUI_NAV_RESIDENCY_DRILL=1` 让探针在扫完全场后**故意回访被摘掉的页**，量重新进场的代价。
+
+### 51.3 实测（空实例、14 键扫场、`CKANUI_NAV_ROUNDS=1`、`CKANUI_NAV_IDLE_CHECK=1`）
+
+| 指标（扫完后静置 25 s） | 预算关 | 预算开 keep=4 | 差 |
+| --- | ---: | ---: | ---: |
+| 工作集 ws | 452 MB | 363 MB | **−89 MB** |
+| 私有字节 private | 400 MB | 306 MB | **−94 MB** |
+| 托管堆 heap | 140 MB | 89 MB | **−51 MB** |
+| 常驻页面视图 | 14 | 4 | −10 |
+
+即每摘掉一个页面 ≈ **8.9 MB 工作集 / 5.1 MB 托管堆**（`[residency] evicted=11`，14 → 4）。
+真实窗口是 24 个常驻页面，可摘的比这里多。
+
+被摘掉的页再进去要重新加载 XAML、重排首屏（`[drill]` 实测，空实例）：
+
+| 页面 | 扫场首进 assign/layout/paint | 摘掉后回访 assign/layout/paint |
+| --- | ---: | ---: |
+| mods | 40.9 / 86.8 / 92.3 ms | 25.9 / 56.0 / 57.3 ms |
+| content | 28.2 / 43.1 / 43.5 ms | 12.9 / 24.3 / 40.3 ms |
+| changes | 39.6 / 51.9 / 52.4 ms | 22.3 / 35.5 / 39.9 ms |
+
+回访比首进还快（数据已在 VM 里，只重建视图），到首帧 40–57 ms；且回访成功、无异常，
+说明 `ViewLocator.Discard` + `TextPrompt` 复位的重建路径是对的。
+
+### 51.4 与启动预热的冲突（开预算前必须先定）
+
+`WarmPage`（`MainWindow.axaml.cs:1120-1186`）会在后台把页面预先建出来，预算随后又把它摘掉：
+`[warm] mods attach=18ms` … 紧接着 `[residency] evicted=12 keep=4`。
+实测同配置两轮，差别只在预热是否落在静置窗口内：预热仍在跑的一轮静置 ws=389 MB，预热跑到测量之后的一轮 363 MB
+（`[warm]` 行出现在 `[nav] idle-after-sweep` 之后）——**预热在建的正是预算要扔的**。
+所以「开预算」和「保留现有预热清单」不能同时全开，二选一，或按预算之后的实际保留集合裁剪 `WarmupOrder`。
+落地的取法：keep 取 12，与 `WarmupOrder` 的 12 项等长 —— 预热建出来的正好是预算允许保留的那批，冲突自然消失（§54.2 实测无 `[warm]`→`[residency]` 互拆）。
+
+### 51.5 结论（已默认开启，见 §54）
+
+- 预算本身已验证有效：14 页场景 −89 MB ws / −94 MB private，23 页场景 −65 MB ws（§54）；重建代价 40–57 ms，属可接受量级。
+- **已默认打开，keep=12**：判定依据是它不改变画面——被摘的页面本来就 `Opacity=0`，回来只是重建一次（实测比首次进入还快）。
+  keep 取 12 与 `WarmupOrder` 等长，预热建好的页不会被预算反过来拆掉。关掉用 `CKANUI_PAGE_RESIDENCY=0`，
+  阈值默认 120 秒（`CKANUI_PAGE_RESIDENCY_IDLE_S`，最小 15）。
+- 测量环境噪声：同仓库的另一条任务（`artifacts/btn-sweep.sh`）会按进程名清 CkanUI，且用同一份 `bin`；
+  跑这类 A/B 要错开，或给应用单独的 `CKANUI_APP_ID`。
+
+
+## §52 SpaceDock 封面：232×116 的卡片在解 1920×1080 的图（默认仍是整幅解码，等决策）
+
+### 52.1 现象与证据
+
+`SpaceDockPageView.axaml:106-111` 的卡片是 `ImageFeedCard Width="232" ImageHeight="116"`，
+而 `SpaceDockPageViewModel.LoadCardImageAsync`（:635-640）用 `new Bitmap(stream)` **整幅解码**。
+
+在真实实例上跑 `CKANUI_NAV_ONLY=spacedock CKANUI_SD_TRACE=1`（探针 `[sd] cover ...` 每张封面一行），
+19 张封面的实测像素：
+
+| 张 | 像素 | 解码后 | 源文件 |
+| --- | --- | --- | --- |
+| 1 | 1920×1080 | 7.91 MB | 84 KB |
+| 5 | 1919×1078 | 7.89 MB | 2449 KB |
+| 6 | 2560×1600 | 15.62 MB | 5145 KB |
+| 18 | 2559×1439 | 14.05 MB | 2920 KB |
+| … 19 张合计 | — | **137.42 MB** | — |
+
+平均 7.2 MB/张；一页 `PageSize = 30`、`MaxCardImages = 60` ⇒ 一页封面可达 200 MB 量级的解码像素，
+而它们最终只画在 232×116 的方块里。
+
+### 52.2 已落地的两处（不改显示，默认生效）
+
+1. **旧批次立刻释放**：`SpaceDockModItem.ReplaceImage/ReleaseImage`；`ApplyFilter()` 重建列表前先
+   `CancelCardImageLoad()` 再 `ReleaseCardImages()`。改前旧列表的 `Bitmap` 只等 GC 收，
+   搜索/翻页/改排序每来一次就多攒一页解码像素。
+2. **字节缓存封顶**：`SpacedockImageService` 的 `ConcurrentDictionary<int, byte[]>` 无限增长（单图上限 10 MB），
+   改成 FIFO 上限 160 条 / 24 MB，`Dispose` 清空；新增 `CachedEntryCount`/`CachedBytes` 给测试读，
+   `SpacedockImageServiceTests.FetchScreenshotAsync_ManyMods_KeepsByteCacheBounded` 覆盖。
+
+### 52.3 待决策：按显示宽度解码（`CKANUI_SD_COVER_WIDTH`）
+
+同一页、同一台机器，只改解码宽度（19 张封面，`[sd]` 合计 + `[mem]` 峰值）：
+
+| 解码宽度 | 解码合计 | ws | private |
+| --- | --- | --- | --- |
+| 0（整幅，现状） | 137.42 MB | 1337.6 MB | 1392.7 MB |
+| 464（=232×2，2× DPI 够用） | 7.76 MB | 970.1 MB | 940.2 MB |
+| 696（=232×3） | 17.46 MB | 1006.2 MB | 964.5 MB |
+
+ws 差 −367 MB / −331 MB，比解码像素差（130/120 MB）更大，差额来自整幅解码的 Skia 临时缓冲与未及时回收的旧批次；
+三个用例的 managed heap 相近（509/518/555 MB），说明差的是非托管位图，不是业务数据。
+
+- 开关：`CKANUI_SD_COVER_WIDTH=<px>`，未设或非正数 = 保持整幅解码（**当前默认**，不动显示）。
+- 质量代价：卡片 232 逻辑宽，464 在 100% DPI 下是 2 倍像素、200% 缩放下正好 1:1，肉眼无差；
+  真要更稳可给 696。详情面板的大图（`Screenshot`，:709 仍是整幅解码）未动。
+
+### 52.4 结论
+
+- 这是目前找到的**最大的单页内存杠杆**（远超驻留预算的 14 页 −89 MB），代价只是封面清晰度的余量。
+- 按约定（影响显示先留决策）没有改默认值；选定宽度后把它变成常量或默认 env 即可。
+
+## §53 堆剖析：managed 253 MB 里 108 MB 是 CKAN 目录的字符串（无杠杆，记账用）
+
+### 53.1 怎么剖的
+```
+tasklist //FI "IMAGENAME eq CkanUI.exe"   # 取真 pid（$! 不是进程 pid）
+dotnet-dump collect -p <pid> -o artifacts/perf/heap.dmp
+dotnet-dump analyze artifacts/perf/heap.dmp -c 'dumpheap -stat' -c 'exit' > artifacts/perf/dumpheap.txt
+```
+样本：真实实例（artifacts/perf/probe-config-real.json）停在 home 页 45 s，ws 488.2 MB / private 428.1 MB / heap 224.7 MB / threads 115；dump 1.03 GB；total 3,059,967 objects / 253,060,993 bytes。
+
+### 53.2 前 12 名
+| 类型 | 实例 | 字节 | 判断 |
+| --- | --- | --- | --- |
+| System.String | 1,195,397 | 108.39 MB | CKAN 目录文本，几乎全不同内容（≈38 串/模块），dedupe 无收益 |
+| Free（GC 空洞） | 328 | 19.85 MB | 压缩后仍留，不追 |
+| CKAN.CkanModule | 31,553 | 10.35 MB | 目录本体，必需 |
+| CKAN.ModuleRelationshipDescriptor | 137,373 | 8.79 MB | 目录本体 |
+| System.Uri | 129,023 | 7.23 MB | 每模块 download/resources 链接 |
+| System.String[] | 89,450 | 4.66 MB | — |
+| CKAN.ResourcesDescriptor | 31,540 | 4.54 MB | — |
+| Avalonia DynamicResourceExpression | 28,118 | 3.82 MB | 样式 |
+| Avalonia StyleInstance | 32,400 | 3.63 MB | 样式 |
+| System.Byte[] | 4,820 | 3.32 MB | **没有任何大 byte 缓存** |
+
+### 53.3 结论
+- managed 侧的大头是 CKAN 目录（31.5k 模块 + 137k 关系描述 + 129k Uri），要再降只能改 CKAN 核心按需加载，超出本次范围，**不做**。
+- `System.Byte[]` 只有 3.3 MB ⇒ 之前担心的「大字节缓存」不存在；SpaceDock 字节缓存封顶（§52.2）属于预防性修复。
+- `DOTNET_GCConserveMemory=5` 实测无效（base ws 494.6 / heap 226.0 vs conserve ws 494.7 / heap 225.4），别再试。
+- 进程 488 MB − managed 253 MB ≈ 235 MB 非托管：Skia/ANGLE 表面、JIT、映射的程序集、线程栈；这部分只能靠「少留页面树」（§51）与「少解大图」（§52）压。
+
+### 53.4 驻留预算的 keep 取值
+实测 14 页子集每摘一页 ≈ 8.9 MB ws / 5.1 MB heap。全量 24 页按同斜率：
+| keep | 摘除页数 | 预计 ws 回收 | 回访代价 |
+| --- | --- | --- | --- |
+| 12 | 12 | ≈107 MB | 只有第 13 个以后的页要重建（40–57 ms），正常会话基本碰不到 |
+| 8 | 16 | ≈142 MB | 第 9 个以后重建 |
+| 4 | 20 | ≈178 MB | 第 5 个以后重建（实测 14 页子集 −89 MB） |
+keep=12 恰好等于 MainWindow.axaml.cs:1240 `WarmupOrder` 的 12 项，预热建好的页不会被预算反过来拆掉，推荐作为默认值。
+
+## §54 驻留预算在 23 页全量扫场下的实测（keep=12）
+
+测量口径：真实实例配置 + 23 个页键（home…spacedock 全量），`CKANUI_NAV_ROUNDS=1`、`CKANUI_NAV_IDLE_CHECK=1`、`CKANUI_PAGE_RESIDENCY_IDLE_S=15`，trace artifacts/perf/nav-full-keep12.log。
+
+| 时刻 | ws | private | heap |
+| --- | --- | --- | --- |
+| 扫场结束、修剪前（t=114 s） | 675.7 MB | 594.2 MB | 328.1 MB |
+| 修剪后（t=116 s，摘 11 页） | 611.1 MB | 528.9 MB | 284.1 MB |
+
+⇒ **23 页、keep=12：ws −65 MB / private −66 MB / heap −44 MB**，每摘一页 ≈ 5.9 MB ws。14 页子集上 keep=4 的斜率是 8.9 MB/页，全量因为摘的是早期轻页，略低。
+
+推算（同斜率）：keep=8 ≈ −88 MB，keep=6 ≈ −100 MB，keep=4 ≈ −113 MB。要够 100 MB 目标，keep=6～8 才稳。
+
+两个副产物：
+- **saves 页是 23 页里唯一的异常尖峰**：单页 ws 868 MB / heap 521 MB（前值 531 MB），gen2 pause 1085 ms。属 `src/CkanUI.Plugin.Saves/*`，那块正在被别人改，只记账不动手。
+- 扫场期间内存只涨不落（无修剪时 686 MB），说明页面树一旦建起来就不会自己还——这正是 §51 的动机。
+
+### 54.1 顺带落地的诊断口
+`src/CkanUI.App/Program.cs` 的 `public const string AppId = "CkanUI"` 改成 `static readonly string AppId = ReadAppId()`，读 `CKANUI_APP_ID`，缺省仍是 `CkanUI`。原因：单实例互斥量是常量，并行任务占着实例时第二个探针进程会直接转发参数退出（本轮第一次 keep=12 就这样空跑）。默认行为不变，只给测量用。
+
+### 54.2 默认开启（keep=12）后的实跑验证
+
+不设 `CKANUI_PAGE_RESIDENCY`、只把静置阈值调到 15 s（`CKANUI_PAGE_RESIDENCY_IDLE_S=15`），16 个页键（home,mods,changes,repos,modpacks,modpack-editor,instances,playtime,unmanaged,cache,downloadstats,dedup,installhistory,plugins,logs,settings）：
+
+```text
+[round] 1 keys=16 cycles=251 gen2=32 ws=763MB private=695MB heap=398MB
+[residency] evicted=4 keep=12 views=12 stage=12 ws=702MB
+[nav] idle-after-sweep ws=714MB private=641MB heap=374MB
+```
+
+⇒ 默认值确实生效：没给 Keep 也按 12 保留、多出的 4 页被摘，ws 763→702 MB（−61 MB / 4 页 ≈ 15 MB/页；这轮用的是带 mods 的工作区实例，页比空实例重）。
+
+**content 页在这台机器上会让探针早退**：真实实例下 content 页 `[inst] not-ready after=30000ms`（配置里的第一实例被改成不存在的 D:/SteamLibrary 路径），随后进程以 1 退出。稳定探针配置写在 artifacts/perf/probe-config-workspace.json（单实例 KSP_Workspace → artifacts/ksp-instance）。全量扫场因此不可重复，结论以上面 16 键口径为准。
+
+## §55 驻留摘页时顺带放掉 VM 里为视图缓存的位图（开关默认关）+ keep=8 实测
+
+### 55.1 机制
+
+驻留预算摘掉的是**视图**；VM 是单例，仍钉着为视图缓存的重资源（SpaceDock 三十张封面 ≈ 200 MB）。新增钩子：
+`src/CkanUI.ViewModels/IPageViewEvictionAware.cs` 的 `void OnViewEvicted()`，在 `MainWindow.EvictPageView` 里
+（`ViewLocator.Discard` 之后、`TextPrompt` 复位之前）被调用。调用前提由预算保证：页面不可见 + 用户已静置超阈值。
+
+`SpaceDockPageViewModel` 实现它：`CancelCardImageLoad()` + `ReleaseCardImages()`，并写 `[sd] evict released=<n> ws=<MB>` 到 `CKANUI_NAV_TRACE`。
+开关 `CKANUI_SD_RELEASE_ON_EVICT=1`，**默认关**——放掉封面意味着回访时卡片要重新下载解码（首屏先占位），属可感知变化。
+
+### 55.2 实测受阻（记账，不算结论）
+
+`artifacts/perf/ab-sd-evict.sh`（keys=spacedock,settings,home，keep=2 让 spacedock 被摘）跑了两轮：
+
+| 轮次 | 结果 |
+| --- | --- |
+| baseline（开关关） | `[residency] evicted=1 keep=2 ws=543MB`；`[nav] idle-after-sweep ws=543MB` |
+| release（开关开） | `[sd] evict released=0 ws=958MB`；`[residency] evicted=1 keep=2 ws=528MB`；idle ws=528MB |
+
+`released=0` 说明这一轮**一张封面都没解码**：日志里同时出现 `刷新仓库索引:无法从网络获取仓库索引` 与 SpaceDock 拉取失败，
+`Mods` 为空，摘页时没有位图可放。两轮 ws 差 15 MB 是页面缓存/噪声，不是封面——**这条杠杆至今没有可用数据**，
+开关保持关闭。等网络可用时用同一脚本复跑即可（预期差 ≈ 19–30 张 × 7.2 MB）。
+
+### 55.3 keep=8 实测（同一 16 键扫场口径）
+
+| keep | `[residency]` | idle ws | idle private | idle heap |
+| --- | --- | --- | --- | --- |
+| 12（默认） | `evicted=4 keep=12 views=12 ws=702MB` | 714 MB | 641 MB | 374 MB |
+| 8 | `evicted=8 keep=8 views=8 ws=685MB` | 691 MB | 613 MB | 360 MB |
+
+⇒ keep 12→8 再省 **23 MB ws / 28 MB private / 14 MB heap**（≈5.8 MB/页），与 §54 的斜率一致。
+若要凑 100 MB，keep=8 只补 23 MB，剩下的大头仍在 SpaceDock 封面（§52 的 −120 MB）或更激进的 keep=4（−113 MB / 23 页）。
+
+### 55.4 第二次尝试（网络恢复后）：封面仍没解码，杠杆继续挂账
+
+网络恢复（spacedock API 200 / 1.0 s）后用同一脚本复跑两轮，并把页面驻留时间从 6 s 提到 15 s（`CKANUI_NAV_WARMUP_MS=15000`）：
+
+| 轮次 | covers 解码数 | 摘页日志 | idle ws |
+| --- | --- | --- | --- |
+| baseline（开关关） | 0 | — | 543 MB |
+| release（开关开） | 0 | `[sd] evict released=20 ws=1096MB` | 541 MB |
+
+`[sd] cover` 一条都没出现 ⇒ 20 个列表项一张封面都没解码，`released=20` 是**列表项数**不是位图数（已把计数改成 `Mods.Count(item => item.Image is not null)`）。
+列表本身是好的（20 项、页面 ws 900 MB），失败点在 `FetchScreenshotAsync` 的静默 `return`——推测是 SpaceDock 图片端点在连续探针后被限流，未进一步验证（不属内存优化范围）。
+**结论不变：摘页释放位图的收益仍无实测数据，开关保持默认关。** 等能稳定解码时用 `artifacts/perf/ab-sd-evict3.sh` 复跑。
+
+### 55.5 摘页钩子加入后的回归
+
+默认值（不设 Keep）+ 同样 16 键：`[round] keys=16 cycles=249 gen2=28 ws=804MB` → `[residency] evicted=4 keep=12 views=12 stage=12 ws=712MB` → `[nav] idle-after-sweep ws=722MB private=648MB heap=389MB`。
+与加钩子前（evicted=4 / 702 MB）行为一致，只差噪声级；`IPageViewEvictionAware` 的调用没有影响摘页主路径。
+### 55.6 第三次尝试：封面解码本身不稳，A/B 仍不可用；顺带量到预热预建 12 页
+
+同一天再跑三组，结论是「封面能不能解码」本身不稳定，不能作为 A/B 的输入：
+
+| 配置 | 驻留 | covers 解码 | cover-skip | 说明 |
+| --- | --- | --- | --- | --- |
+| `NAV_ONLY=spacedock`，15 s | 默认 keep=12 | **18** | 2 | 单独停留时能解码（与 §52 的 19 张一致） |
+| `spacedock,settings`，15 s | keep=1 | 0 | — | 切走即取消，一张都没成 |
+| `spacedock,settings`，40 s | keep=1 | 0 | 6 | 6 个并发全部失败 ⇒ 图片端点限流/超时 |
+
+为看清失败原因，`LoadCardImageAsync` 的静默 `return` 分支加了 `[sd] cover-skip id=.. ok=.. bytes=..` 探针（仅 `CKANUI_SD_TRACE=1` 时写，不改行为）。
+
+另一个副产物：`spacedock,settings` 两键、keep=1 的一轮出现 `[residency] evicted=10 keep=1 views=1 stage=1` ——
+说明启动预热（`WarmupOrder` 12 项）在探针只点两页的情况下仍预建了 11 个页面视图；**这批页才是启动后的内存底盘**，
+预算要等 120 s 静置才收。若要让 100 MB 更快到手，「预热完成后立刻按 keep 收一次未访问的预热页」是比调 keep 更直接的下一步（需改 `WarmupOrder` 所在文件，属并行任务范围，暂不动）。
+
+### 55.7 两轮扫场对照：驻留预算不泄漏，非托管增长与摘页无关
+
+同一 16 键（home,mods,changes,repos,modpacks,modpack-editor,instances,playtime,unmanaged,cache,downloadstats,dedup,installhistory,plugins,logs,settings）、两轮、真实配置、`CKANUI_NAV_WARMUP_MS=3000`，唯一变量是驻留预算：
+
+| 配置 | 轮 1 ws / private / heap | 轮 2 ws / private / heap | 轮间增量 |
+| --- | --- | --- | --- |
+| 预算开（keep=12，`IDLE_S=15`） | 823 / 751 / 441 MB | 926 / 849 / 442 MB | **+103 ws / +1 heap** |
+| 预算关（`CKANUI_PAGE_RESIDENCY=0`） | 800 / 724 / 398 MB | 935 / 853 / 440 MB | **+135 ws / +42 heap** |
+
+结论三条：
+
+1. **摘页/重建不泄漏**：开预算那轮 heap 轮间只 +1 MB（关预算 +42 MB），说明反复 rebuild 的视图对象都被正常回收；
+2. **ws 每轮 +100 MB 左右与摘页无关**（关预算同样 +135 MB），来源是非托管（Skia 光栅缓存 / 合成层 / 驱动），idle 回收后回落到 741 MB（见 `[residency]` 后的 `idle-after-sweep`）；
+3. 因此「默认开 keep=12」可以保持：它让托管侧更稳，且不引入非托管增长。
+
+证据：artifacts/perf/nav-leak2.log（开）、artifacts/perf/nav-leak2-off.log（关）。
