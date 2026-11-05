@@ -19,7 +19,7 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
     public const int RowLimit = 200;
 
     /// <summary>建行批次：每批之间让出一帧，避免一次性给 200 行建容器排成一条长帧。</summary>
-    private const int RowBatchSize = 16;
+    private const int RowBatchSize = 8;
 
     /// <summary>首屏行数：换数据时先把这些行立刻上屏，剩下的再分批补。</summary>
     private const int FirstScreenRows = 20;
@@ -366,7 +366,7 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
             {
                 // 首屏之后必须等真正的布局跑过一遍：表格只有量到有限高度才会虚拟化，
                 // 若 200 行在第一次布局前就全到齐，它会一次性把所有行实体化（1724 节点 / 秒级长帧）。
-                await Task.Delay(50);
+                await Task.Delay(200);
             }
 
             for (var i = filled; i < rows.Count; i += RowBatchSize)
