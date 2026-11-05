@@ -36,6 +36,30 @@
       <Setter Property="Foreground" Value="{DynamicResource CkanAccentBrush}" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
+
+    <!-- 分组卡列表：只借 ListBox 的虚拟化，ListBoxItem 自身的选中/悬停/内边距一律抹平，
+         卡片外观全部由行模板里的 Border 决定，视觉与裸 ItemsControl 一致。 -->
+    <Style Selector="ListBox.KspSections">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="ListBox.KspSections ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="ListBox.KspSections ListBoxItem /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.KspSections ListBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.KspSections ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="{DynamicResource CkanPagePadding}">
@@ -125,10 +149,18 @@
 
     <!-- 表体：按分类分节，版式对齐设置页（分组标题 + 平铺行 + 右对齐编辑槽）。
          空列表时换成说明卡，不留一片空白。 -->
-    <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Disabled"
-                  IsVisible="{Binding !HasEmptyResult}">
-      <ItemsControl ItemsSource="{Binding Sections}" Margin="0,0,14,0">
-        <ItemsControl.ItemTemplate>
+    <!-- 虚拟化：settings.cfg 键多时分组卡全部实体化会到 1.3 万个节点（真机单页 3.4 秒冻结），
+         换成 ListBox + VirtualizingStackPanel，只实体化视口内的分组；行模板一字未改。 -->
+    <ListBox Grid.Row="3" Classes="KspSections" ItemsSource="{Binding Sections}"
+             Margin="0,0,14,0" IsVisible="{Binding !HasEmptyResult}"
+             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+             ScrollViewer.VerticalScrollBarVisibility="Auto">
+      <ListBox.ItemsPanel>
+        <ItemsPanelTemplate>
+          <VirtualizingStackPanel />
+        </ItemsPanelTemplate>
+      </ListBox.ItemsPanel>
+      <ListBox.ItemTemplate>
           <DataTemplate x:DataType="vm:KspConfigSectionViewModel">
             <!-- 分组卡：照抄设置页——CkanCard 底色 + 强调色竖条的分组头 + 行间 hairline。
                  之前行直接铺在星空背景上，表单与背景混在一起（用户实测反馈），现在有卡面兜住。 -->
@@ -266,9 +298,8 @@
               </StackPanel>
             </Border>
           </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-    </ScrollViewer>
+      </ListBox.ItemTemplate>
+    </ListBox>
 
     <Border Grid.Row="3" Classes="CkanEmptyStateCard Flat" IsVisible="{Binding HasEmptyResult}"
             VerticalAlignment="Top" Margin="0,8,0,0" Padding="16,12">

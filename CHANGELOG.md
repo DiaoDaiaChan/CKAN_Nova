@@ -383,6 +383,8 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 修复
 
+- KSP 配置页真机首进冻结 3.4 秒：插件化搬迁时把分组列表退回成 `ScrollViewer > ItemsControl > ItemsControl` 三层裸列表，settings.cfg 键一多就实体化 13,466 个视觉节点。外层换成 `ListBox` + `VirtualizingStackPanel`，用 6 条样式把 `ListBoxItem` 的内边距/边距/最小高/悬停与选中底色全部抹平（行模板一字未动，外观仍由行内 `Border` 决定）⇒ 同实例同页 13,466 → 888 节点，首进 maxGap 3,365 → 424 ms，重进 63 ms。
+- 页面计时探针会在实例还没读上注册表时就开跑，量到的是空壳页面（模组页 254 节点 / 0 行，真实是 2,333 节点 / 2,650 行），据此得出的「这页很快」全是假的。`NavigationProbe` 现在先等仓库索引就绪（`[inst] repo-ready`，实测真机需 12–14 秒），并在每次遍历结束时打印实例名、库路径与错误计数。
 - 卡顿到底卡在哪，之前只能靠猜：`src/CkanUI.App/Diagnostics/NavigationProbe.cs` 新增 UI 线程看门狗（`CKANUI_NAV_STALLS=1`）——后台线程每 15 ms 往 UI 线程投递一次空操作，量「投递到执行」的延迟，超过 50 ms 记为一次卡顿；归属在**投递时**取（页名 + 阶段 startup/enter/window0-2/gap/click/scroll），所以不会把卡顿记到下一个页面上。同时 `[nav]` 行尾追加本页窗口内的 `gen2=` 次数与 `pause=` 毫秒（`GC.GetTotalPauseDuration`），把「卡」和 GC 停顿放到同一张表里对账。
 - 空闲回收只压堆、不松手：进过一遍全部页面后，即使页面已经切走，页里的行投影（成千上万行视图模型）仍被页面字段压着，GC 压不掉——因为它还活着。`src/CkanUI.App/Diagnostics/IdleMemoryReclaimer.cs` 新增回收前钩子 `BeforeReclaim`，`src/CkanUI.App/Lifecycle/PageProjectionCacheParticipant.cs` 在构造时挂上 `TrimAppCache`：先让各页把离页后没人要的投影丢掉，再压缩堆，一段回收就能带走。钩子抛异常不挡回收（记 Trace 后继续），并有两条单测钉住「先 trim 后 GC」的顺序与失败降级。
 - 校验大存档后进程常驻内存不回落：src/CkanUI.Services/Saves/SaveFileService.cs 的校验路径 File.ReadAllBytes 把整份 sfs 读进内存再解析，实测最大的 persistent 存档 120 MB，解析出的字符块全部落在 LOH（大对象堆）上；托管堆回收了，但 LOH 默认不压缩，段一直挂在进程里。现在存档 ≥32 MB 时只登记一次 GCSettings.LargeObjectHeapCompactionMode = CompactOnce，由下一次 GC 顺带压缩，不主动 Collect、不占 UI 线程。
