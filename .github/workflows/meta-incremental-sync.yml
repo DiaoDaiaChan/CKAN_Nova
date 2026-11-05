@@ -1,0 +1,45 @@
+name: Sync & Publish CKAN Incremental Meta
+
+on:
+  schedule:
+    - cron: '*/30 * * * *' # 每 30 分钟同步一次上游 CKAN-meta
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/meta-sync/**'
+      - '.github/workflows/meta-incremental-sync.yml'
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  sync-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout CKAN_Nova
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate Patches & Dashboard
+        run: |
+          python3 tools/meta-sync/generate_patches.py
+        env:
+          META_REPO_URL: 'https://github.com/KSP-CKAN/CKAN-meta.git'
+          META_BRANCH: 'master'
+          DIST_DIR: 'dist'
+          MAX_COMMITS: '20'
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          force_orphan: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
