@@ -243,9 +243,13 @@ internal static class NavigationProbe
             .Where(key => string.IsNullOrWhiteSpace(only) || string.Equals(key, only, StringComparison.OrdinalIgnoreCase))
             .ToArray();
         TryWrite(path, $"[nav] start keys={keys.Length}");
+        ReportInstance(path);
+        // 启动编排仍在后台跑（9.8MB 注册表解析要几秒），此时进页面只会量到空壳，先等实例真空上。
+        await WaitForInstanceAsync(path);
 
         var previousKey = string.Empty;
-        for (var round = 1; round <= 2; round++)
+        var rounds = NavRounds();
+        for (var round = 1; round <= rounds; round++)
         foreach (var key in keys)
         {
             // 同一页面重复导航会被 Shell 当成 no-op（CurrentPage 不变），
@@ -336,6 +340,13 @@ internal static class NavigationProbe
 
             _stallPhase = "gap";
             await Task.Delay(GapMilliseconds);
+
+            // 每轮走完打一条汇总：连续多轮遍历时，这一行就是内存泄漏的曲线。
+            if (string.Equals(key, keys[^1], StringComparison.Ordinal))
+            {
+                TryWrite(path, $"[round] {round} keys={keys.Length} cycles={GC.CollectionCount(0)} gen2={GC.CollectionCount(2)}{MemorySuffix()}");
+                ReportInstance(path);
+            }
         }
 
         if (Environment.GetEnvironmentVariable("CKANUI_NAV_STYLES") == "1")
@@ -357,6 +368,109 @@ internal static class NavigationProbe
     /// <summary>
     /// 安全可点的命令白名单：只点「重新取数」这一类幂等命令，安装/卸载/应用/启动一律不点。
     /// </summary>
+    private static int InstalledCount()
+    {
+        try
+        {
+            var registry = App.Services?.GetService(typeof(CkanUI.Services.Abstractions.IRegistryService))
+                as CkanUI.Services.Abstractions.IRegistryService;
+            return registry?.Current.Installed.Count ?? 0;
+        }
+        catch (Exception)
+        {
+            return 0;
+        }
+    }
+
+    private static int AvailableCount()
+    {
+        try
+        {
+            var repositories = App.Services?.GetService(typeof(CkanUI.Services.Abstractions.IRepositoryService))
+                as CkanUI.Services.Abstractions.IRepositoryService;
+            return repositories?.Current.Available.Count ?? 0;
+        }
+        catch (Exception)
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>等启动编排把注册表/仓库索引真正读上来；超时也继续，但会在日志里留证。</summary>
+    private static async Task WaitForInstanceAsync(string path)
+    {
+        var watch = Stopwatch.StartNew();
+        while (watch.Elapsed < TimeSpan.FromSeconds(30))
+        {
+            if (InstalledCount() > 0)
+            {
+                TryWrite(path, string.Create(CultureInfo.InvariantCulture, $"[inst] ready after={watch.ElapsedMilliseconds}ms installed={InstalledCount()}"));
+                return;
+            }
+
+            if (AvailableCount() > 0)
+            {
+                TryWrite(path, string.Create(CultureInfo.InvariantCulture, $"[inst] repo-ready after={watch.ElapsedMilliseconds}ms available={AvailableCount()} installed={InstalledCount()}"));
+                return;
+            }
+
+            await Task.Delay(250).ConfigureAwait(false);
+        }
+
+        TryWrite(path, "[inst] not-ready after=30000ms");
+    }
+
+    /// <summary>打印本次进程实际挂上的实例与注册表规模，避免把「实例没接上」误读成页面性能问题。</summary>
+    private static void ReportInstance(string path)
+    {
+        try
+        {
+            var services = App.Services;
+            var instances = services?.GetService(typeof(CkanUI.Services.Abstractions.IInstanceService))
+                as CkanUI.Services.Abstractions.IInstanceService;
+            var registry = services?.GetService(typeof(CkanUI.Services.Abstractions.IRegistryService))
+                as CkanUI.Services.Abstractions.IRegistryService;
+            var name = instances?.Current?.Name ?? "-";
+            var instancePath = instances?.Current?.GameDir ?? "-";
+            var installed = registry?.Current.Installed.Count ?? -1;
+            var errors = services?.GetService(typeof(CkanUI.Services.Abstractions.IErrorReporter))
+                as CkanUI.Services.Abstractions.IErrorReporter;
+            var lastError = errors?.Recent.Count > 0
+                ? errors.Recent[^1].Context + ":" + errors.Recent[^1].UserMessage
+                : "-";
+            TryWrite(path, string.Create(CultureInfo.InvariantCulture, $"[inst] name={name} path={instancePath} installed={installed} errors={errors?.Recent.Count ?? -1} last={lastError}"));
+        }
+        catch (Exception ex)
+        {
+            TryWrite(path, $"[inst] unavailable reason={ex.GetType().Name}");
+        }
+    }
+
+    /// <summary>页面 VM 上常见列表的行数，用来区分「页面空着」和「列表没虚拟化好」。</summary>
+    private static string Chatty(object? pageVm)
+    {
+        if (pageVm is null)
+        {
+            return "-";
+        }
+
+        var property = pageVm.GetType().GetProperty("Rows") ?? pageVm.GetType().GetProperty("Entries");
+        var rows = property?.GetValue(pageVm) is System.Collections.ICollection collection
+            ? collection.Count.ToString(CultureInfo.InvariantCulture)
+            : "-";
+        var all = pageVm.GetType()
+            .GetField("_all", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?.GetValue(pageVm) is System.Collections.ICollection everything
+            ? everything.Count.ToString(CultureInfo.InvariantCulture)
+            : "-";
+        return rows + "/" + all;
+    }
+
+    private static int NavRounds()
+    {
+        return int.TryParse(Environment.GetEnvironmentVariable("CKANUI_NAV_ROUNDS"), out var rounds) && rounds > 0 ? rounds : 2;
+    }
+
     private static readonly Regex SafeCommandPattern = new(
         "^(Refresh|Reload|Recompute|Recheck|Rescan|Validate|Copy)",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
@@ -598,11 +712,31 @@ internal static class NavigationProbe
     }
 
     /// <summary>滚动主力列表 60 帧，量滚动期间的帧间隔（用户感知的「滚起来卡」）。</summary>
-    private static ScrollViewer? PickScroller(Visual scope) => scope.GetVisualDescendants()
-        .OfType<ScrollViewer>()
-        .Where(viewer => viewer.IsVisible && viewer.Extent.Height - viewer.Viewport.Height > 40)
-        .OrderByDescending(viewer => viewer.Extent.Height - viewer.Viewport.Height)
-        .FirstOrDefault();
+    private static ScrollViewer? PickScroller(Visual scope)
+    {
+        // 优先找指针位置下面那个真正能滚的容器：DataGrid 等控件把 ScrollViewer 藏在模板里，
+        // 只按「哪个 Extent 最大」挑会挑到外层不可滚的装饰容器，于是出现 reason=no-scroller。
+        if (scope is Visual visual && TopLevel.GetTopLevel(visual) is { } top)
+        {
+            var center = new Point(top.Bounds.Width / 2, top.Bounds.Height / 2);
+            if (top.GetVisualsAt(center).FirstOrDefault() is { } hit)
+            {
+                for (Visual? node = hit; node is not null; node = node.GetVisualParent())
+                {
+                    if (node is ScrollViewer { } viewer && viewer.Extent.Height - viewer.Viewport.Height > 40)
+                    {
+                        return viewer;
+                    }
+                }
+            }
+        }
+
+        return scope.GetVisualDescendants()
+            .OfType<ScrollViewer>()
+            .Where(viewer => viewer.Extent.Height - viewer.Viewport.Height > 40)
+            .OrderByDescending(viewer => viewer.Extent.Height - viewer.Viewport.Height)
+            .FirstOrDefault();
+    }
 
     private static async Task ScrollWindowAsync(TopLevel window, string path, int round, string key)
     {
@@ -621,8 +755,13 @@ internal static class NavigationProbe
 
         if (scroll is null)
         {
+            var detail = string.Join(", ", scope.GetVisualDescendants().OfType<ScrollViewer>()
+                .Take(6)
+                .Select(viewer => $"{(string.IsNullOrEmpty(viewer.Name) ? "?" : viewer.Name)}:{viewer.Extent.Height:F0}/{viewer.Viewport.Height:F0}"));
             var seen = scope.GetVisualDescendants().OfType<ScrollViewer>().Count();
-            TryWrite(path, $"[scroll] skip {key} reason=no-scroller scrollers={seen}");
+            var rows = Chatty(scope.DataContext);
+            var scopeInfo = $"{scope.GetType().Name} visuals={scope.GetVisualDescendants().Count()} grids={scope.GetVisualDescendants().OfType<DataGrid>().Count()} rows={rows}";
+            TryWrite(path, string.Create(CultureInfo.InvariantCulture, $"[scroll] skip {key} reason=no-scroller scrollers={seen} scope={scopeInfo} detail=[{detail}]"));
             return;
         }
 
