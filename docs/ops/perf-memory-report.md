@@ -523,3 +523,40 @@ r2 进页的 maxGap 也从 99.3ms（worstAt 798ms，含一次校验停顿）降�
 
 - `measure-instance.mjs` 现在支持 `CKANUI_PROBE_MEM=0` 关掉 `CKANUI_NAV_MEM`（默认仍是 1，向后兼容）——量帧间隔时应关。
 - 并发构建/多 agent 同时压机器时，全量 32 tab 的 layout 能漂 2–10 倍（同一份代码 dedup 117ms → 1317ms、storage 113ms → 1382ms），**只有 nodes 是稳定量**。要发布首进数字，必须确认机器上没有别的构建在跑。
+
+## 18. modconfig：假异步（Task.FromResult）改成真异步（e1998ef）
+
+### 18.1 这是一类问题，不是一个页面
+
+`ModConfigService.LoadAsync` 原来是：
+
+```csharp
+var result = LoadCore(instanceName, ct);   // 扫适配器目录、解析 .cfg、建模型
+_cachedKey = key; _cached = result;
+return Task.FromResult(result);            // 包成「已完成的任务」
+```
+
+调用方 `await _config.LoadAsync(...)` 拿到的是已完成任务，**根本不会让出线程**——导航命令里的同步耗时（探针的 `assign`）就是这么来的。往 `OnActivated` 里写 `_ = LoadAsync()` 也没用：方法的同步前缀照样在 UI 线程跑完。
+
+### 18.2 改法
+
+`LoadAndCacheAsync`：`await Task.Run(() => LoadCore(instanceName, ct), ct).ConfigureAwait(false)`，缓存写回放在 await 之后。
+
+### 18.3 实测
+
+| modconfig 首进 | assign（导航命令同步耗时） |
+|---|---|
+| 改前（全量复核） | 362.2ms |
+| 改后（隔离首进） | 236.3ms |
+
+剩余 assign 主要是**页面视图构造**（1295 节点 XAML 首次实体化），不属于数据加载。重进 assign 11.5ms、layout 42.7ms、maxGap 30.6ms。
+
+回归：`CkanUI.Plugin.ModConfig.Tests` 173 项全绿（0.79s）。
+
+### 18.4 排查同类问题的办法
+
+```bash
+grep -rn "Task.FromResult" src --include=*.cs | grep -i "load\|refresh\|scan"
+```
+
+凡是「先同步干活、再 `Task.FromResult` 包一层」的方法，对外都是假异步；调用点写 `await` 看起来是异步，实际整段都在 UI 线程。判据：探针的 `assign` 里出现与数据量正相关的毫秒数。
