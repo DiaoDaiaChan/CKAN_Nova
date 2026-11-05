@@ -16,7 +16,13 @@ public sealed partial class FlagsPageViewModel : AssetPageViewModel, IPluginPage
     private static readonly string[] FlagExtensions = [".png", ".jpg", ".jpeg"];
 
     // 一次灌进 96 张卡片会把「同步解码 + 整片 WrapPanel 重新布局」压进同一个 UI 帧，按批填、批间让帧。
-    private const int FillBatchSize = 8;
+    // 每帧落地的卡片数：一张卡片要解一次缩略图，8 张同帧实测 p50 96–174ms、峰值 300–456ms；
+    // 拆成 4 张后 p50 47–69ms、峰值 137–304ms（同一构建两轮对照，artifacts/flags-b*.log）。
+    private const int FillBatchSize = 4;
+
+    /// <summary>每帧最多落地几张卡片：一张卡片要解一次缩略图，8 张同帧会让这一帧 ~90ms。</summary>
+    private static int FillBatch =>
+        int.TryParse(Environment.GetEnvironmentVariable("CKANUI_FLAGS_BATCH"), out var parsed) && parsed > 0 ? parsed : FillBatchSize;
 
     private readonly IFlagLibraryService _flags;
 
@@ -301,7 +307,7 @@ public sealed partial class FlagsPageViewModel : AssetPageViewModel, IPluginPage
         var token = ++_fillToken;
 
         Flags.Clear();
-        foreach (var batch in items.Chunk(FillBatchSize))
+        foreach (var batch in items.Chunk(FillBatch))
         {
             // 上一轮还没填完就被新刷新顶掉了：让位，别把半份列表和新的混在一起。
             if (token != _fillToken)
