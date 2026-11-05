@@ -298,3 +298,65 @@ UI 线程（采样）自时间排名：`Avalonia.StyledElement.ApplyStyles` **11
 1. 卡顿不在命令体（全异步），在**进页面后 1–1.5 s 的数据回填段**：建行、排版、Gen2/LOH 一次性分配。
 2. GC 停顿是最大单一来源（六成量级），但它不解释「为什么偏偏这页卡」。
 3. 剩下的空间在**每页首进的投影体量**上；要压它必须改各页 VM（`IPageProjectionTrim` 目前只有 content/mods/modtext/kspconfig 实现），而音乐、存档、存储、模组配置、设置、变更、下载统计等页的 VM 仍在其他人的未提交改动里，按约定我没有动。
+
+## 13. 团队三条线的实测结论
+
+同一棵工作树上三条线并发测量（构建/探针用 `artifacts/run.lock` 串行），口径与噪声见 13.1 的提醒。
+
+### 13.1 空闲内存回收门限 A/B：噪声内，已回退
+
+候选改动（`src/CkanUI.App/Diagnostics/IdleMemoryReclaimer.cs`）：把 `GrowthThresholdBytes` 128 MB → 64 MB（真机 31 页两轮 round1 1164 MB → round2 1247 MB 只涨 83 MB，按 128 MB 门限永远收不到），并在每次回收前设 `GCSettings.LargeObjectHeapCompactionMode = CompactOnce`（`compacting:true` 只压 SOH，不搬 LOH）。
+
+量法：`dotnet CkanUI.dll`（apphost `CkanUI.exe` 在本机静默 exit 1）+ `artifacts/icm-probe.mjs`，31 页 × 2 轮 → 25 s 静置 → `artifacts/cpu-sample.ps1` 2 × 20 s；heap 取 `GC.GetTotalMemory(forceFullCollection:true)`。
+
+| 运行 | round1 ws/private/heap | round2 ws/private/heap | 静置后 ws/private/heap | 峰值 ws | 空闲 CPU（单核） |
+| --- | --- | --- | --- | --- | --- |
+| base#1 | 1144/1044/752 | 1175/1077/753 | 1133/1039/753 | 1709 MB | 1.6% / 2.3% |
+| base#2 | 1134/1036/748 | 1141/1052/749 | 1112/1020/749 | 1672 MB | 1.1% / 1.1% |
+| new#1 | 1153/1057/752 | 1167/1066/754 | 1153/1050/754 | 1768 MB | 1.3% / 1.4% |
+| new#2 | 1076/1012/742 | 1080/1013/741 | 1047/980/741 | 1684 MB | 1.0% / 0.9% |
+
+结论：round2 均值差 −34 MB，但 new 组内 spread 87 MB 已经把组间差吃掉（峰值反而高 60–90 MB），按「噪声内回退」执行。文件已按 HEAD 快照原样还原：`git diff --quiet` 返回 0、blob 与 HEAD 同为 `8354e1e`，改动未进主干。
+
+**这条负面证据比数字本身有用**：heap 是强制全量 GC 之后的**存活**量，四个来回都停在 741–754 MB、两轮之间只差 0–2 MB。也就是说 1164 → 1247 MB 那 +83 MB **不是托管垃圾**——GC 调门限、压 LOH 都拿不回来。托管堆这一侧已经到顶，剩下的量在原生/渲染侧和各页仍被引用的投影上。
+
+口径提醒：并发构建/探针期间实测抖动 ±80 MB，30 MB 级的差异单次不可判定；要判必须等安静窗口。
+
+空闲 CPU 这条线：该改动不涉及定时器，前后 1.0–1.4% vs 1.1–2.3%（单核，探针静置口径）无差异；`IdleMemoryReclaimer` 的 8 s 轮询是 `DispatcherPriority.Background`，且只在空闲时读一次工作集，不是常开热路径。
+
+### 13.2 logs 首进拆分
+
+一次首进 954 ms 的拆解：`view-ctor` 65.1 ms、`attach→layout` 782 ms、73 行 × ~10 ms/行、热路径 107 ms。⇒ 首进成本主要在**逐行建行 + 排版**，VM 构造本身不是大头；要压得从行数与模板下手，不是从构造函数下手。
+
+### 13.3 downloadstats 的 RowLimit 线性
+
+| RowLimit | 耗时 | 节点数 |
+| --- | --- | --- |
+| 20 | 273.5 ms | 229 |
+| 200 | 556 ms | 1724 |
+
+两点拟合：固定开销 ≈ 240 ms + ≈ 1.6 ms/行（行数增加 180 行、耗时增加 282.5 ms）。⇒ 建行成本随行数**近线性**增长，压时间要靠降行数/虚拟化，靠调窗口大小没用。
+
+### 13.4 空闲 CPU 归因：不是定时器空转，是帧还在产
+
+量法：让应用静置 10 分钟，再对它采 20 s 样本——`dotnet-trace collect --providers Microsoft-DotNETCore-SampleProfiler --duration 00:00:20 --process-id <Windows PID>`，转 speedscope 后用 `dotnet-trace report topN` 读独占时间。
+
+独占时间前 7 名全是**阻塞等待**，没有一处在跑：
+
+| 函数 | 独占 |
+| --- | --- |
+| LowLevelLifoSemaphore.WaitForSignal(int32) | 39.1% |
+| PortableThreadPool+IOCompletionPoller.Poll() | 20.3% |
+| WaitHandle.WaitOneNoCheck(...) | 13.4% |
+| WaitHandle.WaitAnyMultiple(...) | 6.8% |
+| WinUiCompositorConnection.RunLoop() | 6.8% |
+| Monitor.Wait(object, int32) | 6.8% |
+| Win32DispatcherImpl.RunLoop(...) | 6.4% |
+
+托管侧真正在干活的只有：`Dispatcher.OnOSTimer` 0.1%、`Dispatcher.ExecuteJobsCore` 0.07%、`TimerQueue.FireNextTimers` 0.09%。
+
+⇒ 静置态没有 spin，也没有哪个 `DispatcherTimer` 在空转——删定时器解决不了真机静置的 6.9%。剩下的是**帧还在产**：合成器与 `RunLoop` 每帧的活。唯一杠杆是空闲时**停帧或降帧**（让渲染循环真正睡下去），不是减定时器。
+
+口径限制：同一台机器上探针静置态（2 × 20 s `cpu-sample.ps1`）实测只有 1.0–2.3% 单核，复现不到真机 6.9%，所以这份栈只回答「剩余 CPU 的形态」，不回答「点数为什么是 6.9」。
+
+
