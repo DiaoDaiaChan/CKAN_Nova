@@ -644,3 +644,23 @@ grep -rn "Task.FromResult" src --include=*.cs | grep -i "load\|refresh\|scan"
 
 - DataGrid 的行虚拟化是开着的，且**不受行数影响**：`nodes` 恒 2333（20 行视口），所以「行数多导致卡」是误判；卡在每行的节点密度。
 - 判据可复用：`CKANUI_NAV_ONLY=<key>` 跑两次，若 `nodes` 与 `layout` 都不随数据量变，成本就在视口模板，不在数据管线。
+
+## 21. 存档页内存：峰值是瞬时垃圾，不是常驻（更正 §14 的 +510MB）
+
+### 21.1 更正
+
+§14 里「saves 单页 heap +525MB」来自 `artifacts/heap-delta.js`，而该脚本把日志路径**写死**成 `artifacts/nav-exhaustive-run.log`——那是修复前（去抖 2217d1d 之前）的一次全量跑，传参被忽略。以脚本输出的数字为依据的「某页常驻多少」结论一律作废，只看 `[nav]` 行自带的 `heap=`。
+
+### 21.2 存档页隔离实测（真实实例镜像，649 个存档 / 1003MB，CKANUI_NAV_MEM=1）
+
+| 轮次 | layout | maxGap | heap | ws | private | gen2 | GC 停顿 |
+|---|---|---|---|---|---|---|---|
+| r1（首进） | 741.2ms | 409.4ms | 576MB | 896MB | 870MB | 4 | 1283ms |
+| r2（重进） | 43.2ms | 38.4ms | 110MB | 991MB | 962MB | 3 | 375ms |
+
+**首进的 576MB 在重进时回落到 110MB**，没有跨页常驻；ws 停在 ~990MB 是因为 GC 已提交的段不立刻还给系统（`GC.Collect` 之后 `WorkingSet` 仍高是正常的）。
+
+### 21.3 判读纪律（补一条）
+
+- 抓「静静涨上去」必须用 `[mem] t=..s ws=.. private=.. heap=..` 时间轴（`CKANUI_MEM_TRACE`，§16），不要用 per-page 的 heap 快照；快照落在解析中途就会把瞬时缓冲当成常驻。
+- 探针进程会被单实例守卫挡掉：任何 `CkanUI.exe` 还活着时，新的探针进程会**静默退出、trace 不写**，measure-instance 会干等 15 分钟才报「应用可能启动失败」。跑前先 `tasklist | grep CkanUI.exe` 清干净。
