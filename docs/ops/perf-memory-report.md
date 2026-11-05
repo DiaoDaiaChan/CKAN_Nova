@@ -723,3 +723,37 @@ grep -rn "Task.FromResult" src --include=*.cs | grep -i "load\|refresh\|scan"
 ### 22.4 4GB 的定位口径
 
 三套实例我这边的活堆上限都是 0.7–0.9GB、ws 峰值 1.8–1.9GB；用户的 4GB 需要他自己的 `[mem]` 时间轴（`CKANUI_MEM_TRACE`）来定位：若 `private − heap` 一起涨 ⇒ 非托管（纹理/位图）；若只是 `heap` 阶梯上涨 ⇒ 页数据量与包规模成正比，走 22.3 的第 1 条。
+
+## 23. 页面切换与按钮响应（用户把范围收窄到这两项后的账）
+
+### 23.1 已修：两个按钮的「点完就冻」
+
+真实实例镜像、`CKANUI_NAV_CLICKS=1`，同一构建下的前后对照（`free` = UI 线程恢复可用的耗时，`maxGap` = 点后 1.2s 帧窗口内的最大帧间隔）：
+
+| 命令 | 修前 | 修后 | 根因 |
+|---|---|---|---|
+| repos `RefreshAllCommand` | free 17.9ms / maxGap **674.4ms** | free 0.6ms / maxGap **15.5ms** | 服务层 async 方法在 UI 线程起跑，续体回 UI 线程解析仓库索引；整段改到 `Task.Run` 起跑（commit fec6575） |
+| instances `RefreshCommand` | free 87.4ms / maxGap **293.9ms** | free 17.1ms / maxGap **56.8ms** | `finally { Reload(); }` 在 UI 线程对每个实例做目录存在性探测；投影改到线程池，回 UI 只赋值（commit 36d9cf9） |
+
+两个命令都留了对照开关（`CKANUI_REPOS_SYNC=1` / `CKANUI_INSTANCES_SYNC=1`）以便复测，默认走新路径。
+
+### 23.2 被否决的实验：downloadstats 的 IsVisible
+
+假设：明细表用 `IsVisible` 收起再显示会让 DataGrid 以无限高度重新测量，行虚拟化失效。
+
+- 去掉 `IsVisible`（恒可见）实测 **nodes 1724 → 229、layout 419 → 273.9ms**，假设在半程成立；
+- 换成 `Opacity`（保持布局、只隐视觉）后 r1 nodes 是 229，但**r2 又回到 1724**，且 r2 maxGap 730.3ms ⇒ 折叠—显示不是唯一入口，换 Opacity 不足以闭环。
+- 两个文件已按备份逐字节还原（axaml md5 `afcefbbfc8772203c4d6ec172dcd70ab`），代码未入库。
+
+### 23.3 页面切换现状（真实实例，32 键遍历，§19 口径）
+
+| 页面 | 首进 layout | 重进 layout | 节点数 |
+|---|---|---|---|
+| mods | 1108–1349ms | 253–270ms | 2333 |
+| modconfig | 589–627ms | 76–90ms | 1295 |
+| kspconfig | 421–453ms | 49ms | 888 |
+| downloadstats | 419–429ms | 26–28ms | 1724 |
+| rp1-career | 302–337ms | — | 418 |
+| modtext | 266–282ms | — | 631 |
+
+首进成本与节点数线性（约 0.3ms/节点，§20 已用行数消融证明），所以页面切换的下一个杠杆只有一个：**减少首帧实体化的节点数**。mods 是唯一的大头（2333 节点，110 节点/行），而它只能通过改行模板（列内呈现简化）实现——属「影响显示效果」的改动，按用户约束停在等拍板。
