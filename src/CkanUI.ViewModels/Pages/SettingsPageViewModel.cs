@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CkanUI.Localization;
 using System.ComponentModel;
 using System.Globalization;
@@ -154,7 +155,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     public override string Title => Text("设置", LocalizationKeys.SettingsTitle);
 
     /// <summary>八个设置分组（顺序即界面顺序）。</summary>
-    public IReadOnlyList<SettingGroupViewModel> Groups => _groups;
+    public ObservableCollection<SettingGroupViewModel> Groups { get; } = [];
 
     /// <summary>全部标量设置项（拍平后便于遍历；数量级很小，直接现算）。</summary>
     public IReadOnlyList<SettingItemViewModel> Items => _items;
@@ -301,6 +302,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     private static readonly string[] AppearanceKeys =
     [
         SettingsKeyNames.Theme,
+        SettingsKeyNames.ThemeSkin,
         SettingsKeyNames.AccentColor,
         SettingsKeyNames.AccentColorCustom,
         SettingsKeyNames.AccentScope,
@@ -390,6 +392,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     /// <param name="ct">取消标记。</param>
     public async Task LoadAsync(CancellationToken ct = default)
     {
+        var timing = SettingsTiming.Start();
         IsLoading = true;
         LoadErrorText = null;
         OnPropertyChanged(nameof(HasLoadError));
@@ -403,9 +406,11 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 return;
             }
 
+            timing.Mark("getAll");
             ApplyCoreValues(all.Value);
             ApplyUiSettings();
             ApplyInstanceState(all.Value);
+            timing.Mark("apply");
             await LoadStabilityToleranceAsync(ct).ConfigureAwait(true);
             _diagnostics.Update(
                 _instances?.Current,
@@ -413,6 +418,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 _cacheDirItem?.EditValue);
             _tokenEditor.LoadFrom(all.Value);
             UpdateDirtyState();
+            timing.Mark("finish");
 
             // 行是这次读取才建出来的，接管状态要重新贴一遍（不能指望视图的 DataContextChanged 早于 LoadAsync）。
             RefreshAppearanceLock();
@@ -435,6 +441,8 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         finally
         {
             IsLoading = false;
+            timing.Mark("isLoading-off");
+            timing.Flush();
         }
     }
 
@@ -521,7 +529,36 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
 
         // 首次进入读全量；之后再进来只补随实例变化的那部分。
         // 全量重读会在每次切页时重灌 36 行的编辑值并重发一轮属性通知，且 IsLoading 会让整页闪一次骨架。
-        _ = _hasLoadedOnce ? RefreshInstanceStateAsync() : LoadAsync();
+        _ = _hasLoadedOnce ? RefreshInstanceStateAsync() : FirstLoadAsync();
+    }
+
+    /// <summary>
+    /// 首进：先读值（骨架还盖着，46 行编辑值一次灌好），撤骨架后再逐组把分组挂进 <see cref="Groups"/>。
+    /// </summary>
+    /// <remarks>
+    /// 八组共 2016 个节点，一次性挂上去会把「控件实体化 + 首次布局」全压进同一个 UI 帧（实测 maxGap 1091ms）。
+    /// 逐组挂、组间让一帧，单帧只承担一组；值已经先灌好，后面不再因为属性变化触发二次重排。
+    /// </remarks>
+    private async Task FirstLoadAsync(CancellationToken ct = default)
+    {
+        await LoadAsync(ct).ConfigureAwait(true);
+        await FillGroupsAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>逐组挂分组，组间让一帧。</summary>
+    private async Task FillGroupsAsync()
+    {
+        if (Groups.Count > 0 || _groups.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var group in _groups)
+        {
+            Groups.Add(group);
+            // Task.Delay 的续体回到 UI 线程排队，中间这一帧留给渲染/布局，用户看到的是逐组长出来。
+            await Task.Delay(16).ConfigureAwait(true);
+        }
     }
 
     /// <summary>再次进入时只刷新依赖当前实例的设置项与诊断卡，不重灌 36 行编辑值。</summary>
@@ -567,7 +604,51 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
             SettingGroupKey.General,
             Text("通用", LocalizationKeys.SettingsSectionGeneral),
             Text("与具体实例无关的行为。", LocalizationKeys.SettingsSectionGeneralDesc),
-            _devBuildsItem);
+            _devBuildsItem,
+            new SettingItemViewModel(
+                SettingsKeyNames.MasterMuted,
+                Text("全局静音", LocalizationKeys.SettingsItemMasterMuted),
+                SettingItemKind.Boolean,
+                SettingPersistence.UiSettings,
+                SettingGroupKey.General,
+                description: Text("一键静音所有音效与音乐。", LocalizationKeys.SettingsItemMasterMutedDesc),
+                saveHandler: vm => SaveItemAsync(vm)),
+            new SettingItemViewModel(
+                SettingsKeyNames.SoundEffectsEnabled,
+                Text("按键与提示音效", LocalizationKeys.SettingsItemSoundEffects),
+                SettingItemKind.Boolean,
+                SettingPersistence.UiSettings,
+                SettingGroupKey.General,
+                description: Text("开启后点击、勾选、切换与弹出提示时播放反馈音效。", LocalizationKeys.SettingsItemSoundEffectsDesc),
+                saveHandler: vm => SaveItemAsync(vm)),
+            new SettingItemViewModel(
+                SettingsKeyNames.SoundEffectsVolume,
+                Text("音效音量", LocalizationKeys.SettingsItemSoundEffectsVolume),
+                SettingItemKind.Integer,
+                SettingPersistence.UiSettings,
+                SettingGroupKey.General,
+                description: Text("提示音效音量百分比（0–100）。", LocalizationKeys.SettingsItemSoundEffectsVolumeDesc),
+                min: 0,
+                max: 100,
+                saveHandler: vm => SaveItemAsync(vm)),
+            new SettingItemViewModel(
+                SettingsKeyNames.MusicEnabled,
+                Text("背景音乐播放器", LocalizationKeys.SettingsItemMusicEnabled),
+                SettingItemKind.Boolean,
+                SettingPersistence.UiSettings,
+                SettingGroupKey.General,
+                description: Text("开启原声音乐播放功能。", LocalizationKeys.SettingsItemMusicEnabledDesc),
+                saveHandler: vm => SaveItemAsync(vm)),
+            new SettingItemViewModel(
+                SettingsKeyNames.MusicVolume,
+                Text("音乐音量", LocalizationKeys.SettingsItemMusicVolume),
+                SettingItemKind.Integer,
+                SettingPersistence.UiSettings,
+                SettingGroupKey.General,
+                description: Text("背景音乐音量百分比（0–100）。", LocalizationKeys.SettingsItemMusicVolumeDesc),
+                min: 0,
+                max: 100,
+                saveHandler: vm => SaveItemAsync(vm)));
 
         _autoStartItem = new SettingItemViewModel(
             SettingsKeyNames.AutoStartInstance,
@@ -655,13 +736,30 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: Text("高对比度主题在系统开启高对比度时会被强制使用（P-01）。", LocalizationKeys.SettingsItemThemeDesc),
+                description: Text("高对比度主题在系统开启高对比度时会被强制使用。", LocalizationKeys.SettingsItemThemeDesc),
                 choices: new[]
                 {
                     new SettingChoice("system", Text("跟随系统", LocalizationKeys.SettingsChoiceThemeSystem)),
                     new SettingChoice("light", Text("浅色", LocalizationKeys.SettingsChoiceThemeLight)),
                     new SettingChoice("dark", Text("深色", LocalizationKeys.SettingsChoiceThemeDark)),
                     new SettingChoice("highcontrast", Text("高对比度", LocalizationKeys.SettingsChoiceThemeHighContrast)),
+                }),
+            new SettingItemViewModel(
+                SettingsKeyNames.ThemeSkin,
+                Text("主题皮肤", LocalizationKeys.SettingsItemThemeSkin),
+                SettingItemKind.Choice,
+                SettingPersistence.UiSettings,
+                SettingGroupKey.Appearance,
+                description: Text("在深色主题下整体替换画布、表面与强调色；浅色和高对比度仍使用默认主题，保证极端对比度下的可读性。保存后立即生效。", LocalizationKeys.SettingsItemThemeSkinDesc),
+                choices: new[]
+                {
+                    new SettingChoice(ThemeSkinKinds.Default, Text("默认（深空蓝）", LocalizationKeys.SettingsChoiceThemeSkinDefault)),
+                    new SettingChoice(ThemeSkinKinds.CoronaGold, Text("日冕金", LocalizationKeys.SettingsChoiceThemeSkinCoronaGold)),
+                    new SettingChoice(ThemeSkinKinds.LunarGraphite, Text("月白石墨", LocalizationKeys.SettingsChoiceThemeSkinLunarGraphite)),
+                    new SettingChoice(ThemeSkinKinds.Celadon, Text("青瓷", LocalizationKeys.SettingsChoiceThemeSkinCeladon)),
+                    new SettingChoice(ThemeSkinKinds.Copper, Text("铜金", LocalizationKeys.SettingsChoiceThemeSkinCopper)),
+                    new SettingChoice(ThemeSkinKinds.NebulaViolet, Text("星云紫", LocalizationKeys.SettingsChoiceThemeSkinNebulaViolet)),
+                    new SettingChoice(ThemeSkinKinds.MonochromeSilver, Text("单色银", LocalizationKeys.SettingsChoiceThemeSkinMonochromeSilver)),
                 }),
             new SettingItemViewModel(
                 SettingsKeyNames.Locale,
@@ -678,7 +776,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: Text("紧凑/标准/舒适三档，影响行高与内边距（P-08）；保存后即时生效。", LocalizationKeys.SettingsItemDensityDesc),
+                description: Text("紧凑/标准/舒适三档，影响行高与内边距；保存后即时生效。", LocalizationKeys.SettingsItemDensityDesc),
                 choices: new[]
                 {
                     new SettingChoice("compact", Text("紧凑", LocalizationKeys.SettingsChoiceDensityCompact)),
@@ -691,7 +789,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: Text("90%–130% 五档，只放大界面文案与标题；模组名、版本号等数据文本保持原样（P-09）。", LocalizationKeys.SettingsItemFontScaleDesc),
+                description: Text("90%–130% 五档，只放大界面文案与标题；模组名、版本号等数据文本保持原样。", LocalizationKeys.SettingsItemFontScaleDesc),
                 choices: new[]
                 {
                     new SettingChoice("90", "90%"),
@@ -706,7 +804,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: Text("12 预设色板与系统色彩跟随（P-03）；即时生效。", LocalizationKeys.SettingsItemAccentColorDesc),
+                description: Text("12 预设色板与系统色彩跟随；即时生效。", LocalizationKeys.SettingsItemAccentColorDesc),
                 choices: new[]
                 {
                     new SettingChoice("default", Text("跟随系统 / 经典", LocalizationKeys.SettingsChoiceAccentColorDefault)),
@@ -730,7 +828,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
                 description: Text(
-                    "填 #RRGGBB（例如 #1F6FEB）；保存时按 WCAG AA 校验与底色的对比度（≥4.5:1），不合规会给出建议色并拒绝写入（P-03）。留空表示回到上面的预设。",
+                    "填 #RRGGBB（例如 #1F6FEB）；保存时按 WCAG AA 校验与底色的对比度（≥4.5:1），不合规会给出建议色并拒绝写入。留空表示回到上面的预设。",
                     LocalizationKeys.SettingsItemAccentColorCustomDesc)),
             new SettingItemViewModel(
                 SettingsKeyNames.AccentScope,
@@ -738,7 +836,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: Text("全局 = 所有实例共用一个强调色；按实例 = 为当前实例单独记一个色，切换实例时自动跟着换（P-07）。", LocalizationKeys.SettingsItemAccentScopeDesc),
+                description: Text("全局 = 所有实例共用一个强调色；按实例 = 为当前实例单独记一个色，切换实例时自动跟着换。", LocalizationKeys.SettingsItemAccentScopeDesc),
                 choices: new[]
                 {
                     new SettingChoice("global", Text("全局", LocalizationKeys.SettingsChoiceAccentScopeGlobal)),
@@ -750,7 +848,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: Text("三档圆角比例（P-05）；无圆角/标准微圆角/大饱满圆角。", LocalizationKeys.SettingsItemRadiusScaleDesc),
+                description: Text("三档圆角比例；无圆角/标准微圆角/大饱满圆角。", LocalizationKeys.SettingsItemRadiusScaleDesc),
                 choices: new[]
                 {
                     new SettingChoice("none", Text("直角 (0x)", LocalizationKeys.SettingsChoiceRadiusScaleNone)),
@@ -763,7 +861,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: Text("Windows 磨砂背景材质（P-04）；自动/Mica云母/Acrylic磨砂/纯色。", LocalizationKeys.SettingsItemBackdropKindDesc),
+                description: Text("Windows 磨砂背景材质；自动/Mica云母/Acrylic磨砂/纯色。", LocalizationKeys.SettingsItemBackdropKindDesc),
                 choices: new[]
                 {
                     new SettingChoice("auto", Text("自动推荐 (Mica / Acrylic)", LocalizationKeys.SettingsChoiceBackdropKindAuto)),
@@ -777,7 +875,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: Text("界面动画与过渡效果强度（P-10）。默认跟随系统「减少动画」设置；精简档只保留 90ms 的悬停/按下反馈。", LocalizationKeys.SettingsItemMotionIntensityDesc),
+                description: Text("界面动画与过渡效果强度。默认跟随系统「减少动画」设置；精简档只保留 90ms 的悬停/按下反馈。", LocalizationKeys.SettingsItemMotionIntensityDesc),
                 choices: new[]
                 {
                     new SettingChoice("auto", Text("跟随系统 (推荐)", LocalizationKeys.SettingsChoiceMotionIntensityAuto)),
@@ -799,6 +897,12 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                     new SettingChoice(BackgroundSceneKinds.Lunar, Text("月面晨昏线", LocalizationKeys.SettingsChoiceBackgroundSceneLunar)),
                     new SettingChoice(BackgroundSceneKinds.Probe, Text("深空探测器", LocalizationKeys.SettingsChoiceBackgroundSceneProbe)),
                     new SettingChoice(BackgroundSceneKinds.Lens, Text("引力透镜", LocalizationKeys.SettingsChoiceBackgroundSceneLens)),
+                    new SettingChoice(BackgroundSceneKinds.Corona, Text("日冕", LocalizationKeys.SettingsChoiceBackgroundSceneCorona)),
+                    new SettingChoice(BackgroundSceneKinds.RingPlane, Text("行星环", LocalizationKeys.SettingsChoiceBackgroundSceneRingPlane)),
+                    new SettingChoice(BackgroundSceneKinds.Aurora, Text("极光椭圆", LocalizationKeys.SettingsChoiceBackgroundSceneAurora)),
+                    new SettingChoice(BackgroundSceneKinds.Pulsar, Text("脉冲星", LocalizationKeys.SettingsChoiceBackgroundScenePulsar)),
+                    new SettingChoice(BackgroundSceneKinds.SolarSail, Text("太阳帆", LocalizationKeys.SettingsChoiceBackgroundSceneSolarSail)),
+                    new SettingChoice(BackgroundSceneKinds.SpaceElevator, Text("太空电梯", LocalizationKeys.SettingsChoiceBackgroundSceneSpaceElevator)),
                     new SettingChoice(BackgroundSceneKinds.None, Text("无（纯主题底色）", LocalizationKeys.SettingsChoiceBackgroundSceneNone)),
                 },
                 saveHandler: vm => SaveItemAsync(vm)),
@@ -808,7 +912,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: Text("窗口空白处的背景（P-06）：纯色 / 渐变 / 本机图片 / 当前实例的最新一张游戏截图；页面卡片保持不透明以保证文字清晰。系统高对比度下不画背景。", LocalizationKeys.SettingsItemBackgroundKindDesc),
+                description: Text("窗口空白处的背景：纯色 / 渐变 / 本机图片 / 当前实例的最新一张游戏截图；页面卡片保持不透明以保证文字清晰。系统高对比度下不画背景。", LocalizationKeys.SettingsItemBackgroundKindDesc),
                 choices: new[]
                 {
                     new SettingChoice("none", Text("无（跟随主题）", LocalizationKeys.SettingsChoiceBackgroundKindNone)),
@@ -848,7 +952,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Integer,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: Text("0° 向右、90° 向下、180° 向左；取值 0–359（P-06）。", LocalizationKeys.SettingsItemBackgroundGradientAngleDesc),
+                description: Text("0° 向右、90° 向下、180° 向左；取值 0–359。", LocalizationKeys.SettingsItemBackgroundGradientAngleDesc),
                 min: 0,
                 max: 359,
                 saveHandler: vm => SaveItemAsync(vm)),
@@ -866,7 +970,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: Text("图片超出窗口时怎么摆（P-06）。", LocalizationKeys.SettingsItemBackgroundFillDesc),
+                description: Text("图片超出窗口时怎么摆。", LocalizationKeys.SettingsItemBackgroundFillDesc),
                 choices: new[]
                 {
                     new SettingChoice("fill", Text("填充（等比铺满）", LocalizationKeys.SettingsChoiceBackgroundFillFill)),
@@ -912,7 +1016,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 SettingItemKind.Choice,
                 SettingPersistence.UiSettings,
                 SettingGroupKey.Appearance,
-                description: Text("「仅当前实例」把整份背景记在 BackgroundByInstance 里（P-07）；切回「全局」会删掉本实例的覆盖。", LocalizationKeys.SettingsItemBackgroundScopeDesc),
+                description: Text("「仅当前实例」把整份背景记在 BackgroundByInstance 里；切回「全局」会删掉本实例的覆盖。", LocalizationKeys.SettingsItemBackgroundScopeDesc),
                 choices: new[]
                 {
                     new SettingChoice("global", Text("全局（所有实例）", LocalizationKeys.SettingsChoiceBackgroundScopeGlobal)),
@@ -1072,6 +1176,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         }
 
         ApplyChoice(SettingsKeyNames.Theme, current.Theme, "dark");
+        ApplyChoice(SettingsKeyNames.ThemeSkin, current.ThemeSkin, ThemeSkinKinds.Default);
         ApplyChoice(SettingsKeyNames.Locale, current.Locale, string.Empty);
         ApplyChoice(SettingsKeyNames.Density, current.Density, "standard");
         ApplyChoice(SettingsKeyNames.FontScale, current.FontScale, "100");
@@ -1087,6 +1192,11 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         ApplyFlag(SettingsKeyNames.SuppressRecommendations, current.SuppressRecommendations);
         ApplyFlag(SettingsKeyNames.MinimizeToTray, current.MinimizeToTray);
         ApplyFlag(SettingsKeyNames.CloseToTray, current.CloseToTray);
+        ApplyFlag(SettingsKeyNames.MasterMuted, current.MasterMuted);
+        ApplyFlag(SettingsKeyNames.SoundEffectsEnabled, current.SoundEffectsEnabled);
+        FindItem(SettingsKeyNames.SoundEffectsVolume)?.ApplyLoaded(Math.Round(current.SoundEffectsVolume * 100.0).ToString("0", CultureInfo.InvariantCulture));
+        ApplyFlag(SettingsKeyNames.MusicEnabled, current.MusicEnabled);
+        FindItem(SettingsKeyNames.MusicVolume)?.ApplyLoaded(Math.Round(current.MusicVolume * 100.0).ToString("0", CultureInfo.InvariantCulture));
     }
 
     /// <summary>
@@ -1181,7 +1291,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     }
 
     /// <summary>
-    /// 解析「当前生效」的背景：本实例有覆盖就用覆盖，否则跟随全局（P-07）。
+    /// 解析「当前生效」的背景：本实例有覆盖就用覆盖，否则跟随全局。
     /// 返回值里的 Scope 直接喂给「作用范围」下拉，保证选项永远与生效值一致。
     /// </summary>
     private (string Scope, BackgroundProfile Profile) ResolveBackgroundProfile(UiSettings current)
@@ -1216,7 +1326,7 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
 
     /// <summary>
     /// 在「当前生效的整份背景」上改一个字段再写回：作用范围决定写到 <c>Background</c>（全局）
-    /// 还是 <c>BackgroundByInstance[当前实例]</c>（P-07）。
+    /// 还是 <c>BackgroundByInstance[当前实例]</c>。
     /// </summary>
     private UiSettings SaveBackground(Func<BackgroundProfile, BackgroundProfile> mutate, bool? perInstance = null)
     {
@@ -1637,6 +1747,10 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 next = current with { Theme = item.EditValue };
                 break;
 
+            case SettingsKeyNames.ThemeSkin:
+                next = current with { ThemeSkin = ThemeSkinKinds.Normalize(item.EditValue) };
+                break;
+
             case SettingsKeyNames.Locale:
                 next = current with { Locale = item.EditValue.Length == 0 ? null : item.EditValue };
                 break;
@@ -1832,6 +1946,26 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
                 next = current with { CloseToTray = item.BooleanValue };
                 break;
 
+            case SettingsKeyNames.MasterMuted:
+                next = current with { MasterMuted = item.BooleanValue };
+                break;
+
+            case SettingsKeyNames.SoundEffectsEnabled:
+                next = current with { SoundEffectsEnabled = item.BooleanValue };
+                break;
+
+            case SettingsKeyNames.SoundEffectsVolume:
+                next = current with { SoundEffectsVolume = Math.Clamp(ReadDouble(item.EditValue, current.SoundEffectsVolume * 100.0) / 100.0, 0.0, 1.0) };
+                break;
+
+            case SettingsKeyNames.MusicEnabled:
+                next = current with { MusicEnabled = item.BooleanValue };
+                break;
+
+            case SettingsKeyNames.MusicVolume:
+                next = current with { MusicVolume = Math.Clamp(ReadDouble(item.EditValue, current.MusicVolume * 100.0) / 100.0, 0.0, 1.0) };
+                break;
+
             default:
                 item.MarkFailed(
                     Text("未知的界面设置项：{0}", LocalizationKeys.SettingsErrorUnknownUiSetting, item.Key),
@@ -1960,5 +2094,61 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         }
 
         return (bytes / BytesPerMebibyte).ToString(CultureInfo.InvariantCulture);
+    }
+}
+
+/// <summary>设置页首进时序探针：只在 <c>CKANUI_SETTINGS_TIMING</c> 指向文件时写盘，生产路径零开销。</summary>
+/// <remarks>
+/// 与 NavigationProbe 的 <c>[nav]</c> 行对齐：<c>getAll</c> 是服务层读全部设置，
+/// <c>apply</c> 是把值灌进 36 行（属性通知），<c>finish</c> 是令牌/诊断/脏标记走完，
+/// <c>isLoading-off</c> 是骨架撤掉、视图开始实体化内容的时刻——此后到 <c>[nav]</c> 报的
+/// <c>layout</c> 之间就是「控件实体化 + 首次布局」的成本。视图模型层不引用 Avalonia，故只测到这里。
+/// </remarks>
+internal sealed class SettingsTiming
+{
+    private static readonly string? SinkPath = Environment.GetEnvironmentVariable("CKANUI_SETTINGS_TIMING");
+
+    private readonly System.Diagnostics.Stopwatch _watch = System.Diagnostics.Stopwatch.StartNew();
+    private readonly List<string> _stages = [];
+
+    private SettingsTiming()
+    {
+    }
+
+    /// <summary>是否开启（未设置环境变量时所有方法立即返回）。</summary>
+    public static bool Enabled => !string.IsNullOrWhiteSpace(SinkPath);
+
+    /// <summary>开始一段计时。</summary>
+    public static SettingsTiming Start() => new();
+
+    /// <summary>记一个阶段。</summary>
+    public void Mark(string stage)
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        _stages.Add(string.Create(CultureInfo.InvariantCulture, $"{stage}={_watch.Elapsed.TotalMilliseconds:F1}ms"));
+    }
+
+    /// <summary>把整行写盘（未开启时立即返回）。</summary>
+    public void Flush()
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        _stages.Add(string.Create(CultureInfo.InvariantCulture, $"total={_watch.Elapsed.TotalMilliseconds:F1}ms"));
+
+        try
+        {
+            File.AppendAllText(SinkPath!, string.Create(CultureInfo.InvariantCulture, $"[settings] {string.Join(' ', _stages)}{Environment.NewLine}"));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // 探针写盘失败不能影响页面本身。
+        }
     }
 }
