@@ -21,6 +21,12 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
     /// <summary>建行批次：每批之间让出一帧，避免一次性给 200 行建容器排成一条长帧。</summary>
     private const int RowBatchSize = 16;
 
+    /// <summary>首屏行数：换数据时先把这些行立刻上屏，剩下的再分批补。</summary>
+    private const int FirstScreenRows = 20;
+
+    /// <summary>上次灌进表格的数据签名；签名没变就复用已有行，不重建。</summary>
+    private string? _rowsSignature;
+
     private readonly IDownloadStatsService _service;
     private readonly IChangeRequestSink? _changeSink;
     private readonly INavigationService? _navigation;
@@ -314,6 +320,16 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
             }
 
             var report = result.Value;
+            var signature = BuildRowsSignature(request, report);
+            if (Rows.Count > 0 && string.Equals(signature, _rowsSignature, StringComparison.Ordinal))
+            {
+                // 数据签名没变：表格里已经是这批行，直接复用，既不清空也不重灌。
+                // 重进页面时走这条路——首进成本不会再被搬进第二进。
+                TakenAt = DateTime.Now;
+                return;
+            }
+
+            _rowsSignature = signature;
             Slices.Clear();
             foreach (var slice in report.Slices)
             {
@@ -339,7 +355,21 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
                 rows.Add(DownloadStatsRowViewModel.From(row, maxDownloads));
             }
 
-            for (var i = 0; i < rows.Count; i += RowBatchSize)
+            // 换数据时先把首屏填满（用户马上看到内容），剩下的再按批补——第一帧只付首屏的钱。
+            var filled = Math.Min(rows.Count, FirstScreenRows);
+            for (var k = 0; k < filled; k++)
+            {
+                Rows.Add(rows[k]);
+            }
+
+            if (filled < rows.Count)
+            {
+                // 首屏之后必须等真正的布局跑过一遍：表格只有量到有限高度才会虚拟化，
+                // 若 200 行在第一次布局前就全到齐，它会一次性把所有行实体化（1724 节点 / 秒级长帧）。
+                await Task.Delay(50);
+            }
+
+            for (var i = filled; i < rows.Count; i += RowBatchSize)
             {
                 var end = Math.Min(i + RowBatchSize, rows.Count);
                 for (var j = i; j < end; j++)
@@ -349,8 +379,9 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
 
                 if (end < rows.Count)
                 {
-                    // 批间同样要真让出一帧（Task.Yield 会让 200 行在渲染前就全建完）。
-                    await Task.Delay(1);
+                    // 批间让出整整一帧（1ms 在机器忙时可能连一次布局都排不上，
+                    // 那样 12 批会在同一次布局里合流，又变回「200 行一次实体化」）。
+                    await Task.Delay(16);
                 }
             }
         }
@@ -372,6 +403,7 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
 
     private void Clear()
     {
+        _rowsSignature = null;
         Slices.Clear();
         Rows.Clear();
         ChartSlices = Array.Empty<DownloadStatsSlice>();
@@ -381,6 +413,18 @@ public sealed partial class DownloadStatsPageViewModel : PageViewModel, IActivat
         CacheTotalBytes = 0;
         HasUnavailableDownloads = false;
     }
+
+    /// <summary>行集合的数据签名：请求口径 + 几个汇总量 + 行数，变了才需要重灌。</summary>
+    private static string BuildRowsSignature(DownloadStatsRequest request, DownloadStatsReport report)
+        => string.Join('|',
+            request.Dimension.ToString(),
+            request.Sort.ToString(),
+            request.Descending ? "1" : "0",
+            report.ModuleCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            report.TotalDownloads.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            report.CacheTotalBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            report.Unavailable ? "1" : "0",
+            report.Rows.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     private void RefreshDerived()
     {
