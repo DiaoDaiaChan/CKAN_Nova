@@ -664,3 +664,62 @@ grep -rn "Task.FromResult" src --include=*.cs | grep -i "load\|refresh\|scan"
 
 - 抓「静静涨上去」必须用 `[mem] t=..s ws=.. private=.. heap=..` 时间轴（`CKANUI_MEM_TRACE`，§16），不要用 per-page 的 heap 快照；快照落在解析中途就会把瞬时缓冲当成常驻。
 - 探针进程会被单实例守卫挡掉：任何 `CkanUI.exe` 还活着时，新的探针进程会**静默退出、trace 不写**，measure-instance 会干等 15 分钟才报「应用可能启动失败」。跑前先 `tasklist | grep CkanUI.exe` 清干净。
+
+## 22. 32 页的顺序访存账本：稳态 739MB 活堆，峰值 1.85GB 工作集
+
+### 22.1 口径
+
+真实实例镜像（336 模组 / 3,899 条仓库索引 / 649 个存档 1,003MB），`CKANUI_PROBE_MEM=1`（每页打点前强制一次 compacting GC，所以 `heap=` 是**活对象**，不是垃圾），一轮 32 键全走。每一行的 `d=` 是相对上一页的活堆增量。
+
+| 页面 | 活堆 heap | 相对上一页 |
+|---|---|---|
+| mods | 147 | — |
+| content | 150 | +3 |
+| changes | 225 | +75 |
+| repos | 349 | +124 |
+| modpacks | 299 | -50 |
+| modpack-editor | 309 | +10 |
+| instances | 320 | +11 |
+| playtime | 322 | +2 |
+| unmanaged | 335 | +13 |
+| cache | 397 | +62 |
+| downloadstats | 434 | +37 |
+| dedup | 401 | -33 |
+| installhistory | 422 | +21 |
+| plugins | 427 | +5 |
+| ai-assistant | 431 | +4 |
+| kos | 435 | +4 |
+| kspconfig | 462 | +27 |
+| modconfig | 498 | +36 |
+| rp1-career | 509 | +11 |
+| spacedock | 515 | +6 |
+| storage | 518 | +3 |
+| saves | 1038 | +520 |
+| performance | 537 | -501 |
+| modpack-profiles | 541 | +4 |
+| modtext | 560 | +19 |
+| ships | 576 | +16 |
+| flags | 629 | +53 |
+| loadingimages | 623 | -6 |
+| music | 690 | +67 |
+| logs | 690 | +0 |
+| settings | 738 | +48 |
+| home | 739 | +1 |
+
+### 22.2 读法
+
+- 起点 **147MB**（mods 首进），走完 32 页 **739MB** ⇒ 跨页保留了约 **590MB** 的活数据，不是垃圾（每页打点前都做过 full GC）。
+- 单页最大瞬增是 **saves +520MB**，但下一页立刻 −501MB ⇒ 那是读 120MB 存档时的解析缓冲，**不是常驻**（与 §21 一致）。
+- 真正的保留型增量：repos +124、changes +75、music +67、cache +62、flags +53、settings +48、downloadstats +37、modconfig +36。
+- 另一次不开 MEM 的全量 sweep 用 `[mem]` 时间轴（2s 一格）看到峰值 **ws=1848.6MB / private=1823.3MB / heap=1378.9MB**，峰值出现在中段（前 6 页之后、saves 附近），随后回落并稳定在 **1259MB ws / 835MB heap**。
+
+### 22.3 为什么「裁剪投影」压不下去（结论）
+
+`IPageProjectionTrim` 只能断开 VM 对投影的引用，而 repos/changes/downloadstats 的数据实体（`CkanModule`、`ModuleRelationshipDescriptor`、仓库索引）挂在**服务层缓存**上，VM 裁剪后服务仍持有 ⇒ 活堆不降。§5.4 的 cache 页裁剪实验（剪了，ws 无变化）就是同一机制。要再往下压只有两条路，都需要改服务层语义：
+
+1. 让仓库索引按需重建（丢掉 `IRepositoryService.Current` 的常驻，接受首次进页重新解析，秒级）；
+2. 把 `CkanModule` 全量 DTO 换成只保留列表所需字段的窄投影（影响面大，跨页共享）。
+
+### 22.4 4GB 的定位口径
+
+三套实例我这边的活堆上限都是 0.7–0.9GB、ws 峰值 1.8–1.9GB；用户的 4GB 需要他自己的 `[mem]` 时间轴（`CKANUI_MEM_TRACE`）来定位：若 `private − heap` 一起涨 ⇒ 非托管（纹理/位图）；若只是 `heap` 阶梯上涨 ⇒ 页数据量与包规模成正比，走 22.3 的第 1 条。
