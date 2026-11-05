@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Threading;
 using CkanUI.Localization;
 using CkanUI.Services.Abstractions;
 using CkanUI.Services.Abstractions.Assets;
@@ -14,6 +15,9 @@ public sealed partial class FlagsPageViewModel : AssetPageViewModel, IPluginPage
 {
     private static readonly string[] FlagExtensions = [".png", ".jpg", ".jpeg"];
 
+    // 一次灌进 96 张卡片会把「同步解码 + 整片 WrapPanel 重新布局」压进同一个 UI 帧，按批填、批间让帧。
+    private const int FillBatchSize = 8;
+
     private readonly IFlagLibraryService _flags;
 
     // 上一次扫描到的资产与默认旗帜：值不变就不重建卡片列表。
@@ -21,6 +25,9 @@ public sealed partial class FlagsPageViewModel : AssetPageViewModel, IPluginPage
     private string? _lastDefaultConfig;
 
     private bool _subscribed;
+
+    // 分批填充期间又来了新刷新：旧的那一轮直接退出，不要两个循环同时往同一个集合里加。
+    private int _fillToken;
 
     /// <summary>构造页面。</summary>
     /// <param name="instances">实例服务。</param>
@@ -250,6 +257,8 @@ public sealed partial class FlagsPageViewModel : AssetPageViewModel, IPluginPage
             return;
         }
 
+        var timing = FlagsTiming.Start();
+
         var gameDir = CurrentGameDir();
         if (gameDir is null)
         {
@@ -263,6 +272,7 @@ public sealed partial class FlagsPageViewModel : AssetPageViewModel, IPluginPage
             Text("正在扫描旗帜…", LocalizationKeys.FlagsBusyScanning),
             () => _flags.ScanAsync(gameDir),
             Text("刷新旗帜列表失败。", LocalizationKeys.FlagsErrorScan)).ConfigureAwait(true);
+        timing.Mark("scan", result is { IsSuccess: true, Value: { } scanned } ? scanned.Count : -1);
         if (result is not { IsSuccess: true, Value: { } items })
         {
             NotifyEmptyState();
@@ -270,6 +280,7 @@ public sealed partial class FlagsPageViewModel : AssetPageViewModel, IPluginPage
         }
 
         var current = _flags.ReadDefaultFlag(gameDir);
+        timing.Mark("read-default");
         var currentConfig = current.IsSuccess ? current.Value : null;
         // 磁盘与默认旗帜都没变（FlagAsset 是 record，值相等即可判定）：不必重建卡片，重排整片 WrapPanel 才是卡顿来源。
         var unchanged = _lastAssets is not null
@@ -287,13 +298,29 @@ public sealed partial class FlagsPageViewModel : AssetPageViewModel, IPluginPage
 
         var selectedPath = SelectedFlag?.ConfigPath;
 
+        var token = ++_fillToken;
+
         Flags.Clear();
-        foreach (var asset in items)
+        foreach (var batch in items.Chunk(FillBatchSize))
         {
-            Flags.Add(new FlagRowViewModel(
-                asset,
-                currentConfig is not null && string.Equals(asset.ConfigPath, currentConfig, StringComparison.OrdinalIgnoreCase)));
+            // 上一轮还没填完就被新刷新顶掉了：让位，别把半份列表和新的混在一起。
+            if (token != _fillToken)
+            {
+                return;
+            }
+
+            foreach (var asset in batch)
+            {
+                Flags.Add(new FlagRowViewModel(
+                    asset,
+                    currentConfig is not null && string.Equals(asset.ConfigPath, currentConfig, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            // Background 低于 Render：让出这一轮时渲染先跑，用户看到的是逐批长出来的卡片，而不是一次 500ms 的僵住。
+            await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.Background).GetTask().ConfigureAwait(true);
         }
+
+        timing.Mark("fill");
 
         CurrentDefaultText = string.IsNullOrWhiteSpace(currentConfig)
             ? Text("当前默认：未设置", LocalizationKeys.FlagsDefaultNone)
@@ -303,6 +330,7 @@ public sealed partial class FlagsPageViewModel : AssetPageViewModel, IPluginPage
             : Flags.FirstOrDefault(flag => string.Equals(flag.ConfigPath, selectedPath, StringComparison.OrdinalIgnoreCase)) ?? Flags.FirstOrDefault();
         StatusText = Text("共 {0} 张旗帜", LocalizationKeys.FlagsCount, Flags.Count);
         NotifyEmptyState();
+        await timing.MarkRenderAndIdleAsync().ConfigureAwait(true);
     }
 
     private async Task<string?> PromptAsync(string title, string initialValue)
