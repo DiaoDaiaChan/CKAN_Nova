@@ -190,6 +190,15 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     [ObservableProperty]
     private IReadOnlyList<string> _saveFailures = [];
 
+    /// <summary>
+    /// 页面级诊断（模型级 <see cref="ModConfigInstanceModel.Diagnostics"/>：适配器目录缺失、
+    /// 某份 adapter 加载失败等与单个 mod 无关的问题）。以前只挂在卡片告警里，
+    /// 适配器清单为空时整页看不到原因，用户会以为这页没做完。
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPageDiagnostics))]
+    private IReadOnlyList<string> _pageDiagnostics = [];
+
     // ---- 派生文案 ----------------------------------------------------------
 
     /// <summary>是否有卡片。</summary>
@@ -214,7 +223,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
 
     /// <summary>无适配器提示（底部"⊘ N 个 mod 无适配器"）。</summary>
     public string AdapterlessText => _model is { AdapterlessModCount: > 0 } model
-        ? "⊘ " + model.AdapterlessModCount + " 个 mod 无适配器"
+        ? T("⊘ {0} 个 mod 无适配器", LocalizationKeys.ModConfigAdapterlessCount, model.AdapterlessModCount)
         : string.Empty;
 
     /// <summary>是否显示无适配器提示。</summary>
@@ -328,8 +337,27 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     /// <summary>未选中时的提示文案。</summary>
     public string NoSelectionHintText => T("选中一个 mod 后，这里会显示它的可配置项。", LocalizationKeys.ModConfigNoSelectionHint);
 
-    /// <summary>左侧列表为空时的提示文案。</summary>
-    public string EmptyModsHintText => T("未找到带配置适配器的 Mod。", LocalizationKeys.ModConfigNoSelectionHint);
+    /// <summary>
+    /// 左侧列表为空时的提示文案。两种情况要分开说：没有适配器目录（打包/安装缺 adapters/）
+    /// 和目录在但没有一个 mod 命中适配器——前者的处置是"补目录"，后者才是"补 adapter"。
+    /// </summary>
+    public string EmptyModsHintText => HasAdapterDirectoryProblem
+        ? T("没有配置适配器目录，适配器清单为空。", LocalizationKeys.ModConfigEmptyNoAdapterDir)
+        : T("这个实例里没有已适配的 mod：可以把 adapter.json 放进用户目录后重试。", LocalizationKeys.ModConfigEmptyNoAdaptedMod);
+
+    /// <summary>页面级诊断是否有"适配器目录"相关的问题（决定空态该给哪条处置建议）。</summary>
+    private bool HasAdapterDirectoryProblem =>
+        CurrentDiagnostics.Any(static diagnostic => diagnostic.Code.StartsWith("adapter-dir", StringComparison.Ordinal));
+
+    /// <summary>当前该展示的诊断来源：有实例模型用模型（已含目录级诊断），否则退回目录本身。</summary>
+    private IReadOnlyList<ModConfigDiagnostic> CurrentDiagnostics =>
+        _model?.Diagnostics ?? _catalog?.Diagnostics ?? [];
+
+    /// <summary>页面级诊断标题。</summary>
+    public string PageDiagnosticsTitle => T("配置适配器加载时发现问题：", LocalizationKeys.ModConfigPageDiagnosticsTitle);
+
+    /// <summary>是否有页面级诊断。</summary>
+    public bool HasPageDiagnostics => PageDiagnostics.Count > 0;
 
     /// <summary>是否有适配器清单。</summary>
     public bool HasAdapters => Adapters.Count > 0;
@@ -379,6 +407,13 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
                 return;
             }
 
+            if (ReferenceEquals(model, _model))
+            {
+                // 服务层缓存把同一个模型对象原样还回来：表里已经是这份数据，
+                // 再走一次 ApplyModelCore 只会把整页卡片和分组重新投影一遍（约 1300 节点、秒级长帧）。
+                return;
+            }
+
             ApplyModelCore(model, null);
         }
         catch (Exception ex)
@@ -418,7 +453,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
             return;
         }
 
-        await SaveEditsAsync([new PendingEdit(row.FilePath, row.Key, row.WireValue, row.Field.Risk)]).ConfigureAwait(true);
+        await SaveEditsAsync([new PendingEdit(row.FilePath, row.Key, row.WireValue, row.Field.Risk, row.Field.NodePath)]).ConfigureAwait(true);
     }
 
     /// <summary>丢弃所有还没保存的草稿。</summary>
@@ -674,7 +709,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
                 }
 
                 // 重读模型（保存/刷新）后把还没保存的草稿铺回去，别让用户的输入白白丢掉。
-                if (_pending.TryGetValue(PendingKey(row.FilePath, row.Key), out var pending))
+                if (_pending.TryGetValue(PendingKey(row.FilePath, row.Key, row.Field.NodePath), out var pending))
                 {
                     row.ApplyDraft(pending.NewValue);
                 }
@@ -694,6 +729,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     private void ApplyModelCore(ModConfigInstanceModel? model, string? preferredAdapterId)
     {
         _model = model;
+        RefreshPageDiagnostics();
         Generic.SetContext(model?.GameDir, model?.InstanceName);
         if (IsGenericMode && Generic.Files.Count == 0 && !string.IsNullOrWhiteSpace(model?.GameDir))
         {
@@ -739,12 +775,22 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         if (_catalog is null)
         {
             Adapters = [];
+            RefreshPageDiagnostics();
             return;
         }
 
         Adapters = _catalog.Adapters
             .Select(adapter => new ModConfigAdapterSummaryViewModel(adapter))
             .ToArray();
+        RefreshPageDiagnostics();
+    }
+
+    /// <summary>把当前诊断来源投影成页面可见的文案（模型未加载时也能看到目录级问题）。</summary>
+    private void RefreshPageDiagnostics()
+    {
+        PageDiagnostics = CurrentDiagnostics.Select(static diagnostic => diagnostic.Message).ToArray();
+        OnPropertyChanged(nameof(EmptyModsHintText));
+        OnPropertyChanged(nameof(HasAdapterDirectoryProblem));
     }
 
     // ---- 写盘 --------------------------------------------------------------
@@ -940,7 +986,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
                 groups.Add(new PendingWriteGroup(adapterId, edit.FilePath, []));
             }
 
-            groups[position].Changes.Add(new ModConfigFieldChange(edit.FilePath, edit.Key, edit.NewValue));
+            groups[position].Changes.Add(new ModConfigFieldChange(edit.FilePath, edit.Key, edit.NewValue, edit.NodePath));
         }
 
         return groups;
@@ -976,10 +1022,10 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
             return;
         }
 
-        var id = PendingKey(row.FilePath, row.Key);
+        var id = PendingKey(row.FilePath, row.Key, row.Field.NodePath);
         if (row.HasPendingChange)
         {
-            _pending[id] = new PendingEdit(row.FilePath, row.Key, row.WireValue, row.Field.Risk);
+            _pending[id] = new PendingEdit(row.FilePath, row.Key, row.WireValue, row.Field.Risk, row.Field.NodePath);
         }
         else
         {
@@ -996,7 +1042,10 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         OnPropertyChanged(nameof(ShowActionBar));
     }
 
-    private static string PendingKey(string filePath, string key) => filePath + '\u0000' + key;
+    // 节点也进键：同一份配置里不同子节点的同名键是两个独立字段，
+    // 只用"文件 + 键名"会让后改的那个覆盖掉前一个草稿。
+    private static string PendingKey(string filePath, string key, string? nodePath)
+        => filePath + '\u0000' + (nodePath ?? string.Empty) + '\u0000' + key;
 
     private static string RelativeName(string filePath)
     {
@@ -1051,6 +1100,8 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
         OnPropertyChanged(nameof(AdapterListTitle));
         OnPropertyChanged(nameof(HasAdapters));
         OnPropertyChanged(nameof(CanFilter));
+        OnPropertyChanged(nameof(EmptyModsHintText));
+        OnPropertyChanged(nameof(HasPageDiagnostics));
         LoadCommand.NotifyCanExecuteChanged();
     }
 
@@ -1145,7 +1196,7 @@ public sealed partial class ModConfigPageViewModel : PageViewModel, IUnsavedChan
     }
 
     /// <summary>一条还没保存的草稿。</summary>
-    private sealed record PendingEdit(string FilePath, string Key, string NewValue, ModConfigFieldRisk Risk);
+    private sealed record PendingEdit(string FilePath, string Key, string NewValue, ModConfigFieldRisk Risk, string? NodePath = null);
 
     /// <summary>按"适配器 + 文件"归并的一组写盘请求。</summary>
     private sealed record PendingWriteGroup(string AdapterId, string FilePath, List<ModConfigFieldChange> Changes);

@@ -81,7 +81,38 @@ public sealed class ModConfigService : IModConfigService
             instanceName,
             instance?.GameDir ?? "-",
             instance?.GameVersion ?? "-",
-            installed.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            installed.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            BuildAdapterFingerprint());
+    }
+
+    /// <summary>
+    /// 适配器源文件的输入指纹（路径+长度+最后写入时间）：adapter.json 被改过就落空，
+    /// 只 stat 这几个文件，成本与 11k 个 .cfg 的重扫不是一个量级。
+    /// </summary>
+    private string BuildAdapterFingerprint()
+    {
+        var parts = new List<string>();
+        foreach (var adapter in _catalog.Adapters)
+        {
+            if (string.IsNullOrWhiteSpace(adapter.SourcePath))
+            {
+                continue;
+            }
+
+            try
+            {
+                var info = new FileInfo(adapter.SourcePath);
+                parts.Add(info.Exists
+                    ? $"{info.FullName}#{info.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)}#{info.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
+                    : $"{adapter.SourcePath}#-");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                parts.Add($"{adapter.SourcePath}#?");
+            }
+        }
+
+        return string.Join('\u0002', parts);
     }
 
     private OperationResult<ModConfigInstanceModel> LoadCore(string instanceName, CancellationToken ct)
@@ -165,6 +196,22 @@ public sealed class ModConfigService : IModConfigService
         var installedVersion = FindInstalledVersion(adapter, registry);
         var registryHit = installedVersion is not null || IsRegistryHit(adapter, registry);
 
+        // 注册表没命中时再按 adapter 声明的 match.paths 探一次：CKAN 里被手工安装、
+        // 或 fork 换了标识符的 mod 只能靠磁盘痕迹认出来（15 篇 §4.1 match.paths）。
+        var matchedByPath = false;
+        if (!registryHit && adapter.Match.Paths.Count > 0)
+        {
+            foreach (var path in adapter.Match.Paths)
+            {
+                if (Exists(gameDir, path, adapter.Match.CaseInsensitive))
+                {
+                    matchedByPath = true;
+                    registryHit = true;
+                    break;
+                }
+            }
+        }
+
         var files = new List<ModConfigFileSnapshot>(adapter.Files.Count);
         var anyExists = false;
         var anyCreatable = false;
@@ -172,9 +219,17 @@ public sealed class ModConfigService : IModConfigService
         var modifiedCount = 0;
         IReadOnlyList<ModConfigDiagnostic>? adapterDiagnostics = adapter.Diagnostics;
 
+        if (matchedByPath)
+        {
+            adapterDiagnostics = AppendDiagnostic(adapterDiagnostics, ModConfigDiagnostic.Warning(
+                "matched-by-path",
+                $"CKAN 注册表里没有「{adapter.Name}」，按 match.paths 命中了磁盘文件（安装版本无法确认）",
+                adapter.SourcePath));
+        }
+
         foreach (var file in adapter.Files)
         {
-            var fullPath = Path.GetFullPath(Path.Combine(gameDir, file.Path));
+            var fullPath = ResolvePath(gameDir, file.Path, adapter.Match.CaseInsensitive);
             var exists = File.Exists(fullPath);
             var fileState = ModConfigDetector.DetectFileState(file, exists);
 
@@ -276,7 +331,6 @@ public sealed class ModConfigService : IModConfigService
         out int modifiedCount)
     {
         modifiedCount = 0;
-        var nodePath = file.Layout == ModConfigFileLayout.Node ? file.RootNode ?? string.Empty : string.Empty;
         var fields = new List<ModConfigFieldState>();
 
         foreach (var field in adapter.Fields)
@@ -286,6 +340,9 @@ public sealed class ModConfigService : IModConfigService
                 continue;
             }
 
+            // 节点按字段解析，不再一文件一个：同一份配置里 MANEUVER_TOOL_DEFAULTS 和
+            // COMMNET_THROTTLING_SETTINGS 是不同作用域，各读各的键。
+            var nodePath = field.ResolveNodePath(file);
             var pair = document.FindPair(field.Key, nodePath);
             var value = pair is null ? null : Unquote(pair.Value);
             var comment = pair?.Comment;
@@ -293,7 +350,7 @@ public sealed class ModConfigService : IModConfigService
 
             if (field.DefaultValue is not null
                 && value is not null
-                && !string.Equals(value, field.DefaultValue, StringComparison.Ordinal))
+                && !ModConfigValueComparer.AreEqual(field.Type, value, field.DefaultValue))
             {
                 modifiedCount++;
             }
@@ -311,7 +368,8 @@ public sealed class ModConfigService : IModConfigService
                 Max: field.Max,
                 Values: field.Values,
                 Risk: field.Risk,
-                RequiresRestart: field.RequiresRestart));
+                RequiresRestart: field.RequiresRestart,
+                NodePath: nodePath));
         }
 
         return fields;
@@ -402,6 +460,73 @@ public sealed class ModConfigService : IModConfigService
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// 把 adapter 里声明的相对路径解析成绝对路径。文件/目录在不区分大小写的文件系统上
+    /// 实际大小写常与声明不同（Linux 打包的 mod 尤其常见），此时按段逐级找回真实名字。
+    /// 找不到就返回按声明拼出的路径，交给调用方按"不存在"处理。
+    /// </summary>
+    private static string ResolvePath(string gameDir, string relativePath, bool caseInsensitive)
+    {
+        var declared = Path.GetFullPath(Path.Combine(gameDir, relativePath));
+        if (!caseInsensitive || File.Exists(declared) || Directory.Exists(declared))
+        {
+            return declared;
+        }
+
+        var segments = relativePath.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
+        var current = Path.GetFullPath(gameDir);
+        foreach (var segment in segments)
+        {
+            var candidate = Path.Combine(current, segment);
+            if (File.Exists(candidate) || Directory.Exists(candidate))
+            {
+                current = candidate;
+                continue;
+            }
+
+            if (!Directory.Exists(current))
+            {
+                return declared;
+            }
+
+            string? actual = null;
+            try
+            {
+                foreach (var entry in Directory.EnumerateFileSystemEntries(current))
+                {
+                    if (string.Equals(Path.GetFileName(entry), segment, StringComparison.OrdinalIgnoreCase))
+                    {
+                        actual = entry;
+                        break;
+                    }
+                }
+            }
+            catch (IOException)
+            {
+                return declared;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return declared;
+            }
+
+            if (actual is null)
+            {
+                return declared;
+            }
+
+            current = actual;
+        }
+
+        return current;
+    }
+
+    private static bool Exists(string gameDir, string relativePath, bool caseInsensitive)
+    {
+        var fullPath = ResolvePath(gameDir, relativePath, caseInsensitive);
+        return File.Exists(fullPath) || Directory.Exists(fullPath);
     }
 
     private static bool IsRegistryHit(ModConfigAdapterDescription adapter, RegistrySnapshot registry)
