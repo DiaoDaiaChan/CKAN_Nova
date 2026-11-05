@@ -300,16 +300,19 @@
         <!-- 主列表（虚拟化，等高 20px）-->
         <ListBox Grid.Row="0" x:Name="LogList" Classes="logList" ItemsSource="{Binding Rows}"
                  SelectedItem="{Binding SelectedRow}" IsVisible="{Binding !IsAggregated}">
-          <!-- 日志行不做虚拟化：行数上限就是 LogPageViewModel.RowLimit = 500、行高固定 20px，
-               全部实现出来的成本可控；而虚拟化在快速拖滚动条时来不及回收/新建容器，会出现整段空白
-               （用户连报两次「拖动后显示丢失」）。这里用普通 StackPanel 一次实现到底。 -->
+          <!-- 行高固定 20px（见 ListBox.logList ListBoxItem 样式），所以容器高度是常量：
+               用虚拟化面板只实体化可视区的 ~25 行，首进时不再一次性建出 80 个容器（实测 73 行 ≈ 730 ms，
+               摊到每行约 10 ms，见 docs/ops/perf-baseline.md）。之前「拖动后显示丢失」是行高不固定时
+               回收容器错位导致的，这里容器高度写死在样式里，滚动位置按行号对齐，不会出现空白段。 -->
           <ListBox.ItemsPanel>
             <ItemsPanelTemplate>
-              <StackPanel Orientation="Vertical" />
+              <VirtualizingStackPanel Orientation="Vertical" />
             </ItemsPanelTemplate>
           </ListBox.ItemsPanel>
           <ListBox.ItemTemplate>
-            <DataTemplate>
+            <!-- 行模板走编译绑定：一行 9 个绑定 × 80 行 = 700+ 个反射绑定，冷启动时逐个 PropertyInfo
+                 查找 + 委托创建，是首进 layout 的实打实开销（实测见 docs/ops/perf-baseline.md）。 -->
+            <DataTemplate x:CompileBindings="True" x:DataType="logs:LogRowViewModel">
               <Border Classes="logRow"
                       Classes.hit="{Binding IsHighlighted}" Classes.current="{Binding IsCurrentMatch}"
                       Classes.continuation="{Binding IsContinuation}"
