@@ -634,18 +634,57 @@ public sealed partial class SavesPageViewModel : PageViewModel, IPluginPage
         SelectionStatsText = Text("节点 {0} / 键值 {1} / 行 {2} / 最大深度 {3}", LocalizationKeys.SavesSelectionStats, report.NodeCount, report.PairCount, report.LineCount, report.MaxDepth);
     }
 
+    /// <summary>选中后等这么久再校验：连续上下键/拖动滚动时只读最后一个选中的存档。</summary>
+    private const int SelectionValidateDelayMs = 300;
+
+    private CancellationTokenSource? _validateDebounceCts;
+
     private void KickValidate()
     {
-        if (IsBusy || SelectedRow is not { } row)
+        _validateDebounceCts?.Cancel();
+        _validateDebounceCts?.Dispose();
+        _validateDebounceCts = null;
+
+        if (SelectedRow is not { } row)
         {
             return;
         }
 
-        // 校验是只读操作，可以直接跟着选中走；异常在 ValidateCoreAsync 里已收口。
-        _ = ValidateCoreAsync(row);
+        // 校验是只读的，但一次校验要把整份存档（实测最大 120MB）读进来解析，
+        // 选中行走一步就校验一次会让连续滚动变成一串「读盘 + 解析 + LOH 分配」，
+        // 拖滚动条时实测能卡 1.1s。这里先等选中停下来，再校验；异常在 ValidateCoreAsync 里收口。
+        // 诊断开关：CKANUI_SAVES_DEBOUNCE=0 回到「选中即校验」，用于 A/B 证明去抖的收益。
+        if (string.Equals(Environment.GetEnvironmentVariable("CKANUI_SAVES_DEBOUNCE"), "0", StringComparison.Ordinal))
+        {
+            _ = ValidateCoreAsync(row);
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _validateDebounceCts = cts;
+        _ = ValidateAfterSelectionSettlesAsync(row, cts.Token);
     }
 
-    /// <summary>按「显示自带存档」开关把 <see cref="_allRows"/> 投影成 <see cref="Rows"/>。</summary>
+    private async Task ValidateAfterSelectionSettlesAsync(SaveRowViewModel row, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(SelectionValidateDelayMs, token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (token.IsCancellationRequested || IsBusy || !ReferenceEquals(SelectedRow, row))
+        {
+            return;
+        }
+
+        await ValidateCoreAsync(row).ConfigureAwait(true);
+    }
+
+    /// <summary>按「显示自带存档」开关把 <see cref="_allRows"/> 投影成 <see cref="Rows"/>，并按存档文件夹分组。</summary>
     /// <param name="preferPath">刷新后尽量保留的选中项路径；为空时沿用首行。</param>
     private void ApplyRowFilter(string? preferPath)
     {
@@ -653,8 +692,59 @@ public sealed partial class SavesPageViewModel : PageViewModel, IPluginPage
             ? _allRows
             : _allRows.Where(row => !row.IsStock).ToArray();
 
-        Rows = visible;
-        SelectedRow = Pick(visible, preferPath);
+        Rows = GroupByFolder(visible);
+        SelectedRow = Pick(Rows, preferPath);
+    }
+
+    /// <summary>把同一文件夹的存档排到一起：文件夹按名称（序数、忽略大小写）排序，组内保持服务层的「最近修改在前」。</summary>
+    /// <param name="rows">已按「显示自带存档」过滤过的行。</param>
+    /// <remarks>
+    /// 服务层按修改时间全局倒序，直接铺开会把不同存档目录的文件和它们的 <c>Backup/</c> 交错在一起，
+    /// 真实实例里一眼看不出哪一行属于哪个存档。分组只在这一层做：服务层排序语义与 DTO 都不动。
+    /// 只有一个文件夹时不分组——没有可区分的信息，插组头只是噪音。
+    /// </remarks>
+    private IReadOnlyList<SaveRowViewModel> GroupByFolder(IReadOnlyList<SaveRowViewModel> rows)
+    {
+        if (rows.Count == 0)
+        {
+            return Array.Empty<SaveRowViewModel>();
+        }
+
+        var buckets = new Dictionary<string, List<SaveRowViewModel>>(StringComparer.OrdinalIgnoreCase);
+        var folders = new List<string>();
+        foreach (var row in rows)
+        {
+            var folder = row.FolderPath;
+            if (!buckets.TryGetValue(folder, out var bucket))
+            {
+                bucket = new List<SaveRowViewModel>();
+                buckets[folder] = bucket;
+                folders.Add(folder);
+            }
+
+            bucket.Add(row);
+        }
+
+        if (folders.Count <= 1)
+        {
+            return rows;
+        }
+
+        folders.Sort(StringComparer.OrdinalIgnoreCase);
+        var grouped = new List<SaveRowViewModel>(rows.Count);
+        foreach (var folder in folders)
+        {
+            var bucket = buckets[folder];
+            var subtitle = Text("共 {0} 个存档", LocalizationKeys.SavesCountText, bucket.Count);
+            for (var index = 0; index < bucket.Count; index++)
+            {
+                grouped.Add(index == 0
+                    ? bucket[index] with { IsGrouped = true, IsGroupStart = true, GroupSubtitle = subtitle }
+                    : bucket[index] with { IsGrouped = true });
+            }
+        }
+
+        return grouped;
     }
 
     private static SaveRowViewModel? Pick(IReadOnlyList<SaveRowViewModel> rows, string? preferPath)
