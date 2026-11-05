@@ -82,6 +82,8 @@ internal static class NavigationProbe
             return;
         }
 
+        MemoryTimeline.Start(path);
+
         window.Opened += async (_, _) =>
         {
             try
