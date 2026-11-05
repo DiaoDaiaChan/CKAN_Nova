@@ -12,6 +12,14 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 新增
 
+- 全键盘与手柄操作（`src/CkanUI.App/Input/` + `src/CkanUI.Platform/Input/XInputGamepadSource.cs` + `src/CkanUI.Services/Input/GamepadNavigator.cs`）：从「几张页面各自处理几个键」升级为「一张映射表 + 一条派发通路 + 一套可测状态机」，键盘与手柄共用同一批语义动作。
+  - 外壳快捷键（`ShellShortcutMap`，键位只在这一处定义）：`Ctrl+Tab` / `Ctrl+PageDown` 下一个页签、`Ctrl+Shift+Tab` / `Ctrl+PageUp` 上一个页签（首尾环绕，单页分节不响应）、`Ctrl+Alt+↑↓` 切侧栏入口、`Ctrl+1…9`（含小键盘）直达侧栏第 N 项、`Ctrl+,` 打开设置、`Ctrl+F` 聚焦当前页搜索框。
+  - `Ctrl+F` 走冒泡阶段而不是全局抢占：模组页自己的 `Ctrl+F`（聚焦并全选搜索框）先执行，页面没接住才由外壳兜底——不抢页面已有的键。
+  - 命令面板补 6 条动作（next-tab / previous-tab / next-rail / previous-rail / focus-search / open-settings），点击与按键都进 `ApplyShellShortcut`，改键位不会出现两套语义；`Ctrl+/` 快捷键目录新增「手柄」分组，条目直接由 `GamepadBindings` 驱动，绑定表改了目录自动跟着改。
+  - 手柄：`XInputGamepadSource` 用 `NativeLibrary.TryLoad` 依次试 `xinput1_4` / `xinput9_1_0` / `xinput1_3`（不用 `DllImport`——目标框架是跨平台 `net10.0`，静态绑定会在非 Windows 上启动即炸），`GamepadInputHost` 以 30 Hz 轮询；`GamepadNavigator` 是纯状态机：按键只认按下沿，方向按住连发（首延迟 350 ms、间隔 120 ms、死区 0.5），扳机当翻页键（阈值 0.6，也只认按下沿），断连清空按住态。
+  - 手柄动作全部复用键盘路径：方向 → `FocusManager.TryMoveFocus`，`A` → 合成一次 `Enter`，`B` → 与 `Esc` 相同的关闭顺序（引导气泡 → AI 抽屉 → 命令面板）。没有手柄时轮询不启动，键盘路径零影响。
+  - 焦点环补齐 `ToggleButton` / `CheckBox` / `RadioButton` / `Slider` / `DataGridCell`（原只有按钮、文本框、下拉框、列表项、数据行），手柄和键盘走到哪都看得见。
+  - 测试：`GamepadNavigatorTests` 11 条（伪造时钟精确断言首延迟与连发节奏）、`ShellNavigationCycleTests` 9 条（页签/侧栏环绕、单页不响应、下标越界）、`ShellShortcutMapTests` 18 条（键位映射与不该命中的组合）、语言包 7 条（键集一致、占位符一致、100% 覆盖）。
 - 共享图标与曲线控件（`src/CkanUI.Ui` + `src/CkanUI.Plugin.Performance` + `src/CkanUI.Plugin.Rp1`）：页内图标、多序列曲线与数据展板统一到共享层，插件不再各画各的。
   - 图标：`src/CkanUI.Ui/Icons/GlyphCatalog.cs` 收 22 个 24×24 Material 路径（`Speed`/`Timer`/`Percent`/`Pulse`/`Cpu`/`Memory`/`Gpu`/`Chart`/`Curve`/`Money`/`Science`/`Confidence`/`Reputation`/`Contract`/`Milestone`/`Program`/`Crew`/`Calendar`/`Clock`/`Warning`/`Check`/`Bug`），
     `GlyphIcon` 控件按 `Size` 等比缩放后画几何，解析结果进缓存（同一个名字多次 `Resolve` 返回同一个 `Geometry` 实例）。**认不出的字形解析为 null、不画占位图**——
@@ -49,10 +57,11 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
   - 只读 `saves/<存档>/persistent.sfs`，合并 `RP1ContractTracker`（合同完成时间）、`CareerLog`（合同备用来源/预算周期/乘员损失）、`MilestoneHandler`（里程碑）、`ProgramHandler`（项目启动/完成）、`CrewHandler`（人员退役）。
   - 大文件不整树解析：先用流式扫描定位 `SCENARIO` 行区间，再只解析九个目标场景；当前资金/科技/声望/信心读 `Funding` 等场景，不用最后一条预算周期的 0 冒充。
   - 时间显示按 RP-1 的 1951-01-01 纪元与 365 天年（真实存档 UT=1,186,012,800 → 1988-08-01 00:00）；标题从 `GameData/RP-1` 的合同/里程碑/项目定义读取，映射不到就保留内部名。
-  - 页面交互与表头优化：表头精简紧凑化，消除多行说明与大横条通知，垂直空间释放约 180px；时间线增加纵向导轨与分类节点（里程碑金黄星标强调），新增带计数筛选胶囊与统计卡点击联动筛选、时间线事件前后步进与曲线指标直达。
-  - 时间轴与生涯曲线双向联动：
-    - 正向联动：在时间轴选中任意事件时，右侧详情卡自动反查该事件所处的预算周期与宏观经济指标（资金、科技、信心、声望），并提供「在曲线上查看」一键切换到趋势图；
-    - 逆向联动：`CurveChart` 支持高亮指示线 `HighlightedIndex` 与点击命令 `PointClickCommand`，在图表上点击任意数据点或在预算周期列表中点击某一行，时间轴自动滚动并高亮该期内或临近事件；支持「最近 12 期 / 联动事件前后 / 全部周期」视窗切换。
+  - 统一全景交互式时间线工作台（双面板合一）：
+    - 架构合璧：彻底合并原本割裂的「左侧时间线列表」与「右侧统计/详情/趋势」双卡片，升级为单一全景交互式生涯工作台；
+    - 顶部全景宏观走势与标尺：全宽 `CurveChart` 常驻工作台顶部，兼具生涯全景监控（资金/科技/信心/声望四指标快速切换）与宏观时间轴定位标尺功能，搭配 8 块微型统计胶囊；
+    - 实时双向联动：在下方时间线点击任意事件时，顶部曲线的金色高亮针脚与标签即时滑动定位该期；点击顶部全宽曲线上任意点或周期列表行，下方时间轴同步无缝滚动并高亮事件；
+    - 底部集成式工作区：通过标签页收拢「事件时间线与详情」（左侧纵向时间轴导轨与筛选胶囊 + 右侧详细叙事与当期指标）与「预算周期明细表」（全量周期列表与视窗切换），曲线在两页签间均常驻可见，避免反复切页。
   - 测试 32 条（日期/文本、存档切片、时间线合并、服务、插件入口、页面模型、交互时间线与曲线双向联动）+ 1 条真实 Avalonia 视图加载 + 1 条真实插件 dll + 宿主 DI 接线；`CurveChart` 增加高亮与点击测试（`CkanUI.Ui.Tests` 共 32 条全绿）。
 - kOS 脚本插件（`src/CkanUI.Plugin.Kos`，`com.ckanui.kos`）：工具分节下的「kOS 脚本」页签，直接管理 kOS 的 Archive 卷。
   - 读写 KSP 根目录 `Ships/Script/*.ks`（kOS 官方文档明确 Archive 卷就是这些真实文件，不是打包格式）。左栏搜索与脚本列表（大小/修改时间/行数/`boot.ks` 标记），右栏纯文本编辑器。
@@ -552,6 +561,15 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 修复
 
+- 页面首进与交互掉帧（真实实例 D 盘 Kerbal Space Program，336 模组，32 个导航键全遍历两轮）：
+  - KSP 原生配置页：插件化搬迁时丢了虚拟化，退回 `ScrollViewer > ItemsControl(Sections) > ItemsControl(Items)` 三层裸列表，真机实体化 **13,466 个节点**、首进冻结 3.4s。外层换成 `ListBox + VirtualizingStackPanel`（行模板与样式一字未改，只抹平 ListBoxItem 的选中/悬停/内边距），节点 13,466 → 888，首进 maxGap 3365 → 207ms；配置解析与行投影再从 UI 线程挪走（891KB / 12,037 行 Squad 字典逐行解析原本全在主线程）。
+  - Mod 配置页 `LoadAsync` 是假异步（同步跑完再 `Task.FromResult` 包一层），导航命令同步耗时 362ms 全在 UI 线程；改成真 `Task.Run` 后 assign 362 → 236ms，重进 76ms。
+  - 设置页 2016 个节点同一帧实体化：改成组级 `ObservableCollection` + 每帧 4 行 reveal，首进 maxGap 中位 601 → 330ms、再降到 69ms。
+  - 下载统计页首屏与后续行同样分批：重进 maxGap 1213 → 33ms。
+  - 日志页 ListBox 改虚拟化 + 固定行高 20px：节点 1281 → 573，首进 1822 → 187ms。
+  - 旗帜页 96 张卡片一次灌进无虚拟化 WrapPanel，缩略图未命中时在 UI 线程同步解码：改 8 条一批 + 批间让帧，进页停顿 497 → 9ms。
+  - 存档页每换一行就整份解析 .sfs（最大 120MB）：改 300ms 去抖，滚动掉帧 5 → 0、p50 11.3 → 5.7ms。
+  - 空闲内存回收阈值 128MB 在真机永远等不到（两轮遍历只涨 83MB），降到 64MB。
 - 测试宿主 `tests/CkanUI.TestRunner`：`--config <自定义配置>` 的配置名不再被当成程序集过滤词。此前只硬编码跳过 `Debug`/`Release`，用 `-c Verify` 绕开被占用的 Debug 输出目录（构建/测试并行时的常见情形）会把 `Verify` 当过滤词，一个测试程序集都匹配不上，报「没有可运行的测试程序集」。
 
 ### 已知问题
