@@ -497,3 +497,29 @@ node tools/perf-probe/measure-instance.mjs
 - 时间轴**锯齿形**（涨上去又落回来）＝可回收垃圾 + 提交段未归还，不是泄漏；
 - 时间轴**单调阶梯**且 heap 同步上涨 ＝活着的数据没有释放，看是哪个 tab 之后开始爬；
 - `private − heap` 一路变大 ＝非托管侧（位图/纹理/合成表面），重点查缩略图与大图页面。
+
+## 17. saves：选中即校验改成「选中停下来再校验」（2217d1d）
+
+### 17.1 现象
+
+存档页滚动时偶发一次 1.1s 的冻结（§8 里记的「一次性 1107.6ms」）。根因不是滚动，是**选中行在变**：`OnSelectedRowChanged` → `KickValidate()` → 每换一行就把整份 `.sfs` 读进来解析（实测最大 120MB，解析产物全落 LOH）。连续按方向键/拖动列表 = 一串「读盘 + 解析 + 大对象分配」。
+
+### 17.2 改法
+
+`src/CkanUI.Plugin.Saves/SavesPageViewModel.cs`：选中后延迟 300ms 再校验，新的选中会取消上一批（`CancellationTokenSource`）。校验本身仍在 `Task.Run` 里（服务层 `ValidateAsync` 早已不在 UI 线程解析），这次改的是**触发频率**。
+
+### 17.3 A/B（真机镜像，`NAV_ONLY=saves NAV_SCROLL=1`，各一跑，同一构建，`CKANUI_SAVES_DEBOUNCE=0` 关掉去抖）
+
+| r2 滚动（59 步） | 选中即校验 | 去抖 300ms |
+|---|---|---|
+| p50 | 11.3ms | **5.7ms** |
+| p95 | 17.8ms | **10.9ms** |
+| max | 23.3ms | **16.2ms** |
+| dropped | 5 | **0** |
+
+r2 进页的 maxGap 也从 99.3ms（worstAt 798ms，含一次校验停顿）降到 38.9ms。节点数不变（420/494），诊断面板唯一差异是内容晚 300ms 出现。
+
+### 17.4 顺带记两条测量纪律
+
+- `measure-instance.mjs` 现在支持 `CKANUI_PROBE_MEM=0` 关掉 `CKANUI_NAV_MEM`（默认仍是 1，向后兼容）——量帧间隔时应关。
+- 并发构建/多 agent 同时压机器时，全量 32 tab 的 layout 能漂 2–10 倍（同一份代码 dedup 117ms → 1317ms、storage 113ms → 1382ms），**只有 nodes 是稳定量**。要发布首进数字，必须确认机器上没有别的构建在跑。
