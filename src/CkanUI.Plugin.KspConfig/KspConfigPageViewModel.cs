@@ -212,18 +212,29 @@ public sealed partial class KspConfigPageViewModel : PageViewModel, IUnsavedChan
         try
         {
             var gameDir = _instanceService?.Current?.GameDir;
-            _document = await _configService.LoadConfigAsync(gameDir).ConfigureAwait(true);
+            // LoadConfigAsync 里 ReadLineAsync 走的是 FileStream 的同步缓冲，await 基本不让出线程，
+            // 于是 891KB / 12,037 行的 Squad dictionary.cfg 逐行 Trim/StartsWith/切分全部落在 UI 线程，
+            // 加上 38KB 的 settings.cfg 解析和建模 —— 真机实测这一段吃掉了首进的大头。
+            _document = await Task.Run(() => _configService.LoadConfigAsync(gameDir)).ConfigureAwait(true);
 
             FilePath = _document.FilePath;
             Language = _document.Language;
             HasBackup = _document.HasBackup;
 
             _allItems.Clear();
-            foreach (var item in _document.Settings)
+            // 纯投影（模型 → 行 VM），不碰任何 UI 对象，挪到线程池建好再回 UI 线程灌进集合。
+            var settings = _document.Settings;
+            var rows = await Task.Run(() => settings
+                .Select(item =>
+                {
+                    var rowViewModel = new KspSettingItemViewModel(item, OnItemModifiedStateChanged);
+                    rowViewModel.ApplyLocalizedName(LocalizedSettingName(item));
+                    return rowViewModel;
+                })
+                .ToArray()).ConfigureAwait(true);
+            foreach (var row in rows)
             {
-                var itemViewModel = new KspSettingItemViewModel(item, OnItemModifiedStateChanged);
-                itemViewModel.ApplyLocalizedName(LocalizedSettingName(item));
-                _allItems.Add(itemViewModel);
+                _allItems.Add(row);
             }
 
             UpdateTabCounts();
