@@ -103,26 +103,45 @@
       </StackPanel>
     </StackPanel>
 
-    <!-- 页面级错误条 -->
-    <Border Grid.Row="3" Margin="0,12,0,0" Classes="CkanInfoBanner"
-            Background="{DynamicResource CkanDangerBackgroundBrush}"
-            BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
-            IsVisible="{Binding HasError}">
-      <Grid ColumnDefinitions="Auto,*,Auto">
-        <PathIcon Grid.Column="0"
-                  Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                  Width="18" Height="18" Margin="0,0,12,0"
-                  Foreground="{DynamicResource CkanDangerBrush}" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="1" Text="{Binding ErrorText}" TextWrapping="Wrap"
-                   FontSize="{DynamicResource CkanFontSizeBody}" FontWeight="Medium"
-                   Foreground="{DynamicResource CkanDangerBrush}" VerticalAlignment="Center" />
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
-                    VerticalAlignment="Center" Margin="12,0,0,0">
-          <Button Content="{DynamicResource Ui_Common_Retry}" Command="{Binding RefreshCommand}" Classes="CkanSmall"
-                  ToolTip.Tip="{DynamicResource Ui_DownloadStatsPage_Refresh_Tip}" />
-        </StackPanel>
-      </Grid>
-    </Border>
+    <!-- 提示与错误通知区 -->
+    <StackPanel Grid.Row="3" Spacing="8" Margin="0,12,0,0">
+      <!-- 页面级错误条 -->
+      <Border Classes="CkanInfoBanner"
+              Background="{DynamicResource CkanDangerBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanDangerBrush}" BorderThickness="1"
+              IsVisible="{Binding HasError}">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <PathIcon Grid.Column="0"
+                    Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                    Width="18" Height="18" Margin="0,0,12,0"
+                    Foreground="{DynamicResource CkanDangerBrush}" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="{Binding ErrorText}" TextWrapping="Wrap"
+                     FontSize="{DynamicResource CkanFontSizeBody}" FontWeight="Medium"
+                     Foreground="{DynamicResource CkanDangerBrush}" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                      VerticalAlignment="Center" Margin="12,0,0,0">
+            <Button Content="{DynamicResource Ui_Common_Retry}" Command="{Binding RefreshCommand}" Classes="CkanSmall"
+                    ToolTip.Tip="{DynamicResource Ui_DownloadStatsPage_Refresh_Tip}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- 操作结果通知条（如加入变更集成功） -->
+      <Border Classes="CkanInfoBanner"
+              Background="{DynamicResource CkanSuccessBackgroundBrush}"
+              BorderBrush="{DynamicResource CkanSuccessBrush}" BorderThickness="1"
+              IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+        <Grid ColumnDefinitions="Auto,*">
+          <PathIcon Grid.Column="0"
+                    Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                    Width="18" Height="18" Margin="0,0,12,0"
+                    Foreground="{DynamicResource CkanSuccessBrush}" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" TextWrapping="Wrap"
+                     FontSize="{DynamicResource CkanFontSizeBody}" FontWeight="Medium"
+                     Foreground="{DynamicResource CkanSuccessBrush}" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+    </StackPanel>
 
     <!-- 主体：左图例 + 右明细 -->
     <Grid Grid.Row="4" ColumnDefinitions="280,*" Margin="0,12,0,0">
@@ -172,25 +191,28 @@
 
         <Grid Grid.Row="1">
           <DataGrid ItemsSource="{Binding Rows}"
+                    SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                    DoubleTapped="OnRowDoubleTapped"
                     AutoGenerateColumns="False"
                     IsReadOnly="True"
-                    CanUserSortColumns="False"
-                    CanUserResizeColumns="True"
+                    controls:TableTools.Enabled="True"
                     RowHeight="{DynamicResource CkanRowHeight}"
                     GridLinesVisibility="None"
                     HeadersVisibility="Column"
                     IsVisible="{Binding !ShowEmptyState}">
             <DataGrid.Columns>
-              <DataGridTextColumn Header="{DynamicResource Ui_DownloadStats_DimensionMods}" Binding="{Binding Name}" Width="260" />
-              <DataGridTextColumn Header="{DynamicResource Ui_Common_Identifier}" Binding="{Binding Identifier}" Width="220" />
-              <DataGridTemplateColumn Header="{DynamicResource Ui_DownloadStatsPage_Downloads}" Width="190">
+              <DataGridTextColumn Header="{DynamicResource Ui_DownloadStats_DimensionMods}" Binding="{Binding Name}" Width="220" />
+              <DataGridTextColumn Header="{DynamicResource Ui_Common_Identifier}" Binding="{Binding Identifier}" Width="180" />
+              <DataGridTemplateColumn Header="{DynamicResource Ui_DownloadStatsPage_Downloads}" Width="220"
+                                      controls:TableTools.SortPath="DownloadCount">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
-                    <!-- 同列内给下载量一条相对条：一眼看出头部模组与长尾的差距 -->
-                    <Grid ColumnDefinitions="74,*" VerticalAlignment="Center">
+                    <!-- 同列内给下载量一条相对条：Auto 列宽保障大数字与进度条互不侵占，MinWidth=0 杜绝溢出与划线 -->
+                    <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Center" Margin="4,0">
                       <TextBlock Grid.Column="0" Text="{Binding DownloadsText}" Classes="CkanNumeric"
-                                 VerticalAlignment="Center" />
-                      <ProgressBar Grid.Column="1" Minimum="0" Maximum="100" Height="4" Margin="6,0,10,0"
+                                 Margin="0,0,8,0" VerticalAlignment="Center" />
+                      <ProgressBar Grid.Column="1" Minimum="0" Maximum="100" Height="4" Margin="0,0,8,0"
+                                   MinWidth="0"
                                    Value="{Binding DownloadPercent}" VerticalAlignment="Center"
                                    Foreground="{DynamicResource CkanAccentBrush}"
                                    Background="{DynamicResource CkanSubtleBackgroundBrush}"
@@ -199,8 +221,37 @@
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
-              <DataGridTextColumn Header="{DynamicResource Ui_Common_Cache}" Binding="{Binding CacheText}" Width="90" />
+              <DataGridTextColumn Header="{DynamicResource Ui_Common_Cache}" Binding="{Binding CacheText}" Width="90"
+                                  controls:TableTools.SortPath="CacheBytes" />
               <DataGridTextColumn Header="{DynamicResource Ui_Common_Status}" Binding="{Binding InstalledText}" Width="80" />
+              <DataGridTemplateColumn Header="{DynamicResource Ui_Common_Action}" Width="220">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                      <Button Classes="CkanSmall"
+                              Content="{DynamicResource Ui_DownloadStats_ViewMod}"
+                              ToolTip.Tip="{DynamicResource Ui_DownloadStats_ViewModTip}"
+                              Command="{Binding $parent[UserControl].DataContext.OpenModCommand}"
+                              CommandParameter="{Binding}"
+                              VerticalAlignment="Center" />
+                      <Button Classes="CkanSmall"
+                              Content="{DynamicResource Ui_DownloadStats_AddToChangeset}"
+                              ToolTip.Tip="{DynamicResource Ui_DownloadStats_AddToChangesetTip}"
+                              IsVisible="{Binding !IsInstalled}"
+                              Command="{Binding $parent[UserControl].DataContext.AddToChangesetCommand}"
+                              CommandParameter="{Binding}"
+                              VerticalAlignment="Center" />
+                      <Button Classes="CkanPrimary CkanSmall"
+                              Content="{DynamicResource Ui_DownloadStats_Install}"
+                              ToolTip.Tip="{DynamicResource Ui_DownloadStats_InstallTip}"
+                              IsVisible="{Binding !IsInstalled}"
+                              Command="{Binding $parent[UserControl].DataContext.InstallModCommand}"
+                              CommandParameter="{Binding}"
+                              VerticalAlignment="Center" />
+                    </StackPanel>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
             </DataGrid.Columns>
           </DataGrid>
 
