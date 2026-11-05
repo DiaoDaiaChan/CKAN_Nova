@@ -392,6 +392,9 @@ CKAN UI 的版本号只有一个手改点：`src/CkanUI.App/Version.props` 的 `
 
 ### 修复
 
+- 空闲内存回收会在用户眼皮底下做压缩式 Gen2：一次要把整堆活对象搬一遍，实测 1.1–1.7 秒，落在导航/点击窗口里就是一整帧冻结（探针 `[nav]` 行的 `pause` 与 `maxGap` 对得上，`[round]` 的 `reclaim` 计数证明它确实在遍历中途触发）。轮询路径改成"软回收"（单次阻塞、不压缩），压缩版只留给预热/驻留预算用的 `ReclaimNow`；回收判定另加 `MinQuietSeconds=8` 的静置门槛（`IsIdle` 只等 2.5 秒）。同一 8 页 ×3 轮：pause 总和 5427 → 3741 ms，单次最大 1697 → 775 ms，回收次数不变。
+- flags 页 96 张卡片每帧落地 8 张时，单张卡的缩略图同步解码会把一帧顶到 5 个帧预算（p50 96–174 ms、峰值 300–456 ms）。改成每帧 4 张后 p50 47–69 ms、峰值 137–304 ms。
+
 - KSP 配置页真机首进冻结 3.4 秒：插件化搬迁时把分组列表退回成 `ScrollViewer > ItemsControl > ItemsControl` 三层裸列表，settings.cfg 键一多就实体化 13,466 个视觉节点。外层换成 `ListBox` + `VirtualizingStackPanel`，用 6 条样式把 `ListBoxItem` 的内边距/边距/最小高/悬停与选中底色全部抹平（行模板一字未动，外观仍由行内 `Border` 决定）⇒ 同实例同页 13,466 → 888 节点，首进 maxGap 3,365 → 424 ms，重进 63 ms。
 - 页面计时探针会在实例还没读上注册表时就开跑，量到的是空壳页面（模组页 254 节点 / 0 行，真实是 2,333 节点 / 2,650 行），据此得出的「这页很快」全是假的。`NavigationProbe` 现在先等仓库索引就绪（`[inst] repo-ready`，实测真机需 12–14 秒），并在每次遍历结束时打印实例名、库路径与错误计数。
 - 卡顿到底卡在哪，之前只能靠猜：`src/CkanUI.App/Diagnostics/NavigationProbe.cs` 新增 UI 线程看门狗（`CKANUI_NAV_STALLS=1`）——后台线程每 15 ms 往 UI 线程投递一次空操作，量「投递到执行」的延迟，超过 50 ms 记为一次卡顿；归属在**投递时**取（页名 + 阶段 startup/enter/window0-2/gap/click/scroll），所以不会把卡顿记到下一个页面上。同时 `[nav]` 行尾追加本页窗口内的 `gen2=` 次数与 `pause=` 毫秒（`GC.GetTotalPauseDuration`），把「卡」和 GC 停顿放到同一张表里对账。
