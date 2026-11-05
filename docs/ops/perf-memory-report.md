@@ -450,3 +450,50 @@ UI 线程（采样）自时间排名：`Avalonia.StyledElement.ApplyStyles` **11
 | maxGap | 961.0 | 733.9 | 709.8 | 812.3 |
 
 两组区间重叠（基线自身就跨 929–1213ms），收益在噪声内；该页只有约 10 个分组，分帧能省的帧内工作量本来就小。已整体回退，代码未入库。结论：**分帧只对「单帧实体化量级 ≥ 1500 节点」的页面有意义**（settings 2016、downloadstats 1724），小分组页不要照搬。
+
+## 16. 内存时间轴：给「4GB」取证
+
+### 16.1 为什么另开一条线
+
+`[nav]` 行只在走完一页时打一次，抓不到「什么都没点，内存自己涨上去」的现场；而应用自己的 log4net 在这台机器上写不进 `%LOCALAPPDATA%\CKAN\logs`（目录写被拒，实测 `UnauthorizedAccessException`），只有探针显式指定的路径能落盘。所以新增 `src/CkanUI.App/Diagnostics/MemoryTimeline.cs`：`File.AppendAllText` 直写，不依赖日志框架。
+
+### 16.2 怎么开
+
+- 显式：`CKANUI_MEM_TRACE=<路径>`；
+- 缺省：跟着导航 trace 走——设了 `CKANUI_NAV_TRACE` 就会在它旁边多出一份 `<trace>.mem`；
+- 采样间隔 2s，只读计数器（`GC.GetTotalMemory(forceFullCollection: false)`、`Process.WorkingSet64/PrivateMemorySize64`、Gen0/Gen2 次数、线程数），**不触发 GC**，不影响同轮的帧间隔；
+- 落盘连续失败 3 次自动停，绝不因为诊断拖垮应用。
+
+### 16.3 实测样例（真机镜像 336 模组，32 页遍历）
+
+| 时刻 | ws | private | heap | gen2 |
+|---|---|---|---|---|
+| t=0.0s | 166.9MB | 110.6MB | 20.7MB | 1 |
+| t=2.0s | 355.0MB | 304.2MB | 76.2MB | 4 |
+| t=74.0s | 851.6MB | 829.1MB | 509.0MB | 38 |
+| 遍历结束 | 1199.5MB | 1110.6MB | — | — |
+| **峰值** | **1701.2MB** | — | — | — |
+
+要点：
+
+- 峰值只有时间轴抓得到（`[nav]` 行在页面切换间隙里看不到）；
+- `private` 与 `ws` 差 60–90MB，缺的那截是已提交的非托管页（合成器 + Skia 表面，约 14MB/页）；
+- heap 与 private 的巨大差值说明大整合包场景要盯的是**非托管 + 提交段**，不是托管对象存活。
+
+### 16.4 在你的整合包上取证
+
+```powershell
+$env:CKAN_CONFIG_FILE="$env:APPDATA\CKAN\GUI\config.json"
+node tools/perf-probe/measure-instance.mjs
+```
+
+跑完把这两个文件发回来即可定位 4GB 属于哪一类：
+
+1. `artifacts/nav-instance.log`（每页 layout/maxGap/nodes/heap）；
+2. `artifacts/nav-instance.log.mem`（2s 一条的时间轴，看是阶梯上涨、还是某页一次性跳升）。
+
+判读口径：
+
+- 时间轴**锯齿形**（涨上去又落回来）＝可回收垃圾 + 提交段未归还，不是泄漏；
+- 时间轴**单调阶梯**且 heap 同步上涨 ＝活着的数据没有释放，看是哪个 tab 之后开始爬；
+- `private − heap` 一路变大 ＝非托管侧（位图/纹理/合成表面），重点查缩略图与大图页面。
