@@ -67,10 +67,22 @@ public sealed class ModConfigService : IModConfigService
             return Task.FromResult(cached);
         }
 
-        var result = LoadCore(instanceName, ct);
+        // LoadCore 会扫适配器目录、解析 .cfg 并建模型，实测 350–550ms。
+        // 以前这里直接同步跑完再用 Task.FromResult 包成「已完成的任务」，
+        // 调用方的 await 根本不会让出线程 —— 导航命令里的同步耗时（assign）就这么来的。
+        // 现在真丢到线程池，UI 线程在扫描期间可以继续画帧。
+        return LoadAndCacheAsync(key, instanceName, ct);
+    }
+
+    private async Task<OperationResult<ModConfigInstanceModel>> LoadAndCacheAsync(
+        string key,
+        string instanceName,
+        CancellationToken ct)
+    {
+        var result = await Task.Run(() => LoadCore(instanceName, ct), ct).ConfigureAwait(false);
         _cachedKey = key;
         _cached = result;
-        return Task.FromResult(result);
+        return result;
     }
 
     private string BuildCacheKey(string instanceName)
