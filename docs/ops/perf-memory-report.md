@@ -757,3 +757,85 @@ grep -rn "Task.FromResult" src --include=*.cs | grep -i "load\|refresh\|scan"
 | modtext | 266–282ms | — | 631 |
 
 首进成本与节点数线性（约 0.3ms/节点，§20 已用行数消融证明），所以页面切换的下一个杠杆只有一个：**减少首帧实体化的节点数**。mods 是唯一的大头（2333 节点，110 节点/行），而它只能通过改行模板（列内呈现简化）实现——属「影响显示效果」的改动，按用户约束停在等拍板。
+## 24. 全量按钮与页签遍历（29 页 × 独立进程；614 个按钮 / 315 条命令 / 2 个真 TabControl）
+
+用户要求「遍历**所有**可能的按钮和 tab，找掉帧点，确认 GUI 是不是没有异步计算」。这一节是覆盖账，不是抽样。
+
+### 24.1 口径
+
+- 每页单独起进程：`CKANUI_NAV_ONLY=<key> CKANUI_NAV_BUTTONS=1 CKANUI_NAV_CLICKS=1 CKANUI_NAV_ROUNDS=1 CKANUI_NAV_FRAME_MS=900`。会话内一次走完 32 页时，前一页的后台加载会抢 UI 线程，layout 能虚高 2–10 倍（§19 已记），只有独立进程的数字能横比。
+- 命令白名单只看前缀 `Refresh|Reload|Recompute|Recheck|Rescan|Validate|Copy`：只点只读/幂等命令。`Save/Apply/Open/Delete` 一律不点，避免写盘与弹窗污染现场。
+- 覆盖统计：**614 个 Button**，其中 **315 个绑命令**、**299 个是 code-behind 事件**（只清点、点不了）；白名单命中并真正执行了 26 条。剩下没点的分两类，全部有据可查：
+  - **需要先选中一行**：`[click] <key> none-executable blocked=N` —— saves 2、cache 1、music 1、spacedock 1、storage 0、kspconfig 0（后两页的按钮全在 code-behind 里）。
+  - **命令名不在白名单**（如 `Clear/Apply/Save/Open`）：按安全纪律不点。
+
+### 24.2 每页首进 + 点击后帧峰值（真实实例镜像，336 模组）
+
+| 页面 | 首进 layout | 首进帧峰值 | 掉帧 | nodes | 按钮/命令 | 点到命令 | 点击后帧峰值 |
+|---|---|---|---|---|---|---|---|
+| home | 3018.4ms¹ | 184.1ms | 107 | 248 | 16/16 | 2 | 33.4ms (RefreshScreenshots) |
+| modconfig | 1155.3ms | 899.7ms | 27 | 1295 | 84/43 | 1 | 33.9ms (ReloadAdapters) |
+| saves | 793.2ms | 474.2ms | 20 | 420 | 20/11 | 0 (+2 需选中) | - |
+| kspconfig | 768.0ms | 423.4ms | 30 | 888 | 47/23 | 0 | - |
+| changes | 746.8ms | 460.3ms | 20 | 121 | 15/9 | 1 | 47.5ms (Recompute) |
+| logs | 726.8ms | 597.9ms | 14 | 573 | 20/13 | 1 | 107.0ms (Refresh) |
+| ships | 709.5ms | 332.0ms | 25 | 422 | 22/11 | 2 | 47.9ms (Refresh) |
+| modtext | 665.3ms | 301.0ms | 15 | 631 | 23/10 | 1 | 33.4ms (Reload) |
+| rp1-career | 665.0ms | 420.5ms | 24 | 380 | 22/18 | 1 | 33.4ms (Refresh) |
+| downloadstats | 612.7ms | 505.2ms | 18 | 229 | 17/10 | 1 | 60.6ms (Refresh) |
+| modpack-profiles | 508.1ms | 216.3ms | 20 | 106 | 8/8 | 1 | 34.4ms (Refresh) |
+| cache | 499.3ms | 396.9ms | 19 | 126 | 15/10 | 0 (+1 需选中) | - |
+| repos | 482.9ms | 308.4ms | 13 | 200 | 17/10 | 3 | 38.2ms (RefreshAll) |
+| loadingimages | 462.7ms | 294.3ms | 27 | 137 | 9/9 | 1 | 33.1ms (Refresh) |
+| kos | 442.4ms | 180.7ms | 15 | 128 | 16/16 | 1 | 31.9ms (RefreshCatalog) |
+| dedup | 440.8ms | 261.9ms | 12 | 186 | 15/8 | 1 | 32.3ms (RefreshInstances) |
+| performance | 416.7ms | 196.5ms | 16 | 68 | 5/5 | 1 | 32.7ms (Refresh) |
+| plugins | 414.3ms | 324.6ms | 28 | 267 | 19/7 | 1 | 34.1ms (Refresh) |
+| music | 407.5ms | 208.2ms | 26 | 135 | 15/11 | 0 (+1 需选中) | - |
+| unmanaged | 404.7ms | 248.9ms | 8 | 108 | 11/9 | 1 | 42.9ms (Refresh) |
+| storage | 395.2ms | 225.9ms | 20 | 106 | 11/5 | 0 | - |
+| content | 343.5ms | 225.3ms | 18 | 89 | 9/8 | 1 | 33.4ms (CopyPath) |
+| modpack-editor | 306.4ms | 223.8ms | 25 | 466 | 14/8 | 1 | 31.9ms (Validate) |
+| settings | 300.5ms | 170.6ms | 14 | 2016 | 114/6 | 1 | 32.5ms (Reload) |
+| spacedock | 286.8ms | 133.4ms | 22 | 119 | 8/7 | 0 (+1 需选中) | - |
+| modpacks | 284.1ms | 152.5ms | 26 | 233 | 16/6 | 1 | 33.2ms (RefreshInstances) |
+| flags | 245.8ms | 222.0ms | 11 | 1395 | 13/9 | 1 | **179.6ms (Refresh)** |
+| ai-assistant | 212.3ms | 74.8ms | 25 | 99 | 8/7 | 0 | - |
+| playtime | 129.9ms | 72.6ms | 19 | 62 | 5/2 | 1 | 34.1ms (Refresh) |
+
+¹ home 是进程里第一页，混着启动 JIT/预热，不是页面自身成本。
+
+### 24.3 结论：按钮侧已经基本没有「同步计算」
+
+- 26 条被点的命令里，**命令体同步耗时全部 ≤ 39.6ms**（最长 loadingimages `RefreshCommand` 39.6ms，其余多为 1–15ms）；点击后 1.2s 帧窗口的峰值只有 **flags 179.6ms** 一条超过 60ms。
+- 之前三个「点完就冻」的已经修掉：repos 674.4→15.5ms、instances 293.9→56.8ms、unmanaged 256.9→27.7ms（§23.1 + 4b502cb）。
+- 所以「GUI 没有异步计算」这个猜想在**命令层**不成立：卡顿来自**进页面时把整棵视觉树一帧落地**（mods 2333 节点 / modconfig 1295 / settings 2016），不是按钮里在算。
+
+### 24.4 页签：只有 2 个真 TabControl
+
+其余 29 页的「页签」是顶栏 SectionTabs（本质是导航键，已按 32 键遍历覆盖）。
+
+| 页面 | 切页签 free | 切换后帧峰值 | over50 | nodes 变化 |
+|---|---|---|---|---|
+| modpacks | 47.6ms | 32.6ms | 0 | 233 → 234 |
+| rp1-career | 93.7ms | 32.7ms | 0 | 223 → 362 |
+
+两个页签切换都不掉帧（峰值 32.7ms ≈ 两帧），无需优化。
+
+### 24.5 被否决：「加载界面 + 分帧补行」能不能救模组页
+
+按用户提议，把 `ModsPageViewModel.ApplyFilter` 改成「先放一屏 40 行，剩余行在后续帧补」，并留 `CKANUI_MODS_STAGED` / `CKANUI_MODS_STAGE_BATCH` 两个开关做 A/B（同一构建、`NAV_ONLY=mods`、两轮）：
+
+| 方案 | r1 layout | r1 帧峰值 | r1 掉帧 | r1 p95 |
+|---|---|---|---|---|
+| 现状（一次性换表） | 1446.6ms | 1212.3ms | 36 | 28.6ms |
+| 每帧补 4 行 | 1811.7ms | 1112.7ms | 30 | 306.1ms |
+| 每帧补 1 行 | 2459.0ms | 1042.8ms | 38 | 300.6ms |
+
+分帧**更慢**，因为每 `Add` 一行 DataGrid 都会把整张表重排一次（p95 从 28.6ms 涨到 300ms）。结论：模组页这一帧的活儿是 2333 个节点的首次样式匹配，只能靠减节点解决；加载界面能盖住等待，盖不住这一帧。代码已整体回退（文件恢复到无 `FillRowsStagedAsync` / `_stagedRowFill` 的状态）。
+
+### 24.6 仍开着的两个口子
+
+1. **mods 首进 0.9–1.4s**：需行模板减法（110→~60 节点/行），属影响显示，等用户拍板（§20 方案 A/B）。
+2. **flags `RefreshCommand` 179.6ms**：`FlagsPageViewModel` 已有「磁盘未变就不重建」的短路，但点击仍会重扫目录并把 96 张卡片重排。下一次可在这条线上把 `ScanAsync` 的目录枚举挪到线程池。
+

@@ -239,10 +239,18 @@ internal static class NavigationProbe
         }
 
         var only = Environment.GetEnvironmentVariable("CKANUI_NAV_ONLY");
+
+        // CKANUI_NAV_KEYS=a,b,c：只走这几页。逐页扫全场时某些页在空实例下会崩（见 --pages 的教训），
+        // 要量「每页边际成本」这类斜率就得能掐掉几页，又不至于像 CKANUI_NAV_ONLY 那样只能走一页。
+        var subset = Environment.GetEnvironmentVariable("CKANUI_NAV_KEYS")?
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var keys = shell.NavItems
             .Select(item => item.Key)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Where(key => string.IsNullOrWhiteSpace(only) || string.Equals(key, only, StringComparison.OrdinalIgnoreCase))
+            .Where(key => subset is null || subset.Contains(key))
             .ToArray();
         TryWrite(path, $"[nav] start keys={keys.Length}");
         ReportInstance(path);
@@ -363,8 +371,57 @@ internal static class NavigationProbe
             TryWrite(path, $"[nav] idle-after-sweep{MemorySuffix()}");
         }
 
+        if (Environment.GetEnvironmentVariable("CKANUI_NAV_RESIDENCY_DRILL") == "1")
+        {
+            await ResidencyDrillAsync(window, shell, keys, path).ConfigureAwait(true);
+        }
+
         StopStallWatch(path);
         TryWrite(path, "[nav] done");
+    }
+
+    /// <summary>
+    /// 驻留预算演练：等预算把非活动页摘掉，再逐页回访，量「被摘过的页」重新进场的代价。
+    /// 摘掉的是整棵视图树，回来时要重新加载 XAML 再排首屏——这段代价不量出来，预算就只能靠猜。
+    /// </summary>
+    private static async Task ResidencyDrillAsync(MainWindow window, ShellViewModel shell, string[] keys, string path)
+    {
+        if (window.PageResidencyKeep <= 0)
+        {
+            TryWrite(path, "[drill] skip policy-off");
+            return;
+        }
+
+        // 摘除只发生在「空闲 + 距上次换页超过阈值」之后；空闲检查已经静置过一段，这里最多再等几十秒。
+        var deadline = DateTime.UtcNow.AddSeconds(45);
+        while (DateTime.UtcNow < deadline && window.PageViewCount > window.PageResidencyKeep)
+        {
+            await Task.Delay(1000).ConfigureAwait(true);
+        }
+
+        var evicted = keys.Where(key => !window.IsResidentKey(key)).Take(3).ToArray();
+        TryWrite(path, $"[drill] evicted={evicted.Length} views={window.PageViewCount} keep={window.PageResidencyKeep} keys={string.Join(',', evicted)}");
+        if (evicted.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var key in evicted)
+        {
+            var sw = Stopwatch.StartNew();
+            var assign = await NavigateAsync(shell, key, sw).ConfigureAwait(true);
+            var layout = await WaitForLayoutAsync(sw).ConfigureAwait(true);
+            var paint = await WaitForFrameAsync(window, sw).ConfigureAwait(true);
+            TryWrite(path, $"[drill] {key} assign={assign.ToString("F1", CultureInfo.InvariantCulture)}ms layout={layout.ToString("F1", CultureInfo.InvariantCulture)}ms paint={paint.ToString("F1", CultureInfo.InvariantCulture)}ms{MemorySuffix()}");
+        }
+
+        // 再回访第一页：它此刻已经常驻，这一次是「纯切换」——冷重建与热切换的差额才是预算真正的代价。
+        var warm = evicted[0];
+        var warmWatch = Stopwatch.StartNew();
+        var warmAssign = await NavigateAsync(shell, warm, warmWatch).ConfigureAwait(true);
+        var warmLayout = await WaitForLayoutAsync(warmWatch).ConfigureAwait(true);
+        var warmPaint = await WaitForFrameAsync(window, warmWatch).ConfigureAwait(true);
+        TryWrite(path, $"[drill] {warm} warm assign={warmAssign.ToString("F1", CultureInfo.InvariantCulture)}ms layout={warmLayout.ToString("F1", CultureInfo.InvariantCulture)}ms paint={warmPaint.ToString("F1", CultureInfo.InvariantCulture)}ms{MemorySuffix()}");
     }
 
     /// <summary>
@@ -494,6 +551,8 @@ internal static class NavigationProbe
             return;
         }
 
+        var executable = 0;
+        var blocked = 0;
         foreach (var property in page.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
             if (property.GetIndexParameters().Length > 0 || !SafeCommandPattern.IsMatch(property.Name))
@@ -501,10 +560,19 @@ internal static class NavigationProbe
                 continue;
             }
 
-            if (property.GetValue(page) is not ICommand command || !command.CanExecute(null))
+            if (property.GetValue(page) is not ICommand command)
             {
                 continue;
             }
+
+            if (!command.CanExecute(null))
+            {
+                // 需要先选中一行才能点：如实记数，别让「0 条点击」看起来像没覆盖。
+                blocked++;
+                continue;
+            }
+
+            executable++;
 
             var watch = Stopwatch.StartNew();
             try
@@ -525,6 +593,11 @@ internal static class NavigationProbe
                 path,
                 string.Create(CultureInfo.InvariantCulture, $"[click] {key} {property.Name} sync={sync:F1}ms free={free:F1}ms frames={frames} maxGap={maxGap:F1}ms over50={over50}"));
             await Task.Delay(120).ConfigureAwait(true);
+        }
+
+        if (executable == 0)
+        {
+            TryWrite(path, $"[click] {key} none-executable blocked={blocked}");
         }
     }
 
