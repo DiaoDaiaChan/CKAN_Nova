@@ -560,3 +560,56 @@ grep -rn "Task.FromResult" src --include=*.cs | grep -i "load\|refresh\|scan"
 ```
 
 凡是「先同步干活、再 `Task.FromResult` 包一层」的方法，对外都是假异步；调用点写 `await` 看起来是异步，实际整段都在 UI 线程。判据：探针的 `assign` 里出现与数据量正相关的毫秒数。
+
+## 19. 全量 32 tab 复核（修复后，两轮独立 sweep）
+
+口径：真实实例镜像（`artifacts/perf/instance-real`，D 盘 Kerbal Space Program 的 44 个 junction + 18 个根文件副本，336 模组），`CKANUI_PROBE_MEM=0`（关掉两次阻塞 Gen2，否则 maxGap 混入测量动作），32 个导航键 × 2 轮，同一构建连跑两次独立进程。
+
+### 19.1 首进 layout / maxGap（两次 sweep 的区间）
+
+| # | tab | 首进 layout | 首进 maxGap | 节点 | 重进 layout |
+|---|---|---|---|---|---|
+| 1 | mods | 1108 / 1349 | 952 / 1108 | 2333 | 253 / 270 |
+| 2 | modconfig | 589 / 627 | 318 / 335 | 1295 | 76 / 90 |
+| 3 | downloadstats | 419 / 429 | 283 / 352 | 1724 | 26 / 28 |
+| 4 | kspconfig | 421 / 453 | 185 / 207 | 888 | 49 / 49 |
+| 5 | rp1-career | 302 / 337 | 151 / 184 | 418 | 61 / 73 |
+| 6 | modtext | 266 / 282 | 116 / 128 | 631 | 107 / 125 |
+| 7 | saves | 198 / 205 | 90 / 98 | 420 | 61 / 94 |
+| 8 | logs | 187 / 202 | 146 / 158 | 573 | 83 / 122 |
+| 9 | settings | 111 / 500* | 69 / 475* | 2016 | 32 / 45 |
+| 10 | instances | 194 / 200 | 97 / 128 | 320 | 38 / 49 |
+| 11 | flags | 57 / 62 | 62 / 80 | 2039 | 22 / 38 |
+| 12 | music | 134 / 118 | 42 / 388 | 2098 | 35 / 52 |
+
+\* settings 第一次 sweep 的 500/475 是未开 MEM 但排在 mods 之后的样本，第二次 sweep 为 111/69；同页隔离跑（队友）为 302–464 / 181–302。区间下沿更接近真实，上沿混入了前序页面的后台收尾。
+
+完整 32 行见 `artifacts/final-table.mjs <log>`。
+
+### 19.2 与修复前对比（同一台机器、同一实例）
+
+| 页面 | 修复前 layout / maxGap | 修复后 layout / maxGap | 手段 |
+|---|---|---|---|
+| kspconfig | 3365 / 3365（13,466 节点） | 421–453 / 185–207（888 节点） | ListBox + VirtualizingStackPanel（48c3e88）+ 解析/投影出 UI 线程（e2a54fb） |
+| settings | 499 / 474（隔离跑 1410） | 111 / 69 | 组级分帧 + 组内 4 行/帧（925d0cd、3f6c67e） |
+| downloadstats | 556 / 1448 | 419 / 283（重进 26 / 33） | 首屏后让出 + 分批（b260cb2、8e31669） |
+| logs | 1822 / 1718（1281 节点） | 187–202 / 146–158（573 节点） | ListBox 虚拟化 + 固定行高（936f8e4） |
+| modconfig | 906 / 1132 | 589 / 318（重进 76） | 真异步 + 复用投影（e1998ef、98c7dcf） |
+| saves | 351 / 234 | 198 / 90（滚动掉帧 5→0） | 选中校验去抖 300ms（2217d1d） |
+| flags | 58 / 1112 | 57 / 62 | 缩略图 8 条一批 + 让帧（890efef） |
+
+### 19.3 唯一剩下的硬骨头：mods
+
+2333 个节点、2650 行数据，首进 layout 1.1–1.35s、maxGap 0.95–1.1s，重进 ~250ms。dotnet-trace 显示 UI 线程自身时间第一是 `Avalonia.StyledElement.ApplyStyles`（14.55s 累计采样）≫ `Layoutable.MeasureCore`（8.54s），即**首次套样式**，不是数据加载。
+
+已排除（都在同构建上做过 A/B，且都回退）：
+- `ApplyColumnWidths()`（Loaded 里逐列设宽度）：关掉后 2290/3004ms，无改善。
+- DataGrid 主题 StyleInclude 提到 App.axaml：1355ms，更差 ~10%。
+- 订阅 `_repositories.Updated` / `_registry.Changed` 触发的晚到 ReloadFromSnapshots：1176ms ≈ 基线。
+- 就地替换行（而不是换集合）：1407ms，无收益。
+
+剩下的只有「行模板做减法」（每行 ~116 个节点）。这会改变显示，按用户「会影响显示效果的改动先保留」的约束，**停在这里等拍板**。
+
+### 19.4 ai-assistant 重进 1.8s 的定性
+
+两次整机 sweep 里 ai-assistant 的 r2 maxGap 都是 1.75 / 1.85s（r1 只有 66–75ms）。单独跑 `NAV_ONLY=ai-assistant` × 3 轮：r1 426ms、r2 8ms / maxGap 32ms、r3 5ms / maxGap 191ms，**隔离跑不出 1.8s**。⇒ 这 1.8s 属于「上一页的收尾工作 / GC」落在下一段帧窗口的 gap 里，不是该页自身。判读整机表时，gap 类尖峰要看它前一页是谁。
