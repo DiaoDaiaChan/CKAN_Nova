@@ -37,6 +37,9 @@ public sealed class DynamicRefreshRateController : INotifyPropertyChanged
         _activityStopwatch.Start();
     }
 
+    /// <summary>距离最后一次用户输入（指针/滚轮/键盘）过去了多久。空闲回收用它区分"刚放下手"和"真的没人用"。</summary>
+    public TimeSpan SinceLastInteraction => _activityStopwatch.Elapsed;
+
     /// <summary>当前是否处于空闲降频状态。</summary>
     public bool IsIdle
     {

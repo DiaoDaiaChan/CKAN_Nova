@@ -25,8 +25,13 @@ public static class IdleMemoryReclaimerPolicy
     /// 既能在一个会话里最多多回收一两次，又不会因为加载把工作集撑回去后一直卡在冷却里。</summary>
     public static TimeSpan MinInterval => TimeSpan.FromSeconds(20);
 
+    /// <summary>最后一次用户输入之后要再静置这么久才允许压缩堆：IsIdle 只要 2.5 秒，
+    /// 用户看完一段文字随手一点时压缩式 GC 正好在跑，就会被记成一次"页面卡死"（实测单次 0.7-1.5 秒）。</summary>
+    public const double MinQuietSeconds = 8;
+
     /// <summary>判定此刻是否值得做一次空闲回收。</summary>
     /// <param name="isIdle">当前是否处于空闲降频状态。</param>
+    /// <param name="sinceLastInteraction">距离最后一次用户输入的时长。</param>
     /// <param name="sinceAttach">窗口挂上至今的时长。</param>
     /// <param name="hasReclaimed">进程启动以来是否已经回收过。</param>
     /// <param name="workingSetBytes">当前工作集字节数。</param>
@@ -35,6 +40,7 @@ public static class IdleMemoryReclaimerPolicy
     /// <returns>true 表示应当立刻回收。</returns>
     public static bool ShouldReclaim(
         bool isIdle,
+        TimeSpan sinceLastInteraction,
         TimeSpan sinceAttach,
         bool hasReclaimed,
         long workingSetBytes,
@@ -42,6 +48,11 @@ public static class IdleMemoryReclaimerPolicy
         TimeSpan sinceLastReclaim)
     {
         if (!isIdle || sinceAttach < TimeSpan.FromSeconds(MinAttachSeconds))
+        {
+            return false;
+        }
+
+        if (sinceLastInteraction < TimeSpan.FromSeconds(MinQuietSeconds))
         {
             return false;
         }
@@ -71,7 +82,9 @@ public sealed class IdleMemoryReclaimer : IDisposable
 
     private readonly Func<long> _readWorkingSet;
     private readonly Action _reclaim;
+    private readonly Action _softReclaim;
     private readonly Func<bool> _isIdle;
+    private readonly Func<TimeSpan> _sinceInteraction;
     private readonly Stopwatch _sinceLastReclaim = Stopwatch.StartNew();
     private readonly Stopwatch _attachAge = Stopwatch.StartNew();
     private readonly Func<TimeSpan> _sinceAttach;
@@ -82,7 +95,13 @@ public sealed class IdleMemoryReclaimer : IDisposable
     private long _workingSetAfterLastReclaim;
 
     public IdleMemoryReclaimer()
-        : this(ReadProcessWorkingSet, DefaultReclaim, () => DynamicRefreshRateController.Instance.IsIdle)
+        : this(
+            ReadProcessWorkingSet,
+            DefaultReclaim,
+            () => DynamicRefreshRateController.Instance.IsIdle,
+            null,
+            () => DynamicRefreshRateController.Instance.SinceLastInteraction,
+            SoftReclaim)
     {
     }
 
@@ -91,7 +110,7 @@ public sealed class IdleMemoryReclaimer : IDisposable
     /// <param name="reclaim">执行一次实际回收。</param>
     /// <param name="isIdle">读取当前空闲状态。</param>
     /// <param name="sinceAttach">窗口挂上至今的时长；为 null 时用实例自己的计时器。</param>
-    public IdleMemoryReclaimer(Func<long> readWorkingSet, Action reclaim, Func<bool> isIdle, Func<TimeSpan>? sinceAttach = null)
+    public IdleMemoryReclaimer(Func<long> readWorkingSet, Action reclaim, Func<bool> isIdle, Func<TimeSpan>? sinceAttach = null, Func<TimeSpan>? sinceInteraction = null, Action? softReclaim = null)
     {
         ArgumentNullException.ThrowIfNull(readWorkingSet);
         ArgumentNullException.ThrowIfNull(reclaim);
@@ -101,6 +120,9 @@ public sealed class IdleMemoryReclaimer : IDisposable
         _reclaim = reclaim;
         _isIdle = isIdle;
         _sinceAttach = sinceAttach ?? (() => _attachAge.Elapsed);
+        // 未注入时按「很久没输入」处理：构造回收器的地方都是显式要回收的，真实场景由单例构造函数注入窗口计时。
+        _sinceInteraction = sinceInteraction ?? (() => TimeSpan.FromMinutes(10));
+        _softReclaim = softReclaim ?? reclaim;
     }
 
     /// <summary>进程级单例。</summary>
@@ -125,8 +147,18 @@ public sealed class IdleMemoryReclaimer : IDisposable
         _timer = new DispatcherTimer(
             TimeSpan.FromSeconds(IdleMemoryReclaimerPolicy.PollSeconds),
             DispatcherPriority.Background,
-            (_, _) => ReclaimIfNeeded());
+            (_, _) => Poll());
         _timer.Start();
+
+        // 驻留预算复用这个节拍：窗口已经挂上，空闲判定与工作集都拿得到（见 PageResidencyPolicy）。
+        PageResidencyPolicy.Install();
+    }
+
+    /// <summary>一次空闲节拍：先让各策略看一眼（每拍都跑），再按工作集决定要不要压堆。</summary>
+    private void Poll()
+    {
+        InvokeIdleTick();
+        ReclaimIfNeeded();
     }
 
     /// <summary>解绑并撤销尚未触发的回收。</summary>
@@ -154,6 +186,7 @@ public sealed class IdleMemoryReclaimer : IDisposable
         var workingSet = _readWorkingSet();
         if (!IdleMemoryReclaimerPolicy.ShouldReclaim(
                 isIdle: true,
+                _sinceInteraction(),
                 _sinceAttach(),
                 _hasReclaimed,
                 workingSet,
@@ -164,7 +197,7 @@ public sealed class IdleMemoryReclaimer : IDisposable
         }
 
         InvokeBeforeReclaim();
-        _reclaim();
+        _softReclaim();
 
         _hasReclaimed = true;
         _workingSetAfterLastReclaim = _readWorkingSet();
@@ -199,6 +232,25 @@ public sealed class IdleMemoryReclaimer : IDisposable
     /// </summary>
     public static Action? BeforeReclaim { get; set; }
 
+    /// <summary>
+    /// 空闲节拍钩子：与回收判定同一个定时器，但**每拍都调**——回收判定要等工作集涨够阈值，
+    /// 驻留预算之类的策略等不起（详见 <see cref="PageResidencyPolicy"/>）。
+    /// </summary>
+    public static Action? IdleTick { get; set; }
+
+    private static void InvokeIdleTick()
+    {
+        try
+        {
+            IdleTick?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            // 空闲策略出问题不能把回收器带停：这里只记一笔。
+            Trace.WriteLine($"空闲节拍处理失败：{ex.Message}");
+        }
+    }
+
     private static void InvokeBeforeReclaim()
     {
         try
@@ -212,13 +264,25 @@ public sealed class IdleMemoryReclaimer : IDisposable
         }
     }
 
+    /// <summary>
+    /// 空闲轮询用的"轻"回收：不压缩、只做一次阻塞式第 2 代回收。
+    /// 压缩式回收要把整堆活对象搬一遍，实测一次 0.7–1.7 秒，落在导航/点击窗口里就是一整帧冻结；
+    /// 轮询路径每隔几十秒就会触发一次，不值得为那点驻留拿帧率换。启动/预热阶段的 ReclaimNow 仍走压缩版。
+    /// </summary>
+    private static void SoftReclaim()
+    {
+        GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: false);
+        GC.WaitForPendingFinalizers();
+    }
+
     private static void DefaultReclaim()
     {
 
         // Aggressive + compacting 才会搬动大对象堆：撑大工作集的主要是 LOH 碎片，普通第 2 代回收压不下来。
+        // 只做一次：两次压缩实测在导航窗口里造成 0.7–1.5 秒的整帧冻结（[nav] 行的 pause 与 maxGap 对得上），
+        // 第一次已经搬完活着的大对象，第二次基本是重复劳动。
         GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
         GC.WaitForPendingFinalizers();
-        GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
     }
 
 }

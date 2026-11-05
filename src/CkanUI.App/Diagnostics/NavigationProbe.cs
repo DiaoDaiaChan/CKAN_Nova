@@ -354,7 +354,7 @@ internal static class NavigationProbe
             // 每轮走完打一条汇总：连续多轮遍历时，这一行就是内存泄漏的曲线。
             if (string.Equals(key, keys[^1], StringComparison.Ordinal))
             {
-                TryWrite(path, $"[round] {round} keys={keys.Length} cycles={GC.CollectionCount(0)} gen2={GC.CollectionCount(2)}{MemorySuffix()}");
+                TryWrite(path, $"[round] {round} keys={keys.Length} cycles={GC.CollectionCount(0)} gen2={GC.CollectionCount(2)} reclaim={IdleMemoryReclaimer.Instance.ReclaimCount}{MemorySuffix()}");
                 ReportInstance(path);
             }
         }

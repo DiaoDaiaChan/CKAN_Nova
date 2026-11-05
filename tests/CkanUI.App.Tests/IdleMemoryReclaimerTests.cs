@@ -13,10 +13,12 @@ public sealed class IdleMemoryReclaimerTests
         bool hasReclaimed = true,
         long workingSetBytes = 1_000_000_000L,
         long workingSetAfterLastReclaim = 400_000_000L,
-        TimeSpan? sinceLastReclaim = null)
+        TimeSpan? sinceLastReclaim = null,
+        TimeSpan? sinceLastInteraction = null)
     {
         return IdleMemoryReclaimerPolicy.ShouldReclaim(
             isIdle,
+            sinceLastInteraction ?? TimeSpan.FromMinutes(1),
             sinceAttach ?? TimeSpan.FromMinutes(1),
             hasReclaimed,
             workingSetBytes,
@@ -38,6 +40,15 @@ public sealed class IdleMemoryReclaimerTests
             ShouldReclaim(
                 sinceAttach: TimeSpan.FromSeconds(IdleMemoryReclaimerPolicy.MinAttachSeconds) - TimeSpan.FromSeconds(1),
                 hasReclaimed: false),
+            Is.False);
+    }
+
+    [Test]
+    public void ShouldReclaim_RightAfterUserInteraction_ReturnsFalse()
+    {
+        // 用户刚放下鼠标就压堆，压缩式 GC 会正好落在下一次交互上：实测单次 0.7–1.5 秒冻结。
+        Assert.That(
+            ShouldReclaim(hasReclaimed: false, sinceLastInteraction: TimeSpan.FromSeconds(IdleMemoryReclaimerPolicy.MinQuietSeconds) - TimeSpan.FromSeconds(1)),
             Is.False);
     }
 
