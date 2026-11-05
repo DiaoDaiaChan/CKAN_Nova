@@ -849,3 +849,65 @@ grep -rn "Task.FromResult" src --include=*.cs | grep -i "load\|refresh\|scan"
 
    单张卡片的成本是同步解一次缩略图，8 张挤在一帧就顶到 3–5 个帧预算。
 
+
+## 25. GUI 大更新后的 32 键全量复核：帧冻结的真凶是阻塞式 Gen2，不是「没异步」
+
+**口径**：`artifacts/bin28/Release/net10.0/CkanUI.exe`（本轮改动后的构建），真实实例镜像（336 模组，`artifacts/perf/instance-real`），`CKANUI_PROBE_MEM=0`（探针自己的两次阻塞 GC 会污染 maxGap），每页独立进程各跑一次 `CKANUI_NAV_ONLY=<key> BUTTONS=1 CLICKS=1 ROUNDS=1 FRAME_MS=900`。
+
+### 25.1 按钮与页签：命令层仍然全异步
+
+| 指标 | 数值 |
+|---|---|
+| 页面 | 32 / 32（`shell.NavItems` 全量键，未抽样） |
+| Button | 707 |
+| 绑命令 | 362 |
+| code-behind 事件（点不了，只清点） | 345 |
+| 白名单命令实际执行 | 30 条 |
+| 命令体同步耗时最大 | 41.9ms（loadingimages `RefreshCommand`） |
+| 点击后 1.2s 帧窗最大间隔 | 133.1ms（flags `RefreshCommand`），其余 ≤107ms |
+
+页签仍然只有 modpacks / rp1-career 两处是真 `TabControl`，切换 free 47.6 / 93.7ms、over50=0；其余 30 页的"页签"是顶栏导航键，已被 32 键覆盖。
+
+### 25.2 32 键首进（单进程，r1 / r2）
+
+| 页面 | r1 layout | r1 maxGap | r1 dropped | nodes | r2 layout | r2 maxGap |
+|---|---|---|---|---|---|---|
+| mods | 1409.1 | 1130.4 | 39 | 2333 | 256.9 | 234.5 |
+| modconfig | 685.3 | 413.4 | 29 | 1295 | 55.2 | 51.8 |
+| kspconfig | 441.5 | 227.2 | 31 | 888 | 72.6 | 64.9 |
+| downloadstats | 401.9 | 323.2 | 28 | 1724 | 29.3 | 29.2 |
+| modtext | 362.3 | 198.8 | 15 | 631 | 82.1 | 71.9 |
+| rp1-career | 300.6 | 169.5 | 26 | 380 | 49.6 | 37 |
+| repos | 288.6 | 191.1 | 25 | 192 | 16.6 | 33.9 |
+| changes | 272.6 | 116.6 | 19 | 121 | 29 | 33 |
+| logs | 267.3 | 164.6 | 20 | 573 | 157.6 | 129.2 |
+| settings | 158.7 | 103.2 | 19 | 2016 | 35.4 | 33.3 |
+| flags | 66.5 | 86.8 | 19 | 2039 | 41.6 | 1367.2 |
+| instances | 159.5 | 96 | 28 | 320 | 69 | 1546 |
+
+完整 32 行见 `artifacts/nav-r28.log`，解析脚本 `artifacts/r28-table.js`；独立进程那套见 `artifacts/btn28-table.js`。
+
+### 25.3 帧冻结归因：一次阻塞式 Gen2 = 0.7–1.7 秒
+
+把 `[nav]` 行尾的 `pause`（`GC.GetTotalPauseDuration` 在窗口内的增量）和 `maxGap` 对齐，可以看到两类冻结：
+
+- **回收器压缩**：`[round]` 行的 `reclaim` 从 0→1→2，正好落在 flags/instances 的 1.3–1.5 秒空档旁；一次压缩式 Gen2 实测 1.1–1.7 秒。
+- **页面分配压力**：settings 2016 节点首帧仍带出 775ms 的 Gen2 暂停（gen2=1，非回收器）。
+
+修法（提交 `fceb11d`）：轮询路径改"软回收"（单次阻塞、不压缩），压缩版只留给 `ReclaimNow`（预热/驻留预算）；回收判定增加 `MinQuietSeconds=8` 的静置门槛（`IsIdle` 只等 2.5 秒）；`[round]` 补 `reclaim` 计数做证据。
+
+同一 8 页（flags/instances/kos/repos/saves/cache/mods/settings）×3 轮：
+
+| 版本 | pause 总和 | 单次最大 |
+|---|---|---|
+| 轮询双次压缩（改前） | 5427ms | 1114ms（同一轮另一次 1697ms） |
+| 单次压缩 | 4061ms | 1697ms |
+| 软回收（提交） | 3741ms | 775ms |
+
+回收次数没变（reclaim=2），说明省下来的就是"压缩"本身。
+
+### 25.4 仍然开着的口子
+
+1. mods 首进 0.7–1.3s / 2333 节点：等用户拍板行模板减法（方案 A）还是保持现状（方案 B）。
+2. settings 2016 节点首帧的 775ms Gen2：属分配压力，得从行模板/控件数下手，不是回收器。
+3. 分帧补行在 mods 上已被证否（每 `Rows.Add` 一次整表重排，p95 28.6→300ms），不要再试。
