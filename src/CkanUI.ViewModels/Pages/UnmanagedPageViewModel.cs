@@ -531,7 +531,12 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
         }
 
         var entries = result.Value ?? Array.Empty<UnmanagedFileInfo>();
-        ApplyEntries(instance, entries);
+        // 树构建是纯投影（几万个条目 → 节点），放在 UI 线程会让刷新按钮点完掉 200ms+ 的帧。
+        var offThread = !string.Equals(Environment.GetEnvironmentVariable("CKANUI_UNMANAGED_SYNC"), "1", StringComparison.Ordinal);
+        var prebuilt = offThread
+            ? await Task.Run(() => UnmanagedTreeBuilder.Build(entries, FilterText)).ConfigureAwait(true)
+            : null;
+        ApplyEntries(instance, entries, prebuilt);
         SetStatus(entries.Count == 0
             ? Text("GameData 里没有未管理的内容。", LocalizationKeys.UnmanagedStatusEmptyScan)
             : Text(
@@ -541,7 +546,7 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
             DirectoryCount));
     }
 
-    private void ApplyEntries(InstanceInfo? instance, IReadOnlyList<UnmanagedFileInfo> entries)
+    private void ApplyEntries(InstanceInfo? instance, IReadOnlyList<UnmanagedFileInfo> entries, IReadOnlyList<UnmanagedNodeViewModel>? prebuilt = null)
     {
         _instance = instance;
         _entries = entries;
@@ -566,16 +571,16 @@ public sealed partial class UnmanagedPageViewModel : PageViewModel
         FileCount = files;
         DirectoryCount = directories;
         TotalSizeBytes = size;
-        RebuildTree();
+        RebuildTree(prebuilt);
         OnPropertyChanged(nameof(HasInstance));
         OnPropertyChanged(nameof(ShowNoInstance));
     }
 
-    private void RebuildTree()
+    private void RebuildTree(IReadOnlyList<UnmanagedNodeViewModel>? prebuilt = null)
     {
         UntrackNodes();
 
-        var nodes = UnmanagedTreeBuilder.Build(_entries, FilterText);
+        var nodes = prebuilt ?? UnmanagedTreeBuilder.Build(_entries, FilterText);
         _flat.Clear();
         foreach (var node in nodes)
         {
