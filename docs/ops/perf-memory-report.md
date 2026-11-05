@@ -403,3 +403,50 @@ UI 线程（采样）自时间排名：`Avalonia.StyledElement.ApplyStyles` **11
 本轮提交：`48c3e88`（kspconfig 虚拟化 13,466→888 节点）、`936f8e4`（logs 虚拟化 1281→573 节点，滚动 59 步 p95 0.3ms）、`c7a7e4e`+`8e31669`（downloadstats 分批 + 重进复用，r2 maxGap 1213→34ms）、`98c7dcf`（modconfig 同对象复用，r2 maxGap 1400.9→46.4ms）、`890efef`（flags 跨帧回填，UI 最长阻塞 541→7.5ms）。
 
 结论：重进成本基本消灭（mods 305ms / logs 162ms / saves 133ms 之外全部 ≤100ms）；首进最重的是 mods（1249/1063ms，2333 节点首次 ApplyStyles，需动行模板＝影响显示，待抉择）、settings（500/475ms）、kspconfig（440/339ms）、downloadstats（maxGap 719ms，分批与排版撞帧）。内存：24 页走完 heap 702MB / WS 1118MB，两轮差 1MB。
+
+## 15. settings / downloadstats 首进停帧收口，以及一条测量口径纠错
+
+### 15.1 settings：分组逐帧挂载（925d0cd）
+
+根因不是读值慢——`SettingsPageViewModel.LoadAsync` 全段只有 67.4ms（getAll 54.2 / apply 62.7 / finish 66.9），剩下 1100ms 是「2016 个节点在同一帧里套样式 + 首次布局」。
+
+改法：`Groups` 由 `IReadOnlyList` 改为 `ObservableCollection`，先把值灌完、撤掉骨架占位，再逐组 `Add`、组间 `Task.Delay(16)` 让出一帧。样式与布局零改动，节点数恒为 2016。
+
+| NAV_ONLY=settings r1 | base1 | base2 | fix1 | fix2 |
+|---|---|---|---|---|
+| layout | 1180.4 | 566.5 | 194.1 | 212.4 |
+| maxGap | 1091.0 | 519.2 | 250.0 | 227.9 |
+| nodes | 2016 | 2016 | 2016 | 2016 |
+
+剩余约 240ms 来自最大的单组（appearance）自身实体化；再往下要组内按行分批（`Items` 换 `ObservableCollection`），影响面更大，未做。
+
+### 15.2 downloadstats：首屏后先让布局跑完（b260cb2）
+
+根因：首次布局前就把 200 行塞进 DataGrid，绕过行虚拟化，一帧实体化约 1724 节点。改法：先上 20 行 → 等 200ms 让布局量到有限高度 → 每批 8 行、批间 16ms。
+
+| NAV_ONLY=downloadstats r1 | 改前 | 改后（两跑） |
+|---|---|---|
+| layout | 556 | 207.8 / 348.3 |
+| maxGap | 1448 | 155.8 / 288.4 |
+| nodes | 1724 | 229 / 229 |
+| 重进 layout | 37.5 | 33.9 / 55.8 |
+
+对照实验（批 32、首屏后只等 1ms）：nodes 229、layout 375.7（同 run 地板 403.3）⇒ 关键在「别在首次布局前灌满」，批大小不敏感。
+
+### 15.3 口径纠错：`CKANUI_NAV_MEM=1` 会污染 maxGap
+
+`MemoryProbe` 打点时会做两次阻塞式 `GC.Collect(2, Forced, Blocking, Compacting)`（见 `src/CkanUI.App/Diagnostics/MemoryProbe.cs`），实测 pause 1.6–3.6s 且 `worstAt` 落在测量窗尾部。⇒ **§14 表里 MEM=1 那批 maxGap 有相当一部分是测量动作本身**。今后：
+
+- 量帧间隔/掉帧：不要开 `CKANUI_NAV_MEM`；
+- 量内存：可以开，但同一轮的 maxGap 不作数。
+
+### 15.4 被否决的实验：kspconfig 分组逐帧挂载
+
+照 settings 的方子给 `KspConfigPageViewModel.RebuildSections` 做首进分帧（首帧 2 组、其余每帧 1 组，`CKANUI_KSP_STAGED=0` 可关），单页冷启 A/B（各两跑，`NAV_ONLY=kspconfig`，未开 MEM）：
+
+| r1 | 基线1 | 基线2 | 分帧1 | 分帧2 |
+|---|---|---|---|---|
+| layout | 1212.9 | 929.4 | 888.3 | 1050.4 |
+| maxGap | 961.0 | 733.9 | 709.8 | 812.3 |
+
+两组区间重叠（基线自身就跨 929–1213ms），收益在噪声内；该页只有约 10 个分组，分帧能省的帧内工作量本来就小。已整体回退，代码未入库。结论：**分帧只对「单帧实体化量级 ≥ 1500 节点」的页面有意义**（settings 2016、downloadstats 1724），小分组页不要照搬。
