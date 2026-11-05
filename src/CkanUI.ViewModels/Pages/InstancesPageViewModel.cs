@@ -381,9 +381,12 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         ClearError();
         IsBusy = true;
         BusyText = Text("正在扫描实例…", LocalizationKeys.InstancesBusyScanning);
+        var offThread = !string.Equals(Environment.GetEnvironmentVariable("CKANUI_INSTANCES_SYNC"), "1", StringComparison.Ordinal);
         try
         {
-            var result = await _instances.RefreshAsync();
+            var result = offThread
+                ? await Task.Run(() => _instances.RefreshAsync()).ConfigureAwait(true)
+                : await _instances.RefreshAsync().ConfigureAwait(true);
             if (!result.IsSuccess)
             {
                 SetError(InstancesErrorText.Compose(result.Message, "刷新实例列表失败", result.Retryable), result.Detail);
@@ -400,8 +403,43 @@ public sealed partial class InstancesPageViewModel : PageViewModel
         finally
         {
             IsBusy = false;
-            Reload();
+            if (offThread)
+            {
+                await ReloadOffThreadAsync().ConfigureAwait(true);
+            }
+            else
+            {
+                Reload();
+            }
         }
+    }
+
+    /// <summary>
+    /// 与 <see cref="Reload"/> 等价，但把逐实例的磁盘探测（目录存在性）挪到线程池，
+    /// 回 UI 线程只做一次集合赋值 —— 实例多、磁盘慢时刷新按钮不再冻住几百毫秒。
+    /// </summary>
+    private async Task ReloadOffThreadAsync()
+    {
+        var previousName = SelectedRow?.Name;
+        IReadOnlyList<InstanceRowViewModel> rows;
+        try
+        {
+            var snapshot = _instances.Instances;
+            var current = _instances.Current;
+            var probe = PathProbe;
+            rows = await Task.Run(() => InstancesProjection.Project(
+                snapshot,
+                current?.Name,
+                probe is null ? null : probe.DirectoryExists)).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            rows = Array.Empty<InstanceRowViewModel>();
+            OnException(ex, "刷新实例列表");
+        }
+
+        Rows = rows;
+        SelectedRow = ResolveSelection(previousName);
     }
 
     // ---- 切换实例 ---------------------------------------------------------
