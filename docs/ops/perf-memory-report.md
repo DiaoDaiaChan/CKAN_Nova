@@ -911,3 +911,15 @@ grep -rn "Task.FromResult" src --include=*.cs | grep -i "load\|refresh\|scan"
 1. mods 首进 0.7–1.3s / 2333 节点：等用户拍板行模板减法（方案 A）还是保持现状（方案 B）。
 2. settings 2016 节点首帧的 775ms Gen2：属分配压力，得从行模板/控件数下手，不是回收器。
 3. 分帧补行在 mods 上已被证否（每 `Rows.Add` 一次整表重排，p95 28.6→300ms），不要再试。
+
+### 25.5 修后复核（同一构建 + 软回收）
+
+同一 32 键 ×2 轮再跑一遍（`artifacts/nav-r28b.log`）：32/32 齐全、无进程退出，原先 1.3–1.5 秒的整帧冻结消失：
+
+| 页面 | 改前 r2 maxGap | 改后 r2 maxGap | 改前 pause | 改后 pause |
+|---|---|---|---|---|
+| flags | 1367.2ms | 38.0ms | 1366ms | 18ms |
+| instances | 1546.0ms | 42.4ms | 1532ms | 16ms |
+| settings | 33.3ms（r1 775ms pause） | 60.8ms | 95ms | 95ms |
+
+首进仍以 mods 最重（1484.5ms / 1278.3ms / 2333 节点），与 §20 的结论一致：成本在视口 20 行 × 110 节点，不在数据管线。
