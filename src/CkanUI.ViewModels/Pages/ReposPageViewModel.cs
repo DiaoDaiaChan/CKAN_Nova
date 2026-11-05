@@ -323,14 +323,22 @@ public sealed partial class ReposPageViewModel : PageViewModel
     private Task RefreshAllAsync() => RunAsync(
         async () =>
         {
-            var result = await _repositories.RefreshAsync();
+            // 服务层的 async 方法在 UI 线程起跑时会沿用 UI 的同步上下文，续体回到 UI 线程再解析索引，
+            // 点一次「刷新全部」就会冻住 0.5–0.7s。整段放线程池起跑，续体不回到 UI 线程。
+            var offThread = !string.Equals(Environment.GetEnvironmentVariable("CKANUI_REPOS_SYNC"), "1", StringComparison.Ordinal);
+            var result = offThread
+                ? await Task.Run(() => _repositories.RefreshAsync()).ConfigureAwait(true)
+                : await _repositories.RefreshAsync().ConfigureAwait(true);
             if (!result.IsSuccess)
             {
                 SetError(ReposErrorText.Compose(result.Message, Text("仓库索引刷新失败。", LocalizationKeys.ReposErrorRefreshFailed), result.Retryable), result.Detail);
                 return;
             }
 
-            ApplyResult(await _repositories.LoadRepositoriesAsync(), Text("仓库索引已刷新。", LocalizationKeys.ReposStatusRefreshDone));
+            var entries = offThread
+                ? await Task.Run(() => _repositories.LoadRepositoriesAsync()).ConfigureAwait(true)
+                : await _repositories.LoadRepositoriesAsync().ConfigureAwait(true);
+            ApplyResult(entries, Text("仓库索引已刷新。", LocalizationKeys.ReposStatusRefreshDone));
         },
         "刷新仓库索引",
         Text("正在刷新仓库索引…", LocalizationKeys.ReposBusyRefreshing));
