@@ -41,6 +41,12 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
     private readonly StabilityToleranceFile _stability = new();
     private readonly List<SettingItemViewModel> _items = new();
     private readonly List<SettingGroupViewModel> _groups = new();
+
+    /// <summary>组内每帧挂载的设置行数：行少时一帧挂完，行多时拆成几帧。</summary>
+    private const int GroupRowBatchSize = 4;
+
+    /// <summary>分组是否已开始挂载（并发调用 LoadAsync 时只允许一次挂载，避免重复行）。</summary>
+    private bool _groupsFillStarted;
     private ISettingsShellLauncher? _shellLauncher;
 
     private SettingItemViewModel? _devBuildsItem;
@@ -440,8 +446,12 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
         }
         finally
         {
+            // 先撤骨架再挂分组：骨架不能等分批挂载（读值完成就该消失），否则用户在分批期间看到的是假加载态。
             IsLoading = false;
             timing.Mark("isLoading-off");
+
+            await FillGroupsAsync().ConfigureAwait(true);
+            timing.MarkMounted(Groups.Count, Groups.Sum(group => group.Items.Count));
             timing.Flush();
         }
     }
@@ -529,34 +539,37 @@ public sealed partial class SettingsPageViewModel : PageViewModel, IUnsavedChang
 
         // 首次进入读全量；之后再进来只补随实例变化的那部分。
         // 全量重读会在每次切页时重灌 36 行的编辑值并重发一轮属性通知，且 IsLoading 会让整页闪一次骨架。
-        _ = _hasLoadedOnce ? RefreshInstanceStateAsync() : FirstLoadAsync();
+        _ = _hasLoadedOnce ? RefreshInstanceStateAsync() : LoadAsync();
     }
 
     /// <summary>
-    /// 首进：先读值（骨架还盖着，46 行编辑值一次灌好），撤骨架后再逐组把分组挂进 <see cref="Groups"/>。
+    /// 逐组、逐行把分组挂进 <see cref="Groups"/>，每次挂载之间让一帧。
     /// </summary>
     /// <remarks>
-    /// 八组共 2016 个节点，一次性挂上去会把「控件实体化 + 首次布局」全压进同一个 UI 帧（实测 maxGap 1091ms）。
-    /// 逐组挂、组间让一帧，单帧只承担一组；值已经先灌好，后面不再因为属性变化触发二次重排。
+    /// 八组共 2016 个节点，一次性挂上去会把「控件实体化 + 首次布局」全压进同一个 UI 帧（实测 maxGap 1091ms）；
+    /// 只按组分帧时「外观」组单独一帧仍要 ~240ms。故组内再按行分帧：每帧挂 <see cref="GroupRowBatchSize"/> 行，
+    /// 单帧只承担一小片实体化。值已先灌好，后面不再因为属性变化触发二次重排。
     /// </remarks>
-    private async Task FirstLoadAsync(CancellationToken ct = default)
-    {
-        await LoadAsync(ct).ConfigureAwait(true);
-        await FillGroupsAsync().ConfigureAwait(true);
-    }
-
-    /// <summary>逐组挂分组，组间让一帧。</summary>
     private async Task FillGroupsAsync()
     {
-        if (Groups.Count > 0 || _groups.Count == 0)
+        if (_groupsFillStarted || _groups.Count == 0)
         {
             return;
         }
 
+        _groupsFillStarted = true;
+
         foreach (var group in _groups)
         {
             Groups.Add(group);
-            // Task.Delay 的续体回到 UI 线程排队，中间这一帧留给渲染/布局，用户看到的是逐组长出来。
+
+            while (group.PendingItemCount > 0)
+            {
+                // Task.Delay 的续体回到 UI 线程排队，中间这一帧留给渲染/布局，用户看到的是逐组、逐行长出来。
+                await Task.Delay(16).ConfigureAwait(true);
+                group.RevealItems(GroupRowBatchSize);
+            }
+
             await Task.Delay(16).ConfigureAwait(true);
         }
     }
@@ -2130,6 +2143,19 @@ internal sealed class SettingsTiming
         }
 
         _stages.Add(string.Create(CultureInfo.InvariantCulture, $"{stage}={_watch.Elapsed.TotalMilliseconds:F1}ms"));
+    }
+
+    /// <summary>记下最终挂载的分组数与行数（验证没有漏挂/重复挂）。</summary>
+    /// <param name="groups">已挂载的分组数。</param>
+    /// <param name="rows">已挂载的设置行总数。</param>
+    public void MarkMounted(int groups, int rows)
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        _stages.Add(string.Create(CultureInfo.InvariantCulture, $"groups={groups} rows={rows}"));
     }
 
     /// <summary>把整行写盘（未开启时立即返回）。</summary>
