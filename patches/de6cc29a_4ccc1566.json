@@ -1,0 +1,828 @@
+{
+  "from_commit": "de6cc29a80d8aae2593e814b950e28a59ac990cf",
+  "to_commit": "4ccc1566378de55ee1bad61f9b2f2a70a738efd0",
+  "generated_at": "2026-11-07T20:23:27.523180+00:00",
+  "total_upsert": 16,
+  "total_deleted": 0,
+  "upsert": {
+    "1ThousandSpecialPlanetPack-Textures": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "1ThousandSpecialPlanetPack-Textures",
+        "name": "Eternal - Textures",
+        "abstract": "All the Textures for Eternal",
+        "author": "Kramken",
+        "version": "1.3.5",
+        "license": "restricted",
+        "resources": {
+          "repository": "https://github.com/Kramken/1TS-Textures",
+          "bugtracker": "https://github.com/Kramken/1TS-Textures/issues"
+        },
+        "tags": [
+          "planet-pack",
+          "graphics"
+        ],
+        "provides": [
+          "ParallaxContinued-Terrain-Textures",
+          "ParallaxContinued-Scatter-Textures",
+          "ParallaxContinued-Planet-Textures"
+        ],
+        "depends": [
+          {
+            "name": "1ThousandSpecialPlanetPack"
+          }
+        ],
+        "install": [
+          {
+            "find": "Eternal",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/Kramken/1TS-Textures/releases/download/1.3.5/Eternal-Textures-Part-1.zip",
+        "download_size": 1033443145,
+        "download_hash": {
+          "sha1": "09922C6649F9E59C914488EBD77437B00F778C46",
+          "sha256": "B297525E93131CDFAA372B79F73B959ADADE098F15C1DEC6372DD947543799A9"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 2247360411,
+        "release_date": "2026-11-07T11:04:35Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "BDNukes": [
+      {
+        "spec_version": 1,
+        "identifier": "BDNukes",
+        "name": "BDNukes",
+        "abstract": "Cinematic, physically grounded nuclear weapons for BDArmory (KSP 1.12), including the Tsar Bomba",
+        "author": "Callum",
+        "version": "v1.3.0",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/232068-112x-bdnukes-v100-cinematic-nuclear-weapons-for-bdarmory-tsar-bomba-icbms-mirvs-fallout",
+          "repository": "https://github.com/CRsquared64/BDNukes",
+          "bugtracker": "https://github.com/CRsquared64/BDNukes/issues",
+          "remote-avc": "https://raw.githubusercontent.com/CRsquared64/BDNukes/main/GameData/BDNukes/BDNukes.version",
+          "x_screenshot": "https://raw.githubusercontent.com/CRsquared64/BDNukes/main/docs/screenshots/01-ground-burst-mushroom.jpg"
+        },
+        "tags": [
+          "plugin",
+          "parts",
+          "graphics",
+          "sound",
+          "combat"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "Harmony2"
+          },
+          {
+            "name": "BDArmoryForRunwayProject",
+            "min_version": "2:v1.12.0.0"
+          }
+        ],
+        "suggests": [
+          {
+            "name": "BDArmoryExtended"
+          }
+        ],
+        "download": "https://github.com/CRsquared64/BDNukes/releases/download/v1.3.0/BDNukes-1.3.0.zip",
+        "download_size": 18636620,
+        "download_hash": {
+          "sha1": "BCBB85E6A5567790F24CE2211D7BAAAEA500C8D5",
+          "sha256": "A5161DAF2EB973EEFD54D0B59383DDAFACE57E99AA672EE72BA069A224C46BEB"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 23221246,
+        "release_date": "2026-11-06T22:26:31Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "KSPTextureLoader": [
+      {
+        "spec_version": 1,
+        "identifier": "KSPTextureLoader",
+        "name": "KSP Texture Loader",
+        "abstract": "A library for loading textures in KSP with as little overhead as possible",
+        "author": "steamroller",
+        "version": "1.0.39",
+        "ksp_version_min": "1.8",
+        "ksp_version_max": "1.13",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/229418-112x-ksp-texture-loader-a-library-for-loading-textures-quickly-and-asynchronously/",
+          "repository": "https://github.com/Phantomical/KSPTextureLoader",
+          "bugtracker": "https://github.com/Phantomical/KSPTextureLoader/issues",
+          "manual": "https://github.com/Phantomical/KSPTextureLoader/wiki",
+          "remote-avc": "https://github.com/Phantomical/KSPTextureLoader/releases/latest/download/KSPTextureLoader.version"
+        },
+        "tags": [
+          "plugin",
+          "library"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager",
+            "min_version": "4.2.3"
+          }
+        ],
+        "download": "https://github.com/Phantomical/KSPTextureLoader/releases/download/v1.0.39/KSPTextureLoader.zip",
+        "download_size": 876361,
+        "download_hash": {
+          "sha1": "6900610BDC603851DD2BA68AD32ABE49652836AF",
+          "sha256": "FDA6ED91E011CDFA631F994D4349DF4915B9BBAD3888203BAFFA1A3E1A31E21B"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 2654253,
+        "release_date": "2026-11-06T10:03:01Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "KerbalScienceOverhaul-CrowdSourcedScience": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "KerbalScienceOverhaul-CrowdSourcedScience",
+        "name": "Kerbal Science Overhaul - Localized CrowdSourced Science",
+        "abstract": "Localized and revised version of CrowdSourced Science, with extra results for JNSQ biomes. Replaces the original CrowdSourced Science.",
+        "author": "Rjoande",
+        "version": "1.3.0",
+        "ksp_version_min": "1.12",
+        "ksp_version_max": "1.12",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/230013-1125-kerbal-science-overhaul-refactored-localized-and-ai-assisted-science-content-for-kerbal-space-program/",
+          "repository": "https://github.com/Rjoande/KerbalScienceOverhaul",
+          "bugtracker": "https://github.com/Rjoande/KerbalScienceOverhaul/issues",
+          "metanetkan": "https://raw.githubusercontent.com/Rjoande/KerbalScienceOverhaul/main/ckan/KerbalScienceOverhaul-CrowdSourcedScience.netkan"
+        },
+        "tags": [
+          "config",
+          "science"
+        ],
+        "localizations": [
+          "en-us",
+          "it-it",
+          "zh-cn"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          }
+        ],
+        "recommends": [
+          {
+            "name": "KerbalScienceOverhaul"
+          }
+        ],
+        "conflicts": [
+          {
+            "name": "CrowdSourcedScience"
+          }
+        ],
+        "install": [
+          {
+            "find": "KSO_CrowdSourcedScience",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/Rjoande/KerbalScienceOverhaul/releases/download/v1.3.0/KerbalScienceOverhaul_v1.3.0.zip",
+        "download_size": 4648951,
+        "download_hash": {
+          "sha1": "6C78EF8F55130C3A94C5AF9F531FB136D6198DBD",
+          "sha256": "FA051D59A2E112D6D453E31BD418AC687F24D966B3655622680A79A6166FA337"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 3123482,
+        "release_date": "2026-11-07T17:36:19Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "KerbalScienceOverhaul-DeepSpaceStories": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "KerbalScienceOverhaul-DeepSpaceStories",
+        "name": "Kerbal Science Overhaul - Deep Space Stories",
+        "abstract": "About 300 extra science results inspired by classic science fiction, for stock, JNSQ and GEP.",
+        "author": "Rjoande",
+        "version": "1.3.0",
+        "ksp_version_min": "1.12",
+        "ksp_version_max": "1.12",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/230013-1125-kerbal-science-overhaul-refactored-localized-and-ai-assisted-science-content-for-kerbal-space-program/",
+          "repository": "https://github.com/Rjoande/KerbalScienceOverhaul",
+          "bugtracker": "https://github.com/Rjoande/KerbalScienceOverhaul/issues",
+          "metanetkan": "https://raw.githubusercontent.com/Rjoande/KerbalScienceOverhaul/main/ckan/KerbalScienceOverhaul-DeepSpaceStories.netkan"
+        },
+        "tags": [
+          "config",
+          "science"
+        ],
+        "localizations": [
+          "en-us",
+          "it-it"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          }
+        ],
+        "recommends": [
+          {
+            "name": "KerbalScienceOverhaul"
+          }
+        ],
+        "install": [
+          {
+            "find": "KSO_DeepSpaceStories",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/Rjoande/KerbalScienceOverhaul/releases/download/v1.3.0/KerbalScienceOverhaul_v1.3.0.zip",
+        "download_size": 4648951,
+        "download_hash": {
+          "sha1": "6C78EF8F55130C3A94C5AF9F531FB136D6198DBD",
+          "sha256": "FA051D59A2E112D6D453E31BD418AC687F24D966B3655622680A79A6166FA337"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 249210,
+        "release_date": "2026-11-07T17:36:19Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "KerbalScienceOverhaul-GEP": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "KerbalScienceOverhaul-GEP",
+        "name": "Kerbal Science Overhaul - GEP results",
+        "abstract": "AI-assisted science results for Grannus Expansion Pack bodies and biomes, covering stock and mod experiments.",
+        "author": "Rjoande",
+        "version": "1.3.0",
+        "ksp_version_min": "1.12",
+        "ksp_version_max": "1.12",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/230013-1125-kerbal-science-overhaul-refactored-localized-and-ai-assisted-science-content-for-kerbal-space-program/",
+          "repository": "https://github.com/Rjoande/KerbalScienceOverhaul",
+          "bugtracker": "https://github.com/Rjoande/KerbalScienceOverhaul/issues",
+          "metanetkan": "https://raw.githubusercontent.com/Rjoande/KerbalScienceOverhaul/main/ckan/KerbalScienceOverhaul-GEP.netkan"
+        },
+        "tags": [
+          "config",
+          "science"
+        ],
+        "localizations": [
+          "en-us",
+          "it-it"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          }
+        ],
+        "recommends": [
+          {
+            "name": "KerbalScienceOverhaul"
+          }
+        ],
+        "install": [
+          {
+            "find": "KSO_GEP",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/Rjoande/KerbalScienceOverhaul/releases/download/v1.3.0/KerbalScienceOverhaul_v1.3.0.zip",
+        "download_size": 4648951,
+        "download_hash": {
+          "sha1": "6C78EF8F55130C3A94C5AF9F531FB136D6198DBD",
+          "sha256": "FA051D59A2E112D6D453E31BD418AC687F24D966B3655622680A79A6166FA337"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 3810718,
+        "release_date": "2026-11-07T17:36:19Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "KerbalScienceOverhaul-JNSQ": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "KerbalScienceOverhaul-JNSQ",
+        "name": "Kerbal Science Overhaul - JNSQ results",
+        "abstract": "AI-assisted science results for JNSQ bodies and biomes, also covering stock and mod experiments, plus generic results for stock planets.",
+        "author": "Rjoande",
+        "version": "1.3.0",
+        "ksp_version_min": "1.12",
+        "ksp_version_max": "1.12",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/230013-1125-kerbal-science-overhaul-refactored-localized-and-ai-assisted-science-content-for-kerbal-space-program/",
+          "repository": "https://github.com/Rjoande/KerbalScienceOverhaul",
+          "bugtracker": "https://github.com/Rjoande/KerbalScienceOverhaul/issues",
+          "metanetkan": "https://raw.githubusercontent.com/Rjoande/KerbalScienceOverhaul/main/ckan/KerbalScienceOverhaul-JNSQ.netkan"
+        },
+        "tags": [
+          "config",
+          "science"
+        ],
+        "localizations": [
+          "en-us",
+          "it-it"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          }
+        ],
+        "recommends": [
+          {
+            "name": "KerbalScienceOverhaul"
+          },
+          {
+            "name": "JNSQ"
+          }
+        ],
+        "install": [
+          {
+            "find": "KSO_JNSQ",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/Rjoande/KerbalScienceOverhaul/releases/download/v1.3.0/KerbalScienceOverhaul_v1.3.0.zip",
+        "download_size": 4648951,
+        "download_hash": {
+          "sha1": "6C78EF8F55130C3A94C5AF9F531FB136D6198DBD",
+          "sha256": "FA051D59A2E112D6D453E31BD418AC687F24D966B3655622680A79A6166FA337"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 9604369,
+        "release_date": "2026-11-07T17:36:19Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "KerbalScienceOverhaul": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "KerbalScienceOverhaul",
+        "name": "Kerbal Science Overhaul",
+        "abstract": "ScienceRefactor: localizes, standardizes and merges science results from stock KSP and popular part mods, so that science result packs can coexist.",
+        "author": "Rjoande",
+        "version": "1.3.0",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/230013-1125-kerbal-science-overhaul-refactored-localized-and-ai-assisted-science-content-for-kerbal-space-program/",
+          "repository": "https://github.com/Rjoande/KerbalScienceOverhaul",
+          "bugtracker": "https://github.com/Rjoande/KerbalScienceOverhaul/issues",
+          "metanetkan": "https://raw.githubusercontent.com/Rjoande/KerbalScienceOverhaul/main/ckan/KerbalScienceOverhaul.netkan",
+          "remote-avc": "https://raw.githubusercontent.com/Rjoande/KerbalScienceOverhaul/main/GameData/001_KSO_ScienceRefactor/KerbalScienceOverhaul.version"
+        },
+        "tags": [
+          "config",
+          "plugin",
+          "science"
+        ],
+        "localizations": [
+          "en-us",
+          "it-it",
+          "zh-cn"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "Harmony2"
+          }
+        ],
+        "suggests": [
+          {
+            "name": "KerbalScienceOverhaul-CrowdSourcedScience"
+          },
+          {
+            "name": "KerbalScienceOverhaul-JNSQ"
+          },
+          {
+            "name": "KerbalScienceOverhaul-GEP"
+          },
+          {
+            "name": "KerbalScienceOverhaul-DeepSpaceStories"
+          }
+        ],
+        "install": [
+          {
+            "find": "001_KSO_ScienceRefactor",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/Rjoande/KerbalScienceOverhaul/releases/download/v1.3.0/KerbalScienceOverhaul_v1.3.0.zip",
+        "download_size": 4648951,
+        "download_hash": {
+          "sha1": "6C78EF8F55130C3A94C5AF9F531FB136D6198DBD",
+          "sha256": "FA051D59A2E112D6D453E31BD418AC687F24D966B3655622680A79A6166FA337"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 1940001,
+        "release_date": "2026-11-07T17:36:19Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "Kerbcast": [
+      {
+        "spec_version": "v1.36",
+        "identifier": "Kerbcast",
+        "name": "kerbcast",
+        "abstract": "A from-scratch successor to OCISLY for streaming KSP camera feeds.  Uses hardware H.264 for Linux and streams over WebRTC. Uses Hullcam VDS filters and camera capabilities. Features a TypeScript SDK for embedding streams wherever you like.",
+        "author": "jonpepler",
+        "version": "1.12.0-rc.10",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.5",
+        "license": "GPL-3.0",
+        "release_status": "testing",
+        "resources": {
+          "repository": "https://github.com/ksp-gonogo/kerbcast",
+          "bugtracker": "https://github.com/ksp-gonogo/kerbcast/issues",
+          "remote-avc": "https://raw.githubusercontent.com/ksp-gonogo/kerbcast/main/GameData/Kerbcast/Kerbcast.version"
+        },
+        "tags": [
+          "config",
+          "plugin",
+          "app"
+        ],
+        "depends": [
+          {
+            "name": "HullcamVDSContinued"
+          },
+          {
+            "name": "Harmony2"
+          }
+        ],
+        "download": "https://github.com/ksp-gonogo/kerbcast/releases/download/v1.12.0-rc.10/kerbcast-v1.12.0-rc.10.zip",
+        "download_size": 68439803,
+        "download_hash": {
+          "sha256": "7A3483058D4B8E03EB37EE23EA1D3ABEF232C2E4A4B2C75AF9BB23BF6268362D"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 182742545,
+        "release_date": "2026-11-07T17:24:00Z",
+        "x_generated_by": "netkan"
+      },
+      {
+        "spec_version": "v1.36",
+        "identifier": "Kerbcast",
+        "name": "kerbcast",
+        "abstract": "A from-scratch successor to OCISLY for streaming KSP camera feeds.  Uses hardware H.264 for Linux and streams over WebRTC. Uses Hullcam VDS filters and camera capabilities. Features a TypeScript SDK for embedding streams wherever you like.",
+        "author": "jonpepler",
+        "version": "1.12.0-rc.11",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.5",
+        "license": "GPL-3.0",
+        "release_status": "testing",
+        "resources": {
+          "repository": "https://github.com/ksp-gonogo/kerbcast",
+          "bugtracker": "https://github.com/ksp-gonogo/kerbcast/issues",
+          "remote-avc": "https://raw.githubusercontent.com/ksp-gonogo/kerbcast/main/GameData/Kerbcast/Kerbcast.version"
+        },
+        "tags": [
+          "config",
+          "plugin",
+          "app"
+        ],
+        "depends": [
+          {
+            "name": "HullcamVDSContinued"
+          },
+          {
+            "name": "Harmony2"
+          }
+        ],
+        "download": "https://github.com/ksp-gonogo/kerbcast/releases/download/v1.12.0-rc.11/kerbcast-v1.12.0-rc.11.zip",
+        "download_size": 68455540,
+        "download_hash": {
+          "sha256": "F58D0D16CFAD33A384E3E6B44A68E25D8999011F8AE53F317CDB45618D919EB4"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 182739969,
+        "release_date": "2026-11-07T18:32:58Z",
+        "x_generated_by": "netkan"
+      },
+      {
+        "spec_version": "v1.36",
+        "identifier": "Kerbcast",
+        "name": "kerbcast",
+        "abstract": "A from-scratch successor to OCISLY for streaming KSP camera feeds.  Uses hardware H.264 for Linux and streams over WebRTC. Uses Hullcam VDS filters and camera capabilities. Features a TypeScript SDK for embedding streams wherever you like.",
+        "author": "jonpepler",
+        "version": "1.12.0-rc.8",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.5",
+        "license": "GPL-3.0",
+        "release_status": "testing",
+        "resources": {
+          "repository": "https://github.com/ksp-gonogo/kerbcast",
+          "bugtracker": "https://github.com/ksp-gonogo/kerbcast/issues",
+          "remote-avc": "https://raw.githubusercontent.com/ksp-gonogo/kerbcast/main/GameData/Kerbcast/Kerbcast.version"
+        },
+        "tags": [
+          "config",
+          "plugin",
+          "app"
+        ],
+        "depends": [
+          {
+            "name": "HullcamVDSContinued"
+          },
+          {
+            "name": "Harmony2"
+          }
+        ],
+        "download": "https://github.com/ksp-gonogo/kerbcast/releases/download/v1.12.0-rc.8/kerbcast-v1.12.0-rc.8.zip",
+        "download_size": 68440144,
+        "download_hash": {
+          "sha256": "E437BC0307E1CEC9F75B899FD7C28BBC967DC02A477BE6F8957D91EC09E119AB"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 182742937,
+        "release_date": "2026-11-06T17:46:30Z",
+        "x_generated_by": "netkan"
+      },
+      {
+        "spec_version": "v1.36",
+        "identifier": "Kerbcast",
+        "name": "kerbcast",
+        "abstract": "A from-scratch successor to OCISLY for streaming KSP camera feeds.  Uses hardware H.264 for Linux and streams over WebRTC. Uses Hullcam VDS filters and camera capabilities. Features a TypeScript SDK for embedding streams wherever you like.",
+        "author": "jonpepler",
+        "version": "1.12.0-rc.9",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.5",
+        "license": "GPL-3.0",
+        "release_status": "testing",
+        "resources": {
+          "repository": "https://github.com/ksp-gonogo/kerbcast",
+          "bugtracker": "https://github.com/ksp-gonogo/kerbcast/issues",
+          "remote-avc": "https://raw.githubusercontent.com/ksp-gonogo/kerbcast/main/GameData/Kerbcast/Kerbcast.version"
+        },
+        "tags": [
+          "config",
+          "plugin",
+          "app"
+        ],
+        "depends": [
+          {
+            "name": "HullcamVDSContinued"
+          },
+          {
+            "name": "Harmony2"
+          }
+        ],
+        "download": "https://github.com/ksp-gonogo/kerbcast/releases/download/v1.12.0-rc.9/kerbcast-v1.12.0-rc.9.zip",
+        "download_size": 68438117,
+        "download_hash": {
+          "sha256": "1913A200C6848FF593F3DFD271B8BFE6327093642213CB166AD763944BC4FB28"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 182736785,
+        "release_date": "2026-11-07T15:08:23Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "Lonapse": [
+      {
+        "spec_version": "v1.34",
+        "identifier": "Lonapse",
+        "name": "Lonapse",
+        "abstract": "Radio chatter mod for Kerbal Space Program that reacts dynamically to your flight and EVA.",
+        "author": "D3rpyy",
+        "version": "0.8.0",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": [
+          "MIT",
+          "CC-BY-4.0",
+          "GPL-3.0"
+        ],
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/232071-lonapse-dynamic-radio-chatter-for-crew-and-probes/",
+          "spacedock": "https://spacedock.info/mod/4786/Lonapse",
+          "repository": "https://github.com/D3rpyy/KSP-Lonapse",
+          "bugtracker": "https://github.com/D3rpyy/KSP-Lonapse/issues",
+          "remote-avc": "https://raw.githubusercontent.com/D3rpyy/KSP-Lonapse/main/GameData/Lonapse/Lonapse.version",
+          "x_screenshot": "https://spacedock.info/content/D3rpyy_194488/Lonapse/Lonapse-1793741799.png"
+        },
+        "tags": [
+          "plugin",
+          "sound",
+          "crewed"
+        ],
+        "conflicts": [
+          {
+            "name": "Chatterer"
+          }
+        ],
+        "download": [
+          "https://github.com/D3rpyy/KSP-Lonapse/releases/download/v0.8.0/Lonapse-0.8.0.zip",
+          "https://spacedock.info/mod/4786/Lonapse/download/0.8.0"
+        ],
+        "download_size": 199569735,
+        "download_hash": {
+          "sha1": "9F336C1A49611B9CED543D5144252B65017301BC",
+          "sha256": "5D62A055C0EBAFEB46336DCDB346EA04DF4EB58AF78A7B7BA6A0210EBFD946D1"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 262831650,
+        "release_date": "2026-11-06T17:06:50.426993Z",
+        "x_generated_by": "netkan"
+      },
+      {
+        "spec_version": "v1.34",
+        "identifier": "Lonapse",
+        "name": "Lonapse",
+        "abstract": "Radio chatter mod for Kerbal Space Program that reacts dynamically to your flight and EVA.",
+        "author": "D3rpyy",
+        "version": "0.8.1",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": [
+          "MIT",
+          "CC-BY-4.0",
+          "GPL-3.0"
+        ],
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/232071-lonapse-dynamic-radio-chatter-for-crew-and-probes/",
+          "spacedock": "https://spacedock.info/mod/4786/Lonapse",
+          "repository": "https://github.com/D3rpyy/KSP-Lonapse",
+          "bugtracker": "https://github.com/D3rpyy/KSP-Lonapse/issues",
+          "remote-avc": "https://raw.githubusercontent.com/D3rpyy/KSP-Lonapse/main/GameData/Lonapse/Lonapse.version",
+          "x_screenshot": "https://spacedock.info/content/D3rpyy_194488/Lonapse/Lonapse-1793741799.png"
+        },
+        "tags": [
+          "plugin",
+          "sound",
+          "crewed"
+        ],
+        "conflicts": [
+          {
+            "name": "Chatterer"
+          }
+        ],
+        "download": [
+          "https://github.com/D3rpyy/KSP-Lonapse/releases/download/v0.8.1/Lonapse-0.8.1.zip",
+          "https://spacedock.info/mod/4786/Lonapse/download/0.8.1"
+        ],
+        "download_size": 209953519,
+        "download_hash": {
+          "sha1": "7475113F06CA4D0D46A7E7422026C4B7366D1915",
+          "sha256": "CCD8D97E0950624F6588319E1E8DDDDE78679CC2775B2F4BC368BD7749AA7AA8"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 273531036,
+        "release_date": "2026-11-07T01:26:54.088055Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "Losket": [
+      {
+        "spec_version": "v1.34",
+        "identifier": "Losket",
+        "name": "Losket",
+        "abstract": "Persistent re-entry scorching and dust that accumulate over a craft's lifetime.",
+        "author": "Wylgrif",
+        "version": "1.1.6",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.5",
+        "license": "MIT",
+        "resources": {
+          "spacedock": "https://spacedock.info/mod/4515/Losket",
+          "repository": "https://github.com/Wylgrif/Losket",
+          "bugtracker": "https://github.com/Wylgrif/Losket/issues",
+          "x_screenshot": "https://spacedock.info/content/Wylgrif_190571/Losket/Losket-1789239240.png"
+        },
+        "tags": [
+          "plugin",
+          "graphics"
+        ],
+        "localizations": [
+          "en-us",
+          "fr-fr",
+          "zh-cn"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          }
+        ],
+        "download": [
+          "https://github.com/Wylgrif/Losket/releases/download/v1.1.6/Losket1.1.6.zip",
+          "https://spacedock.info/mod/4515/Losket/download/1.1.6"
+        ],
+        "download_size": 126239,
+        "download_hash": {
+          "sha1": "C41BEEEA5B8AF35107426CFCAEACD228CBD87731",
+          "sha256": "4FE5B5121C2D6F1A535607A570D277669EC05B769D935CD86146BE03116CBEF3"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 221756,
+        "release_date": "2026-11-06T21:55:29.500901Z",
+        "x_via": "Automated SpaceDock CKAN submission",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "RealSolarSystem": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "RealSolarSystem",
+        "name": "Real Solar System",
+        "abstract": "Resizes and rearranges the Kerbal system to more closely resemble the Solar System",
+        "author": [
+          "KSP-RO Team"
+        ],
+        "version": "v20.1.3.0",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": "CC-BY-NC-SA",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/index.php?/topic/177216-*",
+          "repository": "https://github.com/KSP-RO/RealSolarSystem",
+          "bugtracker": "https://github.com/KSP-RO/RealSolarSystem/issues",
+          "manual": "https://github.com/KSP-RO/RealSolarSystem/wiki",
+          "metanetkan": "https://github.com/KSP-RO/RealSolarSystem/raw/master/RealSolarSystem.netkan",
+          "remote-avc": "https://github.com/KSP-RO/RealSolarSystem/raw/master/GameData/RealSolarSystem/RealSolarSystem.version"
+        },
+        "tags": [
+          "planet-pack",
+          "config",
+          "plugin",
+          "resources"
+        ],
+        "localizations": [
+          "en-us",
+          "fr-fr",
+          "ru",
+          "zh-cn"
+        ],
+        "provides": [
+          "CustomAsteroids-Pops"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "Kopernicus",
+            "min_version": "2:release-1.12.1-161",
+            "suppress_recommendations": true
+          },
+          {
+            "name": "RSSTextures"
+          },
+          {
+            "name": "KSPCommunityFixes",
+            "suppress_recommendations": true
+          }
+        ],
+        "recommends": [
+          {
+            "name": "RealismOverhaul"
+          },
+          {
+            "name": "KSCSwitcher"
+          },
+          {
+            "name": "RSSDateTimeFormatter"
+          },
+          {
+            "name": "RSSVE-Textures"
+          },
+          {
+            "name": "Parallax"
+          },
+          {
+            "name": "Principia"
+          }
+        ],
+        "install": [
+          {
+            "find": "RealSolarSystem",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/KSP-RO/RealSolarSystem/releases/download/v20.1.3.0/RealSolarSystem_v20.1.3.0.zip",
+        "download_size": 77242922,
+        "download_hash": {
+          "sha1": "B62879D8CC406C149D33E7553C9687E5D5A71906",
+          "sha256": "7182C324063003FE842268F07DEBDD56FE96BF3277E07DDB8FDF9DF07118B60C"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 105883770,
+        "release_date": "2024-07-13T02:29:57Z",
+        "x_generated_by": "netkan"
+      }
+    ]
+  },
+  "delete": []
+}
