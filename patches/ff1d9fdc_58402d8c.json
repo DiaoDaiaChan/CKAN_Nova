@@ -1,0 +1,672 @@
+{
+  "from_commit": "ff1d9fdc8931761005b6deca9685225675e62d48",
+  "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219",
+  "generated_at": "2026-11-14T10:46:56.180559+00:00",
+  "total_upsert": 11,
+  "total_deleted": 0,
+  "upsert": {
+    "CosmicSerenity-Anubis": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "CosmicSerenity-Anubis",
+        "name": "Cosmic Serenity - Anubis System",
+        "abstract": "A fast rotating pulsar with visually stunning jets.",
+        "author": "ProximaCentauri-star",
+        "version": "4.0",
+        "license": "restricted",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/228453-112x-cosmic-serenity-v10-wip/#comment-4473675",
+          "repository": "https://github.com/ProximaCentauri-star/Cosmic-Serenity",
+          "bugtracker": "https://github.com/ProximaCentauri-star/Cosmic-Serenity/issues"
+        },
+        "tags": [
+          "config",
+          "planet-pack"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "Kopernicus"
+          },
+          {
+            "name": "VertexMitchellNetravaliHeightMap"
+          },
+          {
+            "name": "ScaledDecorator"
+          },
+          {
+            "name": "CosmicSerenity-Core"
+          }
+        ],
+        "recommends": [
+          {
+            "name": "KopernicusExpansion"
+          },
+          {
+            "name": "Singularity"
+          }
+        ],
+        "install": [
+          {
+            "find": "CosmicSerenity",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/ProximaCentauri-star/Cosmic-Serenity/releases/download/4.0/_Anubis.zip",
+        "download_size": 1077242823,
+        "download_hash": {
+          "sha1": "8BCC97BC40C120344A636736C1776DE9D4D58175",
+          "sha256": "008A5DCD88297BDB3EA2B8CE1FB4B2267A83FC27AB29D1C170693AF47E3DDE41"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 1671229800,
+        "release_date": "2026-11-10T20:53:48Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "CosmicSerenity-Atlas": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "CosmicSerenity-Atlas",
+        "name": "Cosmic Serenity - Atlas System",
+        "abstract": "A triple star system harboring mysterious planets and a strange object.",
+        "author": "ProximaCentauri-star",
+        "version": "4.0",
+        "license": "restricted",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/228453-112x-cosmic-serenity-v10-wip/#comment-4473675",
+          "repository": "https://github.com/ProximaCentauri-star/Cosmic-Serenity",
+          "bugtracker": "https://github.com/ProximaCentauri-star/Cosmic-Serenity/issues"
+        },
+        "tags": [
+          "config",
+          "planet-pack"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "Kopernicus"
+          },
+          {
+            "name": "VertexMitchellNetravaliHeightMap"
+          },
+          {
+            "name": "ScaledDecorator"
+          },
+          {
+            "name": "CosmicSerenity-Core"
+          },
+          {
+            "name": "VertexColorMapEmissive"
+          }
+        ],
+        "recommends": [
+          {
+            "name": "KopernicusExpansion"
+          },
+          {
+            "name": "Singularity"
+          }
+        ],
+        "install": [
+          {
+            "find": "CosmicSerenity",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/ProximaCentauri-star/Cosmic-Serenity/releases/download/4.0/Atlas.zip",
+        "download_size": 732255291,
+        "download_hash": {
+          "sha1": "B6A840C42ED075A58101D5C88475E6C2564EC755",
+          "sha256": "0FC5D8F100847B660DB2273CD003DAB1EBE7876894F2CA0F11581FA0C080D84B"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 1383258964,
+        "release_date": "2026-11-10T20:55:05Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "CosmicSerenity-Core": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "CosmicSerenity-Core",
+        "name": "Cosmic Serenity - Core",
+        "abstract": "Shared assets for Cosmic Serenity",
+        "author": "ProximaCentauri-star",
+        "version": "4.0",
+        "license": "restricted",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/228453-112x-cosmic-serenity-v10-wip/#comment-4473675",
+          "repository": "https://github.com/ProximaCentauri-star/Cosmic-Serenity",
+          "bugtracker": "https://github.com/ProximaCentauri-star/Cosmic-Serenity/issues"
+        },
+        "tags": [
+          "config",
+          "planet-pack",
+          "library"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "Kopernicus"
+          },
+          {
+            "name": "ScaledDecorator"
+          },
+          {
+            "name": "KSPCommunityFixes"
+          }
+        ],
+        "suggests": [
+          {
+            "name": "CosmicSerenity-Hades"
+          },
+          {
+            "name": "CosmicSerenity-Anubis"
+          }
+        ],
+        "install": [
+          {
+            "find": "CosmicSerenity",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/ProximaCentauri-star/Cosmic-Serenity/releases/download/4.0/_Core.zip",
+        "download_size": 361518673,
+        "download_hash": {
+          "sha1": "D6798AE3574BCAA96548DD4E88BA743FD37768D9",
+          "sha256": "00D18B19A48D03C311A4F2BE8CEE5E3D1929C5A0337A70BFA5512247207C95B9"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 729878232,
+        "release_date": "2026-11-12T22:51:35Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "HullcamVDSContinued": [
+      {
+        "spec_version": "v1.34",
+        "identifier": "HullcamVDSContinued",
+        "name": "HullcamVDS Continued",
+        "abstract": "Many types of cameras for vessels",
+        "author": "linuxgurugamer",
+        "version": "0.2.2.5",
+        "ksp_version_min": "1.11.1",
+        "ksp_version_max": "1.12.99",
+        "license": "GPL-3.0",
+        "resources": {
+          "homepage": "http://forum.kerbalspaceprogram.com/index.php?/topic/145633-113-hullcam-vds-continued/&do=findComment&comment=2710247",
+          "spacedock": "https://spacedock.info/mod/885/HullcamVDS%20Continued",
+          "repository": "https://github.com/linuxgurugamer/HullcamVDSContinued",
+          "bugtracker": "https://github.com/linuxgurugamer/HullcamVDSContinued/issues",
+          "remote-avc": "https://raw.githubusercontent.com/linuxgurugamer/HullcamVDSContinued/refs/heads/master/HullcamVDSContinued.version"
+        },
+        "tags": [
+          "plugin",
+          "parts",
+          "crewed"
+        ],
+        "localizations": [
+          "de-de",
+          "en-us",
+          "es-es",
+          "zh-cn"
+        ],
+        "provides": [
+          "HullcamVDS"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          }
+        ],
+        "conflicts": [
+          {
+            "name": "HullcamVDS"
+          }
+        ],
+        "install": [
+          {
+            "find": "HullCameraVDS",
+            "install_to": "GameData"
+          }
+        ],
+        "download": [
+          "https://github.com/linuxgurugamer/HullcamVDSContinued/releases/download/0.2.2.5/HullcamVDSContinued-1.12.5-0.2.2.5.zip",
+          "https://spacedock.info/mod/885/HullcamVDS%20Continued/download/0.2.2.5"
+        ],
+        "download_size": 6842481,
+        "download_hash": {
+          "sha1": "FC3FD9348CC70A59C3CCD47FA1EE6B2122CE600F",
+          "sha256": "311795A0B279C5D9B96126ECD91B63A3C4345393777B0485ACF1462D6B00C6FD"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 13030279,
+        "release_date": "2026-11-13T18:15:08.467541Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "KerbolExchange": [
+      {
+        "spec_version": 1,
+        "identifier": "KerbolExchange",
+        "name": "The Kerbol Exchange",
+        "abstract": "A mining economy mod for KSP. Trade stocks that fluctuate to in-game events, keep ore until specific ore types rise in price and profit. More to come in future updates!",
+        "author": "Unofficialgz",
+        "version": "v1.0.0",
+        "ksp_version": "1.12.5",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/232035-1125-the-kerbol-exchange-v100-dynamic-ore-markets/",
+          "spacedock": "https://spacedock.info/mod/4754/The%20Kerbol%20Exchange",
+          "repository": "https://github.com/Unofficialgz/The-Kerbol-Exchange",
+          "bugtracker": "https://github.com/Unofficialgz/The-Kerbol-Exchange/issues",
+          "x_screenshot": "https://spacedock.info/content/Unofficialgz_193616/The_Kerbol_Exchange/The_Kerbol_Exchange-1793140275.png"
+        },
+        "tags": [
+          "career",
+          "config",
+          "plugin"
+        ],
+        "depends": [
+          {
+            "name": "Harmony2"
+          },
+          {
+            "name": "ClickThroughBlocker"
+          }
+        ],
+        "download": "https://spacedock.info/mod/4754/The%20Kerbol%20Exchange/download/v1.0.0",
+        "download_size": 124268,
+        "download_hash": {
+          "sha1": "1EE5BAD5077231D4BDFF5AB9DDA88B5BEC8412B3",
+          "sha256": "4317D4F12A89AEC92D55FC40B0B521D1D4BD542BA26E47E13664A237419F8F0C"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 272645,
+        "release_date": "2026-10-27T13:56:07.291092Z",
+        "x_via": "Automated SpaceDock CKAN submission",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "PartSculptor": [
+      {
+        "spec_version": "v1.10",
+        "identifier": "PartSculptor",
+        "name": "PartSculptor",
+        "abstract": "PartSculptor is a part-scaling and face-morphing mod for KSP 1",
+        "author": "linuxgurugamer",
+        "version": "0.0.4.137",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": "CC-BY-NC-SA",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/232076-112x-",
+          "spacedock": "https://spacedock.info/mod/4812/PartSculptor",
+          "repository": "https://github.com/linuxgurugamer/PartSculptor",
+          "bugtracker": "https://github.com/linuxgurugamer/PartSculptor/issues",
+          "remote-avc": "https://raw.githubusercontent.com/linuxgurugamer/PartSculptor/refs/heads/master/PartSculptor.version",
+          "x_screenshot": "https://spacedock.info/content/linuxgurugamer_179/PartSculptor/PartSculptor-1794248175.png"
+        },
+        "tags": [
+          "config",
+          "plugin"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "ClickThroughBlocker"
+          },
+          {
+            "name": "ToolbarController"
+          },
+          {
+            "name": "SpaceTuxLibrary"
+          }
+        ],
+        "install": [
+          {
+            "find": "PartSculptor",
+            "install_to": "GameData",
+            "filter_regexp": "\\.pdb$"
+          }
+        ],
+        "download": "https://spacedock.info/mod/4812/PartSculptor/download/0.0.4.137",
+        "download_size": 242698,
+        "download_hash": {
+          "sha1": "D2FA08058970A2005B415149B34418A5358AA814",
+          "sha256": "8A693ACE7482E87CDDFCA9567F0A146412D9BDB631CAB9F31C96EDED358AF952"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 398982,
+        "release_date": "2026-11-13T16:46:13.360832Z",
+        "x_via": "Automated SpaceDock CKAN submission",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "SpinDrive": [
+      {
+        "spec_version": "v1.34",
+        "identifier": "SpinDrive",
+        "name": "Project Hail Mary Spin Drive",
+        "abstract": "Spin drives from Project Hail Mary (originally made by NoLifeJordan, reuploaded with his permission)",
+        "author": [
+          "Natokerbal",
+          "QuantumsHevy"
+        ],
+        "version": "1.2.0",
+        "ksp_version": "1.12.5",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/231080-112x-project-hil-mary-spin-drive/",
+          "spacedock": "https://spacedock.info/mod/4300/Project%20Hail%20Mary%20Spin%20Drive",
+          "repository": "https://github.com/NatoKerbal/Spin-Drive",
+          "bugtracker": "https://github.com/NatoKerbal/Spin-Drive/issues",
+          "x_screenshot": "https://spacedock.info/content/Natokerbal_10695/Project_Hail_Mary_Spin_Drive/Project_Hail_Mary_Spin_Drive-1781638404.png"
+        },
+        "tags": [
+          "parts"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "FarFutureTechnologies"
+          },
+          {
+            "name": "B9PartSwitch"
+          }
+        ],
+        "recommends": [
+          {
+            "name": "NearFutureLaunchVehicles"
+          },
+          {
+            "name": "CryoTanks"
+          },
+          {
+            "name": "ReStockPlus"
+          },
+          {
+            "name": "CommunityTechTree"
+          },
+          {
+            "name": "CommunityCategoryKit"
+          },
+          {
+            "name": "VABOrganizer"
+          }
+        ],
+        "suggests": [
+          {
+            "name": "ReStock"
+          },
+          {
+            "name": "EditorExtensionsRedux"
+          },
+          {
+            "name": "KerbalJointReinforcementContinued"
+          }
+        ],
+        "download": [
+          "https://github.com/NatoKerbal/Spin-Drive/releases/download/1.2.0/SpinDrive-1.2.0.zip",
+          "https://spacedock.info/mod/4300/Project%20Hail%20Mary%20Spin%20Drive/download/1.2.0"
+        ],
+        "download_size": 8642429,
+        "download_hash": {
+          "sha1": "16BE07DF49CB638C5331E47785A0625EA2EA7C9C",
+          "sha256": "63016A3F17A185681A4F87E8726E9489BA13D14B62560DCF207A7203F32F7C2C"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 14694297,
+        "release_date": "2026-11-14T02:07:40.124139Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "TrackingStationEvolved": [
+      {
+        "spec_version": "v1.34",
+        "identifier": "TrackingStationEvolved",
+        "name": "Tracking Station Evolved",
+        "abstract": "An addon to improve the tracking station vessel selection list.",
+        "author": [
+          "DMagic",
+          "linuxgurugamer"
+        ],
+        "version": "2:1.0.9.2",
+        "ksp_version_min": "1.8.0",
+        "ksp_version_max": "1.12.99",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/index.php?/topic/172162-141-dmagics-evolved-mods-tracking-station-evolved-v10-3-13-2018/",
+          "spacedock": "https://spacedock.info/mod/1738/Tracking%20Station%20Evolved",
+          "repository": "https://github.com/linuxgurugamer/KSP_BetterTracking",
+          "bugtracker": "https://github.com/linuxgurugamer/KSP_BetterTracking/issues",
+          "remote-avc": "https://raw.githubusercontent.com/linuxgurugamer/KSP_BetterTracking/refs/heads/master/TrackingStationEvolved.version",
+          "x_screenshot": "https://spacedock.info/content/DMagic_247/Tracking_Station_Evolved/Tracking_Station_Evolved-1522959077.4250157.png"
+        },
+        "tags": [
+          "plugin",
+          "information",
+          "convenience"
+        ],
+        "download": [
+          "https://github.com/linuxgurugamer/KSP_BetterTracking/releases/download/1.0.9.2/TrackingStationEvolved-1.12.5-1.0.9.2.zip",
+          "https://spacedock.info/mod/1738/Tracking%20Station%20Evolved/download/1.0.9.2"
+        ],
+        "download_size": 118839,
+        "download_hash": {
+          "sha1": "B590EE673D9AE1860E0DA68C17D234A307B7E42D",
+          "sha256": "BEF8161C10E982DFE034A52E2DE85A0D36619F3280DECD0F3A84F1AD2A47B6A1"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 199109,
+        "release_date": "2026-11-13T18:22:47.688569Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "Trajectories": [
+      {
+        "spec_version": "v1.34",
+        "identifier": "Trajectories",
+        "name": "Trajectories",
+        "abstract": "The mod displays trajectory predictions, accounting for atmospheric drag, lift, etc. Works with the stock aerodynamic model, and also with Ferram Aerospace Research (FAR).",
+        "author": [
+          "Youen",
+          "Kobymaru",
+          "PiezPiedPy",
+          "linuxgurugamer"
+        ],
+        "version": "v2.4.5.6",
+        "ksp_version_min": "1.8.0",
+        "ksp_version_max": "1.12.99",
+        "license": "GPL-3.0",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/index.php?/topic/162324-131-181",
+          "spacedock": "https://spacedock.info/mod/396/Trajectories",
+          "repository": "https://github.com/linuxgurugamer/KSPTrajectories",
+          "bugtracker": "https://github.com/linuxgurugamer/KSPTrajectories/issues",
+          "remote-avc": "https://raw.githubusercontent.com/linuxgurugamer/KSPTrajectories/refs/heads/master/Trajectories.version"
+        },
+        "tags": [
+          "plugin",
+          "information"
+        ],
+        "localizations": [
+          "de-de",
+          "en-us",
+          "es-es",
+          "fr-fr",
+          "it-it",
+          "ja",
+          "pt-br",
+          "ru",
+          "zh-cn"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "ToolbarController"
+          },
+          {
+            "name": "SpaceTuxLibrary"
+          }
+        ],
+        "download": [
+          "https://github.com/linuxgurugamer/KSPTrajectories/releases/download/2.4.5.6/Trajectories-1.12.5-2.4.5.6.zip",
+          "https://spacedock.info/mod/396/Trajectories/download/2.4.5.6"
+        ],
+        "download_size": 162786,
+        "download_hash": {
+          "sha1": "D933EAF9F4279E5593D35DACED981232BFDC0DFD",
+          "sha256": "7D0B7CA679407DDCF3DB93DC9636D25037B016FC13007DA30BCF15F1236E348E"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 350148,
+        "release_date": "2026-11-13T18:29:34.43382Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "bmajusInnerMinmus": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "bmajusInnerMinmus",
+        "name": "bmaju's InnerMinmus",
+        "abstract": "Moves Minmus into a close orbit around Kerbin, enlarges it, relocates the Mun outward, and optionally adds a narrow ring system to Kerbin.",
+        "author": "bmaju",
+        "version": "1.2.0",
+        "ksp_version": "1.12.5",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/232134-112x-bmajus-innerminmus-bim-v120-kerbin-rings-red-eclipses-eclipse-science/",
+          "spacedock": "https://spacedock.info/mod/4748/bmaju's%20InnerMinmus",
+          "repository": "https://github.com/bmaju142/bmaju-s-InnerMinmus-KSP-",
+          "x_screenshot": "https://spacedock.info/content/bmaju_193671/bmajus_InnerMinmus/bmajus_InnerMinmus-1793016744.jpg"
+        },
+        "tags": [
+          "config",
+          "planet-pack",
+          "plugin"
+        ],
+        "localizations": [
+          "de-de",
+          "en-us",
+          "es-es",
+          "fr-fr",
+          "it-it",
+          "ja",
+          "ko-kr",
+          "pt-br",
+          "ru",
+          "zh-cn"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "Kopernicus"
+          }
+        ],
+        "suggests": [
+          {
+            "name": "EnvironmentalVisualEnhancements"
+          }
+        ],
+        "install": [
+          {
+            "find": "bmaju's InnerMinmus",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://spacedock.info/mod/4748/bmaju's%20InnerMinmus/download/1.2.0",
+        "download_size": 287520,
+        "download_hash": {
+          "sha1": "2878EF98F97DAAAAACFD8569FC8A08C90C857020",
+          "sha256": "4A4251F18A745670B9C0EFC76B82545228E44F738E8B452E545D9EC0761FC995"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 464057,
+        "release_date": "2026-11-13T16:34:38.93397Z",
+        "x_via": "Automated SpaceDock CKAN submission",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "xScienceContinued": [
+      {
+        "spec_version": "v1.34",
+        "identifier": "xScienceContinued",
+        "name": "[x] Science! Continued",
+        "abstract": "The Science Report and Checklist for KSP.  [x] Science! keeps track of the science experiments completed, recovered and held on vehicles and kerbals.",
+        "author": [
+          "Z-Key Aerospace",
+          "Brodrick",
+          "Flupster",
+          "linuxgurugamer"
+        ],
+        "version": "6.0.4",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": "CC-BY-NC-SA-4.0",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/index.php?/topic/199287-*",
+          "spacedock": "https://spacedock.info/mod/3100/[X]%20Science!%20Continued",
+          "repository": "https://github.com/linuxgurugamer/KSP-X-Science",
+          "bugtracker": "https://github.com/linuxgurugamer/KSP-X-Science/issues",
+          "remote-avc": "https://raw.githubusercontent.com/linuxgurugamer/KSP-X-Science/refs/heads/master/X-Science.version",
+          "x_screenshot": "https://spacedock.info/content/linuxgurugamer_179/X_Science_Continued/X_Science_Continued-1661905460.jpg"
+        },
+        "tags": [
+          "plugin",
+          "information",
+          "science"
+        ],
+        "localizations": [
+          "en-us"
+        ],
+        "depends": [
+          {
+            "name": "ClickThroughBlocker"
+          },
+          {
+            "name": "ToolbarController"
+          },
+          {
+            "name": "SpaceTuxLibrary"
+          }
+        ],
+        "install": [
+          {
+            "find": "[x]_Science!",
+            "install_to": "GameData"
+          }
+        ],
+        "download": [
+          "https://github.com/linuxgurugamer/KSP-X-Science/releases/download/6.0.4/X-Science-1.12.5-6.0.4.zip",
+          "https://spacedock.info/mod/3100/%5BX%5D%20Science!%20Continued/download/6.0.4"
+        ],
+        "download_size": 190957,
+        "download_hash": {
+          "sha1": "5353852CBB6C24E90D43851F29D72666881780C9",
+          "sha256": "DC976E10F69160314F54605956116A6B84F07D4AF99D4E627BD92CE3DC6E7A76"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 337531,
+        "release_date": "2026-11-13T18:40:19.59364Z",
+        "x_generated_by": "netkan"
+      }
+    ]
+  },
+  "delete": []
+}

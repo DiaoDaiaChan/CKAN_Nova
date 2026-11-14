@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CKAN 增量元数据服务原型 (CKAN_Nova)</title>
+    <style>
+        :root {
+            --bg: #0f172a; --card: #1e293b; --border: #334155;
+            --text: #f8fafc; --muted: #94a3b8; --accent: #38bdf8;
+            --success: #34d399; --warn: #fbbf24;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+            background: var(--bg); color: var(--text); margin: 0; padding: 24px;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+        h1 { margin: 0 0 8px 0; font-size: 24px; color: var(--accent); }
+        .subtitle { color: var(--muted); font-size: 14px; margin: 0; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+        .card-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .card-value { font-size: 18px; font-weight: 600; margin-top: 6px; font-family: monospace; word-break: break-all; }
+        .card-value.highlight { color: var(--success); }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; background: var(--card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+        th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+        th { background: #182234; color: var(--muted); font-weight: 600; }
+        tr:last-child td { border-bottom: none; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #0369a1; color: #e0f2fe; }
+        .badge-warn { background: #854d0e; color: #fef08a; }
+        .tester { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-top: 24px; }
+        input, button { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); font-size: 14px; }
+        input { background: #0b1120; color: #fff; width: 340px; font-family: monospace; }
+        button { background: #0284c7; color: white; border: none; cursor: pointer; font-weight: 600; }
+        button:hover { background: #0369a1; }
+        #test-res { margin-top: 12px; padding: 12px; background: #090e17; border-radius: 6px; font-family: monospace; font-size: 13px; white-space: pre-wrap; display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>CKAN 增量元数据服务原型 (CKAN_Nova)</h1>
+            <p class="subtitle">针对 KSP-CKAN/CKAN-meta 提供的静态增量同步差量包服务，消除全量拉取卡顿。</p>
+        </header>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-label">最新同步 HEAD</div>
+                <div class="card-value highlight">58402d8caa...</div>
+            </div>
+            <div class="card">
+                <div class="card-label">最近可用 Patch 数</div>
+                <div class="card-value">19 个差量包</div>
+            </div>
+            <div class="card">
+                <div class="card-label">服务状态 / 更新时间</div>
+                <div class="card-value" style="font-size:14px; font-family:sans-serif;">2026-11-14T10:46:55 UTC</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-label" style="font-size:14px; color:var(--text); font-weight:600;">核心 API 接口</div>
+            <p style="font-size:13px; color:var(--muted); margin: 8px 0 12px 0;">客户端请求流程：先获取 <a href="manifest.json"><code>manifest.json</code></a>，若本地 Commit 与 HEAD 不一致，查询对应的 Patch 文件进行增量合并。</p>
+            <div style="font-family:monospace; font-size:13px; background:#0b1120; padding:12px; border-radius:6px;">
+                • Manifest 索引：<a href="manifest.json">manifest.json</a><br>
+                • 差量包目录：<code>patches/&lt;from_commit&gt;_&lt;to_commit&gt;.json</code>
+            </div>
+        </div>
+
+        <h3 style="margin: 28px 0 12px 0; font-size: 16px;">最近生成的增量补丁包 (Recent Patches)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>起始 Commit</th>
+                    <th>目标 Commit (HEAD)</th>
+                    <th>变动 Mod 数</th>
+                    <th>删除数</th>
+                    <th>文件体积</th>
+                    <th>下载验证</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>9b11cb40</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+0 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>0.2 KB</td>
+                    <td><a href="patches/9b11cb40_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>aeb44b9e</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+1 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>2.0 KB</td>
+                    <td><a href="patches/aeb44b9e_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>2c7be497</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+2 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>4.1 KB</td>
+                    <td><a href="patches/2c7be497_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>347cdfaa</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+3 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>6.6 KB</td>
+                    <td><a href="patches/347cdfaa_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>cb84789d</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+4 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>8.9 KB</td>
+                    <td><a href="patches/cb84789d_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>2d5803b8</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+5 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>11.0 KB</td>
+                    <td><a href="patches/2d5803b8_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>7dcc1bd6</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+6 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>12.9 KB</td>
+                    <td><a href="patches/7dcc1bd6_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>be4770fd</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+7 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>15.1 KB</td>
+                    <td><a href="patches/be4770fd_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>1af651cc</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+8 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>16.9 KB</td>
+                    <td><a href="patches/1af651cc_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>453abee6</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+9 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>18.8 KB</td>
+                    <td><a href="patches/453abee6_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>f761f4e7</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+10 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>20.7 KB</td>
+                    <td><a href="patches/f761f4e7_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>ff1d9fdc</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+11 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>22.7 KB</td>
+                    <td><a href="patches/ff1d9fdc_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>0659ba24</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+11 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>22.7 KB</td>
+                    <td><a href="patches/0659ba24_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>c0227145</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+12 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>24.8 KB</td>
+                    <td><a href="patches/c0227145_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>6f809e97</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+12 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>24.8 KB</td>
+                    <td><a href="patches/6f809e97_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>4b082e71</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+13 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>26.5 KB</td>
+                    <td><a href="patches/4b082e71_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>5a9ef8a9</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+13 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>26.5 KB</td>
+                    <td><a href="patches/5a9ef8a9_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>64696854</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+14 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>28.9 KB</td>
+                    <td><a href="patches/64696854_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+                <tr>
+                    <td><code>f0ae5fb8</code></td>
+                    <td><code>58402d8c</code></td>
+                    <td><span class="badge">+15 mod(s)</span></td>
+                    <td><span class="badge badge-warn">-0</span></td>
+                    <td>31.0 KB</td>
+                    <td><a href="patches/f0ae5fb8_58402d8c.json" target="_blank">查看 JSON</a></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="tester">
+            <div class="card-label" style="font-size:14px; color:var(--text); font-weight:600; margin-bottom:8px;">客户端增量命中模拟器</div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <input type="text" id="client-sha" placeholder="输入模拟的客户端本地 commit SHA (前8位或全长)..." />
+                <button onclick="testSha()">查询增量方案</button>
+            </div>
+            <div id="test-res"></div>
+        </div>
+    </div>
+
+    <script>
+        const manifest = {"service": "ckan-nova-meta-incremental", "head_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "head_short": "58402d8c", "head_subject": "NetKAN updating download counts", "updated_at": "2026-11-14T10:46:55.883589+00:00", "recent_patches": [{"from_commit": "9b11cb405d55c0668ab6639d85013811b50b1227", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/9b11cb40_58402d8c.json", "size_kb": 0.2451171875, "total_upsert": 0, "total_deleted": 0}, {"from_commit": "aeb44b9ed8f7c778b2731fca536d0b8aa8d30b3c", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/aeb44b9e_58402d8c.json", "size_kb": 2.0, "total_upsert": 1, "total_deleted": 0}, {"from_commit": "2c7be49728e9fe8db17c6353d91f00c7d5ed4c02", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/2c7be497_58402d8c.json", "size_kb": 4.111328125, "total_upsert": 2, "total_deleted": 0}, {"from_commit": "347cdfaadbf030cd4709ef8992c760d6b7a5bc11", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/347cdfaa_58402d8c.json", "size_kb": 6.5751953125, "total_upsert": 3, "total_deleted": 0}, {"from_commit": "cb84789dafe4a108816eab41a3350e30d94dcc84", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/cb84789d_58402d8c.json", "size_kb": 8.888671875, "total_upsert": 4, "total_deleted": 0}, {"from_commit": "2d5803b8de4834ecd8ebe278b62c636f00588928", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/2d5803b8_58402d8c.json", "size_kb": 11.0419921875, "total_upsert": 5, "total_deleted": 0}, {"from_commit": "7dcc1bd6bd2ac9d000ec04257bfb8091a17e4eb9", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/7dcc1bd6_58402d8c.json", "size_kb": 12.9482421875, "total_upsert": 6, "total_deleted": 0}, {"from_commit": "be4770fdc7565ece0acbdef20a762b4a5fff19ab", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/be4770fd_58402d8c.json", "size_kb": 15.076171875, "total_upsert": 7, "total_deleted": 0}, {"from_commit": "1af651cc1d9cef67268b6e24330c53abaa0babf7", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/1af651cc_58402d8c.json", "size_kb": 16.865234375, "total_upsert": 8, "total_deleted": 0}, {"from_commit": "453abee61caa550d527b0d48238f18520bdb5a74", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/453abee6_58402d8c.json", "size_kb": 18.8212890625, "total_upsert": 9, "total_deleted": 0}, {"from_commit": "f761f4e764241244cc5932e46728e717fd41023b", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/f761f4e7_58402d8c.json", "size_kb": 20.6962890625, "total_upsert": 10, "total_deleted": 0}, {"from_commit": "ff1d9fdc8931761005b6deca9685225675e62d48", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/ff1d9fdc_58402d8c.json", "size_kb": 22.7080078125, "total_upsert": 11, "total_deleted": 0}, {"from_commit": "0659ba244ce810847948def87ab5b07a8f0df953", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/0659ba24_58402d8c.json", "size_kb": 22.7080078125, "total_upsert": 11, "total_deleted": 0}, {"from_commit": "c02271458e45168bd18b064ea5358fe7ff8a3596", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/c0227145_58402d8c.json", "size_kb": 24.751953125, "total_upsert": 12, "total_deleted": 0}, {"from_commit": "6f809e97339f4a691d1b3fb7f360bc11b783aab3", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/6f809e97_58402d8c.json", "size_kb": 24.751953125, "total_upsert": 12, "total_deleted": 0}, {"from_commit": "4b082e7102f49c4aae0a724b43d3458f9ddd53de", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/4b082e71_58402d8c.json", "size_kb": 26.49609375, "total_upsert": 13, "total_deleted": 0}, {"from_commit": "5a9ef8a90be8d621c451d0a5eb10c7668540eda0", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/5a9ef8a9_58402d8c.json", "size_kb": 26.49609375, "total_upsert": 13, "total_deleted": 0}, {"from_commit": "646968543b000991442a53226c3ee9ea91c89d70", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/64696854_58402d8c.json", "size_kb": 28.86328125, "total_upsert": 14, "total_deleted": 0}, {"from_commit": "f0ae5fb8105a34500d4bce5be76953a05799c1f4", "to_commit": "58402d8caa7b90c4aebe4576b4945ce0863f6219", "path": "patches/f0ae5fb8_58402d8c.json", "size_kb": 30.9677734375, "total_upsert": 15, "total_deleted": 0}]};
+        function testSha() {
+            const input = document.getElementById('client-sha').value.trim().toLowerCase();
+            const res = document.getElementById('test-res');
+            res.style.display = 'block';
+            if (!input) {
+                res.innerHTML = '<span style="color:#f87171">请输入 SHA 哈希</span>';
+                return;
+            }
+            if (manifest.head_commit.toLowerCase().startsWith(input)) {
+                res.innerHTML = '<span style="color:var(--success)">✅ 客户端已是最新 (304 Not Modified) - 无需拉取任何数据，耗时 0ms</span>';
+                return;
+            }
+            const match = manifest.recent_patches.find(p => p.from_commit.toLowerCase().startsWith(input));
+            if (match) {
+                res.innerHTML = '<span style="color:var(--success)">🎯 命中直接差量包！</span>
+' +
+                                '• 需下载：' + match.path + ' (' + match.size_kb.toFixed(1) + ' KB)
+' +
+                                '• 变更数量：+' + match.total_upsert + ' mods, -' + match.total_deleted + ' deleted
+' +
+                                '• 优势：免去下载几十 MB 全量 tar.gz，本地直接字典 Patch 即可完成同步。';
+            } else {
+                res.innerHTML = '<span style="color:var(--warn)">⚠️ 未命中直接差量包 (落后过多或 SHA 无效)</span>
+' +
+                                '• 策略：无缝回退至全量快照拉取，保证数据绝对自愈与一致性。';
+            }
+        }
+    </script>
+</body>
+</html>
