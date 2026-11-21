@@ -1,0 +1,105 @@
+{
+  "from_commit": "b294c8bdbae5c4640729cb286a06211b889c7dc5",
+  "to_commit": "3d3745a5b25fb79b04c8f653f2b9ab7906200952",
+  "generated_at": "2026-11-21T16:53:50.307125+00:00",
+  "total_upsert": 2,
+  "total_deleted": 0,
+  "upsert": {
+    "FlightRecorder": [
+      {
+        "spec_version": "v1.34",
+        "identifier": "FlightRecorder",
+        "name": "FlightRecorder",
+        "abstract": "Records your flight and displays it kinematically",
+        "author": "extraext",
+        "version": "1.0",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": "CC-BY-NC-ND-4.0",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/231666-112-flightrecorder-record-your-flight-and-play-it-kinematically/",
+          "spacedock": "https://spacedock.info/mod/4521/FlightRecorder",
+          "repository": "https://github.com/extraext/FlightRecorder",
+          "bugtracker": "https://github.com/extraext/FlightRecorder/issues",
+          "remote-avc": "https://raw.githubusercontent.com/extraext/FlightRecorder/main/Gamedata/FlightRecorder/FlightRecorder.version",
+          "x_screenshot": "https://spacedock.info/content/extraext_189080/FlightRecorder/FlightRecorder-1787916028.png"
+        },
+        "tags": [
+          "plugin",
+          "convenience"
+        ],
+        "depends": [
+          {
+            "name": "Harmony2"
+          }
+        ],
+        "download": [
+          "https://github.com/extraext/FlightRecorder/releases/download/v1.0/FlightRecorder_v1.0.zip",
+          "https://spacedock.info/mod/4521/FlightRecorder/download/v1.0"
+        ],
+        "download_size": 35903,
+        "download_hash": {
+          "sha1": "98F2FE4C230901DC87B4768878B58AFD2A4CBDE9",
+          "sha256": "DF41B792E03A221ADDC00209D152B94A86E915AAB8926D2F80392CD9E5D6DCE3"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 72402,
+        "release_date": "2026-09-08T20:40:43.007717Z",
+        "x_via": "Automated SpaceDock CKAN submission",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "VolumetricBlackholeFx": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "VolumetricBlackholeFx",
+        "name": "Volumetric Blackhole Fx (KSPVE)",
+        "abstract": "KSPVE: ray-marched relativistic black holes with volumetric accretion disks and jets, tidal disruption events, and HDR camera post-processing, all tweakable live in game (Ctrl+Alt+V).",
+        "author": "Vihaan2012-cmyk",
+        "version": "v0.5.6",
+        "ksp_version": "1.12.5",
+        "license": "GPL-3.0",
+        "resources": {
+          "repository": "https://github.com/Vihaan2012-cmyk/Volumetric-Blackhole-Fx",
+          "bugtracker": "https://github.com/Vihaan2012-cmyk/Volumetric-Blackhole-Fx/issues",
+          "remote-avc": "https://raw.githubusercontent.com/Vihaan2012-cmyk/Volumetric-Blackhole-Fx/main/gamedata/KSPVE.version"
+        },
+        "tags": [
+          "plugin",
+          "graphics",
+          "config"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          }
+        ],
+        "suggests": [
+          {
+            "name": "Singularity"
+          },
+          {
+            "name": "KcalbelohSystem"
+          }
+        ],
+        "install": [
+          {
+            "find": "KSPVE",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/Vihaan2012-cmyk/Volumetric-Blackhole-Fx/releases/download/v0.5.6/KSPVE-0.5.6.zip",
+        "download_size": 270816,
+        "download_hash": {
+          "sha1": "1266C3FB7477B10C11CD9AE09268E3B6061D676A",
+          "sha256": "FC14EA157B73C8E1932BB8B85FCC97EFB856C52502494EFFB15DCEE282633A1F"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 578279,
+        "release_date": "2026-10-27T14:21:12Z",
+        "x_generated_by": "netkan"
+      }
+    ]
+  },
+  "delete": []
+}

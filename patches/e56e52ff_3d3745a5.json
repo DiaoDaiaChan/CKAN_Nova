@@ -1,0 +1,398 @@
+{
+  "from_commit": "e56e52ff5f4247af292148fb109556e32b712acf",
+  "to_commit": "3d3745a5b25fb79b04c8f653f2b9ab7906200952",
+  "generated_at": "2026-11-21T16:53:50.412530+00:00",
+  "total_upsert": 7,
+  "total_deleted": 0,
+  "upsert": {
+    "FerramAerospaceResearchContinued": [
+      {
+        "spec_version": "v1.36",
+        "identifier": "FerramAerospaceResearchContinued",
+        "name": "Ferram Aerospace Research Continued",
+        "abstract": "FAR replaces KSP's stock part-centered aerodynamics model with one based on real-life physics.",
+        "author": [
+          "ferram4",
+          "JonnyOThan"
+        ],
+        "version": "3:0.17.0.3",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": "GPL-3.0",
+        "release_status": "testing",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/index.php?/topic/179445-*",
+          "repository": "https://github.com/KSPModStewards/Ferram-Aerospace-Research",
+          "bugtracker": "https://github.com/KSPModStewards/Ferram-Aerospace-Research/issues",
+          "manual": "https://github.com/KSPModStewards/Ferram-Aerospace-Research/wiki",
+          "remote-avc": "https://raw.githubusercontent.com/dkavolis/Ferram-Aerospace-Research/master/GameData/FerramAerospaceResearch/FAR.version"
+        },
+        "tags": [
+          "plugin",
+          "physics"
+        ],
+        "localizations": [
+          "de-de",
+          "en-us",
+          "ru",
+          "zh-cn"
+        ],
+        "provides": [
+          "AerodynamicModel",
+          "FAR"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "ModularFlightIntegrator"
+          },
+          {
+            "name": "TweakScale-Redist"
+          },
+          {
+            "name": "KSPBurst"
+          },
+          {
+            "name": "KSPCommunityFixes",
+            "min_version": "1.36.0"
+          }
+        ],
+        "conflicts": [
+          {
+            "name": "AerodynamicModel"
+          }
+        ],
+        "install": [
+          {
+            "file": "GameData/FerramAerospaceResearch",
+            "install_to": "GameData",
+            "filter": [
+              "config.xml",
+              "Scale_Redist.dll"
+            ]
+          },
+          {
+            "file": "Ships",
+            "install_to": "Ships",
+            "comment": "FAR example craft"
+          }
+        ],
+        "download": "https://github.com/KSPModStewards/Ferram-Aerospace-Research/releases/download/v0.17.0.3_testing/FAR_0.17.0.3_testing.zip",
+        "download_size": 1605045,
+        "download_hash": {
+          "sha256": "344D0FC288E41C3409503A79D1A8301D07E2D8F4A2FE9178BE1B00633FBDFD9C"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 2969110,
+        "release_date": "2026-11-20T22:46:04Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "FlightRecorder": [
+      {
+        "spec_version": "v1.34",
+        "identifier": "FlightRecorder",
+        "name": "FlightRecorder",
+        "abstract": "Records your flight and displays it kinematically",
+        "author": "extraext",
+        "version": "1.0",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": "CC-BY-NC-ND-4.0",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/231666-112-flightrecorder-record-your-flight-and-play-it-kinematically/",
+          "spacedock": "https://spacedock.info/mod/4521/FlightRecorder",
+          "repository": "https://github.com/extraext/FlightRecorder",
+          "bugtracker": "https://github.com/extraext/FlightRecorder/issues",
+          "remote-avc": "https://raw.githubusercontent.com/extraext/FlightRecorder/main/Gamedata/FlightRecorder/FlightRecorder.version",
+          "x_screenshot": "https://spacedock.info/content/extraext_189080/FlightRecorder/FlightRecorder-1787916028.png"
+        },
+        "tags": [
+          "plugin",
+          "convenience"
+        ],
+        "depends": [
+          {
+            "name": "Harmony2"
+          }
+        ],
+        "download": [
+          "https://github.com/extraext/FlightRecorder/releases/download/v1.0/FlightRecorder_v1.0.zip",
+          "https://spacedock.info/mod/4521/FlightRecorder/download/v1.0"
+        ],
+        "download_size": 35903,
+        "download_hash": {
+          "sha1": "98F2FE4C230901DC87B4768878B58AFD2A4CBDE9",
+          "sha256": "DF41B792E03A221ADDC00209D152B94A86E915AAB8926D2F80392CD9E5D6DCE3"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 72402,
+        "release_date": "2026-09-08T20:40:43.007717Z",
+        "x_via": "Automated SpaceDock CKAN submission",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "KSPBurst-Lite": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "KSPBurst-Lite",
+        "name": "KSPBurst Plugins",
+        "abstract": "Mods that require KSPBurst can run with this alone, but this does not improve performance unless the burst compiler is also installed.",
+        "author": "dkavolis",
+        "version": "v1.7.4.14",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.13.99",
+        "license": "unknown",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/index.php?/topic/201112-*",
+          "repository": "https://github.com/KSPModdingLibs/KSPBurst",
+          "bugtracker": "https://github.com/KSPModdingLibs/KSPBurst/issues",
+          "manual": "https://github.com/KSPModdingLibs/KSPBurst/wiki",
+          "remote-avc": "https://raw.githubusercontent.com/KSPModdingLibs/KSPBurst/master/GameData/000_KSPBurst/KSPBurst.version"
+        },
+        "tags": [
+          "library",
+          "plugin"
+        ],
+        "depends": [
+          {
+            "name": "Harmony2",
+            "min_version": "2.2.1.0"
+          }
+        ],
+        "suggests": [
+          {
+            "name": "KSPBurst"
+          }
+        ],
+        "install": [
+          {
+            "find": "000_KSPBurst",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/KSPModdingLibs/KSPBurst/releases/download/v1.7.4.14/KSPBurst_1.7.4.14.zip",
+        "download_size": 552427,
+        "download_hash": {
+          "sha1": "82E34190B96B334AF55FBFCF4A33E31B837E2DE0",
+          "sha256": "FADB3ADD01DAB557E84FB2583C052FCD3E01BACD2CEF5BE7A7F82327ED739A4F"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 1669062,
+        "release_date": "2026-11-20T21:26:44Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "PeelNStikThermal": [
+      {
+        "spec_version": 1,
+        "identifier": "PeelNStikThermal",
+        "name": "Peel-N-Stik Thermal",
+        "abstract": "Stick-on ablative heat shields and active heat sinks for KSP 1.12.",
+        "description": "Adds four radial peel-and-stik ablative heat shields (0.625 m to 3.75 m),\nscalable conformal decal coatings with four tile patterns, and four active\nheat sinks (CDH-4..7). The sinks pull interior and skin heat from every\npart in radius, store mild heat for free and bill the overflow to\nElectricCharge. They brown out when power runs dry and blow like a\nsacrificial fuse at 1800 K, with an early warning in the part menu.\nCDH-7 projects a visible energy bubble, bills a flat EC/s per metre of\nradius and suppresses Firefly reentry FX inside the field. All sinks can\nbe switched on/off in flight via the right-click menu or action groups.\nFirefly integration is optional; enhanced Firefly effects are still a\nwork in progress.",
+        "author": "Liam",
+        "version": "1.0.0",
+        "ksp_version": "1.12",
+        "license": "restricted",
+        "resources": {
+          "homepage": "https://github.com/ehemaliger56-debug/PeelNStikThermal",
+          "repository": "https://github.com/ehemaliger56-debug/PeelNStikThermal",
+          "bugtracker": "https://github.com/ehemaliger56-debug/PeelNStikThermal/issues"
+        },
+        "tags": [
+          "parts",
+          "physics",
+          "plugin",
+          "graphics"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "ConformalDecals"
+          },
+          {
+            "name": "B9PartSwitch"
+          },
+          {
+            "name": "ReStock"
+          }
+        ],
+        "recommends": [
+          {
+            "name": "Firefly"
+          }
+        ],
+        "suggests": [
+          {
+            "name": "SystemHeat"
+          },
+          {
+            "name": "HeatControl"
+          }
+        ],
+        "download": "https://github.com/ehemaliger56-debug/PeelNStikThermal/releases/download/1.0.0/PeelNStikThermal-1.0.0.zip",
+        "download_size": 15929809,
+        "download_hash": {
+          "sha1": "84D32634C8DF2407870BCD47E9382E3B5E1A4D8C",
+          "sha256": "25A53696214033A539C7F5071BA2F054ADD432C67FFB79B10FB74D26E2766AEE"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 16759211,
+        "release_date": "2026-11-20T19:03:36Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "TheFiveEchoesRSA": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "TheFiveEchoesRSA",
+        "name": "The Five Echoes - Real Scale Addons",
+        "abstract": "Configs that modify parts and physics to better work at Real Scale",
+        "author": [
+          "Space Fox Oprissmian",
+          "gabo463",
+          "KSP-RO Team"
+        ],
+        "version": "Beta-0.5",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": "CC-BY-NC-SA-4.0",
+        "resources": {
+          "repository": "https://github.com/TheFiveEchoes/TheFiveEchoes",
+          "bugtracker": "https://github.com/TheFiveEchoes/TheFiveEchoes/issues"
+        },
+        "tags": [
+          "config"
+        ],
+        "localizations": [
+          "en-us"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "Kopernicus",
+            "min_version": "2:release-1.12.1-253"
+          },
+          {
+            "name": "TheFiveEchoesCore"
+          }
+        ],
+        "install": [
+          {
+            "find": "TheFiveEchoes-RealScaleAddons",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/TheFiveEchoes/TheFiveEchoes/releases/download/Beta-0.5/TheFiveEchoes-RealScaleAddons.zip",
+        "download_size": 5599,
+        "download_hash": {
+          "sha1": "2FC208E1E86DD63876407E3D14F6240F8ACBC144",
+          "sha256": "646AED65866B37BB3AB09AD545FC8371539541D109DE6A2D9B41F38FD89BFB2C"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 6987,
+        "release_date": "2026-10-13T05:07:33Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "VolumetricBlackholeFx": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "VolumetricBlackholeFx",
+        "name": "Volumetric Blackhole Fx (KSPVE)",
+        "abstract": "KSPVE: ray-marched relativistic black holes with volumetric accretion disks and jets, tidal disruption events, and HDR camera post-processing, all tweakable live in game (Ctrl+Alt+V).",
+        "author": "Vihaan2012-cmyk",
+        "version": "v0.5.6",
+        "ksp_version": "1.12.5",
+        "license": "GPL-3.0",
+        "resources": {
+          "repository": "https://github.com/Vihaan2012-cmyk/Volumetric-Blackhole-Fx",
+          "bugtracker": "https://github.com/Vihaan2012-cmyk/Volumetric-Blackhole-Fx/issues",
+          "remote-avc": "https://raw.githubusercontent.com/Vihaan2012-cmyk/Volumetric-Blackhole-Fx/main/gamedata/KSPVE.version"
+        },
+        "tags": [
+          "plugin",
+          "graphics",
+          "config"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          }
+        ],
+        "suggests": [
+          {
+            "name": "Singularity"
+          },
+          {
+            "name": "KcalbelohSystem"
+          }
+        ],
+        "install": [
+          {
+            "find": "KSPVE",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/Vihaan2012-cmyk/Volumetric-Blackhole-Fx/releases/download/v0.5.6/KSPVE-0.5.6.zip",
+        "download_size": 270816,
+        "download_hash": {
+          "sha1": "1266C3FB7477B10C11CD9AE09268E3B6061D676A",
+          "sha256": "FC14EA157B73C8E1932BB8B85FCC97EFB856C52502494EFFB15DCEE282633A1F"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 578279,
+        "release_date": "2026-10-27T14:21:12Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "kRPC": [
+      {
+        "spec_version": 1,
+        "identifier": "kRPC",
+        "name": "kRPC: Remote Procedure Call Server",
+        "abstract": "kRPC allows you to control the game from external programs. It comes with client libraries for several popular languages including Python, C++, C#, Java and Lua. Programs communicate with the game over a TCP/IP connection, and can be configured to work on just the local machine or even over the wider internet.",
+        "author": [
+          "djungelorm",
+          "GaryDeco"
+        ],
+        "version": "v0.8.0",
+        "ksp_version": "1.12.5",
+        "license": "GPL-3.0",
+        "resources": {
+          "homepage": "http://krpc.github.io/krpc",
+          "repository": "https://github.com/krpc/krpc",
+          "bugtracker": "https://github.com/krpc/krpc/issues",
+          "remote-avc": "http://ksp-avc.cybutek.net/version.php?id=254"
+        },
+        "tags": [
+          "plugin",
+          "app",
+          "control"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          }
+        ],
+        "download": "https://github.com/krpc/krpc/releases/download/v0.8.0/krpc-0.8.0.zip",
+        "download_size": 1461065,
+        "download_hash": {
+          "sha1": "FA29CCF2C0A24B586D6BA46166CE35A177A6CCAB",
+          "sha256": "EB0AD5CE0D2007D0060F4812C633596D7D6E28205DCDD0892253F43B37EF55F1"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 6541689,
+        "release_date": "2026-11-20T21:23:08Z",
+        "x_generated_by": "netkan"
+      }
+    ]
+  },
+  "delete": []
+}
