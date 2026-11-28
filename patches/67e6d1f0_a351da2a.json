@@ -1,0 +1,723 @@
+{
+  "from_commit": "67e6d1f01b3f582ffda6d0bebbcd62dcdf5c4d69",
+  "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+  "generated_at": "2026-11-28T10:43:06.856233+00:00",
+  "total_upsert": 14,
+  "total_deleted": 0,
+  "upsert": {
+    "BetterKraken": [
+      {
+        "spec_version": 1,
+        "identifier": "BetterKraken",
+        "name": "BetterKraken",
+        "abstract": "Makes the kraken 100 Times more powerful and annoying.",
+        "author": "Bobkermanrockets",
+        "version": "1",
+        "ksp_version": "1.12.5",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://github.com/Bobkermann-TT/BetterKraken/tree/main",
+          "spacedock": "https://spacedock.info/mod/4826/BetterKraken",
+          "x_screenshot": "https://spacedock.info/content/Bobkermanrockets_195458/BetterKraken/BetterKraken-1794722200.png"
+        },
+        "tags": [
+          "plugin"
+        ],
+        "download": "https://spacedock.info/mod/4826/BetterKraken/download/1",
+        "download_size": 5329,
+        "download_hash": {
+          "sha1": "80C87AC076FE94026F039AC4C9CD1E19165CBF5C",
+          "sha256": "6789DCF8B061893516513D8284D4FCD83C58181497A49C732D4BC149E838A9FE"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 9728,
+        "release_date": "2026-11-15T05:49:59.850041Z",
+        "x_via": "Automated SpaceDock CKAN submission",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "JustReadTheInstructions": [
+      {
+        "spec_version": "v1.36",
+        "identifier": "JustReadTheInstructions",
+        "name": "Just Read The Instructions",
+        "abstract": "Spiritual successor to OCISLY! Allows you to stream your HullCam cameras on a local webpage!",
+        "author": "RELMYMathieu",
+        "version": "v3.3.0.2",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": "MIT",
+        "release_status": "testing",
+        "resources": {
+          "homepage": "https://relmymathieu.github.io/JustReadTheInstructions/",
+          "repository": "https://github.com/RELMYMathieu/JustReadTheInstructions",
+          "bugtracker": "https://github.com/RELMYMathieu/JustReadTheInstructions/issues",
+          "remote-avc": "https://raw.githubusercontent.com/RELMYMathieu/JustReadTheInstructions/main/GameData/JustReadTheInstructions/JustReadTheInstructions.version"
+        },
+        "tags": [
+          "config",
+          "plugin"
+        ],
+        "depends": [
+          {
+            "name": "HullcamVDSContinued"
+          }
+        ],
+        "install": [
+          {
+            "find": "JustReadTheInstructions",
+            "install_to": "GameData",
+            "filter_regexp": "\\.pdb$"
+          }
+        ],
+        "download": "https://github.com/RELMYMathieu/JustReadTheInstructions/releases/download/v3.3.0.2/JustReadTheInstructions-v3.3.0.2.zip",
+        "download_size": 644223,
+        "download_hash": {
+          "sha256": "EB0375D6F3493DF1478873E37680DECB20480D47F71440DBA2FE7CB2C0D6BC09"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 1552630,
+        "release_date": "2026-11-27T00:22:50Z",
+        "x_generated_by": "netkan"
+      },
+      {
+        "spec_version": "v1.34",
+        "identifier": "JustReadTheInstructions",
+        "name": "Just Read The Instructions",
+        "abstract": "Spiritual successor to OCISLY, allows you to stream your HullCam cameras on a local webpage!",
+        "author": "RELMYMathieu",
+        "version": "v3.4.0",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://relmymathieu.github.io/JustReadTheInstructions/",
+          "spacedock": "https://spacedock.info/mod/4212/Just%20Read%20The%20Instructions",
+          "repository": "https://github.com/RELMYMathieu/JustReadTheInstructions",
+          "bugtracker": "https://github.com/RELMYMathieu/JustReadTheInstructions/issues",
+          "remote-avc": "https://raw.githubusercontent.com/RELMYMathieu/JustReadTheInstructions/main/GameData/JustReadTheInstructions/JustReadTheInstructions.version",
+          "x_screenshot": "https://spacedock.info/content/RELMYMathieu_182273/Just_Read_The_Instructions/Just_Read_The_Instructions-1776525384.png"
+        },
+        "tags": [
+          "config",
+          "plugin"
+        ],
+        "depends": [
+          {
+            "name": "HullcamVDSContinued"
+          }
+        ],
+        "install": [
+          {
+            "find": "JustReadTheInstructions",
+            "install_to": "GameData",
+            "filter_regexp": "\\.pdb$"
+          }
+        ],
+        "download": [
+          "https://github.com/RELMYMathieu/JustReadTheInstructions/releases/download/v3.4.0/JustReadTheInstructions-v3.4.0.zip",
+          "https://spacedock.info/mod/4212/Just%20Read%20The%20Instructions/download/v3.4.0"
+        ],
+        "download_size": 646988,
+        "download_hash": {
+          "sha1": "5CBABA816E408D185FE016A88674B8E4AC45A856",
+          "sha256": "506F6D421A9CE0D4AFEDA258EA902BE7325D3D7A2B99FA4F8DFDF3FEA46AE892"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 1559964,
+        "release_date": "2026-11-27T23:36:08.882966Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "KSPBurst-Lite": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "KSPBurst-Lite",
+        "name": "KSPBurst Plugins",
+        "abstract": "Mods that require KSPBurst can run with this alone, but this does not improve performance unless the burst compiler is also installed.",
+        "author": "dkavolis",
+        "version": "v1.7.4.15",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.13.99",
+        "license": "unknown",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/index.php?/topic/201112-*",
+          "repository": "https://github.com/KSPModdingLibs/KSPBurst",
+          "bugtracker": "https://github.com/KSPModdingLibs/KSPBurst/issues",
+          "manual": "https://github.com/KSPModdingLibs/KSPBurst/wiki",
+          "remote-avc": "https://raw.githubusercontent.com/KSPModdingLibs/KSPBurst/master/GameData/000_KSPBurst/KSPBurst.version"
+        },
+        "tags": [
+          "library",
+          "plugin"
+        ],
+        "depends": [
+          {
+            "name": "Harmony2",
+            "min_version": "2.2.1.0"
+          }
+        ],
+        "suggests": [
+          {
+            "name": "KSPBurst"
+          }
+        ],
+        "install": [
+          {
+            "find": "000_KSPBurst",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/KSPModdingLibs/KSPBurst/releases/download/v1.7.4.15/KSPBurst_1.7.4.15.zip",
+        "download_size": 549580,
+        "download_hash": {
+          "sha1": "98DD74B097F4B515CF9E1A2C69DE67DCEDECECAC",
+          "sha256": "B9C69D8D5161A7856829DD2845A4BE2BDE9676764CAEC1DA2D4E278DB7B47E5D"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 1663430,
+        "release_date": "2026-11-28T01:44:42Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "KerbalMemorial": [
+      {
+        "spec_version": "v1.34",
+        "identifier": "KerbalMemorial",
+        "name": "Kerbal Memorial",
+        "abstract": "A mod that remembers the Kerbals who didn't make it home.",
+        "author": "linuxgurugamer",
+        "version": "0.1.0.64",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": "CC-BY-NC-SA",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/232223-112x-x",
+          "spacedock": "https://spacedock.info/mod/4897/Kerbal%20Memorial",
+          "repository": "https://github.com/linuxgurugamer/KerbalMemorial",
+          "bugtracker": "https://github.com/linuxgurugamer/KerbalMemorial/issues",
+          "remote-avc": "https://raw.githubusercontent.com/linuxgurugamer/KerbalMemorial/refs/heads/master/KerbalMemorial.version",
+          "x_screenshot": "https://spacedock.info/content/linuxgurugamer_179/Kerbal_Memorial/Kerbal_Memorial-1795728608.png"
+        },
+        "tags": [
+          "config",
+          "plugin"
+        ],
+        "depends": [
+          {
+            "name": "SpaceTuxLibrary"
+          },
+          {
+            "name": "ToolbarController"
+          },
+          {
+            "name": "ClickThroughBlocker"
+          },
+          {
+            "name": "ModuleManager"
+          }
+        ],
+        "install": [
+          {
+            "find": "KerbalMemorial",
+            "install_to": "GameData",
+            "filter_regexp": "\\.pdb$"
+          }
+        ],
+        "download": [
+          "https://github.com/linuxgurugamer/KerbalMemorial/releases/download/0.1.0.64/KerbalMemorial-1.12.5-0.1.0.64.zip",
+          "https://spacedock.info/mod/4897/Kerbal%20Memorial/download/0.1.0.64"
+        ],
+        "download_size": 8887480,
+        "download_hash": {
+          "sha1": "6794BB4A3A0418C6886FFC79B042189098753AFA",
+          "sha256": "B3F4418FAAFA5A165C588EAAB166F43FB0C8BE9E04F09365AA7032878454DB12"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 8991509,
+        "release_date": "2026-11-26T21:26:32.018638Z",
+        "x_via": "Automated SpaceDock CKAN submission",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "KerbalPowersNaval": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "KerbalPowersNaval",
+        "name": "Kerbal Powers Naval",
+        "abstract": "Stockalike Boat Propellers, Turbine Generators, and Ballast Tanks",
+        "author": [
+          "Spartwo",
+          "MiffedStarfish"
+        ],
+        "version": "v1.1",
+        "ksp_version": "1.12.5",
+        "license": "restricted",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/228684-kerbal-powers-naval-v10/",
+          "spacedock": "https://spacedock.info/mod/3977/Kerbal%20Powers%20Naval",
+          "repository": "https://github.com/KerbalPowers/KP-Dynamics",
+          "manual": "https://github.com/KerbalPowers/KP-Dynamics/wiki",
+          "discussions": "https://github.com/KerbalPowers/KP-Dynamics/discussions",
+          "x_screenshot": "https://spacedock.info/content/Spartwo_95463/Kerbal_Powers_Naval/Kerbal_Powers_Naval-1756485279.png"
+        },
+        "tags": [
+          "parts",
+          "plugin"
+        ],
+        "localizations": [
+          "en-us"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "KerbalPowersCore"
+          },
+          {
+            "name": "FirespitterCore"
+          }
+        ],
+        "suggests": [
+          {
+            "name": "RationalHydroDynamics"
+          },
+          {
+            "name": "VABOrganizer"
+          },
+          {
+            "name": "KSPCommunityPartModules"
+          },
+          {
+            "name": "TURD-KerbalPowersNaval"
+          }
+        ],
+        "install": [
+          {
+            "find": "KerbalPowers/Naval",
+            "install_to": "GameData/KerbalPowers"
+          },
+          {
+            "find": "KerbalPowers/Electrics",
+            "install_to": "GameData/KerbalPowers"
+          }
+        ],
+        "download": "https://spacedock.info/mod/3977/Kerbal%20Powers%20Naval/download/v1.1",
+        "download_size": 34061022,
+        "download_hash": {
+          "sha1": "9CC141AA11AEA9335AB7D41E12825415196BE4EA",
+          "sha256": "5FBB23F05602E7433FD20418046E5F2AA8D83ACA2B71E8A2437C5F724686CACF"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 51353545,
+        "release_date": "2026-11-26T22:59:20.238815Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "LunaMultiplayer": [
+      {
+        "spec_version": "v1.36",
+        "identifier": "LunaMultiplayer",
+        "name": "Luna Multiplayer Client",
+        "abstract": "Multiplayer mod for Kerbal Space Program (KSP)",
+        "author": "gavazquez",
+        "version": "0.30.0-Draft",
+        "ksp_version": "1.12",
+        "license": "MIT",
+        "release_status": "testing",
+        "resources": {
+          "homepage": "http://www.lunamultiplayer.com",
+          "repository": "https://github.com/LunaMultiplayer/LunaMultiplayer",
+          "bugtracker": "https://github.com/LunaMultiplayer/LunaMultiplayer/issues",
+          "manual": "https://github.com/LunaMultiplayer/LunaMultiplayer/wiki",
+          "remote-avc": "https://github.com/LunaMultiplayer/LunaMultiplayer/raw/master/LunaMultiplayer.version"
+        },
+        "tags": [
+          "plugin"
+        ],
+        "depends": [
+          {
+            "name": "Harmony2"
+          }
+        ],
+        "install": [
+          {
+            "find": "LunaMultiplayer",
+            "install_to": "GameData",
+            "filter": "0Harmony.dll"
+          }
+        ],
+        "download": "https://github.com/LunaMultiplayer/LunaMultiplayer/releases/download/0.30.0-Draft/LunaMultiplayer-Client-Release.zip",
+        "download_size": 1129252,
+        "download_hash": {
+          "sha256": "86AD182C204C8CAF2706A7FC9698E50E34E38D6187FA48016FC92DC7DA9263EC"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 1652552,
+        "release_date": "2026-11-27T14:52:50Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "MechJebWaypointNavigator": [
+      {
+        "spec_version": "v1.34",
+        "identifier": "MechJebWaypointNavigator",
+        "name": "MechJeb Waypoint Navigator",
+        "abstract": "Draw flight routes on an interactive Kerbin map and fly them automatically with MechJeb2 Aircraft Autopilot.",
+        "author": "siyang03",
+        "version": "1.3.0",
+        "ksp_version": "1.12.5",
+        "license": [
+          "MIT",
+          "CC-BY-NC-SA-4.0"
+        ],
+        "resources": {
+          "homepage": "https://github.com/siyang03/MechJeb-Waypoint-Navigator",
+          "spacedock": "https://spacedock.info/mod/4859/MechJeb%20Waypoint%20Navigator",
+          "repository": "https://github.com/siyang03/MechJeb-Waypoint-Navigator",
+          "bugtracker": "https://github.com/siyang03/MechJeb-Waypoint-Navigator/issues",
+          "x_screenshot": "https://spacedock.info/content/siyang03_195765/MechJeb_Waypoint_Navigator/MechJeb_Waypoint_Navigator-1795102556.png"
+        },
+        "tags": [
+          "plugin",
+          "config",
+          "control"
+        ],
+        "depends": [
+          {
+            "name": "MechJeb2"
+          },
+          {
+            "name": "Harmony2"
+          }
+        ],
+        "install": [
+          {
+            "find": "MechJebWaypointNavigator",
+            "install_to": "GameData",
+            "filter": [
+              "__MACOSX",
+              ".DS_Store"
+            ]
+          }
+        ],
+        "download": [
+          "https://github.com/siyang03/MechJeb-Waypoint-Navigator/releases/download/v1.3.0/MechJeb-Waypoint-Navigator.zip",
+          "https://spacedock.info/mod/4859/MechJeb%20Waypoint%20Navigator/download/v1.3.0"
+        ],
+        "download_size": 3393300,
+        "download_hash": {
+          "sha1": "6B1B37441556CF53BF2BE3E105ABA6880FE55C99",
+          "sha256": "CE425C1286C7236BB67B49C8FB11BADDACA2CF896DFDE50EC953E2F88FFCA41E"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 3512330,
+        "release_date": "2026-11-27T16:39:10.741565Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "Parsek": [
+      {
+        "spec_version": 1,
+        "identifier": "Parsek",
+        "name": "Parsek",
+        "abstract": "Time-rewind mission recording and logistics. Record missions, return to an earlier time, and watch them play out alongside you while you fly new ones.",
+        "description": "Parsek changes a lot of KSP's internal systems (career, contracts, crew, saves, time warp, vessels). Most other mods are not supported; see the Supported Mods list on GitHub.",
+        "author": "vl3c",
+        "version": "v1.0.3",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.12.99",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/229943-1125-parsek-public-beta-time-rewind-mission-recording-logistics/",
+          "repository": "https://github.com/vl3c/Parsek",
+          "bugtracker": "https://github.com/vl3c/Parsek/issues",
+          "remote-avc": "https://github.com/vl3c/Parsek/releases/latest/download/Parsek.version"
+        },
+        "tags": [
+          "plugin",
+          "convenience"
+        ],
+        "depends": [
+          {
+            "name": "Harmony2"
+          },
+          {
+            "name": "ClickThroughBlocker"
+          },
+          {
+            "name": "ToolbarController"
+          }
+        ],
+        "download": "https://github.com/vl3c/Parsek/releases/download/v1.0.3/Parsek-v1.0.3.zip",
+        "download_size": 3986394,
+        "download_hash": {
+          "sha1": "3318EE2252CB2D69E0F22860161D54D81EC1F764",
+          "sha256": "781C68C2C19A987F5B24A53AE06D47E01C3D9079B7830891DCD6E7E8EC1CC667"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 11487538,
+        "release_date": "2026-11-26T17:17:32Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "SENTRY": [
+      {
+        "spec_version": "v1.34",
+        "identifier": "SENTRY",
+        "name": "SENTRY",
+        "abstract": "Subtracts reputation when asteroids or comets hit the home body. Adds reputation for deflections. Also includes alert window.",
+        "author": "KAPD",
+        "version": "v2.0.1",
+        "ksp_version": "1.12.5",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/231905-112x-sentry-survey-and-early-notification-of-threatening-reentry-now-with-impact-consequences/",
+          "spacedock": "https://spacedock.info/mod/4560/SENTRY",
+          "repository": "https://github.com/oscarholzmanwhite-gif/SENTRY",
+          "bugtracker": "https://github.com/oscarholzmanwhite-gif/SENTRY/issues",
+          "remote-avc": "https://raw.githubusercontent.com/oscarholzmanwhite-gif/SENTRY/main/GameData/SENTRY/SENTRY.version",
+          "x_screenshot": "https://spacedock.info/content/KAPD_191366/SENTRY/SENTRY-1791131643.png"
+        },
+        "tags": [
+          "config",
+          "plugin"
+        ],
+        "localizations": [
+          "en-us"
+        ],
+        "depends": [
+          {
+            "name": "ToolbarController"
+          },
+          {
+            "name": "ClickThroughBlocker"
+          },
+          {
+            "name": "ModuleManager"
+          }
+        ],
+        "download": [
+          "https://github.com/oscarholzmanwhite-gif/SENTRY/releases/download/v2.0.1/SENTRY-v2.0.1.zip",
+          "https://spacedock.info/mod/4560/SENTRY/download/v2.0.1"
+        ],
+        "download_size": 73149,
+        "download_hash": {
+          "sha1": "319F1D497043A6BA5A1FF747FDD513440EC64751",
+          "sha256": "A25A932B5308879A0B64E0EB8EA3FA20763C17632325FD7D3A24A1929304E30F"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 138060,
+        "release_date": "2026-11-26T21:18:27.014237Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "Seamless": [
+      {
+        "spec_version": "v1.34",
+        "identifier": "Seamless",
+        "name": "Seamless",
+        "abstract": "Replaces all loading screens with in-world transitions",
+        "author": "Sampsa",
+        "version": "1.2.1.0",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.13.99",
+        "license": "GPL-3.0",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/232211-1125-seamless-replace-loading-screens-with-smooth-camera-transitions/",
+          "spacedock": "https://spacedock.info/mod/4893/Seamless",
+          "repository": "https://github.com/S4mpsa/ksp-seamless",
+          "bugtracker": "https://github.com/S4mpsa/ksp-seamless/issues",
+          "x_screenshot": "https://spacedock.info/content/Sampsa_195034/Seamless/Seamless-1795653098.png"
+        },
+        "tags": [
+          "plugin",
+          "graphics"
+        ],
+        "depends": [
+          {
+            "name": "Harmony2"
+          }
+        ],
+        "download": [
+          "https://github.com/S4mpsa/ksp-seamless/releases/download/v1.2.1.0/Seamless_1.2.1.0.zip",
+          "https://spacedock.info/mod/4893/Seamless/download/1.2.1.0"
+        ],
+        "download_size": 316496,
+        "download_hash": {
+          "sha1": "74B24A1E834FE9A22E9BDB28A08F43892B7F155A",
+          "sha256": "D9BFD58E8EBF62E51FA8206C2B8C737AFDF66729965CBC8FB915D8A123FEF33A"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 2339364,
+        "release_date": "2026-11-26T21:26:37.943247Z",
+        "x_via": "Automated SpaceDock CKAN submission",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "SolarWinds": [
+      {
+        "spec_version": "v1.10",
+        "identifier": "SolarWinds",
+        "name": "solarwinds",
+        "abstract": "i im not working on it rn and im working on a minecraft mod now the discord for it is below ",
+        "author": "titan_68810",
+        "version": "0.8.5",
+        "ksp_version": "1.12.5",
+        "license": "MIT",
+        "resources": {
+          "spacedock": "https://spacedock.info/mod/4452/solarwinds",
+          "x_screenshot": "https://spacedock.info/content/titan_68810_189098/solarwinds/solarwinds-1785883973.png"
+        },
+        "tags": [
+          "config",
+          "planet-pack",
+          "plugin"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "Kopernicus"
+          },
+          {
+            "name": "VertexMitchellNetravaliHeightMap"
+          },
+          {
+            "name": "Singularity"
+          }
+        ],
+        "recommends": [
+          {
+            "name": "EnvironmentalVisualEnhancements"
+          },
+          {
+            "name": "Scatterer"
+          },
+          {
+            "name": "ScaledDecorator"
+          }
+        ],
+        "install": [
+          {
+            "find": "SolarWinds",
+            "install_to": "GameData",
+            "filter_regexp": "\\.cs(\\.bak)?$|Compile-AetherisSupernova\\.ps1$|HOW_TO_COMPILE\\.txt$"
+          }
+        ],
+        "download": "https://spacedock.info/mod/4452/solarwinds/download/0.8.5",
+        "download_size": 179189490,
+        "download_hash": {
+          "sha1": "81A8EF72082FCB5B2982697EADAA43D84402EDD4",
+          "sha256": "FD18D3D8ECFD82F79947F1D49D7BE5DF874A70D069DE689212AD2279285845FF"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 551924299,
+        "release_date": "2026-08-04T17:24:54.593917Z",
+        "x_via": "Automated SpaceDock CKAN submission",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "TURD-KerbalPowersNaval": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "TURD-KerbalPowersNaval",
+        "name": "TURD - Kerbal Powers Naval",
+        "abstract": "Textures Unlimited recolours for Kerbal Powers Naval",
+        "author": [
+          "Spartwo",
+          "MiffedStarfish"
+        ],
+        "version": "v1.1",
+        "ksp_version": "1.12.5",
+        "license": "CC-BY-NC-SA-4.0",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/228684-kerbal-powers-naval-v10/",
+          "spacedock": "https://spacedock.info/mod/3977/Kerbal%20Powers%20Naval",
+          "repository": "https://github.com/KerbalPowers/KP-Dynamics",
+          "manual": "https://github.com/KerbalPowers/KP-Dynamics/wiki",
+          "discussions": "https://github.com/KerbalPowers/KP-Dynamics/discussions",
+          "x_screenshot": "https://spacedock.info/content/Spartwo_95463/Kerbal_Powers_Naval/Kerbal_Powers_Naval-1756485279.png"
+        },
+        "tags": [
+          "config",
+          "graphics"
+        ],
+        "depends": [
+          {
+            "name": "ModuleManager"
+          },
+          {
+            "name": "TexturesUnlimited"
+          },
+          {
+            "name": "KerbalPowersNaval"
+          }
+        ],
+        "install": [
+          {
+            "find": "TURD/TU_KP_Naval_Recolour",
+            "install_to": "GameData/TURD"
+          }
+        ],
+        "download": "https://spacedock.info/mod/3977/Kerbal%20Powers%20Naval/download/v1.1",
+        "download_size": 34061022,
+        "download_hash": {
+          "sha1": "9CC141AA11AEA9335AB7D41E12825415196BE4EA",
+          "sha256": "5FBB23F05602E7433FD20418046E5F2AA8D83ACA2B71E8A2437C5F724686CACF"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 58036104,
+        "release_date": "2026-11-26T22:59:20.238815Z",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "WingtipVortex": [
+      {
+        "spec_version": "v1.34",
+        "identifier": "WingtipVortex",
+        "name": "Wingtip Vortex Mod",
+        "abstract": "Dynamic, physics-inspired wingtip vortices that respond to aircraft behavior in flight.",
+        "author": "PogKai",
+        "version": "2.2.2",
+        "ksp_version": "1.12.5",
+        "license": "CC-BY-NC-SA-4.0",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/topic/230208-wip112x-wingtip-vortex-mod-v030/",
+          "spacedock": "https://spacedock.info/mod/4209/Wingtip%20Vortex%20Mod",
+          "repository": "https://github.com/PogKai/ksp-wingtip-vortex",
+          "bugtracker": "https://github.com/PogKai/ksp-wingtip-vortex/issues",
+          "x_screenshot": "https://spacedock.info/content/PogKai_182128/Wingtip_Vortex_Mod/Wingtip_Vortex_Mod-1793206716.jpg"
+        },
+        "tags": [
+          "plugin",
+          "graphics"
+        ],
+        "install": [
+          {
+            "find": "WingtipVortex",
+            "install_to": "GameData",
+            "filter": "Source"
+          }
+        ],
+        "download": [
+          "https://github.com/PogKai/ksp-wingtip-vortex/releases/download/v2.2.2/WingtipVortex_2.2.2.zip",
+          "https://spacedock.info/mod/4209/Wingtip%20Vortex%20Mod/download/2.2.2"
+        ],
+        "download_size": 584403,
+        "download_hash": {
+          "sha1": "C7F2DF254B2451134CDB89BA7F46569749E59852",
+          "sha256": "B6BBB118CD4F1D84C9514D037FE9CC191AFA802AE817957CF10DBA7970D74C10"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 795535,
+        "release_date": "2026-11-27T18:28:06.011128Z",
+        "x_via": "Automated SpaceDock CKAN submission",
+        "x_generated_by": "netkan"
+      }
+    ]
+  },
+  "delete": []
+}

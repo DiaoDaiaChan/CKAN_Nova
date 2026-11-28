@@ -1,0 +1,92 @@
+{
+  "from_commit": "6ca99416022dab3bf2fdca02fec3b79509d38374",
+  "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+  "generated_at": "2026-11-28T10:43:06.360330+00:00",
+  "total_upsert": 2,
+  "total_deleted": 0,
+  "upsert": {
+    "BetterKraken": [
+      {
+        "spec_version": 1,
+        "identifier": "BetterKraken",
+        "name": "BetterKraken",
+        "abstract": "Makes the kraken 100 Times more powerful and annoying.",
+        "author": "Bobkermanrockets",
+        "version": "1",
+        "ksp_version": "1.12.5",
+        "license": "MIT",
+        "resources": {
+          "homepage": "https://github.com/Bobkermann-TT/BetterKraken/tree/main",
+          "spacedock": "https://spacedock.info/mod/4826/BetterKraken",
+          "x_screenshot": "https://spacedock.info/content/Bobkermanrockets_195458/BetterKraken/BetterKraken-1794722200.png"
+        },
+        "tags": [
+          "plugin"
+        ],
+        "download": "https://spacedock.info/mod/4826/BetterKraken/download/1",
+        "download_size": 5329,
+        "download_hash": {
+          "sha1": "80C87AC076FE94026F039AC4C9CD1E19165CBF5C",
+          "sha256": "6789DCF8B061893516513D8284D4FCD83C58181497A49C732D4BC149E838A9FE"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 9728,
+        "release_date": "2026-11-15T05:49:59.850041Z",
+        "x_via": "Automated SpaceDock CKAN submission",
+        "x_generated_by": "netkan"
+      }
+    ],
+    "KSPBurst-Lite": [
+      {
+        "spec_version": "v1.4",
+        "identifier": "KSPBurst-Lite",
+        "name": "KSPBurst Plugins",
+        "abstract": "Mods that require KSPBurst can run with this alone, but this does not improve performance unless the burst compiler is also installed.",
+        "author": "dkavolis",
+        "version": "v1.7.4.15",
+        "ksp_version_min": "1.12.0",
+        "ksp_version_max": "1.13.99",
+        "license": "unknown",
+        "resources": {
+          "homepage": "https://forum.kerbalspaceprogram.com/index.php?/topic/201112-*",
+          "repository": "https://github.com/KSPModdingLibs/KSPBurst",
+          "bugtracker": "https://github.com/KSPModdingLibs/KSPBurst/issues",
+          "manual": "https://github.com/KSPModdingLibs/KSPBurst/wiki",
+          "remote-avc": "https://raw.githubusercontent.com/KSPModdingLibs/KSPBurst/master/GameData/000_KSPBurst/KSPBurst.version"
+        },
+        "tags": [
+          "library",
+          "plugin"
+        ],
+        "depends": [
+          {
+            "name": "Harmony2",
+            "min_version": "2.2.1.0"
+          }
+        ],
+        "suggests": [
+          {
+            "name": "KSPBurst"
+          }
+        ],
+        "install": [
+          {
+            "find": "000_KSPBurst",
+            "install_to": "GameData"
+          }
+        ],
+        "download": "https://github.com/KSPModdingLibs/KSPBurst/releases/download/v1.7.4.15/KSPBurst_1.7.4.15.zip",
+        "download_size": 549580,
+        "download_hash": {
+          "sha1": "98DD74B097F4B515CF9E1A2C69DE67DCEDECECAC",
+          "sha256": "B9C69D8D5161A7856829DD2845A4BE2BDE9676764CAEC1DA2D4E278DB7B47E5D"
+        },
+        "download_content_type": "application/zip",
+        "install_size": 1663430,
+        "release_date": "2026-11-28T01:44:42Z",
+        "x_generated_by": "netkan"
+      }
+    ]
+  },
+  "delete": []
+}

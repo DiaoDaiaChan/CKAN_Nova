@@ -1,0 +1,161 @@
+{
+  "service": "ckan-nova-meta-incremental",
+  "head_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+  "head_short": "a351da2a",
+  "head_subject": "NetKAN updated mod - BetterKraken-1",
+  "updated_at": "2026-11-28T10:43:06.333289+00:00",
+  "recent_patches": [
+    {
+      "from_commit": "67e40259ecc5dc7fc4d748e1d2bfc12f73ba10fe",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/67e40259_a351da2a.json",
+      "size_kb": 1.4423828125,
+      "total_upsert": 1,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "5ec6665359b197dab029efc44aa011b0b24a3497",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/5ec66653_a351da2a.json",
+      "size_kb": 1.4423828125,
+      "total_upsert": 1,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "6ca99416022dab3bf2fdca02fec3b79509d38374",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/6ca99416_a351da2a.json",
+      "size_kb": 3.26171875,
+      "total_upsert": 2,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "99f4eed14e6ff91578754c7316177a8fa3fe4c88",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/99f4eed1_a351da2a.json",
+      "size_kb": 5.3662109375,
+      "total_upsert": 3,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "587e9cf297a502a1d0a2ecd35e824f896ad47370",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/587e9cf2_a351da2a.json",
+      "size_kb": 7.1220703125,
+      "total_upsert": 4,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "e30fa51bb80180ce282f665159f60663bb934068",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/e30fa51b_a351da2a.json",
+      "size_kb": 9.1845703125,
+      "total_upsert": 5,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "50bd5d7bf3ec59e117f1e1775142b79b7a6db804",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/50bd5d7b_a351da2a.json",
+      "size_kb": 10.7578125,
+      "total_upsert": 6,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "c13f45f7bb8cc2cb19a75d90ceaae784415cf22a",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/c13f45f7_a351da2a.json",
+      "size_kb": 12.9404296875,
+      "total_upsert": 7,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "00393db05353caf0adeb732bc6f410619bb8d977",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/00393db0_a351da2a.json",
+      "size_kb": 14.8720703125,
+      "total_upsert": 8,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "00ff4ac065ddf5f6578ad94cbcaf39a0f0540653",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/00ff4ac0_a351da2a.json",
+      "size_kb": 14.8720703125,
+      "total_upsert": 8,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "56cb06167f8a66ab49e40d49745fe1f63f50b0f5",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/56cb0616_a351da2a.json",
+      "size_kb": 16.5654296875,
+      "total_upsert": 9,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "c1a06b58633b6babe9ec421a40c3240f51e0fba9",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/c1a06b58_a351da2a.json",
+      "size_kb": 18.4560546875,
+      "total_upsert": 10,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "63bef551c171d927d60501cb9b78e3f1bd691d9c",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/63bef551_a351da2a.json",
+      "size_kb": 20.7998046875,
+      "total_upsert": 11,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "8d98b23561e62bdf19ecf57dab19783811a8098c",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/8d98b235_a351da2a.json",
+      "size_kb": 22.7431640625,
+      "total_upsert": 12,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "02215f2a9207d07aa1741538467f3243b8adde48",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/02215f2a_a351da2a.json",
+      "size_kb": 24.3828125,
+      "total_upsert": 13,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "059443ffafe69719f3798f11329d90a877cc7148",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/059443ff_a351da2a.json",
+      "size_kb": 24.3828125,
+      "total_upsert": 13,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "67e6d1f01b3f582ffda6d0bebbcd62dcdf5c4d69",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/67e6d1f0_a351da2a.json",
+      "size_kb": 26.16796875,
+      "total_upsert": 14,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "5e7c065a8445f06457109010ed633978f8bf6223",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/5e7c065a_a351da2a.json",
+      "size_kb": 27.9072265625,
+      "total_upsert": 15,
+      "total_deleted": 0
+    },
+    {
+      "from_commit": "7ef5de87c721890a839dd52d5c5dfab2c159124d",
+      "to_commit": "a351da2a30df76b72b187d3bc52b298fcb721412",
+      "path": "patches/7ef5de87_a351da2a.json",
+      "size_kb": 29.5234375,
+      "total_upsert": 16,
+      "total_deleted": 0
+    }
+  ]
+}
